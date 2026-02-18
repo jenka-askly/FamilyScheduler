@@ -246,7 +246,35 @@ const renderClarificationQuestion = (pending: PendingClarification): string => {
   return 'Please provide the missing details.';
 };
 
-const fillPendingClarification = (clarification: PendingClarification, value: string): void => {
+const getCurrentIdentityName = (state: AppState): string | null => {
+  if (!activePersonId) return null;
+  return state.people.find((person) => person.id === activePersonId)?.name ?? null;
+};
+
+const resolveAvailabilityQueries = (
+  state: AppState,
+  actions: Action[]
+): { actions: Action[]; clarification?: PendingClarification } => {
+  const currentIdentity = getCurrentIdentityName(state);
+  const resolvedActions = actions.map((action) => {
+    if (action.type === 'list_availability' && !action.personName && currentIdentity) {
+      return { ...action, personName: currentIdentity };
+    }
+    return action;
+  });
+
+  const needsPersonName = resolvedActions.some((action) => action.type === 'list_availability' && !action.personName);
+  if (needsPersonName) {
+    return {
+      actions: resolvedActions,
+      clarification: { kind: 'action_fill', action: { type: 'list_availability' }, missing: ['personName'] }
+    };
+  }
+
+  return { actions: resolvedActions };
+};
+
+const fillPendingClarification = (state: AppState, clarification: PendingClarification, value: string): void => {
   const trimmedValue = value.trim();
   for (const missing of [...clarification.missing]) {
     if (missing === 'code') {
@@ -258,7 +286,8 @@ const fillPendingClarification = (clarification: PendingClarification, value: st
     }
 
     if (missing === 'personName') {
-      clarification.action.personName = trimmedValue;
+      const matchedPerson = state.people.find((person) => normalizeName(person.name) === normalizeName(trimmedValue));
+      clarification.action.personName = matchedPerson?.name ?? trimmedValue;
       clarification.missing = clarification.missing.filter((item) => item !== 'personName');
       continue;
     }
@@ -309,8 +338,32 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     return { status: 200, jsonBody: { kind: 'reply', assistantText: 'Cancelled.', traceId } };
   }
 
+  if (normalizedMessage === 'confirm') {
+    if (!pendingProposal) return { status: 200, jsonBody: { kind: 'reply', assistantText: 'No pending change.', traceId } };
+    const proposalToApply = pendingProposal;
+    pendingProposal = null;
+    const loaded = await storage.getState();
+    if (loaded.etag !== proposalToApply.expectedEtag) {
+      return { status: 200, jsonBody: { kind: 'reply', assistantText: 'State changed since proposal. Please retry.', traceId } };
+    }
+
+    const execution = executeActions(loaded.state, proposalToApply.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+    activePersonId = execution.nextActivePersonId;
+
+    try {
+      await storage.putState(execution.nextState, loaded.etag);
+    } catch (error) {
+      if (error instanceof ConflictError) {
+        return { status: 200, jsonBody: { kind: 'reply', assistantText: 'State changed since proposal. Please retry.', traceId } };
+      }
+      throw error;
+    }
+
+    return { status: 200, jsonBody: { kind: 'applied', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+  }
+
   if (pendingClarification) {
-    fillPendingClarification(pendingClarification, message);
+    fillPendingClarification(state, pendingClarification, message);
     if (pendingClarification.missing.length > 0) {
       const looksCodeLike = looksLikeSingleCodeToken(message);
       if (pendingClarification.missing.includes('code') && !looksCodeLike) {
@@ -345,32 +398,14 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText([completedAction]), traceId } };
     }
 
-    const execution = executeActions(state, [completedAction], { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+    const availabilityResolved = resolveAvailabilityQueries(state, [completedAction]);
+    if (availabilityResolved.clarification) {
+      pendingClarification = availabilityResolved.clarification;
+      return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+    }
+
+    const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
     return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
-  }
-
-  if (normalizedMessage === 'confirm') {
-    if (!pendingProposal) return { status: 200, jsonBody: { kind: 'reply', assistantText: 'No pending change.', traceId } };
-    const proposalToApply = pendingProposal;
-    pendingProposal = null;
-    const loaded = await storage.getState();
-    if (loaded.etag !== proposalToApply.expectedEtag) {
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: 'State changed since proposal. Please retry.', traceId } };
-    }
-
-    const execution = executeActions(loaded.state, proposalToApply.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-    activePersonId = execution.nextActivePersonId;
-
-    try {
-      await storage.putState(execution.nextState, loaded.etag);
-    } catch (error) {
-      if (error instanceof ConflictError) {
-        return { status: 200, jsonBody: { kind: 'reply', assistantText: 'State changed since proposal. Please retry.', traceId } };
-      }
-      throw error;
-    }
-
-    return { status: 200, jsonBody: { kind: 'applied', assistantText: execution.effectsTextLines.join('\n'), traceId } };
   }
 
   if (normalizedMessage === 'reset state') {
@@ -429,10 +464,7 @@ Reply 'confirm' or 'cancel'.`, traceId } };
 
   if (normalizedMessage === 'list appointments') deterministicActions.push({ type: 'list_appointments' });
   if (normalizedMessage === 'list availability') deterministicActions.push({ type: 'list_availability' });
-  if (normalizedMessage === 'list my availability') {
-    pendingClarification = { kind: 'action_fill', action: { type: 'list_availability' }, missing: ['personName'] };
-    return { status: 200, jsonBody: { kind: 'clarify', question: 'Whose availability?', traceId } };
-  }
+  if (normalizedMessage === 'list my availability' || normalizedMessage === 'show my availability') deterministicActions.push({ type: 'list_availability' });
   const listForMatch = message.match(/^list\s+availability\s+for\s+(.+)$/i);
   if (listForMatch) deterministicActions.push({ type: 'list_availability', personName: listForMatch[1].trim() });
 
@@ -462,7 +494,13 @@ Reply 'confirm' or 'cancel'.`, traceId } };
       return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions), traceId } };
     }
 
-    const execution = executeActions(state, deterministicActions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+    const availabilityResolved = resolveAvailabilityQueries(state, deterministicActions);
+    if (availabilityResolved.clarification) {
+      pendingClarification = availabilityResolved.clarification;
+      return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+    }
+
+    const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
     return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
   }
 
@@ -505,7 +543,13 @@ Reply 'confirm' or 'cancel'.`, traceId } };
     }
 
     if (parsed.kind === 'query') {
-      const execution = executeActions(state, parsed.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      const availabilityResolved = resolveAvailabilityQueries(state, parsed.actions);
+      if (availabilityResolved.clarification) {
+        pendingClarification = availabilityResolved.clarification;
+        return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+      }
+
+      const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
     }
 
