@@ -169,6 +169,7 @@ High-level setup:
 - `403` from blob calls: SAS token invalid, missing permission, or expired.
 - `404` on initial read: expected if blob does not exist yet; API attempts auto-init create-if-missing.
 - `412` on write: optimistic concurrency conflict (`If-Match` failed); user should retry and confirm again.
+- `409`/`412` on init create-if-missing are treated as already-exists success conditions by the API.
 
 ## 6. Storage verification scenarios
 
