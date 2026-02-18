@@ -1,21 +1,14 @@
 # apps/web
 
-Scaffold folder for the FamilyScheduler web client.
+Minimal prompt-only React UI.
 
-## Intent
+## Run locally
 
-- Provide a prompt-only web UI:
-  - transcript area
-  - single prompt input
-- No calendar widgets, no CRUD forms, no list/timeline visual UI components.
+From repository root:
 
-## Status
+```bash
+pnpm install
+pnpm dev:web
+```
 
-No implementation code yet. This folder currently exists for structure + planning.
-
-## Planned responsibilities
-
-- Session token handling after passkey login
-- Prompt submission to `/api/chat`
-- Rendering reply/proposal/clarify/error messages as text transcript entries
-- Confirm/cancel interactions through prompt text only (`confirm`, `cancel`)
+The app runs at `http://localhost:5173` and proxies `/api/*` to `http://localhost:7071`.

@@ -4,11 +4,14 @@
   "private": true,
   "packageManager": "pnpm@10.30.0",
   "scripts": {
-    "verify:tree": "node -e \"const fs=require('fs');['apps','api','packages','docs','scripts'].forEach(d=>console.log(`${fs.existsSync(d)?'\u2713':'\u2717'} ${d}`));\"",
+    "dev": "pnpm --parallel --filter @familyscheduler/web --filter @familyscheduler/api dev",
+    "dev:web": "pnpm --filter @familyscheduler/web dev",
+    "dev:api": "pnpm --filter @familyscheduler/api dev",
+    "verify:tree": "node -e \"const fs=require('fs');['apps','api','packages','docs','scripts'].forEach(d=>console.log(`${fs.existsSync(d)?'✓':'✗'} ${d}`));\"",
     "verify:docs": "node -e \"const fs=require('fs');const required=['README.md','PROJECT_STATUS.md','CODEX_LOG.md','docs/architecture.md','docs/api.md'];const missing=required.filter(f=>!fs.existsSync(f));if(missing.length){console.error('Missing required docs:\n'+missing.join('\n'));process.exit(1);}console.log('Required docs present');\"",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"no lint yet\"",
     "typecheck": "echo \"no typecheck yet\"",
-    "ci": "pnpm -r --if-present lint && pnpm -r --if-present typecheck && pnpm -r --if-present test"
+    "ci": "pnpm -r --if-present build && pnpm -r --if-present lint && pnpm -r --if-present typecheck && pnpm -r --if-present test"
   }
 }
