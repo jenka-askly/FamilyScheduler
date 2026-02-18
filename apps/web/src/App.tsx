@@ -5,11 +5,20 @@ type TranscriptEntry = {
   text: string;
 };
 
-type ChatReply = {
-  kind: 'reply';
-  assistantText: string;
-  stateVersion: number;
-};
+type ChatResponse =
+  | {
+      kind: 'reply';
+      assistantText: string;
+    }
+  | {
+      kind: 'proposal';
+      proposalId: string;
+      assistantText: string;
+    }
+  | {
+      kind: 'applied';
+      assistantText: string;
+    };
 
 export function App() {
   const [message, setMessage] = useState('');
@@ -41,8 +50,14 @@ export function App() {
       return;
     }
 
-    const json = (await response.json()) as ChatReply;
-    setTranscript((previous) => [...previous, { role: 'assistant', text: json.assistantText }]);
+    const json = (await response.json()) as ChatResponse;
+
+    if (json.kind === 'reply' || json.kind === 'proposal' || json.kind === 'applied') {
+      setTranscript((previous) => [...previous, { role: 'assistant', text: json.assistantText }]);
+      return;
+    }
+
+    setTranscript((previous) => [...previous, { role: 'assistant', text: 'error: unsupported response kind' }]);
   };
 
   return (
