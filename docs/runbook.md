@@ -202,3 +202,20 @@ CI note:
 - CI should continue to pass without Azure credentials.
 - Azure integration tests remain manual/optional and must not require secrets.
 
+
+
+## 7. OpenAI natural-language parser (feature-flagged)
+
+Environment variables (API):
+
+- `OPENAI_API_KEY=<secret>`
+- `OPENAI_MODEL=gpt-4.1-mini`
+- `OPENAI_PARSER_ENABLED=true` (set `false` in production until validated)
+- `OPENAI_MAX_CONTEXT_CHARS=8000`
+
+Local steps:
+
+1. Set the values in `.env` / `api/local.settings.json`.
+2. Keep `STORAGE_MODE=local` during initial validation.
+3. Use natural language prompts (for example, "Who is available in March?").
+4. Confirm all mutation intents still return `kind: proposal` and require `confirm`.

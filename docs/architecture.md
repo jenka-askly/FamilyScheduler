@@ -125,3 +125,19 @@ Concurrency behavior:
 Init behavior:
 
 - Missing Azure blob is initialized using `If-None-Match: *` with the same empty seeded state shape used in local mode.
+
+
+## OpenAI parsing safety boundary
+
+Natural-language parsing is an optional layer behind `OPENAI_PARSER_ENABLED`:
+
+1. Chat request enters deterministic parser first (existing command grammar).
+2. If no deterministic match and flag enabled, API calls OpenAI parser with compact context.
+3. OpenAI must return strict JSON action payload.
+4. API validates JSON against a versioned strict action schema parser (unknown-field rejection).
+5. Execution path:
+   - `kind=query` → deterministic executor (read-only response)
+   - `kind=mutation` → pending proposal only (requires `confirm`)
+   - `kind=clarify` or validation failure → clarify question, no mutation
+
+The deterministic executor remains the only mutation authority.

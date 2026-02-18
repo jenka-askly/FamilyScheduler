@@ -115,3 +115,12 @@ After every merged PR, update this file with:
 - Local mode remains the default and unchanged for developer workflows.
 - Azure mode is ready for staging/production where shared persistent state is required.
 - CI remains secret-free; Azure behavior is verified manually with real SAS credentials only.
+
+
+## Recent update (2026-02-18 23:05 UTC)
+
+- Added feature-flagged OpenAI natural-language parser (`OPENAI_PARSER_ENABLED`) that emits strict structured actions only.
+- Added versioned action schema (`ActionSchemaVersion=1`) with strict validation and unknown-field rejection.
+- Added centralized deterministic action executor as the only mutation path.
+- Updated chat routing: deterministic commands first, OpenAI fallback, clarify/query/proposal handling, and traceId in responses.
+- Added API unit tests for schema validation and deterministic executor behavior.

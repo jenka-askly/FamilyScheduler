@@ -43,3 +43,15 @@ Stable codes:
 Timezone default: `America/Los_Angeles`.
 
 ---
+
+
+## Natural language (OpenAI parser)
+
+When `OPENAI_PARSER_ENABLED=true`, the API can parse natural phrasing into structured actions.
+
+Examples:
+- `Add an appointment for PT on March 15 at 2pm`
+- `I'm out of town March 10 from 9 to 1`
+- `Delete the dentist appointment` (expected clarify response with explicit code candidates)
+
+Safety reminder: changes still require explicit `confirm` before mutation is applied.
