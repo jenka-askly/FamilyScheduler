@@ -226,3 +226,34 @@ Document lockfile/caching continuity and local `pnpm approve-builds` guidance af
 ### Follow-ups
 
 - Confirm next CI run uses committed `pnpm-lock.yaml` with `setup-node` pnpm cache without lockfile errors.
+
+## 2026-02-18 20:39 UTC (chunk 2 proposal + confirm protocol)
+
+### Objective
+
+Implement deterministic in-memory confirmation protocol for the stub chat API and update the web client to handle new response kinds.
+
+### Approach
+
+- Updated `POST /api/chat` classification to deterministic `mutation` / `confirm` / `query` handling.
+- Added module-level in-memory `pendingProposal` with proposal creation and confirm/apply semantics.
+- Updated web transcript handling to accept `reply`, `proposal`, and `applied` response kinds.
+- Updated `PROJECT_STATUS.md` to reflect current behavior and revised next milestones.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ⚠️ failed in this environment because Corepack could not download pnpm (`Proxy response (403)`).
+- `pnpm -r --if-present test` ⚠️ failed in this environment for the same Corepack/network reason.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Add persistent proposal/state storage and operation codes.
+- Add structured action schema to replace prefix-based classification.
