@@ -8,7 +8,7 @@ FamilyScheduler follows a simple three-tier flow:
 2. **API service**
 3. **Storage adapter**
    - Local JSON file adapter (default)
-   - Azure Blob adapter (next)
+   - Azure Blob adapter (SAS URL based)
 
 Logical path:
 
@@ -103,3 +103,25 @@ Write path is optimistic and atomic:
 4. On match, write temp file then rename into place.
 
 This preserves prompt confirmation behavior while preventing accidental overwrite from stale proposals.
+
+## 8. Storage modes and adapters
+
+The API selects a storage adapter via `STORAGE_MODE`:
+
+- `local` (default): `LocalFileStorage` writes `LOCAL_STATE_PATH` with atomic rename and hash-based ETag checks.
+- `azure`: `AzureBlobStorage` reads/writes a `state.json` blob over HTTPS using SAS authorization.
+
+Azure URL handling:
+
+- Container SAS URL is supported; blob path is `STATE_BLOB_NAME` under that container.
+- Blob SAS URL is supported directly; `STATE_BLOB_NAME` is ignored.
+
+Concurrency behavior:
+
+- Proposal creation stores `expectedEtag`.
+- Confirm re-reads current state+etag; if proposal etag differs, API returns `State changed since proposal...` and skips apply.
+- Apply writes with `If-Match: <etag>`; Azure returns `412/409` on conflict, mapped to the same `ConflictError` behavior used by local mode.
+
+Init behavior:
+
+- Missing Azure blob is initialized using `If-None-Match: *` with the same empty seeded state shape used in local mode.

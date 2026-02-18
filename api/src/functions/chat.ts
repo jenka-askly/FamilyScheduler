@@ -1,5 +1,5 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { createStorageAdapter } from '../lib/storage/localFileStorage.js';
+import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { ConflictError } from '../lib/storage/storage.js';
 import { createEmptyAppState, type AppState, type Appointment, type AvailabilityBlock, type Person } from '../lib/state.js';
 

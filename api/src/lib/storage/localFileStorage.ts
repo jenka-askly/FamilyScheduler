@@ -79,13 +79,3 @@ export class LocalFileStorage implements StorageAdapter {
     };
   }
 }
-
-export const createStorageAdapter = (): StorageAdapter => {
-  const storageMode = process.env.STORAGE_MODE ?? 'local';
-
-  if (storageMode !== 'local') {
-    throw new Error(`Unsupported STORAGE_MODE: ${storageMode}`);
-  }
-
-  return new LocalFileStorage();
-};
