@@ -44,6 +44,14 @@ Production storage mode uses Azure Blob with SAS.
 - `docs` — product + technical specifications
 - `scripts` — documented script placeholders
 
+## Local verification (scaffold stage)
+
+1. Install pnpm (version 10 recommended).
+2. Run `pnpm install` at the repository root.
+3. Run `pnpm run ci` (this should pass with placeholder scripts while the repo is scaffold-only).
+
+Actual app/API build and dev commands will be added in the next PR when `apps/web` and `api` packages are implemented.
+
 ## CI and deploy workflow skeletons
 
 - CI skeleton: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)

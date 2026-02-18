@@ -56,3 +56,38 @@ Create a PR-ready repository scaffold and full documentation/workflow skeletons 
 - Implement API and web runtime code per spec.
 - Add executable scripts and real CI lint/typecheck/test commands.
 - Add package manifests and lockfile.
+
+## 2026-02-18 UTC (follow-up)
+
+### Objective
+
+Enable meaningful local verification in scaffold-only state by adding a safe root `package.json` and wiring CI to run pnpm commands.
+
+### Approach
+
+- Added minimal root `package.json` with placeholder scripts and workspace-safe CI command.
+- Updated README with scaffold-stage verification instructions.
+- Updated project status checklist and recorded this PR's changes.
+- Updated CI workflow to run `pnpm install` and `pnpm run ci`.
+- Added `.vs/` to `.gitignore` for editor hygiene.
+
+### Files changed
+
+- `package.json`
+- `README.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+- `.github/workflows/ci.yml`
+- `.gitignore`
+
+### Commands run + outcomes
+
+- `pnpm -v` ⚠️ failed in this environment because Corepack could not download pnpm (`Proxy response (403)`).
+- `pnpm install` ⚠️ blocked by the same Corepack/network issue in this environment.
+- `pnpm run ci` ⚠️ blocked by the same Corepack/network issue in this environment.
+- `git status --short` ✅ only expected repository edits.
+
+### Follow-ups
+
+- Add real package manifests in `apps/web`, `api`, and `packages/shared`.
+- Replace placeholder lint/typecheck/test scripts with executable project checks.

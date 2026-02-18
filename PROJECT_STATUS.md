@@ -61,6 +61,8 @@ No application/runtime implementation code has been added yet.
 - [x] Local-first mode documented (`STORAGE_MODE=local`)
 - [x] Local state path and initial shape documented
 - [x] Intended local run commands documented (pending implementation)
+- [x] `pnpm install` works at repo root
+- [x] `pnpm run ci` passes (placeholder)
 - [ ] App/API runnable locally (pending code)
 
 ## Deployment checklist
@@ -77,3 +79,10 @@ After every merged PR, update this file with:
 - what changed,
 - local/deploy status,
 - next steps.
+
+## Recent update
+
+- Added a minimal root `package.json` so `pnpm install` works in scaffold-only state.
+- Updated README with scaffold-stage local verification steps (`pnpm install`, `pnpm run ci`).
+- Updated CI workflow to run `pnpm install` and `pnpm run ci` against scaffold-safe scripts.
+
