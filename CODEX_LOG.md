@@ -420,3 +420,33 @@ Align Azure Functions Node worker discovery with TypeScript output layout so com
 
 - Re-run `pnpm install` in an environment with npm registry access.
 - Re-run `pnpm -C api run build` then start API via `pnpm -C api run dev` (or root `pnpm dev`) and verify `POST /api/chat` returns JSON.
+
+## 2026-02-18 21:23 UTC (functions worker entrypoint mismatch verification)
+
+### Objective
+
+Ensure local Azure Functions worker indexing matches TypeScript output path (`dist/src/functions/*.js`) and document troubleshooting so `/api/chat` can be discovered by `pnpm dev`.
+
+### Approach
+
+- Verified `api/tsconfig.json` already uses `rootDir: "."` to emit `src/functions` under `dist/src/functions`.
+- Added a concise troubleshooting line in the runbook keyed to the exact worker error string.
+- Added a continuity update in `PROJECT_STATUS.md` documenting re-verification of build output path expectations.
+- Attempted local build/dev/runtime checks; captured environment blockers.
+
+### Files changed
+
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ❌ failed in this environment: missing `@types/node` package due blocked registry fetch.
+- `pnpm install` ❌ failed in this environment: `ERR_PNPM_FETCH_403` fetching `@types/node` tarball from npm registry.
+- `test -f api/dist/src/functions/chat.js && echo 'exists' || echo 'missing'` ✅ confirmed existing compiled file at `api/dist/src/functions/chat.js`.
+- `pnpm dev` ❌ failed in this environment: `vite: not found` because dependencies are not installed.
+
+### Follow-ups
+
+- In a network-enabled local environment, run `pnpm install`, then `pnpm -C api run build`, then `pnpm dev` and POST to `http://localhost:7071/api/chat` to confirm JSON response.
