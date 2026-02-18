@@ -287,3 +287,33 @@ Fix workspace build failure `TS2688: Cannot find type definition file for 'node'
 ### Follow-ups
 
 - Re-run `pnpm install` and `pnpm -r --if-present build` in CI or a network-enabled local environment to regenerate/confirm `pnpm-lock.yaml` and verify no `TS2688` remains.
+
+## 2026-02-18 21:01 UTC (fix build: workspace TypeScript dependency)
+
+### Objective
+
+Fix workspace builds where `tsc` is not found by adding TypeScript at the workspace root and updating continuity docs.
+
+### Approach
+
+- Added root `devDependencies.typescript` with specifier `^5.5.0` in `package.json`.
+- Updated `pnpm-lock.yaml` root importer to include workspace-root `typescript` dependency mapping.
+- Updated `PROJECT_STATUS.md` recent changes to document the workspace TypeScript dependency addition for local/CI builds.
+- Attempted dependency install and workspace build verification.
+
+### Files changed
+
+- `package.json`
+- `pnpm-lock.yaml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm install --no-frozen-lockfile` ⚠️ failed in this environment because Corepack could not download pnpm (`Proxy response (403)`).
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Run `pnpm install --no-frozen-lockfile` in a network-enabled environment to fully regenerate lockfile metadata if needed.
+- Run `pnpm -r --if-present build` to confirm `tsc` resolution across workspaces in local/CI.
