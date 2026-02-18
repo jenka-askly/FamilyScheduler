@@ -808,3 +808,46 @@ Fix clarify follow-up behavior so the next user message is consumed as missing p
 ### Follow-ups
 
 - Extend pending clarification extraction to additional clarify intents returned from OpenAI structured outputs as more missing-field patterns are introduced.
+
+## 2026-02-18 23:45 UTC (clarify intent binding + code normalization)
+
+### Objective
+
+Fix the multi-turn clarify bug where follow-up code replies (e.g., `APPt1`) lose the original delete intent, and normalize APPT/AVL code variants reliably in delete/update/show flows.
+
+### Approach
+
+- Added `api/src/lib/text/normalizeCode.ts` with canonical code normalization helpers:
+  - `normalizeAppointmentCode` (`appt1`, `APPT 1`, etc. => `APPT-1`)
+  - `normalizeAvailabilityCode` (supports canonical + relaxed `AVL-<name>1` => `AVL-<name>-1`)
+  - `looksLikeSingleCodeToken`
+- Reworked chat pending clarification state to preserve intended action, missing slots, candidate codes, and optional ETag for mutation proposal handoff.
+- Added slot-aware clarify filling at the top of `chat()` that:
+  - handles `cancel`
+  - fills `code`/`personName`/`action`
+  - re-asks without losing state on invalid input
+  - executes query actions immediately or creates mutation proposals directly without re-routing through top-level parsing.
+- Added deterministic disambiguation for `Delete the <title> one` when multiple appointment title matches exist, returning a code candidate clarify and preserving delete intent.
+- Updated deterministic code parsing to use normalization for `delete`, `show`, and `update ... title ...` commands.
+- Added coverage for the main repro flow, clarify persistence on nonsense replies, and code normalizer behavior.
+- Updated prompt help and project status continuity notes.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/lib/text/normalizeCode.ts`
+- `api/src/lib/text/normalizeCode.test.ts`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api test` ❌ failed initially (TypeScript pending-clarification action typing mismatch + one assertion regex mismatch in new test).
+- `pnpm -C api test` ✅ passed after type and test fixes.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp.
+
+### Follow-ups
+
+- If/when OpenAI parser schema is expanded, wire explicit structured clarify candidates/action metadata through `ParsedModelResponseSchema` to avoid fallback text parsing for clarify candidates.
