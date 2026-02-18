@@ -13,6 +13,7 @@
     "@azure/functions": "^4.8.0"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@types/node": "^20.0.0"
   }
 }
