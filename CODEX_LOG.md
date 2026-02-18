@@ -317,3 +317,35 @@ Fix workspace builds where `tsc` is not found by adding TypeScript at the worksp
 
 - Run `pnpm install --no-frozen-lockfile` in a network-enabled environment to fully regenerate lockfile metadata if needed.
 - Run `pnpm -r --if-present build` to confirm `tsc` resolution across workspaces in local/CI.
+
+## 2026-02-18 21:06 UTC (chunk 3 in-memory appointment state + codes)
+
+### Objective
+
+Add real in-memory appointment state with identifiable codes and deterministic add/list/show command handling while preserving confirmation-before-mutation behavior.
+
+### Approach
+
+- Replaced generic mutation classification with explicit command handling for `add appt`, `confirm`, `list appointments`, and `show <code>`.
+- Added API module-level in-memory `state.appointments` array and runtime `appointmentCodeCounter` for stable `APPT-n` generation.
+- Implemented add flow proposal text and confirm apply path that persists appointment data in memory and returns an "Upcoming appointments" snapshot.
+- Implemented list/show query flows without confirmation requirement.
+- Updated continuity docs (`PROJECT_STATUS.md`) to reflect current capabilities and revised next steps.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ⚠️ failed in this environment because Corepack could not download pnpm (`Proxy response (403)`).
+- `pnpm run ci` ⚠️ failed in this environment for the same Corepack/proxy restriction while fetching pnpm.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured this log timestamp.
+
+### Follow-ups
+
+- Replace naive command parsing with structured action schema + validation.
+- Add update/delete mutation flows with confirmation protocol.
+- Introduce availability model and assignment logic.
