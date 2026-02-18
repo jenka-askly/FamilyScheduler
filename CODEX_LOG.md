@@ -257,3 +257,33 @@ Implement deterministic in-memory confirmation protocol for the stub chat API an
 
 - Add persistent proposal/state storage and operation codes.
 - Add structured action schema to replace prefix-based classification.
+
+## 2026-02-18 20:43 UTC (api build fix: add Node type definitions)
+
+### Objective
+
+Fix workspace build failure `TS2688: Cannot find type definition file for 'node'` in the API package.
+
+### Approach
+
+- Added `@types/node` to `api` `devDependencies`.
+- Kept `api/tsconfig.json` `types: ["node"]` unchanged so the type reference resolves.
+- Attempted to run root dependency install and workspace build verification.
+- Updated continuity docs with this build-fix status.
+
+### Files changed
+
+- `api/package.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm install` ⚠️ failed in this environment because Corepack could not download pnpm (`Proxy response (403)`).
+- `pnpm -r --if-present build` ⚠️ not runnable for the same Corepack/network reason (pnpm unavailable).
+- `rg -n "@types/node|types": \[\"node\"\]" api/package.json api/tsconfig.json` ✅ confirmed package/tsconfig wiring.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Re-run `pnpm install` and `pnpm -r --if-present build` in CI or a network-enabled local environment to regenerate/confirm `pnpm-lock.yaml` and verify no `TS2688` remains.
