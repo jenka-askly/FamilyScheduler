@@ -7,6 +7,9 @@ Local runnable baseline implemented.
 ## What works now
 
 - Confirmation protocol implemented (in-memory only).
+- In-memory appointment state in API (`appointments[]`) with runtime-stable generated codes (`APPT-1`, `APPT-2`, ...).
+- `list appointments` command returns one appointment per line (`APPT-n — <title>`).
+- `show APPT-n` command returns appointment details or a not-found message.
 - Mutation-like commands require explicit `confirm` before apply.
 - No persistence yet for pending proposals.
 - Monorepo is runnable locally with `pnpm dev`.
@@ -46,6 +49,7 @@ Local runnable baseline implemented.
 
 ## Recent changes
 
+- 2026-02-18: Added in-memory appointment mutation/query support in API (`add appt <title>`, `confirm`, `list appointments`, `show APPT-n`) with runtime-generated human-readable appointment codes and post-apply snapshot output.
 - 2026-02-18: Added workspace-root `typescript` devDependency (`^5.5.0`) so workspace `tsc` invocations resolve during local/CI builds.
 - 2026-02-18: Fixed API TypeScript build configuration by adding `@types/node` to `api` devDependencies to resolve `TS2688` (Cannot find type definition file for `node`).
 - 2026-02-18: Added `pnpm-lock.yaml` to the repository so GitHub Actions (`setup-node` cache: pnpm) can run without failing.
@@ -60,9 +64,9 @@ Local runnable baseline implemented.
 
 ## Next steps
 
-1. Add persistent state + operation codes for proposal/apply flows.
-2. Replace naive text-prefix classification with a structured action schema.
-3. Add auth and OpenAI-backed response path behind deterministic command handling.
+1. Replace naive parsing with a structured action schema.
+2. Add delete + update appointment flows with confirmation protocol.
+3. Add availability model for assignment/scheduling decisions.
 
 ## Continuity rule
 
