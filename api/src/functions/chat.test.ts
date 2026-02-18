@@ -62,6 +62,56 @@ test('clarification reply fills missing personName for list availability', async
   assert.match((resolved.jsonBody as any).assistantText, /AVL-JOE-1/);
 });
 
+test('identity is used for show my availability query', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const setIdentity = await sendChat('I am Joe');
+  assert.equal((setIdentity.jsonBody as any).kind, 'reply');
+
+  const mark = await sendChat('mark me unavailable 2026-03-10 10:00-11:00 busy');
+  assert.equal((mark.jsonBody as any).kind, 'proposal');
+  await sendChat('confirm');
+
+  const showMine = await sendChat('show my availability');
+  assert.equal((showMine.jsonBody as any).kind, 'reply');
+  assert.match((showMine.jsonBody as any).assistantText, /AVL-JOE-1/);
+});
+
+test('missing identity triggers clarify and resolving personName executes query without setting identity', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const mark = await sendChat('mark Joe unavailable 2026-03-10 10:00-11:00 busy');
+  assert.equal((mark.jsonBody as any).kind, 'proposal');
+  await sendChat('confirm');
+
+  const askMine = await sendChat('show my availability');
+  assert.equal((askMine.jsonBody as any).kind, 'clarify');
+  assert.equal((askMine.jsonBody as any).question, 'Whose availability?');
+
+  const resolved = await sendChat('joe');
+  assert.equal((resolved.jsonBody as any).kind, 'reply');
+  assert.match((resolved.jsonBody as any).assistantText, /AVL-JOE-1/);
+
+  const markMe = await sendChat('mark me unavailable 2026-03-11 10:00-11:00 busy');
+  assert.equal((markMe.jsonBody as any).kind, 'proposal');
+  assert.match((markMe.jsonBody as any).assistantText, /Mark me unavailable/i);
+});
+
+test('bare name without pending clarification does not set identity', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const bare = await sendChat('joe');
+  assert.equal((bare.jsonBody as any).kind, 'reply');
+  assert.equal((bare.jsonBody as any).assistantText, 'Natural language parsing is disabled. Try commands: help');
+
+  const markMe = await sendChat('mark me unavailable 2026-03-12 10:00-11:00 busy');
+  assert.equal((markMe.jsonBody as any).kind, 'proposal');
+  assert.match((markMe.jsonBody as any).assistantText, /Mark me unavailable/i);
+});
+
 test('I am Joe sets identity immediately', async () => {
   process.env.STORAGE_MODE = 'local';
   await resetState();

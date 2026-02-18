@@ -851,3 +851,34 @@ Fix the multi-turn clarify bug where follow-up code replies (e.g., `APPt1`) lose
 ### Follow-ups
 
 - If/when OpenAI parser schema is expanded, wire explicit structured clarify candidates/action metadata through `ParsedModelResponseSchema` to avoid fallback text parsing for clarify candidates.
+
+## 2026-02-18 23:55 UTC (identity-aware availability + clarification precedence)
+
+### Objective
+
+Fix availability query behavior so "my availability" uses active identity when available, otherwise clarifies for person name, and ensure pending clarification resolution runs before identity-style parsing.
+
+### Approach
+
+- Reordered chat flow to evaluate `confirm` before pending clarification handling, and to resolve pending clarification before deterministic identity parsing.
+- Added availability query resolution helper that injects current identity into `list_availability` actions when `personName` is missing, else creates a `personName` clarification.
+- Updated clarification slot fill for `personName` to match existing people case-insensitively and execute immediately as query flow.
+- Added deterministic parsing for `show my availability` to route into `list_availability` with identity-aware resolution.
+- Added focused chat tests covering identity-backed "my availability", clarify-then-resolve behavior without identity reset, and bare-name non-identity behavior.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ all API tests passed (11/11).
+- `pnpm run ci` ✅ workspace build/typecheck/tests passed.
+- `pnpm ci` ❌ command unsupported in pnpm (`ERR_PNPM_CI_NOT_IMPLEMENTED`), used `pnpm run ci` instead.
+
+### Follow-ups
+
+- If future action schema introduces `show_availability` with `personName`, extend identity-aware resolver to that action type as well.
