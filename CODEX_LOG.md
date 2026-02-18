@@ -119,3 +119,30 @@ Prevent CI/deploy failures when `AZURE_STATIC_WEB_APPS_API_TOKEN` is not configu
 
 - Configure `AZURE_STATIC_WEB_APPS_API_TOKEN` in repository secrets to enable actual deployments.
 - Replace `output_location: .` with real build output path once `apps/web` implementation exists.
+
+## 2026-02-18 UTC (pnpm CI version alignment)
+
+### Objective
+
+Fix CI pnpm setup so GitHub Actions uses the pnpm version declared in `package.json` (`packageManager`) and avoids version conflicts.
+
+### Approach
+
+- Removed explicit `version: 10` from `pnpm/action-setup@v4` in CI.
+- Kept `packageManager: pnpm@10.30.0` unchanged in `package.json`.
+- Performed targeted checks to confirm workflow and package manager alignment.
+
+### Files changed
+
+- `.github/workflows/ci.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' .github/workflows/ci.yml && cat package.json` ✅ verified current setup and package manager declaration.
+- `git diff -- .github/workflows/ci.yml` ✅ confirmed only pnpm version pin removal.
+
+### Follow-ups
+
+- Verify on next GitHub Actions run that pnpm installs at `10.30.0` without "Multiple versions" errors.
