@@ -745,3 +745,35 @@ Implement feature-flagged OpenAI natural-language parsing that outputs strict st
 - `pnpm --filter @familyscheduler/api test` ✅ passed.
 - `pnpm ci` ❌ failed (`ERR_PNPM_CI_NOT_IMPLEMENTED` in pnpm).
 - `pnpm run ci` ✅ passed (workspace build/lint/typecheck/test sequence).
+
+## 2026-02-18 23:17 UTC (normalize availability NL query matching)
+
+### Objective
+
+Fix deterministic availability query fallback by normalizing chat input and making month-query matching robust to punctuation/case variants, while preserving confirm guards for mutations.
+
+### Approach
+
+- Added shared text normalization helper for deterministic routing (`trim` + lowercase + whitespace collapse + trailing punctuation removal).
+- Applied normalized text in chat routing while retaining raw input for value-carrying commands and OpenAI fallback payload.
+- Upgraded availability query parser to support month names and abbreviations (`march`/`mar`) with next-occurrence year resolution.
+- Added targeted clarify fallback for malformed availability-only queries.
+- Added API tests covering normalization equivalence for availability query and non-regression for mutation-confirm + delete command parsing.
+
+### Files changed
+
+- `api/src/lib/text/normalize.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed.
+- `pnpm run ci` ✅ passed.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp for continuity log.
+
+### Follow-ups
+
+- If desired, add a dedicated parser unit test module for availability query month resolution with an injected clock to make year-rollover behavior fully deterministic in tests.

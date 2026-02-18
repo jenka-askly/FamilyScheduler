@@ -5,6 +5,7 @@ import { type AppState } from '../lib/state.js';
 import { executeActions } from '../lib/actions/executor.js';
 import { type Action, ParsedModelResponseSchema } from '../lib/actions/schema.js';
 import { parseToActions } from '../lib/openai/openaiClient.js';
+import { normalizeUserText } from '../lib/text/normalize.js';
 
 type ChatRequest = { message?: unknown };
 
@@ -89,18 +90,43 @@ const parseMarkUnavailableCommand = (message: string): { target: string; parsedD
   return { target, parsedDateTime, reason: match[4]?.trim() || undefined, isMe: normalizeName(target) === 'me' };
 };
 
-const parseMonthRangeQuery = (message: string): { month?: string; start?: string; end?: string } | null => {
-  const trimmed = message.trim().toLowerCase();
-  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-  const monthMatch = trimmed.match(/^who\s+is\s+available\s+in\s+([a-z]+)$/i);
-  if (monthMatch) {
-    const monthIndex = monthNames.indexOf(monthMatch[1].toLowerCase());
-    if (monthIndex === -1) return null;
-    return { month: `${new Date().getUTCFullYear()}-${String(monthIndex + 1).padStart(2, '0')}` };
+const resolveNextYearForMonth = (monthIndex: number, now: Date): number => {
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth();
+  return monthIndex < currentMonth ? currentYear + 1 : currentYear;
+};
+
+const parseMonthRangeQuery = (normalizedMessage: string): { month?: string; start?: string; end?: string } | null => {
+  const monthTokens = [
+    { tokens: ['january', 'jan'], month: 1 },
+    { tokens: ['february', 'feb'], month: 2 },
+    { tokens: ['march', 'mar'], month: 3 },
+    { tokens: ['april', 'apr'], month: 4 },
+    { tokens: ['may'], month: 5 },
+    { tokens: ['june', 'jun'], month: 6 },
+    { tokens: ['july', 'jul'], month: 7 },
+    { tokens: ['august', 'aug'], month: 8 },
+    { tokens: ['september', 'sep', 'sept'], month: 9 },
+    { tokens: ['october', 'oct'], month: 10 },
+    { tokens: ['november', 'nov'], month: 11 },
+    { tokens: ['december', 'dec'], month: 12 }
+  ];
+
+  if (normalizedMessage.startsWith('who is available in ')) {
+    const monthWithOptionalYear = normalizedMessage.slice('who is available in '.length).trim();
+    const monthYearMatch = monthWithOptionalYear.match(/^([a-z]+)(?:\s+(\d{4}))?$/i);
+    if (monthYearMatch) {
+      const monthEntry = monthTokens.find((entry) => entry.tokens.includes(monthYearMatch[1]));
+      if (!monthEntry) return null;
+      const resolvedYear = monthYearMatch[2] ? Number(monthYearMatch[2]) : resolveNextYearForMonth(monthEntry.month - 1, new Date());
+      return { month: `${resolvedYear}-${String(monthEntry.month).padStart(2, '0')}` };
+    }
   }
-  const yearMonthMatch = trimmed.match(/^who\s+is\s+available\s+in\s+(\d{4}-\d{2})$/i);
+
+  const yearMonthMatch = normalizedMessage.match(/^who\s+is\s+available\s+in\s+(\d{4}-\d{2})$/i);
   if (yearMonthMatch) return { month: yearMonthMatch[1] };
-  const explicitRangeMatch = trimmed.match(/^who\s+is\s+available\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})$/i);
+
+  const explicitRangeMatch = normalizedMessage.match(/^who\s+is\s+available\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})$/i);
   return explicitRangeMatch ? { start: explicitRangeMatch[1], end: explicitRangeMatch[2] } : null;
 };
 
@@ -144,7 +170,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   await storage.initIfMissing();
   const { state, etag } = await storage.getState();
   const message = body.message.trim();
-  const normalizedMessage = message.toLowerCase();
+  const normalizedMessage = normalizeUserText(message);
 
   if (normalizedMessage === 'confirm') {
     if (!pendingProposal) return { status: 200, jsonBody: { kind: 'reply', assistantText: 'No pending change.', traceId } };
@@ -204,7 +230,7 @@ Reply 'confirm' or 'cancel'.`, traceId } };
     });
   }
 
-  const deleteCommand = parseDeleteCommand(message);
+  const deleteCommand = parseDeleteCommand(normalizedMessage);
   if (deleteCommand) {
     deterministicActions.push(deleteCommand.code.startsWith('AVL-')
       ? { type: 'delete_availability', code: deleteCommand.code }
@@ -220,11 +246,11 @@ Reply 'confirm' or 'cancel'.`, traceId } };
   if (listForMatch) deterministicActions.push({ type: 'list_availability', personName: listForMatch[1].trim() });
 
   if (normalizedMessage.startsWith('show ')) {
-    const requestedCode = normalizeCode(message.slice('show '.length));
+    const requestedCode = normalizeCode(normalizedMessage.slice('show '.length));
     deterministicActions.push(requestedCode.startsWith('AVL-') ? { type: 'show_availability', code: requestedCode } : { type: 'show_appointment', code: requestedCode });
   }
 
-  const monthQuery = parseMonthRangeQuery(message);
+  const monthQuery = parseMonthRangeQuery(normalizedMessage);
   if (monthQuery) deterministicActions.push({ type: 'who_is_available', month: monthQuery.month, start: monthQuery.start, end: monthQuery.end });
   if (normalizedMessage === 'help') deterministicActions.push({ type: 'help' });
 
@@ -244,6 +270,17 @@ Reply 'confirm' or 'cancel'.`, traceId } };
 
     const execution = executeActions(state, deterministicActions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
     return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+  }
+
+  if (normalizedMessage.includes('who is available')) {
+    return {
+      status: 200,
+      jsonBody: {
+        kind: 'clarify',
+        question: "Do you mean March 2026? Reply: 'who is available in 2026-03' or 'who is available in march 2026'.",
+        traceId
+      }
+    };
   }
 
   const openaiEnabled = (process.env.OPENAI_PARSER_ENABLED ?? 'false').toLowerCase() === 'true';
