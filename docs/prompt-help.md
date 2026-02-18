@@ -39,6 +39,7 @@ Stable codes:
 
 - Every appointment and availability item has a stable code (example: `APPT-1`, `AVL-JOE-1`).
 - Use codes to show/modify/delete items.
+- When asked for a code, shorthand like `appt1`, `APPT1`, `ApPt-1`, or `APPT 1` is accepted and normalized to `APPT-1`.
 
 Timezone default: `America/Los_Angeles`.
 

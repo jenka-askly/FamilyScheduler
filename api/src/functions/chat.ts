@@ -6,6 +6,7 @@ import { executeActions } from '../lib/actions/executor.js';
 import { type Action, ParsedModelResponseSchema } from '../lib/actions/schema.js';
 import { parseToActions } from '../lib/openai/openaiClient.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
+import { looksLikeSingleCodeToken, normalizeAppointmentCode, normalizeAvailabilityCode } from '../lib/text/normalizeCode.js';
 
 type ChatRequest = { message?: unknown };
 
@@ -26,23 +27,39 @@ type ParsedDateTime = {
 const storage = createStorageAdapter();
 let pendingProposal: PendingProposal | null = null;
 let activePersonId: string | null = null;
-let pendingClarification: null | {
-  intent: string;
-  missing: string;
-  partialAction: Action;
-} = null;
+type ClarificationMissing = 'code' | 'personName' | 'start' | 'end' | 'title' | 'action';
+type PendingClarificationAction = {
+  type: Action['type'];
+  code?: string;
+  personName?: string;
+  start?: string;
+  end?: string;
+  title?: string;
+};
+type PendingClarification = {
+  kind: 'action_fill';
+  action: PendingClarificationAction;
+  missing: ClarificationMissing[];
+  candidates?: Array<{ code: string; label: string }>;
+  expectedEtag?: string;
+};
+let pendingClarification: PendingClarification | null = null;
 
 const badRequest = (message: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message } });
-const normalizeCode = (value: string): string => value.trim().toUpperCase();
 const normalizeName = (value: string): string => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
 const parseDeleteCommand = (message: string): { code: string } | null => {
-  const match = message.match(/^delete\s+([a-z]+-[a-z0-9-]+)$/i);
-  return match ? { code: normalizeCode(match[1]) } : null;
+  const match = message.match(/^delete\s+(.+)$/i);
+  if (!match) return null;
+  const token = match[1].trim();
+  const code = normalizeAppointmentCode(token) ?? normalizeAvailabilityCode(token);
+  return code ? { code } : null;
 };
 const parseUpdateTitleCommand = (message: string): { code: string; title: string } | null => {
-  const match = message.match(/^update\s+(appt-\d+)\s+title\s*(.*)$/i);
-  return match ? { code: normalizeCode(match[1]), title: match[2].trim() } : null;
+  const match = message.match(/^update\s+([^\s]+(?:\s+\d+)?)\s+title\s*(.*)$/i);
+  if (!match) return null;
+  const code = normalizeAppointmentCode(match[1]);
+  return code ? { code, title: match[2].trim() } : null;
 };
 const parseAddAppointmentCommand = (message: string): { title: string } | null => {
   const match = message.match(/^add\s+appt\s+(.+)$/i);
@@ -168,21 +185,103 @@ const createClarificationState = (action: Action | undefined): typeof pendingCla
   if (!action) return null;
 
   if (action.type === 'list_availability' && !action.personName) {
-    return { intent: action.type, missing: 'personName', partialAction: { type: 'list_availability' } };
+    return { kind: 'action_fill', action: { type: 'list_availability' }, missing: ['personName'] };
   }
 
   return null;
 };
 
-const fillPendingClarification = (
-  clarification: NonNullable<typeof pendingClarification>,
-  value: string
-): Action | null => {
-  if (clarification.intent === 'list_availability' && clarification.missing === 'personName') {
-    return { ...(clarification.partialAction as Extract<Action, { type: 'list_availability' }>), personName: value.trim() };
-  }
+const parseClarificationCandidates = (question: string): Array<{ code: string; label: string }> => {
+  const candidateMatches = [...question.matchAll(/(APPT[\s-]?\d+)/gi)];
+  const candidates = candidateMatches
+    .map((match) => normalizeAppointmentCode(match[1]))
+    .filter((code): code is string => Boolean(code))
+    .map((code) => ({ code, label: code }));
+  return candidates.filter((candidate, index) => candidates.findIndex((item) => item.code === candidate.code) === index);
+};
 
+const actionTypeFromInput = (input: string): Action['type'] | null => {
+  const normalized = normalizeUserText(input);
+  if (normalized === 'delete') return 'delete_appointment';
+  if (normalized === 'show') return 'show_appointment';
+  if (normalized === 'update') return 'update_appointment_title';
   return null;
+};
+
+const toExecutableAction = (pending: PendingClarification): Action | null => {
+  if (pending.action.type === 'list_availability') {
+    return { type: 'list_availability', personName: typeof pending.action.personName === 'string' ? pending.action.personName : undefined };
+  }
+  if (pending.action.type === 'delete_appointment' && typeof pending.action.code === 'string') {
+    return { type: 'delete_appointment', code: pending.action.code };
+  }
+  if (pending.action.type === 'delete_availability' && typeof pending.action.code === 'string') {
+    return { type: 'delete_availability', code: pending.action.code };
+  }
+  if (pending.action.type === 'show_appointment' && typeof pending.action.code === 'string') {
+    return { type: 'show_appointment', code: pending.action.code };
+  }
+  if (pending.action.type === 'show_availability' && typeof pending.action.code === 'string') {
+    return { type: 'show_availability', code: pending.action.code };
+  }
+  if (pending.action.type === 'update_appointment_title' && typeof pending.action.code === 'string' && typeof pending.action.title === 'string') {
+    return { type: 'update_appointment_title', code: pending.action.code, title: pending.action.title };
+  }
+  return null;
+};
+
+const renderClarificationQuestion = (pending: PendingClarification): string => {
+  const nextMissing = pending.missing[0];
+  if (nextMissing === 'code') {
+    if (pending.candidates && pending.candidates.length > 0) {
+      const listed = pending.candidates.map((candidate) => candidate.code).join(' or ');
+      return `Which code should I use: ${listed}? You can type formats like APPT-1 or appt1.`;
+    }
+    return 'Which code should I use? You can type formats like APPT-1 or appt1.';
+  }
+  if (nextMissing === 'personName') return 'Whose availability?';
+  if (nextMissing === 'action') return 'What action do you want: delete, show, or update?';
+  if (nextMissing === 'start') return 'Please provide a start date/time.';
+  if (nextMissing === 'end') return 'Please provide an end date/time.';
+  return 'Please provide the missing details.';
+};
+
+const fillPendingClarification = (clarification: PendingClarification, value: string): void => {
+  const trimmedValue = value.trim();
+  for (const missing of [...clarification.missing]) {
+    if (missing === 'code') {
+      const normalizedCode = normalizeAppointmentCode(trimmedValue) ?? normalizeAvailabilityCode(trimmedValue);
+      if (!normalizedCode) return;
+      clarification.action.code = normalizedCode;
+      clarification.missing = clarification.missing.filter((item) => item !== 'code');
+      continue;
+    }
+
+    if (missing === 'personName') {
+      clarification.action.personName = trimmedValue;
+      clarification.missing = clarification.missing.filter((item) => item !== 'personName');
+      continue;
+    }
+
+    if (missing === 'action') {
+      const nextType = actionTypeFromInput(trimmedValue);
+      if (!nextType) return;
+      clarification.action.type = nextType;
+      clarification.missing = clarification.missing.filter((item) => item !== 'action');
+      continue;
+    }
+
+    return;
+  }
+};
+
+const findDeleteByTitleCandidates = (message: string, state: AppState): Array<{ code: string; label: string }> => {
+  const match = message.match(/^delete\s+the\s+(.+?)\s+one$/i);
+  if (!match) return [];
+  const titleHint = normalizeUserText(match[1]);
+  return state.appointments
+    .filter((appointment) => normalizeUserText(appointment.title).includes(titleHint))
+    .map((appointment) => ({ code: appointment.code, label: appointment.title }));
 };
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
@@ -211,12 +310,43 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   }
 
   if (pendingClarification) {
-    const action = fillPendingClarification(pendingClarification, message);
-    pendingClarification = null;
-    if (action) {
-      const execution = executeActions(state, [action], { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+    fillPendingClarification(pendingClarification, message);
+    if (pendingClarification.missing.length > 0) {
+      const looksCodeLike = looksLikeSingleCodeToken(message);
+      if (pendingClarification.missing.includes('code') && !looksCodeLike) {
+        return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+      }
+      return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
     }
+
+    const completedClarification = pendingClarification;
+    pendingClarification = null;
+    const completedAction = toExecutableAction(completedClarification);
+    if (!completedAction) {
+      return { status: 200, jsonBody: { kind: 'clarify', question: 'Please provide the missing details.', traceId } };
+    }
+
+    if (isMutationAction(completedAction)) {
+      const expectedEtag = completedClarification.expectedEtag ?? etag;
+      pendingProposal = toProposal(expectedEtag, [completedAction]);
+      if (completedAction.type === 'delete_appointment') {
+        const label = completedClarification.candidates?.find((candidate) => candidate.code === completedAction.code)?.label;
+        const targetLabel = label ? ` — ${label}` : '';
+        return {
+          status: 200,
+          jsonBody: {
+            kind: 'proposal',
+            proposalId: pendingProposal.id,
+            assistantText: `Please confirm you want to delete ${completedAction.code}${targetLabel}. Reply confirm/cancel.`,
+            traceId
+          }
+        };
+      }
+      return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText([completedAction]), traceId } };
+    }
+
+    const execution = executeActions(state, [completedAction], { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+    return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
   }
 
   if (normalizedMessage === 'confirm') {
@@ -272,11 +402,26 @@ Reply 'confirm' or 'cancel'.`, traceId } };
     });
   }
 
-  const deleteCommand = parseDeleteCommand(normalizedMessage);
+  const deleteCommand = parseDeleteCommand(message);
   if (deleteCommand) {
     deterministicActions.push(deleteCommand.code.startsWith('AVL-')
       ? { type: 'delete_availability', code: deleteCommand.code }
       : { type: 'delete_appointment', code: deleteCommand.code });
+  }
+
+  if (!deleteCommand) {
+    const deleteCandidates = findDeleteByTitleCandidates(message, state);
+    if (deleteCandidates.length > 1) {
+      pendingClarification = {
+        kind: 'action_fill',
+        action: { type: 'delete_appointment' },
+        missing: ['code'],
+        candidates: deleteCandidates,
+        expectedEtag: etag
+      };
+      const listed = deleteCandidates.map((candidate) => `${candidate.code} (${candidate.label})`).join(' or ');
+      return { status: 200, jsonBody: { kind: 'clarify', question: `Which appointment code should I delete: ${listed}?`, traceId } };
+    }
   }
 
   const updateCommand = parseUpdateTitleCommand(message);
@@ -285,15 +430,18 @@ Reply 'confirm' or 'cancel'.`, traceId } };
   if (normalizedMessage === 'list appointments') deterministicActions.push({ type: 'list_appointments' });
   if (normalizedMessage === 'list availability') deterministicActions.push({ type: 'list_availability' });
   if (normalizedMessage === 'list my availability') {
-    pendingClarification = { intent: 'list_availability', missing: 'personName', partialAction: { type: 'list_availability' } };
+    pendingClarification = { kind: 'action_fill', action: { type: 'list_availability' }, missing: ['personName'] };
     return { status: 200, jsonBody: { kind: 'clarify', question: 'Whose availability?', traceId } };
   }
   const listForMatch = message.match(/^list\s+availability\s+for\s+(.+)$/i);
   if (listForMatch) deterministicActions.push({ type: 'list_availability', personName: listForMatch[1].trim() });
 
   if (normalizedMessage.startsWith('show ')) {
-    const requestedCode = normalizeCode(normalizedMessage.slice('show '.length));
-    deterministicActions.push(requestedCode.startsWith('AVL-') ? { type: 'show_availability', code: requestedCode } : { type: 'show_appointment', code: requestedCode });
+    const rawCode = message.slice(message.toLowerCase().indexOf('show ') + 'show '.length);
+    const requestedCode = normalizeAppointmentCode(rawCode) ?? normalizeAvailabilityCode(rawCode);
+    if (requestedCode) {
+      deterministicActions.push(requestedCode.startsWith('AVL-') ? { type: 'show_availability', code: requestedCode } : { type: 'show_appointment', code: requestedCode });
+    }
   }
 
   const monthQuery = parseMonthRangeQuery(normalizedMessage);
@@ -339,7 +487,20 @@ Reply 'confirm' or 'cancel'.`, traceId } };
     console.info(JSON.stringify({ traceId, openaiUsed: true, model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', responseKind: parsed.kind }));
 
     if (parsed.kind === 'clarify') {
-      pendingClarification = createClarificationState(parsed.actions[0]);
+      const question = parsed.clarificationQuestion ?? 'Could you clarify?';
+      const actionClarification = createClarificationState(parsed.actions[0]);
+      const candidates = parseClarificationCandidates(question);
+      if (actionClarification) {
+        pendingClarification = actionClarification;
+      } else if (/which appointment code should i delete/i.test(question) && candidates.length > 0) {
+        pendingClarification = {
+          kind: 'action_fill',
+          action: { type: 'delete_appointment' },
+          missing: ['code'],
+          candidates,
+          expectedEtag: etag
+        };
+      }
       return { status: 200, jsonBody: { kind: 'clarify', question: parsed.clarificationQuestion ?? 'Could you clarify?', traceId } };
     }
 
