@@ -2,10 +2,12 @@
 
 ## Current milestone
 
-Local runnable baseline implemented with Azure Functions discovery fixed for local chat endpoint and TypeScript output aligned to the Functions entrypoint `dist/index.js`.
+Local runnable baseline with persistent API state in local JSON storage and optimistic ETag concurrency for confirm/apply flow.
 
 ## What works now
 
+- API state persists locally across restarts using `./.local/state.json`.
+- Confirm/apply path enforces optimistic ETag checks to reject stale proposals safely.
 - Fixed Azure Functions v4 discovery by registering HTTP trigger from `api/src/index.ts` (compiled to `api/dist/index.js`).
 - Local `/api/chat` route reachable via Functions host (`POST http://localhost:7071/api/chat`) with JSON response.
 - Tracked `api/local.settings.example.json`; local copy workflow documented in runbook.
@@ -92,3 +94,7 @@ After every merged PR, update this file with:
 - what changed,
 - local/deploy status,
 - next steps.
+
+## Next
+
+- Add Azure Blob adapter implementing the same storage interface used by local file mode.

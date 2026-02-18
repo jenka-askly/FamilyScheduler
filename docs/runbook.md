@@ -89,3 +89,40 @@ Expected files include:
 - `api/dist/functions/chat.js`
 
 The API build now runs a clean step first (`pnpm -C api run clean`) so stale `dist/` files do not mask entrypoint issues.
+
+## 4. Local persistence (JSON state file)
+
+The API now persists state to a local JSON file using optimistic concurrency.
+
+- Default mode: `STORAGE_MODE=local`
+- Default state file: `./.local/state.json` (resolved from repository root)
+- Override path: set `LOCAL_STATE_PATH` in `api/local.settings.json`
+
+### Reset / delete local state
+
+Options:
+
+1. Prompt command (confirm required):
+   - Send `reset state`
+   - Send `confirm`
+2. Manual delete:
+
+```bash
+rm -f ./.local/state.json
+```
+
+The next API request recreates the file with empty seeded state.
+
+### Conflict behavior
+
+Each proposal stores the state ETag at proposal time. On `confirm`, the API checks whether the file changed.
+
+- If unchanged, mutation is applied and written atomically.
+- If changed, mutation is rejected with:
+  - `State changed since proposal. Please retry.`
+  - fresh appointments/availability snapshot
+
+Recovery:
+
+1. Re-run the original command to generate a new proposal.
+2. Confirm again.

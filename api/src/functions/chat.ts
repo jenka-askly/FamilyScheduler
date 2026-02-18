@@ -1,30 +1,10 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { createStorageAdapter } from '../lib/storage/localFileStorage.js';
+import { ConflictError } from '../lib/storage/storage.js';
+import { createEmptyAppState, type AppState, type Appointment, type AvailabilityBlock, type Person } from '../lib/state.js';
 
 type ChatRequest = {
   message?: unknown;
-};
-
-type Person = {
-  id: string;
-  name: string;
-};
-
-type Appointment = {
-  id: string;
-  code: string;
-  title: string;
-  start: string;
-  end: string;
-  assigned: string[];
-};
-
-type AvailabilityBlock = {
-  id: string;
-  code: string;
-  personId: string;
-  start: string;
-  end: string;
-  reason?: string;
 };
 
 type ProposalAction =
@@ -51,11 +31,15 @@ type ProposalAction =
   | {
       type: 'delete_availability';
       code: string;
+    }
+  | {
+      type: 'reset_state';
     };
 
 type PendingProposal = {
   id: string;
   actions: [ProposalAction];
+  expectedEtag: string;
 };
 
 type ParsedDateTime = {
@@ -66,20 +50,9 @@ type ParsedDateTime = {
   endIso: string;
 };
 
-const state: { appointments: Appointment[]; people: Person[]; availability: AvailabilityBlock[] } = {
-  appointments: [],
-  people: [
-    { id: 'person-joe', name: 'Joe' },
-    { id: 'person-sam', name: 'Sam' }
-  ],
-  availability: []
-};
-
-let appointmentCodeCounter = 0;
+const storage = createStorageAdapter();
 let pendingProposal: PendingProposal | null = null;
 let activePersonId: string | null = null;
-
-const availabilityCodeCounters: Record<string, number> = {};
 
 const badRequest = (message: string): HttpResponseInit => ({
   status: 400,
@@ -90,23 +63,22 @@ const badRequest = (message: string): HttpResponseInit => ({
 });
 
 const normalizeCode = (value: string): string => value.trim().toUpperCase();
-
 const normalizeName = (value: string): string => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
-const findAppointmentByCode = (inputCode: string): Appointment | undefined => {
+const findAppointmentByCode = (state: AppState, inputCode: string): Appointment | undefined => {
   const normalizedCode = normalizeCode(inputCode);
   return state.appointments.find((item) => normalizeCode(item.code) === normalizedCode);
 };
 
-const findAvailabilityByCode = (inputCode: string): AvailabilityBlock | undefined => {
+const findAvailabilityByCode = (state: AppState, inputCode: string): AvailabilityBlock | undefined => {
   const normalizedCode = normalizeCode(inputCode);
   return state.availability.find((item) => normalizeCode(item.code) === normalizedCode);
 };
 
-const findPersonByName = (name: string): Person | undefined => state.people.find((person) => normalizeName(person.name) === normalizeName(name));
+const findPersonByName = (state: AppState, name: string): Person | undefined => state.people.find((person) => normalizeName(person.name) === normalizeName(name));
 
-const ensurePersonByName = (name: string): Person => {
-  const existing = findPersonByName(name);
+const ensurePersonByName = (state: AppState, name: string): Person => {
+  const existing = findPersonByName(state, name);
 
   if (existing) {
     return existing;
@@ -122,8 +94,7 @@ const ensurePersonByName = (name: string): Person => {
   return created;
 };
 
-const getPersonDisplayName = (personId: string): string => state.people.find((person) => person.id === personId)?.name ?? personId;
-
+const getPersonDisplayName = (state: AppState, personId: string): string => state.people.find((person) => person.id === personId)?.name ?? personId;
 const parseStoredDateTime = (value: string): Date => new Date(value);
 
 const formatDate = (value: string): string => {
@@ -133,7 +104,6 @@ const formatDate = (value: string): string => {
 
 const formatTime = (value: string): string => {
   const date = parseStoredDateTime(value);
-
   if (Number.isNaN(date.getTime())) {
     return value;
   }
@@ -145,19 +115,16 @@ const formatTime = (value: string): string => {
 
 const formatDateTimeRange = (start: string, end: string): string => `${formatDate(start)} ${formatTime(start)}–${formatTime(end)}`;
 
-const buildAppointmentsSnapshot = (): string => {
+const buildAppointmentsSnapshot = (state: AppState): string => {
   if (state.appointments.length === 0) {
     return 'Upcoming appointments:\n(none)';
   }
 
-  const lines = state.appointments
-    .slice(0, 5)
-    .map((appointment) => `${appointment.code} — ${appointment.title}`);
-
+  const lines = state.appointments.slice(0, 5).map((appointment) => `${appointment.code} — ${appointment.title}`);
   return `Upcoming appointments:\n${lines.join('\n')}`;
 };
 
-const buildAvailabilitySnapshot = (): string => {
+const buildAvailabilitySnapshot = (state: AppState): string => {
   const now = new Date();
   const sevenDaysFromNow = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
 
@@ -174,29 +141,23 @@ const buildAvailabilitySnapshot = (): string => {
 
   const lines = upcoming.map((block) => {
     const reason = block.reason ? ` (${block.reason})` : '';
-    return `${block.code} — ${getPersonDisplayName(block.personId)} ${formatDateTimeRange(block.start, block.end)}${reason}`;
+    return `${block.code} — ${getPersonDisplayName(state, block.personId)} ${formatDateTimeRange(block.start, block.end)}${reason}`;
   });
 
   return `Availability blocks (next 7 days):\n${lines.join('\n')}`;
 };
 
+const buildSnapshot = (state: AppState): string => `${buildAppointmentsSnapshot(state)}\n${buildAvailabilitySnapshot(state)}`;
+
 const formatAppointmentDetails = (appointment: Appointment): string => {
   const assigned = appointment.assigned.length > 0 ? appointment.assigned.join(', ') : '(none)';
-
-  return [
-    `${appointment.code} — ${appointment.title}`,
-    `id: ${appointment.id}`,
-    `start: ${appointment.start}`,
-    `end: ${appointment.end}`,
-    `assigned: ${assigned}`
-  ].join('\n');
+  return [`${appointment.code} — ${appointment.title}`, `id: ${appointment.id}`, `start: ${appointment.start}`, `end: ${appointment.end}`, `assigned: ${assigned}`].join('\n');
 };
 
-const formatAvailabilityDetails = (block: AvailabilityBlock): string => {
+const formatAvailabilityDetails = (state: AppState, block: AvailabilityBlock): string => {
   const reason = block.reason ?? '(none)';
-
   return [
-    `${block.code} — ${getPersonDisplayName(block.personId)}`,
+    `${block.code} — ${getPersonDisplayName(state, block.personId)}`,
     `id: ${block.id}`,
     `start: ${block.start}`,
     `end: ${block.end}`,
@@ -206,67 +167,37 @@ const formatAvailabilityDetails = (block: AvailabilityBlock): string => {
 
 const parseDeleteCommand = (message: string): { code: string } | null => {
   const match = message.match(/^delete\s+([a-z]+-[a-z0-9-]+)$/i);
-
-  if (!match) {
-    return null;
-  }
-
-  return {
-    code: normalizeCode(match[1])
-  };
+  return match ? { code: normalizeCode(match[1]) } : null;
 };
 
 const parseUpdateTitleCommand = (message: string): { code: string; title: string } | null => {
   const match = message.match(/^update\s+(appt-\d+)\s+title\s*(.*)$/i);
-
-  if (!match) {
-    return null;
-  }
-
-  return {
-    code: normalizeCode(match[1]),
-    title: match[2].trim()
-  };
+  return match ? { code: normalizeCode(match[1]), title: match[2].trim() } : null;
 };
 
 const parseAddAppointmentCommand = (message: string): { title: string } | null => {
   const match = message.match(/^add\s+appt\s+(.+)$/i);
-
-  if (!match) {
-    return null;
-  }
-
-  return {
-    title: match[1].trim()
-  };
+  return match ? { title: match[1].trim() } : null;
 };
 
 const parseIAmCommand = (message: string): { name: string } | null => {
   const match = message.match(/^i\s+am\s+(.+)$/i);
-
-  if (!match) {
-    return null;
-  }
-
-  return { name: match[1].trim() };
+  return match ? { name: match[1].trim() } : null;
 };
 
 const parse12HourTime = (value: string): string | null => {
   const match = value.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/i);
-
   if (!match) {
     return null;
   }
 
   const hourValue = Number(match[1]);
   const minuteValue = Number(match[2] ?? '0');
-
   if (hourValue < 1 || hourValue > 12 || minuteValue < 0 || minuteValue > 59) {
     return null;
   }
 
   let hours24 = hourValue % 12;
-
   if (match[3].toLowerCase() === 'pm') {
     hours24 += 12;
   }
@@ -276,14 +207,12 @@ const parse12HourTime = (value: string): string | null => {
 
 const parse24HourTime = (value: string): string | null => {
   const match = value.match(/^(\d{1,2}):(\d{2})$/);
-
   if (!match) {
     return null;
   }
 
   const hourValue = Number(match[1]);
   const minuteValue = Number(match[2]);
-
   if (hourValue < 0 || hourValue > 23 || minuteValue < 0 || minuteValue > 59) {
     return null;
   }
@@ -292,7 +221,6 @@ const parse24HourTime = (value: string): string | null => {
 };
 
 const parseTimeToken = (value: string): string | null => parse24HourTime(value) ?? parse12HourTime(value);
-
 const toIsoString = (date: string, time: string): string => `${date}T${time}:00-08:00`;
 
 const parseDateAndRange = (dateToken: string, rangeToken: string): ParsedDateTime | null => {
@@ -301,66 +229,41 @@ const parseDateAndRange = (dateToken: string, rangeToken: string): ParsedDateTim
   }
 
   const [rawStart, rawEnd] = rangeToken.split('-');
-
   if (!rawStart || !rawEnd) {
     return null;
   }
 
   const startTime = parseTimeToken(rawStart.toLowerCase());
   const endTime = parseTimeToken(rawEnd.toLowerCase());
-
   if (!startTime || !endTime) {
     return null;
   }
 
   const startIso = toIsoString(dateToken, startTime);
   const endIso = toIsoString(dateToken, endTime);
-
   if (parseStoredDateTime(startIso) >= parseStoredDateTime(endIso)) {
     return null;
   }
 
-  return {
-    date: dateToken,
-    startTime,
-    endTime,
-    startIso,
-    endIso
-  };
+  return { date: dateToken, startTime, endTime, startIso, endIso };
 };
 
 const parseMarkUnavailableCommand = (
   message: string
 ): { target: string; parsedDateTime: ParsedDateTime; reason?: string; isMe: boolean } | null => {
   const match = message.match(/^mark\s+(.+?)\s+unavailable\s+(\d{4}-\d{2}-\d{2})\s+([^\s]+)(?:\s+(.+))?$/i);
-
   if (!match) {
     return null;
   }
 
   const parsedDateTime = parseDateAndRange(match[2], match[3]);
-
   if (!parsedDateTime) {
     return null;
   }
 
   const target = match[1].trim();
   const isMe = normalizeName(target) === 'me';
-
-  return {
-    target,
-    parsedDateTime,
-    reason: match[4]?.trim() || undefined,
-    isMe
-  };
-};
-
-const createAvailabilityCode = (name: string): string => {
-  const nameToken = name.toUpperCase().replace(/[^A-Z0-9]+/g, '');
-  const counterKey = nameToken || 'PERSON';
-  const nextValue = (availabilityCodeCounters[counterKey] ?? 0) + 1;
-  availabilityCodeCounters[counterKey] = nextValue;
-  return `AVL-${counterKey}-${nextValue}`;
+  return { target, parsedDateTime, reason: match[4]?.trim() || undefined, isMe };
 };
 
 const parseMonthRangeQuery = (message: string): { start: Date; end: Date } | null => {
@@ -368,44 +271,40 @@ const parseMonthRangeQuery = (message: string): { start: Date; end: Date } | nul
   const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
   const monthMatch = trimmed.match(/^who\s+is\s+available\s+in\s+([a-z]+)$/i);
-
   if (monthMatch) {
     const monthIndex = monthNames.indexOf(monthMatch[1].toLowerCase());
-
     if (monthIndex === -1) {
       return null;
     }
 
     const year = new Date().getUTCFullYear();
-    const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
-    const end = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59));
-    return { start, end };
+    return {
+      start: new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0)),
+      end: new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59))
+    };
   }
 
   const yearMonthMatch = trimmed.match(/^who\s+is\s+available\s+in\s+(\d{4})-(\d{2})$/i);
-
   if (yearMonthMatch) {
     const year = Number(yearMonthMatch[1]);
     const month = Number(yearMonthMatch[2]);
-
     if (month < 1 || month > 12) {
       return null;
     }
 
-    const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
-    return { start, end };
+    return {
+      start: new Date(Date.UTC(year, month - 1, 1, 0, 0, 0)),
+      end: new Date(Date.UTC(year, month, 0, 23, 59, 59))
+    };
   }
 
   const explicitRangeMatch = trimmed.match(/^who\s+is\s+available\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})$/i);
-
   if (!explicitRangeMatch) {
     return null;
   }
 
   const start = new Date(`${explicitRangeMatch[1]}T00:00:00-08:00`);
   const end = new Date(`${explicitRangeMatch[2]}T23:59:59-08:00`);
-
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
     return null;
   }
@@ -415,7 +314,7 @@ const parseMonthRangeQuery = (message: string): { start: Date; end: Date } | nul
 
 const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date): boolean => startA < endB && endA > startB;
 
-const formatAvailabilityList = (blocks: AvailabilityBlock[]): string => {
+const formatAvailabilityList = (state: AppState, blocks: AvailabilityBlock[]): string => {
   if (blocks.length === 0) {
     return '(none)';
   }
@@ -424,10 +323,137 @@ const formatAvailabilityList = (blocks: AvailabilityBlock[]): string => {
     .sort((a, b) => parseStoredDateTime(a.start).getTime() - parseStoredDateTime(b.start).getTime())
     .map((block) => {
       const reasonSuffix = block.reason ? ` (${block.reason})` : '';
-      return `${block.code} — ${getPersonDisplayName(block.personId)} ${formatDateTimeRange(block.start, block.end)}${reasonSuffix}`;
+      return `${block.code} — ${getPersonDisplayName(state, block.personId)} ${formatDateTimeRange(block.start, block.end)}${reasonSuffix}`;
     })
     .join('\n');
 };
+
+const getNextAppointmentCode = (state: AppState): string => {
+  const maxCodeValue = state.appointments.reduce((maxValue, appointment) => {
+    const match = appointment.code.match(/^APPT-(\d+)$/i);
+    if (!match) {
+      return maxValue;
+    }
+
+    return Math.max(maxValue, Number(match[1]));
+  }, 0);
+
+  return `APPT-${maxCodeValue + 1}`;
+};
+
+const createAvailabilityCode = (state: AppState, name: string): string => {
+  const nameToken = name.toUpperCase().replace(/[^A-Z0-9]+/g, '') || 'PERSON';
+  const maxCodeValue = state.availability.reduce((maxValue, block) => {
+    const match = block.code.match(new RegExp(`^AVL-${nameToken}-(\\d+)$`, 'i'));
+    if (!match) {
+      return maxValue;
+    }
+
+    return Math.max(maxValue, Number(match[1]));
+  }, 0);
+
+  return `AVL-${nameToken}-${maxCodeValue + 1}`;
+};
+
+const applyProposal = (current: AppState, action: ProposalAction): { nextState: AppState; assistantText: string; applied: boolean } => {
+  const nextState = structuredClone(current);
+
+  if (action.type === 'reset_state') {
+    const reset = createEmptyAppState();
+    return {
+      nextState: reset,
+      assistantText: `State reset.\n${buildSnapshot(reset)}`,
+      applied: true
+    };
+  }
+
+  if (action.type === 'add_appointment') {
+    const code = getNextAppointmentCode(nextState);
+    const appointment: Appointment = {
+      id: `${Date.now()}-${code}`,
+      code,
+      title: action.title,
+      start: '',
+      end: '',
+      assigned: []
+    };
+
+    nextState.appointments.push(appointment);
+    return {
+      nextState,
+      assistantText: `Added ${appointment.code} — ${appointment.title}\n${buildAppointmentsSnapshot(nextState)}`,
+      applied: true
+    };
+  }
+
+  if (action.type === 'delete_appointment') {
+    const appointmentIndex = nextState.appointments.findIndex((item) => normalizeCode(item.code) === action.code);
+    if (appointmentIndex === -1) {
+      return { nextState, assistantText: `Not found: ${action.code}`, applied: false };
+    }
+
+    const [removed] = nextState.appointments.splice(appointmentIndex, 1);
+    return {
+      nextState,
+      assistantText: `Deleted ${removed.code} — ${removed.title}\n${buildAppointmentsSnapshot(nextState)}`,
+      applied: true
+    };
+  }
+
+  if (action.type === 'update_appointment_title') {
+    const appointment = findAppointmentByCode(nextState, action.code);
+    if (!appointment) {
+      return { nextState, assistantText: `Not found: ${action.code}`, applied: false };
+    }
+
+    appointment.title = action.title;
+    return {
+      nextState,
+      assistantText: `Updated ${appointment.code} — ${appointment.title}\n${buildAppointmentsSnapshot(nextState)}`,
+      applied: true
+    };
+  }
+
+  if (action.type === 'add_availability') {
+    const personName = getPersonDisplayName(nextState, action.personId);
+    const code = createAvailabilityCode(nextState, personName);
+    const block: AvailabilityBlock = {
+      id: `${Date.now()}-${code}`,
+      code,
+      personId: action.personId,
+      start: action.start,
+      end: action.end,
+      reason: action.reason
+    };
+
+    nextState.availability.push(block);
+    const reasonSuffix = block.reason ? ` (${block.reason})` : '';
+
+    return {
+      nextState,
+      assistantText: `Added ${block.code} — Unavailable ${formatDateTimeRange(block.start, block.end)}${reasonSuffix}\n${buildAppointmentsSnapshot(nextState)}\n${buildAvailabilitySnapshot(nextState)}`,
+      applied: true
+    };
+  }
+
+  const availabilityIndex = nextState.availability.findIndex((item) => normalizeCode(item.code) === action.code);
+  if (availabilityIndex === -1) {
+    return { nextState, assistantText: `Not found: ${action.code}`, applied: false };
+  }
+
+  const [removed] = nextState.availability.splice(availabilityIndex, 1);
+  return {
+    nextState,
+    assistantText: `Deleted ${removed.code} — ${getPersonDisplayName(nextState, removed.personId)} ${formatDateTimeRange(removed.start, removed.end)}\n${buildAvailabilitySnapshot(nextState)}`,
+    applied: true
+  };
+};
+
+const toProposal = (expectedEtag: string, action: ProposalAction): PendingProposal => ({
+  id: Date.now().toString(),
+  actions: [action],
+  expectedEtag
+});
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   let body: ChatRequest;
@@ -442,8 +468,21 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     return badRequest('message is required');
   }
 
+  await storage.initIfMissing();
+  const { state, etag } = await storage.getState();
+
   const message = body.message.trim();
   const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage === 'export json') {
+    return {
+      status: 200,
+      jsonBody: {
+        kind: 'reply',
+        assistantText: JSON.stringify(state, null, 2)
+      }
+    };
+  }
 
   const iAmCommand = parseIAmCommand(message);
 
@@ -458,8 +497,23 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       };
     }
 
-    const person = ensurePersonByName(iAmCommand.name);
+    const nextState = structuredClone(state);
+    const person = ensurePersonByName(nextState, iAmCommand.name);
     activePersonId = person.id;
+
+    if (!findPersonByName(state, iAmCommand.name)) {
+      try {
+        await storage.putState(nextState, etag);
+      } catch {
+        return {
+          status: 200,
+          jsonBody: {
+            kind: 'reply',
+            assistantText: 'State changed while setting identity. Please retry.'
+          }
+        };
+      }
+    }
 
     return {
       status: 200,
@@ -483,123 +537,54 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 
     const proposalToApply = pendingProposal;
     pendingProposal = null;
-    const action = proposalToApply.actions[0];
 
-    if (action.type === 'add_appointment') {
-      appointmentCodeCounter += 1;
-      const code = `APPT-${appointmentCodeCounter}`;
-      const appointment: Appointment = {
-        id: `${Date.now()}-${appointmentCodeCounter}`,
-        code,
-        title: action.title,
-        start: '',
-        end: '',
-        assigned: []
-      };
+    const loaded = await storage.getState();
 
-      state.appointments.push(appointment);
-
-      return {
-        status: 200,
-        jsonBody: {
-          kind: 'applied',
-          assistantText: `Added ${appointment.code} — ${appointment.title}\n${buildAppointmentsSnapshot()}`
-        }
-      };
-    }
-
-    if (action.type === 'delete_appointment') {
-      const appointmentIndex = state.appointments.findIndex((item) => normalizeCode(item.code) === action.code);
-
-      if (appointmentIndex === -1) {
-        return {
-          status: 200,
-          jsonBody: {
-            kind: 'reply',
-            assistantText: `Not found: ${action.code}`
-          }
-        };
-      }
-
-      const [removed] = state.appointments.splice(appointmentIndex, 1);
-
-      return {
-        status: 200,
-        jsonBody: {
-          kind: 'applied',
-          assistantText: `Deleted ${removed.code} — ${removed.title}\n${buildAppointmentsSnapshot()}`
-        }
-      };
-    }
-
-    if (action.type === 'update_appointment_title') {
-      const appointment = findAppointmentByCode(action.code);
-
-      if (!appointment) {
-        return {
-          status: 200,
-          jsonBody: {
-            kind: 'reply',
-            assistantText: `Not found: ${action.code}`
-          }
-        };
-      }
-
-      appointment.title = action.title;
-
-      return {
-        status: 200,
-        jsonBody: {
-          kind: 'applied',
-          assistantText: `Updated ${appointment.code} — ${appointment.title}\n${buildAppointmentsSnapshot()}`
-        }
-      };
-    }
-
-    if (action.type === 'add_availability') {
-      const personName = getPersonDisplayName(action.personId);
-      const code = createAvailabilityCode(personName);
-      const block: AvailabilityBlock = {
-        id: `${Date.now()}-${code}`,
-        code,
-        personId: action.personId,
-        start: action.start,
-        end: action.end,
-        reason: action.reason
-      };
-
-      state.availability.push(block);
-
-      const reasonSuffix = block.reason ? ` (${block.reason})` : '';
-
-      return {
-        status: 200,
-        jsonBody: {
-          kind: 'applied',
-          assistantText: `Added ${block.code} — Unavailable ${formatDateTimeRange(block.start, block.end)}${reasonSuffix}\n${buildAppointmentsSnapshot()}\n${buildAvailabilitySnapshot()}`
-        }
-      };
-    }
-
-    const availabilityIndex = state.availability.findIndex((item) => normalizeCode(item.code) === action.code);
-
-    if (availabilityIndex === -1) {
+    if (loaded.etag !== proposalToApply.expectedEtag) {
       return {
         status: 200,
         jsonBody: {
           kind: 'reply',
-          assistantText: `Not found: ${action.code}`
+          assistantText: `State changed since proposal. Please retry.\n${buildSnapshot(loaded.state)}`
         }
       };
     }
 
-    const [removed] = state.availability.splice(availabilityIndex, 1);
+    const action = proposalToApply.actions[0];
+    const appliedResult = applyProposal(loaded.state, action);
+
+    if (!appliedResult.applied) {
+      return {
+        status: 200,
+        jsonBody: {
+          kind: 'reply',
+          assistantText: appliedResult.assistantText
+        }
+      };
+    }
+
+    try {
+      await storage.putState(appliedResult.nextState, loaded.etag);
+    } catch (error) {
+      if (error instanceof ConflictError) {
+        const fresh = await storage.getState();
+        return {
+          status: 200,
+          jsonBody: {
+            kind: 'reply',
+            assistantText: `State changed since proposal. Please retry.\n${buildSnapshot(fresh.state)}`
+          }
+        };
+      }
+
+      throw error;
+    }
 
     return {
       status: 200,
       jsonBody: {
         kind: 'applied',
-        assistantText: `Deleted ${removed.code} — ${getPersonDisplayName(removed.personId)} ${formatDateTimeRange(removed.start, removed.end)}\n${buildAvailabilitySnapshot()}`
+        assistantText: appliedResult.assistantText
       }
     };
   }
@@ -616,6 +601,29 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     };
   }
 
+  if (normalizedMessage === 'reset state') {
+    if ((process.env.STORAGE_MODE ?? 'local') !== 'local') {
+      return {
+        status: 200,
+        jsonBody: {
+          kind: 'reply',
+          assistantText: 'reset state is only supported when STORAGE_MODE=local.'
+        }
+      };
+    }
+
+    pendingProposal = toProposal(etag, { type: 'reset_state' });
+
+    return {
+      status: 200,
+      jsonBody: {
+        kind: 'proposal',
+        proposalId: pendingProposal.id,
+        assistantText: 'Please confirm you want to reset local state. Reply confirm/cancel.'
+      }
+    };
+  }
+
   const addCommand = parseAddAppointmentCommand(message);
 
   if (addCommand) {
@@ -623,22 +631,13 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       return badRequest('appointment title is required');
     }
 
-    const proposalId = Date.now().toString();
-    pendingProposal = {
-      id: proposalId,
-      actions: [
-        {
-          type: 'add_appointment',
-          title: addCommand.title
-        }
-      ]
-    };
+    pendingProposal = toProposal(etag, { type: 'add_appointment', title: addCommand.title });
 
     return {
       status: 200,
       jsonBody: {
         kind: 'proposal',
-        proposalId,
+        proposalId: pendingProposal.id,
         assistantText: `Please confirm you want to add appointment: ${addCommand.title}`
       }
     };
@@ -662,7 +661,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 
       person = state.people.find((item) => item.id === activePersonId);
     } else {
-      person = findPersonByName(markUnavailableCommand.target);
+      person = findPersonByName(state, markUnavailableCommand.target);
     }
 
     if (!person) {
@@ -675,19 +674,13 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       };
     }
 
-    const proposalId = Date.now().toString();
-    pendingProposal = {
-      id: proposalId,
-      actions: [
-        {
-          type: 'add_availability',
-          personId: person.id,
-          start: markUnavailableCommand.parsedDateTime.startIso,
-          end: markUnavailableCommand.parsedDateTime.endIso,
-          reason: markUnavailableCommand.reason
-        }
-      ]
-    };
+    pendingProposal = toProposal(etag, {
+      type: 'add_availability',
+      personId: person.id,
+      start: markUnavailableCommand.parsedDateTime.startIso,
+      end: markUnavailableCommand.parsedDateTime.endIso,
+      reason: markUnavailableCommand.reason
+    });
 
     const reasonText = markUnavailableCommand.reason ? ` (reason: ${markUnavailableCommand.reason})` : '';
 
@@ -695,7 +688,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       status: 200,
       jsonBody: {
         kind: 'proposal',
-        proposalId,
+        proposalId: pendingProposal.id,
         assistantText: `Please confirm you want to mark ${person.name} unavailable on ${markUnavailableCommand.parsedDateTime.date} ${markUnavailableCommand.parsedDateTime.startTime}-${markUnavailableCommand.parsedDateTime.endTime}${reasonText}. Reply confirm/cancel.`
       }
     };
@@ -715,7 +708,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 
   if (deleteCommand) {
     if (deleteCommand.code.startsWith('AVL-')) {
-      const block = findAvailabilityByCode(deleteCommand.code);
+      const block = findAvailabilityByCode(state, deleteCommand.code);
 
       if (!block) {
         return {
@@ -727,28 +720,19 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         };
       }
 
-      const proposalId = Date.now().toString();
-      pendingProposal = {
-        id: proposalId,
-        actions: [
-          {
-            type: 'delete_availability',
-            code: block.code
-          }
-        ]
-      };
+      pendingProposal = toProposal(etag, { type: 'delete_availability', code: block.code });
 
       return {
         status: 200,
         jsonBody: {
           kind: 'proposal',
-          proposalId,
-          assistantText: `Please confirm you want to delete ${block.code} — ${getPersonDisplayName(block.personId)} ${formatDateTimeRange(block.start, block.end)}. Reply 'confirm' or 'cancel'.`
+          proposalId: pendingProposal.id,
+          assistantText: `Please confirm you want to delete ${block.code} — ${getPersonDisplayName(state, block.personId)} ${formatDateTimeRange(block.start, block.end)}. Reply 'confirm' or 'cancel'.`
         }
       };
     }
 
-    const appointment = findAppointmentByCode(deleteCommand.code);
+    const appointment = findAppointmentByCode(state, deleteCommand.code);
 
     if (!appointment) {
       return {
@@ -760,22 +744,13 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       };
     }
 
-    const proposalId = Date.now().toString();
-    pendingProposal = {
-      id: proposalId,
-      actions: [
-        {
-          type: 'delete_appointment',
-          code: appointment.code
-        }
-      ]
-    };
+    pendingProposal = toProposal(etag, { type: 'delete_appointment', code: appointment.code });
 
     return {
       status: 200,
       jsonBody: {
         kind: 'proposal',
-        proposalId,
+        proposalId: pendingProposal.id,
         assistantText: `Please confirm you want to delete ${appointment.code} — ${appointment.title}. Reply 'confirm' or 'cancel'.`
       }
     };
@@ -794,7 +769,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       };
     }
 
-    const appointment = findAppointmentByCode(updateCommand.code);
+    const appointment = findAppointmentByCode(state, updateCommand.code);
 
     if (!appointment) {
       return {
@@ -806,23 +781,17 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       };
     }
 
-    const proposalId = Date.now().toString();
-    pendingProposal = {
-      id: proposalId,
-      actions: [
-        {
-          type: 'update_appointment_title',
-          code: appointment.code,
-          title: updateCommand.title
-        }
-      ]
-    };
+    pendingProposal = toProposal(etag, {
+      type: 'update_appointment_title',
+      code: appointment.code,
+      title: updateCommand.title
+    });
 
     return {
       status: 200,
       jsonBody: {
         kind: 'proposal',
-        proposalId,
+        proposalId: pendingProposal.id,
         assistantText: `Please confirm you want to update ${appointment.code} title from '${appointment.title}' to '${updateCommand.title}'. Reply 'confirm' or 'cancel'.`
       }
     };
@@ -847,7 +816,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       status: 200,
       jsonBody: {
         kind: 'reply',
-        assistantText: formatAvailabilityList(state.availability)
+        assistantText: formatAvailabilityList(state, state.availability)
       }
     };
   }
@@ -855,7 +824,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   const listForMatch = message.match(/^list\s+availability\s+for\s+(.+)$/i);
 
   if (listForMatch) {
-    const person = findPersonByName(listForMatch[1]);
+    const person = findPersonByName(state, listForMatch[1]);
 
     if (!person) {
       return {
@@ -873,7 +842,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       status: 200,
       jsonBody: {
         kind: 'reply',
-        assistantText: formatAvailabilityList(blocks)
+        assistantText: formatAvailabilityList(state, blocks)
       }
     };
   }
@@ -888,14 +857,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 
       const appointmentStart = parseStoredDateTime(appointment.start);
       const appointmentEnd = parseStoredDateTime(appointment.end);
-
       if (Number.isNaN(appointmentStart.getTime()) || Number.isNaN(appointmentEnd.getTime())) {
         return;
       }
 
       appointment.assigned.forEach((assignedPersonName) => {
-        const person = findPersonByName(assignedPersonName);
-
+        const person = findPersonByName(state, assignedPersonName);
         if (!person) {
           return;
         }
@@ -960,28 +927,24 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     const requestedCode = normalizeCode(message.slice('show '.length));
 
     if (requestedCode.startsWith('AVL-')) {
-      const block = findAvailabilityByCode(requestedCode);
+      const block = findAvailabilityByCode(state, requestedCode);
 
       return {
         status: 200,
         jsonBody: {
           kind: 'reply',
-          assistantText: block
-            ? formatAvailabilityDetails(block)
-            : `Not found: ${requestedCode}`
+          assistantText: block ? formatAvailabilityDetails(state, block) : `Not found: ${requestedCode}`
         }
       };
     }
 
-    const appointment = findAppointmentByCode(requestedCode);
+    const appointment = findAppointmentByCode(state, requestedCode);
 
     return {
       status: 200,
       jsonBody: {
         kind: 'reply',
-        assistantText: appointment
-          ? formatAppointmentDetails(appointment)
-          : `Not found: ${requestedCode}`
+        assistantText: appointment ? formatAppointmentDetails(appointment) : `Not found: ${requestedCode}`
       }
     };
   }
