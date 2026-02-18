@@ -43,3 +43,46 @@ test('delete APPT-1 still parses as mutation proposal', async () => {
   assert.equal(deleteResponse.status, 200);
   assert.equal((deleteResponse.jsonBody as any).kind, 'proposal');
 });
+
+test('clarification reply fills missing personName for list availability', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const mark = await sendChat('mark Joe unavailable 2026-03-10 10:00-11:00 busy');
+  assert.equal((mark.jsonBody as any).kind, 'proposal');
+  const markApplied = await sendChat('confirm');
+  assert.equal((markApplied.jsonBody as any).kind, 'applied');
+
+  const clarify = await sendChat('list my availability');
+  assert.equal((clarify.jsonBody as any).kind, 'clarify');
+  assert.equal((clarify.jsonBody as any).question, 'Whose availability?');
+
+  const resolved = await sendChat('Joe');
+  assert.equal((resolved.jsonBody as any).kind, 'reply');
+  assert.match((resolved.jsonBody as any).assistantText, /AVL-JOE-1/);
+});
+
+test('I am Joe sets identity immediately', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const response = await sendChat('I am Joe');
+  assert.equal((response.jsonBody as any).kind, 'reply');
+  assert.equal((response.jsonBody as any).assistantText, 'Got it. You are Joe.');
+});
+
+test('cancel clears pending clarification', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const clarify = await sendChat('list my availability');
+  assert.equal((clarify.jsonBody as any).kind, 'clarify');
+
+  const cancelled = await sendChat('cancel');
+  assert.equal((cancelled.jsonBody as any).kind, 'reply');
+  assert.equal((cancelled.jsonBody as any).assistantText, 'Cancelled.');
+
+  const next = await sendChat('Joe');
+  assert.equal((next.jsonBody as any).kind, 'reply');
+  assert.equal((next.jsonBody as any).assistantText, 'Natural language parsing is disabled. Try commands: help');
+});
