@@ -18,6 +18,10 @@ type ChatResponse =
   | {
       kind: 'applied';
       assistantText: string;
+    }
+  | {
+      kind: 'clarify';
+      question: string;
     };
 
 export function App() {
@@ -57,6 +61,11 @@ export function App() {
       return;
     }
 
+    if (json.kind === 'clarify') {
+      setTranscript((previous) => [...previous, { role: 'assistant', text: json.question }]);
+      return;
+    }
+
     setTranscript((previous) => [...previous, { role: 'assistant', text: 'error: unsupported response kind' }]);
   };
 
@@ -65,7 +74,7 @@ export function App() {
       <h1>FamilyScheduler</h1>
       <section aria-label="Transcript" className="transcript">
         {transcript.map((entry, index) => (
-          <p key={`${entry.role}-${index}`}>
+          <p key={`${entry.role}-${index}`} className="transcript-line">
             <strong>{entry.role}:</strong> {entry.text}
           </p>
         ))}

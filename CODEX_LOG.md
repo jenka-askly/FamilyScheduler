@@ -515,3 +515,40 @@ Ensure API builds always produce a clean Functions entrypoint (`dist/index.js`) 
 ### Follow-ups
 
 - On a machine with Azure Functions Core Tools, run `pnpm dev`, then POST `http://localhost:7071/api/chat` to verify end-to-end JSON response.
+
+## 2026-02-18 21:48 UTC (chunk 4 delete/update deterministic mutations)
+
+### Objective
+
+Add deterministic in-memory delete/update appointment mutation flows with confirm/cancel safety, and keep prompt-only web UI text rendering aligned.
+
+### Approach
+
+- Extended API command parsing to support `delete APPT-n` and `update APPT-n title <new title>`.
+- Added normalized case-insensitive code matching (`APPT-n` canonical output) and pending proposal actions for add/delete/update.
+- Ensured `confirm` applies exactly one pending action and `cancel` clears pending change.
+- Standardized mutation apply responses to include an `Upcoming appointments:` snapshot (up to 5 lines).
+- Updated web client response typing for `clarify` and ensured transcript lines preserve multi-line formatting.
+- Updated prompt help and project continuity status for new commands and revised next steps.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ✅ succeeded for `api`, `apps/web`, and `packages/shared`.
+- `node <<'NODE' ...` ✅ simulated required add/confirm/delete/update/cancel flows against built API handler and validated expected responses.
+- `pnpm dev` ⚠️ failed in this environment because Azure Functions Core Tools (`func`) is not installed.
+- `pnpm exec vite --host 0.0.0.0` ✅ started web dev server for visual check.
+- `mcp__browser_tools__run_playwright_script` ✅ captured UI screenshot artifact.
+
+### Follow-ups
+
+- Install Azure Functions Core Tools locally/CI images when end-to-end `pnpm dev` runtime verification is required.
+- Next milestone remains availability + local persistence before OpenAI integration.
