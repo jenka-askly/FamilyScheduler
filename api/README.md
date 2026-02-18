@@ -1,23 +1,40 @@
-# api
+# API (local stub)
 
-Scaffold folder for the FamilyScheduler backend API.
+This PR adds a local Azure Functions stub endpoint.
 
-## Intent
+## Prerequisites
 
-Provide endpoints described in `docs/api.md`, including:
+- Node.js 20+
+- pnpm 10+
+- Azure Functions Core Tools v4 (`func`)
 
-- authentication
-- state retrieval
-- prompt processing
-- confirmation/cancel flow
-- undo/backup/restore proposal pipeline
+## Run locally
 
-## Status
+From the repository root:
 
-No implementation code yet. Contracts are defined in docs first.
+```bash
+pnpm install
+pnpm dev:api
+```
 
-## Key behavior constraints
+Or from this folder:
 
-- Never execute mutations without explicit confirm.
-- Deterministic commands bypass OpenAI.
-- ETag optimistic concurrency required for all writes.
+```bash
+pnpm install
+pnpm run build
+func start
+```
+
+## Test the stub endpoint
+
+```bash
+curl -s -X POST http://localhost:7071/api/chat \
+  -H "content-type: application/json" \
+  -d '{"message":"hello"}'
+```
+
+Expected response:
+
+```json
+{"kind":"reply","assistantText":"echo: hello","stateVersion":0}
+```

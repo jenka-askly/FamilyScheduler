@@ -1,77 +1,47 @@
 # PROJECT_STATUS
 
-## Current status
+## Current milestone
 
-**Scaffold + docs only**.
+Local runnable baseline implemented.
 
-No application/runtime implementation code has been added yet.
+## What works now
 
-## What is implemented
+- Monorepo is runnable locally with `pnpm dev`.
+- Prompt-only web UI is implemented at `apps/web`:
+  - transcript area
+  - single prompt input
+  - Enter submits prompt
+  - initial hint: `Type 'help' for examples.`
+- Stub Azure Functions API endpoint is implemented at `POST /api/chat`:
+  - request `{ "message": "..." }`
+  - deterministic response `{ "kind":"reply", "assistantText":"echo: <message>", "stateVersion":0 }`
+  - validation error for missing/empty message.
+- Shared package has initial placeholder type (`Person`) and builds.
+- CI installs dependencies and runs workspace build checks with `pnpm -r --if-present build`.
 
-- Monorepo folder scaffold (`apps/web`, `api`, `packages/shared`, `docs`, `scripts`).
-- Root and per-folder README documentation.
-- Full specification docs for architecture, API contracts, data model, prompt help, and runbook.
-- ADR set (0001-0006) covering architecture and product constraints.
-- GitHub workflow skeletons:
-  - CI placeholder flow
-  - Deploy (Azure Static Web Apps) skeleton
-- GitHub governance templates:
-  - PR template
-  - CODEOWNERS
-  - Issue templates (bug/feature)
-- Tooling scaffolds:
-  - `pnpm-workspace.yaml`
-  - `tsconfig.base.json`
-  - `.editorconfig`
-  - `.gitignore`
-  - `.env.example`
+## How to run locally
 
-## Next tasks
+1. Install prerequisites:
+   - Node.js 20+
+   - pnpm 10+
+   - Azure Functions Core Tools v4
+2. Run:
+   - `pnpm install`
+   - `pnpm dev`
+3. Open `http://localhost:5173` and submit a prompt.
 
-1. Implement API endpoints in order:
-   - `/api/auth/login`
-   - `/api/state`
-   - `/api/chat`
-   - `/api/confirm`
-   - `/api/cancel`
-   - `/api/undo`
-   - `/api/backup`
-   - `/api/restore`
-2. Implement deterministic command classification and proposal protocol.
-3. Implement prompt-only web page (transcript + single input only).
-4. Implement storage abstraction:
-   - local file + hashed ETag
-   - Azure blob + native ETag
+## Known limitations
 
-## Environment variables checklist
+- No authentication/passkey yet.
+- No deterministic help/list/confirm protocol yet.
+- No storage integration (local/blob) yet.
+- No OpenAI integration yet.
 
-- [x] `STORAGE_MODE`
-- [x] `LOCAL_STATE_PATH`
-- [x] `FAMILY_PASSKEY`
-- [x] `TOKEN_SECRET`
-- [x] `OPENAI_API_KEY`
-- [x] `OPENAI_MODEL`
-- [x] `BLOB_SAS_URL`
-- [x] `STATE_BLOB_NAME`
-- [x] `RATE_LIMIT_WINDOW_SEC`
-- [x] `RATE_LIMIT_MAX_CALLS`
+## Next steps
 
-## Local development checklist
-
-- [x] Local-first mode documented (`STORAGE_MODE=local`)
-- [x] Local state path and initial shape documented
-- [x] Intended local run commands documented (pending implementation)
-- [x] `pnpm install` works at repo root
-- [x] `pnpm run ci` passes (placeholder)
-- [ ] App/API runnable locally (pending code)
-
-## Deployment checklist
-
-- [x] Deploy workflow skeleton committed
-- [x] Required secrets documented in workflows/docs
-- [ ] Azure Static Web Apps configured with real secrets
-- [x] Deploy workflow is non-blocking when SWA token is missing (`skip_deploy_on_missing_secrets: true`)
-- [ ] Production deployment validated
+1. Add deterministic help/list/confirm protocol and auth.
+2. Add state storage abstraction and persistence.
+3. Add OpenAI-backed response path behind deterministic command handling.
 
 ## Continuity rule
 
@@ -80,11 +50,3 @@ After every merged PR, update this file with:
 - what changed,
 - local/deploy status,
 - next steps.
-
-## Recent update
-
-- CI workflow pnpm setup now relies on `package.json` `packageManager` (removed explicit `version: 10` from `pnpm/action-setup`) to prevent pnpm version mismatch in GitHub Actions.
-- Updated deploy workflow to keep push-to-main trigger active while safely skipping SWA deployment when `AZURE_STATIC_WEB_APPS_API_TOKEN` is missing.
-- Set SWA `output_location` to `.` temporarily until `apps/web` has a real build output.
-- Added deployment status note that current SWA deploy is configured but non-blocking/skipped until secrets are configured.
-

@@ -146,3 +146,55 @@ Fix CI pnpm setup so GitHub Actions uses the pnpm version declared in `package.j
 ### Follow-ups
 
 - Verify on next GitHub Actions run that pnpm installs at `10.30.0` without "Multiple versions" errors.
+
+## 2026-02-18 20:21 UTC (chunk 1 local runnable prompt UI + stub chat API)
+
+### Objective
+
+Implement the first runnable milestone: local prompt-only UI + stub `POST /api/chat` echo endpoint, with workspace/tooling/docs/CI updates.
+
+### Approach
+
+- Added workspace package manifests and TypeScript configs for `apps/web`, `api`, and `packages/shared`.
+- Implemented Azure Functions v4 HTTP trigger for `/api/chat` with request validation and deterministic echo reply.
+- Implemented Vite + React prompt-only UI with transcript and single input submit flow.
+- Added Vite dev proxy for `/api` to `http://localhost:7071`.
+- Updated root scripts for `dev`, `dev:web`, `dev:api`, and workspace-oriented `ci` checks.
+- Updated runbook and project status to reflect runnable local workflow and next milestones.
+- Updated CI workflow to run install and `pnpm -r --if-present build`.
+
+### Files changed
+
+- `package.json`
+- `packages/shared/package.json`
+- `packages/shared/tsconfig.json`
+- `packages/shared/src/types.ts`
+- `packages/shared/src/index.ts`
+- `api/package.json`
+- `api/tsconfig.json`
+- `api/host.json`
+- `api/src/functions/chat.ts`
+- `api/README.md`
+- `apps/web/package.json`
+- `apps/web/tsconfig.json`
+- `apps/web/vite.config.ts`
+- `apps/web/index.html`
+- `apps/web/src/main.tsx`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/README.md`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `.github/workflows/ci.yml`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm install` ⚠️ failed in this environment due to Corepack/proxy restriction downloading pnpm (`Proxy response (403)`).
+- `func --version` ⚠️ failed because Azure Functions Core Tools is not installed in this environment (`command not found: func`).
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ used to timestamp this log entry.
+
+### Follow-ups
+
+- Run `pnpm install`, `pnpm dev`, and API/web smoke tests in an environment with registry access and Functions Core Tools.
+- Add deterministic help/list/confirm protocol + auth in next PR.
