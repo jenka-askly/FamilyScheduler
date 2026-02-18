@@ -552,3 +552,34 @@ Add deterministic in-memory delete/update appointment mutation flows with confir
 
 - Install Azure Functions Core Tools locally/CI images when end-to-end `pnpm dev` runtime verification is required.
 - Next milestone remains availability + local persistence before OpenAI integration.
+
+## 2026-02-18 21:59 UTC (chunk 5 availability blocks + availability queries)
+
+### Objective
+
+Implement deterministic in-memory availability management and month-range availability queries while preserving confirmation safety for mutations.
+
+### Approach
+
+- Extended chat API in-memory state to include people and availability blocks.
+- Added deterministic identity binding via `I am <Name>` (applies immediately) with a documented global identity limitation.
+- Added mutation flow for `mark ... unavailable` and `delete AVL-...` with confirm/cancel proposals.
+- Added queries for listing/showing availability, monthly availability summary, and `check conflicts`.
+- Updated prompt help and project status continuity docs.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ✅ passed for `api`, `packages/shared`, and `apps/web`.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ used for this log timestamp.
+
+### Follow-ups
+
+- Add persistent storage (local file first) for identity, proposals, appointments, and availability blocks.
+- Replace deterministic parser with OpenAI-assisted parsing once persistence is stable.

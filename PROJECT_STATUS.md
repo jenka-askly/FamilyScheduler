@@ -16,6 +16,10 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 - Mutation-like commands require explicit `confirm` before apply.
 - Delete appointment (`delete APPT-n`) with confirm/cancel guard.
 - Update appointment title (`update APPT-n title <new title>`) with confirm/cancel guard.
+- In-memory availability blocks supported with stable codes (`AVL-<PERSON>-<N>`) via confirm/cancel (`mark ... unavailable`, `delete AVL-...`).
+- Availability queries supported: `list availability`, `list availability for <Name>`, `show AVL-...`, `who is available ...`, and `check conflicts`.
+- Deterministic identity binding supported with `I am <Name>` (applies immediately).
+- Limitation: identity is currently stored globally (`activePersonId`) because auth/session tokens are not implemented yet.
 - No persistence yet for pending proposals.
 - Monorepo is runnable locally with `pnpm dev`.
 - Prompt-only web UI is implemented at `apps/web`:
@@ -55,6 +59,7 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 
 ## Recent changes
 
+- 2026-02-18: Added in-memory availability blocks and deterministic availability commands (`I am <Name>`, mark/list/show/delete availability, who-is-available month queries, and `check conflicts`) with confirm/cancel protections for mutations.
 - 2026-02-18: Added deterministic delete/update appointment mutation proposals (`delete APPT-n`, `update APPT-n title <new title>`) with confirm/cancel application and post-apply appointment snapshot output.
 - 2026-02-18: Added API clean-build script (`pnpm -C api run clean`) and wired `api` build to clean `dist/` before compilation so stale artifacts cannot mask the Functions entrypoint (`dist/index.js`) path.
 - 2026-02-18: Fixed Azure Functions entrypoint mismatch by setting `api/tsconfig.json` `rootDir` to `src` (with `outDir` `dist`) so builds emit `api/dist/index.js` and `api/dist/functions/chat.js`; updated runbook troubleshooting for `entry point dist/index.js does not exist` and confirmed `/api/chat` is reachable locally.
@@ -67,6 +72,7 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 
 ## Known limitations
 
+- Next planned milestone: add persistence first (local file), then OpenAI natural-language parsing.
 - No authentication/passkey yet.
 - No persistence yet (proposal confirmation is in-memory only).
 - No storage integration (local/blob) yet.
