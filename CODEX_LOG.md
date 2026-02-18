@@ -665,3 +665,32 @@ Add `STORAGE_MODE=azure` support for API state persistence using Azure Blob SAS 
 
 - Manually validate Azure mode against a real SAS URL in staging (non-secret local environment variables).
 - Add automated adapter-level tests with mocked `fetch` responses for 404/409/412/403 paths in a follow-up if desired.
+
+## 2026-02-18 22:52 UTC (chunk 8 azure initIfMissing handles 409 BlobAlreadyExists)
+
+### Objective
+
+Fix Azure blob initialization so `initIfMissing` treats `409 BlobAlreadyExists` as a successful already-exists outcome (same as `412`), preventing false startup errors on repeated init attempts.
+
+### Approach
+
+- Updated `AzureBlobStorage.initIfMissing()` success condition to accept HTTP `409` in addition to existing `ok`/`412`.
+- Added a runbook note clarifying `409`/`412` init responses are interpreted as already-exists success conditions.
+- Updated project continuity status with the behavior change.
+
+### Files changed
+
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ✅ TypeScript build passed after the Azure init behavior update.
+- `pnpm -r --if-present build` ✅ workspace build passed.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp for continuity log.
+
+### Follow-ups
+
+- Manually run Azure acceptance scenarios with a real SAS token/environment: repeat startup with existing `state.json`, then startup after deleting `state.json` to confirm auto-create behavior remains correct.

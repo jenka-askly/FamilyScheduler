@@ -68,7 +68,7 @@ export class AzureBlobStorage implements StorageAdapter {
       body: stableStringify(createEmptyAppState())
     });
 
-    if (response.ok || response.status === 412) {
+    if (response.ok || response.status === 412 || response.status === 409) {
       return;
     }
 
