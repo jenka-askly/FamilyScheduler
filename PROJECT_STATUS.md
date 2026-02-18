@@ -14,6 +14,8 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 - `list appointments` command returns one appointment per line (`APPT-n — <title>`).
 - `show APPT-n` command returns appointment details or a not-found message.
 - Mutation-like commands require explicit `confirm` before apply.
+- Delete appointment (`delete APPT-n`) with confirm/cancel guard.
+- Update appointment title (`update APPT-n title <new title>`) with confirm/cancel guard.
 - No persistence yet for pending proposals.
 - Monorepo is runnable locally with `pnpm dev`.
 - Prompt-only web UI is implemented at `apps/web`:
@@ -53,6 +55,7 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 
 ## Recent changes
 
+- 2026-02-18: Added deterministic delete/update appointment mutation proposals (`delete APPT-n`, `update APPT-n title <new title>`) with confirm/cancel application and post-apply appointment snapshot output.
 - 2026-02-18: Added API clean-build script (`pnpm -C api run clean`) and wired `api` build to clean `dist/` before compilation so stale artifacts cannot mask the Functions entrypoint (`dist/index.js`) path.
 - 2026-02-18: Fixed Azure Functions entrypoint mismatch by setting `api/tsconfig.json` `rootDir` to `src` (with `outDir` `dist`) so builds emit `api/dist/index.js` and `api/dist/functions/chat.js`; updated runbook troubleshooting for `entry point dist/index.js does not exist` and confirmed `/api/chat` is reachable locally.
 - 2026-02-18: Fixed local Azure Functions runtime discovery by moving v4 trigger registration to `api/src/index.ts`, added tracked `api/local.settings.example.json`, and updated runbook for `local.settings.json` copy so local `POST /api/chat` no longer 404s.
@@ -72,8 +75,9 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 ## Next steps
 
 1. Replace naive parsing with a structured action schema.
-2. Add delete + update appointment flows with confirmation protocol.
-3. Add availability model for assignment/scheduling decisions.
+2. Add availability model for assignment/scheduling decisions.
+3. Add persistent local file storage for appointments/proposals.
+4. Add OpenAI integration after local deterministic/storage milestones.
 
 ## Continuity rule
 

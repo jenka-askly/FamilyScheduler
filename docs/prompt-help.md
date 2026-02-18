@@ -14,6 +14,8 @@ Deterministic commands:
 - `list appointments [from YYYY-MM-DD to YYYY-MM-DD]`
 - `list unassigned`
 - `show <CODE>`
+- `delete APPT-1`
+- `update APPT-1 title <new title>`
 - `export json`
 - `export csv`
 - `undo`
@@ -39,14 +41,16 @@ Sample prompts:
 
 1. `Add a PT appointment for Mom on 2025-04-12 at 3:00pm for 1 hour at Rehab Center.`
 2. `Move APR-12-PT-1 to 2025-04-12 at 4:00pm.`
-3. `Delete appointment APR-12-PT-1.`
-4. `Mark Joe unavailable on 2025-03-10 from 9:00am to 1:00pm for work.`
-5. `Assign Joe and Ana to APR-18-SURG-1.`
-6. `Who is available in March?`
-7. `List appointments from 2025-03-01 to 2025-03-31.`
-8. `Export json.`
-9. `Undo.`
-10. `I am Joe.`
+3. `delete APPT-1`
+4. `update APPT-1 title Physical Therapy`
+5. `Delete appointment APR-12-PT-1.`
+6. `Mark Joe unavailable on 2025-03-10 from 9:00am to 1:00pm for work.`
+7. `Assign Joe and Ana to APR-18-SURG-1.`
+8. `Who is available in March?`
+9. `List appointments from 2025-03-01 to 2025-03-31.`
+10. `Export json.`
+11. `Undo.`
+12. `I am Joe.`
 
 Timezone default: `America/Los_Angeles`.
 
