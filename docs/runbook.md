@@ -126,3 +126,78 @@ Recovery:
 
 1. Re-run the original command to generate a new proposal.
 2. Confirm again.
+
+
+## 5. Storage modes
+
+### Local mode (default, recommended for development)
+
+- `STORAGE_MODE=local`
+- `LOCAL_STATE_PATH=./.local/state.json`
+
+Behavior:
+- Uses local JSON file persistence.
+- Uses file-hash ETag optimistic concurrency during confirm/apply writes.
+
+### Azure Blob mode (recommended for staging/production)
+
+Environment variables:
+
+- `STORAGE_MODE=azure`
+- `BLOB_SAS_URL=<container-sas-url-or-blob-sas-url>`
+- `STATE_BLOB_NAME=state.json` (only used when `BLOB_SAS_URL` is container-level)
+- Optional: `BLOB_KIND=container|blob` (current adapter auto-detects based on URL path; mostly for operator clarity)
+
+SAS URL forms supported:
+
+1. Container SAS URL (example):
+   - `https://<account>.blob.core.windows.net/<container>?sv=...`
+   - API will write/read blob `<STATE_BLOB_NAME>` in that container.
+2. Blob SAS URL (example):
+   - `https://<account>.blob.core.windows.net/<container>/state.json?sv=...`
+   - API uses this blob directly and ignores `STATE_BLOB_NAME`.
+
+High-level setup:
+
+1. Create a storage account + blob container.
+2. Generate a SAS token with read/write/create permissions for the desired scope (container or blob).
+3. Configure API environment variables.
+4. Start API and call `/api/chat`; first read initializes blob with default empty state if missing.
+
+### Azure mode troubleshooting
+
+- `403` from blob calls: SAS token invalid, missing permission, or expired.
+- `404` on initial read: expected if blob does not exist yet; API attempts auto-init create-if-missing.
+- `412` on write: optimistic concurrency conflict (`If-Match` failed); user should retry and confirm again.
+
+## 6. Storage verification scenarios
+
+### A) Local regression
+
+1. Set local env:
+   - `STORAGE_MODE=local`
+2. Run:
+   - `pnpm dev`
+3. In UI/API:
+   - `add appt Family dinner`
+   - `confirm`
+4. Restart `pnpm dev`.
+5. Verify `list appointments` still includes the saved appointment.
+
+### B) Azure manual verification (real SAS required)
+
+1. Set env for API process:
+   - `STORAGE_MODE=azure`
+   - `BLOB_SAS_URL=...`
+   - `STATE_BLOB_NAME=state.json` (if using container SAS)
+2. Run:
+   - `pnpm dev`
+3. Create + confirm appointment.
+4. Restart and verify appointment persists.
+5. Open two clients/tabs and produce two competing proposals; confirm one, then confirm the stale one.
+6. Verify stale confirm is rejected with `State changed since proposal...`.
+
+CI note:
+- CI should continue to pass without Azure credentials.
+- Azure integration tests remain manual/optional and must not require secrets.
+

@@ -2,10 +2,12 @@
 
 ## Current milestone
 
-Local runnable baseline with persistent API state in local JSON storage and optimistic ETag concurrency for confirm/apply flow.
+Local runnable baseline with persistent API state in local JSON and Azure Blob (SAS) modes, both using optimistic ETag concurrency for confirm/apply flow.
 
 ## What works now
 
+- Azure persistence mode available with `STORAGE_MODE=azure` using SAS URL + blob ETag optimistic concurrency (`If-Match`).
+- Azure init creates missing blob with `If-None-Match: *` and same seeded empty state as local mode.
 - API state persists locally across restarts using `./.local/state.json`.
 - Confirm/apply path enforces optimistic ETag checks to reject stale proposals safely.
 - Fixed Azure Functions v4 discovery by registering HTTP trigger from `api/src/index.ts` (compiled to `api/dist/index.js`).
@@ -97,4 +99,18 @@ After every merged PR, update this file with:
 
 ## Next
 
-- Add Azure Blob adapter implementing the same storage interface used by local file mode.
+- Add passkey/session-backed identity so `I am <Name>` is not global across users.
+
+
+## Azure mode env checklist
+
+- `STORAGE_MODE=azure`
+- `BLOB_SAS_URL=<container or blob SAS URL>`
+- `STATE_BLOB_NAME=state.json` (required for container-level SAS URL; ignored for blob-level SAS URL)
+- Optional: `BLOB_KIND=container|blob` (for operator clarity; adapter auto-detects by URL path)
+
+## Deployment readiness notes
+
+- Local mode remains the default and unchanged for developer workflows.
+- Azure mode is ready for staging/production where shared persistent state is required.
+- CI remains secret-free; Azure behavior is verified manually with real SAS credentials only.

@@ -4,6 +4,9 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "STORAGE_MODE": "local",
-    "LOCAL_STATE_PATH": "./.local/state.json"
+    "LOCAL_STATE_PATH": "./.local/state.json",
+    "BLOB_SAS_URL": "",
+    "STATE_BLOB_NAME": "state.json",
+    "BLOB_KIND": ""
   }
 }

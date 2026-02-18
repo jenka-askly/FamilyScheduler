@@ -621,3 +621,47 @@ Add local JSON persistence for API state with optimistic concurrency, wire ETag 
 ### Follow-ups
 
 - Add Azure Blob storage adapter implementing `StorageAdapter` with the same ETag semantics.
+
+## 2026-02-18 22:22 UTC (chunk 7 azure blob storage adapter with SAS + ETag)
+
+### Objective
+
+Add `STORAGE_MODE=azure` support for API state persistence using Azure Blob SAS URLs while preserving existing local mode behavior and optimistic concurrency semantics.
+
+### Approach
+
+- Added a new storage factory that selects local vs azure adapters from environment config.
+- Implemented a lightweight Azure Blob adapter over raw `fetch` (Node 20 runtime) with:
+  - container/blob SAS URL auto-detection,
+  - blob create-if-missing initialization via `If-None-Match: *`,
+  - read/write support and ETag normalization,
+  - optimistic concurrency on writes via `If-Match`,
+  - conflict mapping (`409`/`412`) to existing `ConflictError` path.
+- Updated chat handler to use storage factory so confirm flow and proposal ETag checks work across both storage modes.
+- Updated env/docs/status to include azure storage contract, setup, troubleshooting, and manual verification plan.
+
+### Files changed
+
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/storage/localFileStorage.ts`
+- `api/src/functions/chat.ts`
+- `.env.example`
+- `api/local.settings.example.json`
+- `docs/runbook.md`
+- `docs/architecture.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "createStorageAdapter|AzureBlobStorage|STORAGE_MODE|BLOB_SAS_URL|STATE_BLOB_NAME|BLOB_KIND" api/src docs .env.example PROJECT_STATUS.md api/local.settings.example.json` ✅ verified wiring and env/doc coverage.
+- `pnpm -r --if-present build` ✅ passed for all workspaces.
+- `pnpm ci` ❌ failed because pnpm has no built-in `ci` command in this setup (`ERR_PNPM_CI_NOT_IMPLEMENTED`).
+- `pnpm run ci` ✅ passed (build/lint/typecheck/test script chain).
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp.
+
+### Follow-ups
+
+- Manually validate Azure mode against a real SAS URL in staging (non-secret local environment variables).
+- Add automated adapter-level tests with mocked `fetch` responses for 404/409/412/403 paths in a follow-up if desired.
