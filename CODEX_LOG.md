@@ -583,3 +583,41 @@ Implement deterministic in-memory availability management and month-range availa
 
 - Add persistent storage (local file first) for identity, proposals, appointments, and availability blocks.
 - Replace deterministic parser with OpenAI-assisted parsing once persistence is stable.
+
+## 2026-02-18 22:11 UTC (chunk 6 local json persistence + etag concurrency)
+
+### Objective
+
+Add local JSON persistence for API state with optimistic concurrency, wire ETag checks into proposal/confirm flow, and update docs/status continuity.
+
+### Approach
+
+- Added storage abstraction and local-file adapter with SHA256 ETag computation and atomic temp-write+rename commits.
+- Introduced shared `AppState` model and empty-state initializer (seeded people + empty arrays + version/history).
+- Reworked `chat` function to load state from storage on each request, carry `expectedEtag` in pending proposals, and reject stale confirmations with a fresh snapshot.
+- Added deterministic debug commands: `export json` and local-only `reset state` (confirm-required).
+- Updated local settings example and docs to explain persistence location, reset/delete, and conflict recovery.
+- Updated project continuity doc for current milestone + next adapter work.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/storage/storage.ts`
+- `api/src/lib/storage/localFileStorage.ts`
+- `api/src/functions/chat.ts`
+- `api/local.settings.example.json`
+- `docs/runbook.md`
+- `docs/architecture.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ✅ TypeScript build succeeds with new storage/state modules.
+- `pnpm -r --if-present build` ✅ workspace build succeeds.
+- `pnpm -r --if-present test` ✅ completes (current test script outputs `no tests yet`).
+- `git diff -- api/src/functions/chat.ts api/src/lib/state.ts api/src/lib/storage/storage.ts api/src/lib/storage/localFileStorage.ts docs/runbook.md docs/architecture.md PROJECT_STATUS.md api/local.settings.example.json` ✅ reviewed targeted patch.
+
+### Follow-ups
+
+- Add Azure Blob storage adapter implementing `StorageAdapter` with the same ETag semantics.

@@ -7,8 +7,8 @@ FamilyScheduler follows a simple three-tier flow:
 1. **Web client (prompt-only UI)**
 2. **API service**
 3. **Storage adapter**
-   - Local file mode (default)
-   - Azure Blob mode (SAS)
+   - Local JSON file adapter (default)
+   - Azure Blob adapter (next)
 
 Logical path:
 
@@ -84,3 +84,22 @@ After a confirmed mutation is applied, assistant response must include:
 3. Upcoming appointments section (next 5), one line each:
 
 `CODE — YYYY-MM-DD hh:mm(am/pm) — Title — Assigned: ... — Status: ...`
+
+## 9. Storage implementation details (current)
+
+A storage abstraction (`StorageAdapter`) sits between chat flow and persistence:
+
+- `getState()` -> `{ state, etag }`
+- `putState(nextState, expectedEtag)`
+- `initIfMissing()`
+
+Current default implementation uses a local JSON file (`./.local/state.json`) and SHA256 file-content ETags.
+
+Write path is optimistic and atomic:
+
+1. Re-read current file and compute ETag.
+2. Compare with `expectedEtag`.
+3. On mismatch, throw conflict and return retry guidance.
+4. On match, write temp file then rename into place.
+
+This preserves prompt confirmation behavior while preventing accidental overwrite from stale proposals.
