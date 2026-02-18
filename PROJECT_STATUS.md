@@ -83,6 +83,7 @@ After every merged PR, update this file with:
 
 ## Recent update
 
+- CI workflow pnpm setup now relies on `package.json` `packageManager` (removed explicit `version: 10` from `pnpm/action-setup`) to prevent pnpm version mismatch in GitHub Actions.
 - Updated deploy workflow to keep push-to-main trigger active while safely skipping SWA deployment when `AZURE_STATIC_WEB_APPS_API_TOKEN` is missing.
 - Set SWA `output_location` to `.` temporarily until `apps/web` has a real build output.
 - Added deployment status note that current SWA deploy is configured but non-blocking/skipped until secrets are configured.
