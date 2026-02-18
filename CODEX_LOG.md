@@ -91,3 +91,31 @@ Enable meaningful local verification in scaffold-only state by adding a safe roo
 
 - Add real package manifests in `apps/web`, `api`, and `packages/shared`.
 - Replace placeholder lint/typecheck/test scripts with executable project checks.
+
+## 2026-02-18 UTC (deploy workflow non-blocking update)
+
+### Objective
+
+Prevent CI/deploy failures when `AZURE_STATIC_WEB_APPS_API_TOKEN` is not configured while preserving the deploy workflow for future use.
+
+### Approach
+
+- Updated SWA deploy action inputs to skip deployment when required secrets are missing.
+- Changed `output_location` from `dist` to `.` to match current scaffold state (no build output yet).
+- Updated continuity documentation in `PROJECT_STATUS.md` to record non-blocking deploy behavior.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` deployment checklist and recent update section.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diff.
+
+### Follow-ups
+
+- Configure `AZURE_STATIC_WEB_APPS_API_TOKEN` in repository secrets to enable actual deployments.
+- Replace `output_location: .` with real build output path once `apps/web` implementation exists.

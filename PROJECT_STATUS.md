@@ -70,6 +70,7 @@ No application/runtime implementation code has been added yet.
 - [x] Deploy workflow skeleton committed
 - [x] Required secrets documented in workflows/docs
 - [ ] Azure Static Web Apps configured with real secrets
+- [x] Deploy workflow is non-blocking when SWA token is missing (`skip_deploy_on_missing_secrets: true`)
 - [ ] Production deployment validated
 
 ## Continuity rule
@@ -82,7 +83,7 @@ After every merged PR, update this file with:
 
 ## Recent update
 
-- Added a minimal root `package.json` so `pnpm install` works in scaffold-only state.
-- Updated README with scaffold-stage local verification steps (`pnpm install`, `pnpm run ci`).
-- Updated CI workflow to run `pnpm install` and `pnpm run ci` against scaffold-safe scripts.
+- Updated deploy workflow to keep push-to-main trigger active while safely skipping SWA deployment when `AZURE_STATIC_WEB_APPS_API_TOKEN` is missing.
+- Set SWA `output_location` to `.` temporarily until `apps/web` has a real build output.
+- Added deployment status note that current SWA deploy is configured but non-blocking/skipped until secrets are configured.
 
