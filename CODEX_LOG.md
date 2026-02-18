@@ -198,3 +198,31 @@ Implement the first runnable milestone: local prompt-only UI + stub `POST /api/c
 
 - Run `pnpm install`, `pnpm dev`, and API/web smoke tests in an environment with registry access and Functions Core Tools.
 - Add deterministic help/list/confirm protocol + auth in next PR.
+
+## 2026-02-18 20:32 UTC (docs continuity: lockfile + approve-builds)
+
+### Objective
+
+Document lockfile/caching continuity and local `pnpm approve-builds` guidance after recent GitHub and local setup changes.
+
+### Approach
+
+- Updated `PROJECT_STATUS.md` with explicit local dev and CI checklist items.
+- Added a recent changes section capturing both lockfile purpose and esbuild approval step.
+- Updated runbook local setup with the `Ignored build scripts: esbuild` remediation.
+
+### Files changed
+
+- `PROJECT_STATUS.md`
+- `docs/runbook.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ inserted local setup note in `docs/runbook.md`.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+- `git diff -- PROJECT_STATUS.md docs/runbook.md CODEX_LOG.md` ✅ verified targeted documentation-only changes.
+
+### Follow-ups
+
+- Confirm next CI run uses committed `pnpm-lock.yaml` with `setup-node` pnpm cache without lockfile errors.

@@ -15,6 +15,8 @@ pnpm install
 pnpm dev
 ```
 
+If you see `Ignored build scripts: esbuild`, run `pnpm approve-builds`, allow `esbuild`, then re-run `pnpm install`.
+
 What this starts:
 
 - Web app (Vite) at `http://localhost:5173`

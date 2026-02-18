@@ -30,6 +30,20 @@ Local runnable baseline implemented.
    - `pnpm dev`
 3. Open `http://localhost:5173` and submit a prompt.
 
+## Local dev checklist
+
+- `pnpm install` generates/uses `pnpm-lock.yaml`.
+- If pnpm warns about ignored build scripts, run `pnpm approve-builds` and select `esbuild`.
+
+## CI checklist
+
+- CI requires `pnpm-lock.yaml` to be present (or dependency caching disabled); current state: lockfile is committed.
+
+## Recent changes
+
+- 2026-02-18: Added `pnpm-lock.yaml` to the repository so GitHub Actions (`setup-node` cache: pnpm) can run without failing.
+- 2026-02-18: Local dev note: run `pnpm approve-builds` and select `esbuild` to avoid pnpm warning and allow the Vite/esbuild toolchain to function.
+
 ## Known limitations
 
 - No authentication/passkey yet.
