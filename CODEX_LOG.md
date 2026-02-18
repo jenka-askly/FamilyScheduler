@@ -777,3 +777,34 @@ Fix deterministic availability query fallback by normalizing chat input and maki
 ### Follow-ups
 
 - If desired, add a dedicated parser unit test module for availability query month resolution with an injected clock to make year-rollover behavior fully deterministic in tests.
+
+## 2026-02-18 23:29 UTC (clarification follow-up resolution)
+
+### Objective
+
+Fix clarify follow-up behavior so the next user message is consumed as missing parameter input, avoid misclassifying bare names as identity resets, and add coverage for canceling clarifications.
+
+### Approach
+
+- Added module-level `pendingClarification` state in the API chat handler.
+- Added deterministic clarify path for `list my availability` that records missing `personName` and asks `Whose availability?`.
+- At chat start, if clarification is pending and message is not `cancel`, fill the missing value from the user reply, clear clarification state, and execute the resolved action immediately.
+- Unified `cancel` behavior to clear both pending proposal and pending clarification, returning `Cancelled.`.
+- Added a guard that prevents bare-name input from being treated as `set_identity`; identity remains explicit via `I am <Name>`.
+- Added/updated tests for acceptance cases A/B/C.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api test` ✅ passed (build + node test suite, including new clarification tests).
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ used for log timestamp.
+
+### Follow-ups
+
+- Extend pending clarification extraction to additional clarify intents returned from OpenAI structured outputs as more missing-field patterns are introduced.

@@ -26,6 +26,11 @@ type ParsedDateTime = {
 const storage = createStorageAdapter();
 let pendingProposal: PendingProposal | null = null;
 let activePersonId: string | null = null;
+let pendingClarification: null | {
+  intent: string;
+  missing: string;
+  partialAction: Action;
+} = null;
 
 const badRequest = (message: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message } });
 const normalizeCode = (value: string): string => value.trim().toUpperCase();
@@ -46,6 +51,12 @@ const parseAddAppointmentCommand = (message: string): { title: string } | null =
 const parseIAmCommand = (message: string): { name: string } | null => {
   const match = message.match(/^i\s+am\s+(.+)$/i);
   return match ? { name: match[1].trim() } : null;
+};
+
+const parseBareNameCommand = (message: string): { name: string } | null => {
+  const match = message.match(/^[a-z][a-z\s'-]*$/i);
+  if (!match) return null;
+  return { name: message.trim().replace(/\s+/g, ' ') };
 };
 
 const parse12HourTime = (value: string): string | null => {
@@ -153,6 +164,27 @@ const buildOpenAiContext = (state: AppState) => ({
   timezoneName: process.env.TZ ?? 'America/Los_Angeles'
 });
 
+const createClarificationState = (action: Action | undefined): typeof pendingClarification => {
+  if (!action) return null;
+
+  if (action.type === 'list_availability' && !action.personName) {
+    return { intent: action.type, missing: 'personName', partialAction: { type: 'list_availability' } };
+  }
+
+  return null;
+};
+
+const fillPendingClarification = (
+  clarification: NonNullable<typeof pendingClarification>,
+  value: string
+): Action | null => {
+  if (clarification.intent === 'list_availability' && clarification.missing === 'personName') {
+    return { ...(clarification.partialAction as Extract<Action, { type: 'list_availability' }>), personName: value.trim() };
+  }
+
+  return null;
+};
+
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = crypto.randomUUID();
   let body: ChatRequest;
@@ -171,6 +203,21 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   const { state, etag } = await storage.getState();
   const message = body.message.trim();
   const normalizedMessage = normalizeUserText(message);
+
+  if (normalizedMessage === 'cancel') {
+    pendingProposal = null;
+    pendingClarification = null;
+    return { status: 200, jsonBody: { kind: 'reply', assistantText: 'Cancelled.', traceId } };
+  }
+
+  if (pendingClarification) {
+    const action = fillPendingClarification(pendingClarification, message);
+    pendingClarification = null;
+    if (action) {
+      const execution = executeActions(state, [action], { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+    }
+  }
 
   if (normalizedMessage === 'confirm') {
     if (!pendingProposal) return { status: 200, jsonBody: { kind: 'reply', assistantText: 'No pending change.', traceId } };
@@ -194,11 +241,6 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
 
     return { status: 200, jsonBody: { kind: 'applied', assistantText: execution.effectsTextLines.join('\n'), traceId } };
-  }
-
-  if (normalizedMessage === 'cancel') {
-    pendingProposal = null;
-    return { status: 200, jsonBody: { kind: 'reply', assistantText: 'Cancelled pending change.', traceId } };
   }
 
   if (normalizedMessage === 'reset state') {
@@ -242,6 +284,10 @@ Reply 'confirm' or 'cancel'.`, traceId } };
 
   if (normalizedMessage === 'list appointments') deterministicActions.push({ type: 'list_appointments' });
   if (normalizedMessage === 'list availability') deterministicActions.push({ type: 'list_availability' });
+  if (normalizedMessage === 'list my availability') {
+    pendingClarification = { intent: 'list_availability', missing: 'personName', partialAction: { type: 'list_availability' } };
+    return { status: 200, jsonBody: { kind: 'clarify', question: 'Whose availability?', traceId } };
+  }
   const listForMatch = message.match(/^list\s+availability\s+for\s+(.+)$/i);
   if (listForMatch) deterministicActions.push({ type: 'list_availability', personName: listForMatch[1].trim() });
 
@@ -293,6 +339,7 @@ Reply 'confirm' or 'cancel'.`, traceId } };
     console.info(JSON.stringify({ traceId, openaiUsed: true, model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', responseKind: parsed.kind }));
 
     if (parsed.kind === 'clarify') {
+      pendingClarification = createClarificationState(parsed.actions[0]);
       return { status: 200, jsonBody: { kind: 'clarify', question: parsed.clarificationQuestion ?? 'Could you clarify?', traceId } };
     }
 
@@ -302,6 +349,10 @@ Reply 'confirm' or 'cancel'.`, traceId } };
     }
 
     const mutationActions = parsed.actions.filter(isMutationAction);
+    const bareNameCommand = parseBareNameCommand(message);
+    if (bareNameCommand && mutationActions.length === 1 && mutationActions[0].type === 'set_identity') {
+      return { status: 200, jsonBody: { kind: 'reply', assistantText: "If you want to set identity, reply like: 'I am Joe'.", traceId } };
+    }
     const setIdentityOnly = mutationActions.length > 0 && mutationActions.every((action) => action.type === 'set_identity');
     if (setIdentityOnly) {
       const execution = executeActions(state, mutationActions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
