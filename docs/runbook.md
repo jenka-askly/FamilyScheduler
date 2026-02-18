@@ -12,6 +12,7 @@
 
 ```bash
 pnpm install
+cp api/local.settings.example.json api/local.settings.json
 pnpm dev
 ```
 
@@ -29,20 +30,33 @@ The web app proxies `/api/*` requests to the Functions host.
 1. Open `http://localhost:5173`.
 2. Confirm transcript starts with `Type 'help' for examples.`.
 3. Enter `hello` and press Enter.
-4. Confirm assistant reply renders as `echo: hello`.
+4. Confirm assistant reply renders and no `unable to fetch reply` error appears.
 
 ## 2. API smoke test (without UI)
 
+From `api/`:
+
 ```bash
-curl -s -X POST http://localhost:7071/api/chat \
-  -H "content-type: application/json" \
-  -d '{"message":"hello"}'
+pnpm run build
+func start
 ```
 
-Expected response:
+Then from another shell:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:7071/api/chat" -ContentType "application/json" -Body '{"message":"hello"}'
+```
+
+Expected behavior:
+
+- Functions startup output lists the `chat` HTTP function route.
+- API returns JSON payload (not 404), for example:
 
 ```json
-{"kind":"reply","assistantText":"echo: hello","stateVersion":0}
+{
+  "kind": "reply",
+  "assistantText": "You asked: hello"
+}
 ```
 
 Validation failure behavior:

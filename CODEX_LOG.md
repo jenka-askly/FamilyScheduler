@@ -349,3 +349,41 @@ Add real in-memory appointment state with identifiable codes and deterministic a
 - Replace naive command parsing with structured action schema + validation.
 - Add update/delete mutation flows with confirmation protocol.
 - Introduce availability model and assignment logic.
+
+## 2026-02-18 21:16 UTC (fix local Functions discovery + chat route registration)
+
+### Objective
+
+Fix local Azure Functions discovery so `func start` loads the Node worker + chat HTTP trigger and `POST /api/chat` no longer returns 404.
+
+### Approach
+
+- Switched to a single v4 programming-model registration entrypoint (`api/src/index.ts`) and imported the chat handler there.
+- Removed trigger registration side-effect from `api/src/functions/chat.ts` so registration is centralized.
+- Updated `api/package.json` `main` to `dist/index.js` so Functions host can discover compiled entrypoint.
+- Added tracked `api/local.settings.example.json` and ignored `api/local.settings.json` in `.gitignore`.
+- Updated runbook/API docs with copy-step for local settings and verification flow using `func start` + `Invoke-RestMethod`.
+- Updated `PROJECT_STATUS.md` with discovery fix and local endpoint reachability status.
+
+### Files changed
+
+- `api/src/index.ts`
+- `api/src/functions/chat.ts`
+- `api/package.json`
+- `api/local.settings.example.json`
+- `.gitignore`
+- `docs/runbook.md`
+- `api/README.md`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `npm run build` (in `api/`) ⚠️ failed (`TS2688: Cannot find type definition file for 'node'`) because required packages are not installed in this network-restricted environment.
+- `npm install` (in `api/`) ⚠️ failed with `403 Forbidden` fetching `@types/node` from npm registry in this environment.
+- `func start --port 7071` (in `api/`) ⚠️ could not run because Azure Functions Core Tools are not installed here (`func: command not found`).
+- `rg -n "app\.http\(|route:\s*'chat'|local.settings" api docs apps/web .gitignore PROJECT_STATUS.md` ✅ verified single `chat` registration entrypoint plus local settings wiring/documentation updates.
+
+### Follow-ups
+
+- Verify Windows PowerShell `Invoke-RestMethod` flow on developer machine exactly as documented in runbook.
+- Keep API response shape stable while introducing structured action schema in later milestone.

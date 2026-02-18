@@ -1,4 +1,4 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 
 type ChatRequest = {
   message?: unknown;
@@ -193,10 +193,3 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
   };
 }
-
-app.http('chat', {
-  methods: ['POST'],
-  authLevel: 'anonymous',
-  route: 'chat',
-  handler: chat
-});
