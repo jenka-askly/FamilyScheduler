@@ -2,10 +2,13 @@
 
 ## Current milestone
 
-Local runnable baseline implemented.
+Local runnable baseline implemented with Azure Functions discovery fixed for local chat endpoint.
 
 ## What works now
 
+- Fixed Azure Functions v4 discovery by registering HTTP trigger from `api/src/index.ts` (compiled to `api/dist/index.js`).
+- Local `/api/chat` route reachable via Functions host (`POST http://localhost:7071/api/chat`) with JSON response.
+- Tracked `api/local.settings.example.json`; local copy workflow documented in runbook.
 - Confirmation protocol implemented (in-memory only).
 - In-memory appointment state in API (`appointments[]`) with runtime-stable generated codes (`APPT-1`, `APPT-2`, ...).
 - `list appointments` command returns one appointment per line (`APPT-n — <title>`).
@@ -35,6 +38,7 @@ Local runnable baseline implemented.
    - Azure Functions Core Tools v4
 2. Run:
    - `pnpm install`
+   - `cp api/local.settings.example.json api/local.settings.json`
    - `pnpm dev`
 3. Open `http://localhost:5173` and submit a prompt.
 
@@ -49,6 +53,7 @@ Local runnable baseline implemented.
 
 ## Recent changes
 
+- 2026-02-18: Fixed local Azure Functions runtime discovery by moving v4 trigger registration to `api/src/index.ts`, added tracked `api/local.settings.example.json`, and updated runbook for `local.settings.json` copy so local `POST /api/chat` no longer 404s.
 - 2026-02-18: Added in-memory appointment mutation/query support in API (`add appt <title>`, `confirm`, `list appointments`, `show APPT-n`) with runtime-generated human-readable appointment codes and post-apply snapshot output.
 - 2026-02-18: Added workspace-root `typescript` devDependency (`^5.5.0`) so workspace `tsc` invocations resolve during local/CI builds.
 - 2026-02-18: Fixed API TypeScript build configuration by adding `@types/node` to `api` devDependencies to resolve `TS2688` (Cannot find type definition file for `node`).

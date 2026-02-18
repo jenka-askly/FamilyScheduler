@@ -1,6 +1,6 @@
 # API (local stub)
 
-This PR adds a local Azure Functions stub endpoint.
+This package hosts the local Azure Functions API endpoint.
 
 ## Prerequisites
 
@@ -14,6 +14,7 @@ From the repository root:
 
 ```bash
 pnpm install
+cp api/local.settings.example.json api/local.settings.json
 pnpm dev:api
 ```
 
@@ -21,11 +22,12 @@ Or from this folder:
 
 ```bash
 pnpm install
+cp local.settings.example.json local.settings.json
 pnpm run build
 func start
 ```
 
-## Test the stub endpoint
+## Test the endpoint
 
 ```bash
 curl -s -X POST http://localhost:7071/api/chat \
@@ -36,5 +38,5 @@ curl -s -X POST http://localhost:7071/api/chat \
 Expected response:
 
 ```json
-{"kind":"reply","assistantText":"echo: hello","stateVersion":0}
+{"kind":"reply","assistantText":"You asked: hello"}
 ```
