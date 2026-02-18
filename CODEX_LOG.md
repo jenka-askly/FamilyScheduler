@@ -387,3 +387,36 @@ Fix local Azure Functions discovery so `func start` loads the Node worker + chat
 
 - Verify Windows PowerShell `Invoke-RestMethod` flow on developer machine exactly as documented in runbook.
 - Keep API response shape stable while introducing structured action schema in later milestone.
+
+## 2026-02-18 21:20 UTC (fix Functions entrypoint pattern vs tsc output)
+
+### Objective
+
+Align Azure Functions Node worker discovery with TypeScript output layout so compiled handlers are emitted where the worker expects them.
+
+### Approach
+
+- Updated `api/tsconfig.json` `rootDir` from `src` to `.` while keeping `outDir` at `dist`.
+- This preserves source layout in compiled output and produces `api/dist/src/functions/*.js`.
+- Added runbook troubleshooting guidance for `Found zero files matching ...` startup errors caused by output-path mismatch.
+- Updated `PROJECT_STATUS.md` milestone/recent-changes to record this alignment fix.
+
+### Files changed
+
+- `api/tsconfig.json`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ❌ failed (`TS2688: Cannot find type definition file for 'node'`) because package installation is incomplete in this environment.
+- `pnpm install` ⚠️ failed due registry/network restriction (`ERR_PNPM_FETCH_403` downloading `undici-types`).
+- `find api/dist -maxdepth 4 -type f | sort` ✅ confirmed compiled artifacts currently include `api/dist/src/index.js` and `api/dist/src/functions/chat.js`.
+- `pnpm dev` ⚠️ failed in this environment because web dependencies are not installed (`vite: not found`).
+- `pnpm -C api run dev` ❌ failed at build step with same missing Node type dependency.
+
+### Follow-ups
+
+- Re-run `pnpm install` in an environment with npm registry access.
+- Re-run `pnpm -C api run build` then start API via `pnpm -C api run dev` (or root `pnpm dev`) and verify `POST /api/chat` returns JSON.
