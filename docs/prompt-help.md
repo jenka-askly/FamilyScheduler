@@ -11,46 +11,34 @@ Changes require confirmation. Questions respond immediately.
 Deterministic commands:
 
 - `help` / `?`
-- `list appointments [from YYYY-MM-DD to YYYY-MM-DD]`
-- `list unassigned`
+- `I am Joe`
+- `add appt <title>`
+- `list appointments`
 - `show <CODE>`
-- `delete APPT-1`
 - `update APPT-1 title <new title>`
-- `export json`
-- `export csv`
-- `undo`
-- `backup now`
-- `list backups` (if supported)
-- `restore from backup <NAME>`
-- `confirm [proposalId]`
+- `delete APPT-1`
+- `mark me unavailable 2026-03-10 9am-1pm out of town`
+- `list availability`
+- `list availability for Joe`
+- `delete AVL-JOE-1`
+- `who is available in March`
+- `who is available in 2026-03`
+- `who is available 2026-03-01 to 2026-03-31`
+- `check conflicts`
+- `confirm`
 - `cancel`
 
 Mutation safety:
 
 - Mutations are never applied immediately.
 - You will receive a proposal and a confirmation message.
-- Reply `confirm` (or `confirm <proposalId>`) to execute.
+- Reply `confirm` to execute.
 - Reply `cancel` to discard.
 
 Stable codes:
 
-- Every appointment/availability item has a stable code (example: `APR-12-PT-1`).
-- Use codes to modify/delete/show items.
-
-Sample prompts:
-
-1. `Add a PT appointment for Mom on 2025-04-12 at 3:00pm for 1 hour at Rehab Center.`
-2. `Move APR-12-PT-1 to 2025-04-12 at 4:00pm.`
-3. `delete APPT-1`
-4. `update APPT-1 title Physical Therapy`
-5. `Delete appointment APR-12-PT-1.`
-6. `Mark Joe unavailable on 2025-03-10 from 9:00am to 1:00pm for work.`
-7. `Assign Joe and Ana to APR-18-SURG-1.`
-8. `Who is available in March?`
-9. `List appointments from 2025-03-01 to 2025-03-31.`
-10. `Export json.`
-11. `Undo.`
-12. `I am Joe.`
+- Every appointment and availability item has a stable code (example: `APPT-1`, `AVL-JOE-1`).
+- Use codes to show/modify/delete items.
 
 Timezone default: `America/Los_Angeles`.
 
