@@ -87,3 +87,5 @@ Expected files include:
 
 - `api/dist/index.js`
 - `api/dist/functions/chat.js`
+
+The API build now runs a clean step first (`pnpm -C api run clean`) so stale `dist/` files do not mask entrypoint issues.

@@ -483,3 +483,35 @@ Fix Azure Functions startup mismatch so the API build emits `dist/index.js` (not
 ### Follow-ups
 
 - On a machine with Azure Functions Core Tools installed, run `pnpm dev` and `Invoke-RestMethod` against `http://localhost:7071/api/chat` to confirm end-to-end JSON response.
+
+## 2026-02-18 21:37 UTC (clean dist before API build)
+
+### Objective
+
+Ensure API builds always produce a clean Functions entrypoint (`dist/index.js`) without stale `dist/` leftovers.
+
+### Approach
+
+- Added an explicit `clean` script in `api/package.json` using Node's `fs.rmSync` (no extra dependency required in this environment).
+- Updated `api` `build` script to run `clean` before `tsc`.
+- Updated runbook troubleshooting to note the clean-first build behavior.
+- Updated `PROJECT_STATUS.md` with continuity note for the clean-build safeguard.
+
+### Files changed
+
+- `api/package.json`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ❌ initially failed when trying `rimraf` (`sh: rimraf: not found`).
+- `pnpm install` ❌ failed in this environment (`ERR_PNPM_FETCH_403` for `rimraf`), so dependency-based clean was removed.
+- `pnpm -C api run build` ✅ succeeded after switching clean script to Node `fs.rmSync`.
+- `test -f api/dist/index.js && test -f api/dist/functions/chat.js` ✅ confirmed required compiled files exist.
+- `pnpm dev` ⚠️ API start blocked in this environment by missing Azure Functions Core Tools (`func: not found`); web dev server starts.
+
+### Follow-ups
+
+- On a machine with Azure Functions Core Tools, run `pnpm dev`, then POST `http://localhost:7071/api/chat` to verify end-to-end JSON response.
