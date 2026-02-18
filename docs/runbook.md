@@ -68,13 +68,13 @@ Validation failure behavior:
 
 ## 3. Troubleshooting
 
-### Azure Functions shows `Found zero files matching ...`
+### Azure Functions shows `entry point dist/index.js does not exist`
 
-If you see `Found zero files matching dist/src/functions/*.js`, ensure the API build emits handlers to `api/dist/src/functions/*.js` (set `api/tsconfig.json` `rootDir` to `.`).
+If you see `entry point dist/index.js does not exist`, ensure the API build emits `api/dist/index.js` by setting `api/tsconfig.json` `rootDir` to `src` and `outDir` to `dist`.
 
-This indicates a mismatch between the Azure Functions worker entrypoint pattern and the TypeScript build output layout under `api/dist`.
+This indicates a mismatch between the Azure Functions entrypoint expected by the host and the TypeScript build output layout under `api/dist`.
 
-For this repo, `api/tsconfig.json` is intentionally set so `tsc` emits function files under `api/dist/src/functions/*.js`. If output lands in a different folder (for example `api/dist/functions/*.js`), Functions may start with no discovered handlers.
+For this repo, `api/tsconfig.json` should emit `src/index.ts` to `api/dist/index.js` and `src/functions/chat.ts` to `api/dist/functions/chat.js`. If output lands under `api/dist/src/...`, Functions may fail to load the expected entrypoint.
 
 Quick checks:
 
@@ -85,5 +85,5 @@ find api/dist -maxdepth 4 -type f
 
 Expected files include:
 
-- `api/dist/src/index.js`
-- `api/dist/src/functions/chat.js`
+- `api/dist/index.js`
+- `api/dist/functions/chat.js`

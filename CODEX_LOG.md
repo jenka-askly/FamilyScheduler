@@ -450,3 +450,36 @@ Ensure local Azure Functions worker indexing matches TypeScript output path (`di
 ### Follow-ups
 
 - In a network-enabled local environment, run `pnpm install`, then `pnpm -C api run build`, then `pnpm dev` and POST to `http://localhost:7071/api/chat` to confirm JSON response.
+
+## 2026-02-18 21:32 UTC (fix dist/index.js entrypoint emission for Azure Functions)
+
+### Objective
+
+Fix Azure Functions startup mismatch so the API build emits `dist/index.js` (not `dist/src/index.js`) and keep `/api/chat` discoverable.
+
+### Approach
+
+- Updated `api/tsconfig.json` to use `rootDir: "src"` with `outDir: "dist"` so `src/index.ts` compiles to `dist/index.js` and `src/functions/chat.ts` compiles to `dist/functions/chat.js`.
+- Searched for stale worker/glob references to `dist/src/functions/*.js` and removed that guidance from docs.
+- Updated runbook troubleshooting to address the exact error `entry point dist/index.js does not exist` and document the correct expected output files.
+- Updated `PROJECT_STATUS.md` to record the entrypoint fix and local `/api/chat` reachability status.
+
+### Files changed
+
+- `api/tsconfig.json`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ✅ succeeded.
+- `python - <<'PY' ... shutil.rmtree('api/dist') ...` ✅ cleaned previous build artifacts.
+- `pnpm -C api run build` ✅ rebuilt API after cleaning.
+- `find api/dist -maxdepth 3 -type f | sort` ✅ confirmed `api/dist/index.js` and `api/dist/functions/chat.js` are emitted.
+- `rg -n "dist/src/functions" api docs` ✅ no remaining config/docs references under `api/` to old worker glob path.
+- `pnpm -C api run dev` ⚠️ build succeeds but runtime start is blocked here because Azure Functions Core Tools are unavailable (`func: not found`).
+
+### Follow-ups
+
+- On a machine with Azure Functions Core Tools installed, run `pnpm dev` and `Invoke-RestMethod` against `http://localhost:7071/api/chat` to confirm end-to-end JSON response.
