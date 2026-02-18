@@ -694,3 +694,54 @@ Fix Azure blob initialization so `initIfMissing` treats `409 BlobAlreadyExists` 
 ### Follow-ups
 
 - Manually run Azure acceptance scenarios with a real SAS token/environment: repeat startup with existing `state.json`, then startup after deleting `state.json` to confirm auto-create behavior remains correct.
+
+
+## 2026-02-18 23:05 UTC (chunk 8: OpenAI parser + strict action schema)
+
+### Objective
+
+Implement feature-flagged OpenAI natural-language parsing that outputs strict structured actions, preserve confirm safety for mutations, and centralize deterministic execution.
+
+### Approach
+
+- Added a versioned strict action schema parser and model response validation.
+- Added OpenAI parser client + constrained prompting that requires JSON-only action output.
+- Centralized action execution in `executeActions()` and routed all mutations through this executor.
+- Updated chat routing to: deterministic-first, then OpenAI fallback (flagged), with `clarify` on parse/validation failure.
+- Added lightweight diagnostics (`traceId`, parser usage logs) and updated docs/env/runbook continuity.
+- Added unit tests for schema rejection rules and deterministic executor behavior.
+
+### Files changed
+
+- `.env.example`
+- `api/package.json`
+- `api/src/functions/chat.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `docs/runbook.md`
+- `docs/prompt-help.md`
+- `docs/architecture.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` (pending run)
+- `pnpm --filter @familyscheduler/api test` (pending run)
+- `pnpm --filter @familyscheduler/api exec tsc -p tsconfig.json --noEmit` (pending run)
+
+### Follow-ups
+
+- Validate OpenAI parser end-to-end locally with real `OPENAI_API_KEY` and the NL scenario matrix.
+
+
+### Command result update
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm --filter @familyscheduler/api test` ✅ passed.
+- `pnpm ci` ❌ failed (`ERR_PNPM_CI_NOT_IMPLEMENTED` in pnpm).
+- `pnpm run ci` ✅ passed (workspace build/lint/typecheck/test sequence).
