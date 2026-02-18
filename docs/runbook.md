@@ -64,3 +64,24 @@ Validation failure behavior:
 ```json
 {"kind":"error","message":"message is required"}
 ```
+
+
+## 3. Troubleshooting
+
+### Azure Functions shows `Found zero files matching ...`
+
+This indicates a mismatch between the Azure Functions worker entrypoint pattern and the TypeScript build output layout under `api/dist`.
+
+For this repo, `api/tsconfig.json` is intentionally set so `tsc` emits function files under `api/dist/src/functions/*.js`. If output lands in a different folder (for example `api/dist/functions/*.js`), Functions may start with no discovered handlers.
+
+Quick checks:
+
+```bash
+pnpm -C api run build
+find api/dist -maxdepth 4 -type f
+```
+
+Expected files include:
+
+- `api/dist/src/index.js`
+- `api/dist/src/functions/chat.js`

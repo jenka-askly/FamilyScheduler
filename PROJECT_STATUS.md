@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Local runnable baseline implemented with Azure Functions discovery fixed for local chat endpoint.
+Local runnable baseline implemented with Azure Functions discovery fixed for local chat endpoint and TypeScript output aligned with Functions entrypoint expectations.
 
 ## What works now
 
@@ -53,6 +53,7 @@ Local runnable baseline implemented with Azure Functions discovery fixed for loc
 
 ## Recent changes
 
+- 2026-02-18: Fixed Functions entrypoint/build output alignment by setting `api/tsconfig.json` `rootDir` to `.` so compiled handlers emit under `api/dist/src/functions/*.js` (matching worker discovery expectations).
 - 2026-02-18: Fixed local Azure Functions runtime discovery by moving v4 trigger registration to `api/src/index.ts`, added tracked `api/local.settings.example.json`, and updated runbook for `local.settings.json` copy so local `POST /api/chat` no longer 404s.
 - 2026-02-18: Added in-memory appointment mutation/query support in API (`add appt <title>`, `confirm`, `list appointments`, `show APPT-n`) with runtime-generated human-readable appointment codes and post-apply snapshot output.
 - 2026-02-18: Added workspace-root `typescript` devDependency (`^5.5.0`) so workspace `tsc` invocations resolve during local/CI builds.
