@@ -47,6 +47,8 @@ const formatDate = (value: string): string => {
 };
 
 const formatTime = (value: string): string => {
+  const match = value.match(/T(\d{2}:\d{2})/);
+  if (match) return match[1];
   const date = parseStoredDateTime(value);
   if (Number.isNaN(date.getTime())) return value;
   return `${date.getUTCHours().toString().padStart(2, '0')}:${date.getUTCMinutes().toString().padStart(2, '0')}`;
@@ -139,6 +141,21 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       }
       appointment.title = action.title;
       effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`);
+      continue;
+    }
+
+
+    if (action.type === 'update_appointment_schedule') {
+      const appointment = findAppointmentByCode(nextState, action.code);
+      if (!appointment) {
+        effectsTextLines.push(`Not found: ${action.code}`);
+        appliedAll = false;
+        continue;
+      }
+      appointment.start = action.start;
+      appointment.end = action.end;
+      const allDayText = action.isAllDay ? ' (all day)' : '';
+      effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${formatDateTimeRange(action.start, action.end)}${allDayText}`);
       continue;
     }
 

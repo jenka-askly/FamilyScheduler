@@ -4,6 +4,7 @@ export type Action =
   | { type: 'add_appointment'; title: string; start?: string; end?: string }
   | { type: 'delete_appointment'; code: string }
   | { type: 'update_appointment_title'; code: string; title: string }
+  | { type: 'update_appointment_schedule'; code: string; start: string; end: string; isAllDay?: boolean }
   | { type: 'add_availability'; personName?: string; start: string; end: string; reason?: string }
   | { type: 'delete_availability'; code: string }
   | { type: 'set_identity'; name: string }
@@ -40,7 +41,7 @@ const assertString = (value: unknown, field: string): string => {
 
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'title', 'start', 'end', 'code', 'personName', 'reason', 'name', 'month']);
+  assertKeys(value, ['type', 'title', 'start', 'end', 'code', 'personName', 'reason', 'name', 'month', 'isAllDay']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'add_appointment') {
@@ -55,6 +56,13 @@ const parseAction = (value: unknown): Action => {
     const code = assertString(value.code, 'code');
     if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     return { type, code, title: assertString(value.title, 'title') };
+  }
+  if (type === 'update_appointment_schedule') {
+    const code = assertString(value.code, 'code');
+    if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
+    const start = assertString(value.start, 'start');
+    const end = assertString(value.end, 'end');
+    return { type, code, start, end, isAllDay: value.isAllDay === true ? true : undefined };
   }
   if (type === 'add_availability') {
     return {
