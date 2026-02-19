@@ -1316,3 +1316,31 @@ Add an appointment Notes column in web UI and implement persisted `notes` suppor
 ### Follow-ups
 
 - Optionally add an explicit UI integration test for Notes column cell truncation behavior.
+
+## 2026-02-19 03:00 UTC (ux title rename to Scheduler)
+
+### Objective
+
+Rename user-visible web UI branding from `FamilyScheduler` to `Scheduler` within `apps/web` only.
+
+### Approach
+
+- Updated static document title in web entry HTML.
+- Updated visible application header label in React app shell.
+- Verified no remaining `FamilyScheduler` user-facing string references in `apps/web`.
+
+### Files changed
+
+- `apps/web/index.html`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "FamilyScheduler|document.title|<title>" apps/web` ✅ located UI branding occurrences.
+- `rg -n "FamilyScheduler" apps/web` ✅ no remaining matches after edits.
+
+### Follow-ups
+
+- Run local web app (`pnpm dev:web`) and confirm browser tab/header text visually in host environment.
