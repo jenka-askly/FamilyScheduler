@@ -2118,3 +2118,35 @@ Add a compact global UI baseline (typography, spacing, controls, table density) 
 
 - Run `pnpm --filter @familyscheduler/web add @fontsource/inter` in a network-enabled environment.
 - Run `pnpm install` then `pnpm dev` to visually verify compact typography/controls/table density and no layout breakage.
+
+## 2026-02-19 18:06 UTC (CODEX-002 favicon + browser title)
+
+### Objective
+
+Replace the default favicon with a minimal calendar SVG and set browser tab title to `Family Scheduler`.
+
+### Approach
+
+- Added a new static favicon at `apps/web/public/favicon.svg`.
+- Updated `apps/web/index.html` to reference `/favicon.svg` and set a single `<title>Family Scheduler</title>`.
+- Updated continuity documentation in `PROJECT_STATUS.md` with a dedicated `UI Polish (CODEX-002)` section.
+
+### Files changed
+
+- `apps/web/public/favicon.svg`
+- `apps/web/index.html`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `mkdir -p apps/web/public && cat > apps/web/public/favicon.svg ...` ✅ created favicon asset.
+- `python - <<'PY' ...` ✅ updated `apps/web/index.html` favicon link and title.
+- `python - <<'PY' ...` ✅ inserted `UI Polish (CODEX-002)` notes into `PROJECT_STATUS.md`.
+- `pnpm dev` ⚠️ failed due existing environment/dependency issues (`@fontsource/inter/*` unresolved in web and missing `func` binary for API), preventing full browser verification in this container.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Install/restore web font dependencies and Azure Functions Core Tools to run `pnpm dev` end-to-end and manually confirm favicon/title in browser.
+- Hard refresh the browser tab (`Shift+Reload`) after startup to force favicon cache refresh.
