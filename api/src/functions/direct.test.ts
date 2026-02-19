@@ -34,6 +34,18 @@ const loadDirect = async (tag: string) => {
   return mod.direct as (request: any, context: any) => Promise<any>;
 };
 
+
+test('direct returns group_not_found when group is missing', async () => {
+  process.env.STORAGE_MODE = 'local';
+  process.env.LOCAL_STATE_PREFIX = './.localtest/direct-missing';
+  const tag = 'missing-group';
+  const mod = await import(`./direct.js?${tag}`);
+  const direct = mod.direct as (request: any, context: any) => Promise<any>;
+  const response = await direct({ json: async () => ({ groupId: '44444444-4444-4444-8444-444444444444', phone: PHONE, action: { type: 'create_blank_appointment' } }) } as any, {} as any);
+  assert.equal(response.status, 404);
+  assert.equal((response.jsonBody as any).error, 'group_not_found');
+});
+
 test('direct endpoint enforces group/phone and mutates for allowed member', async () => {
   const direct = await loadDirect('flow');
   const denied = await direct({ json: async () => ({ groupId: GROUP_ID, phone: '+14155550124', action: { type: 'create_blank_appointment' } }) } as any, {} as any);

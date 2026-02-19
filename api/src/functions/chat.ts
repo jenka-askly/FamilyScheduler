@@ -5,7 +5,7 @@ import { executeActions } from '../lib/actions/executor.js';
 import { buildContext, type ChatHistoryEntry } from '../lib/openai/buildContext.js';
 import { parseToActions } from '../lib/openai/openaiClient.js';
 import { type AppState } from '../lib/state.js';
-import { ConflictError } from '../lib/storage/storage.js';
+import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
@@ -105,7 +105,13 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   const normalized = normalizeUserText(message);
 
   const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
-  const loaded = await storage.load(identity.groupId);
+  let loaded;
+  try {
+    loaded = await storage.load(identity.groupId);
+  } catch (error) {
+    if (error instanceof GroupNotFoundError) return { status: 404, jsonBody: { ok: false, error: 'group_not_found' } };
+    throw error;
+  }
   const state = loaded.state;
   const allowed = findActivePersonByPhone(state, identity.phoneE164);
   if (!allowed) return { status: 403, jsonBody: { error: 'not_allowed' } };

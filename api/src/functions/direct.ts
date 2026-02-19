@@ -3,7 +3,7 @@ import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functio
 import { executeActions } from '../lib/actions/executor.js';
 import type { Action } from '../lib/actions/schema.js';
 import { type AppState } from '../lib/state.js';
-import { ConflictError } from '../lib/storage/storage.js';
+import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 
@@ -134,7 +134,13 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     return badRequest(error instanceof Error ? error.message : 'invalid action', traceId);
   }
 
-  const loaded = await storage.load(identity.groupId);
+  let loaded;
+  try {
+    loaded = await storage.load(identity.groupId);
+  } catch (error) {
+    if (error instanceof GroupNotFoundError) return { status: 404, jsonBody: { ok: false, error: 'group_not_found' } };
+    throw error;
+  }
   if (!findActivePersonByPhone(loaded.state, identity.phoneE164)) return { status: 403, jsonBody: { error: 'not_allowed' } };
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (!execution.appliedAll) return { status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } };

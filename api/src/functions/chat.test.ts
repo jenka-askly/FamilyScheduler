@@ -49,6 +49,18 @@ test('chat returns 403 when phone is not allowed', async () => {
   assert.equal((response.jsonBody as any).error, 'not_allowed');
 });
 
+
+test('chat returns group_not_found when group is missing', async () => {
+  process.env.STORAGE_MODE = 'local';
+  process.env.LOCAL_STATE_PREFIX = './.localtest/chat-missing';
+  const tag = 'missing-group';
+  const mod = await import(`./chat.js?${tag}`);
+  const chat = mod.chat as (request: any, context: any) => Promise<any>;
+  const response = await chat({ json: async () => ({ groupId: '33333333-3333-4333-8333-333333333333', phone: PHONE, message: 'help' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 404);
+  assert.equal((response.jsonBody as any).error, 'group_not_found');
+});
+
 test('chat works for allowed phone', async () => {
   installFetchStub();
   const chat = await loadChat('allowed');

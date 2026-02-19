@@ -1942,3 +1942,46 @@ Fix Create Group flow so creator is automatically added to People, share link is
 ### Follow-ups
 
 - Consider passing normalized creator phone from create response/session write to avoid keeping raw input formatting in local session payload.
+
+## 2026-02-19 07:58 UTC (remove density toggle + creator name + app-route join gate)
+
+### Objective
+
+Implement the requested focused updates across web+api: remove density toggle, collect/store creator display name, and enforce authorization gating when entering `/#/g/:groupId/app`.
+
+### Approach
+
+- Removed density toggle state/UI wiring from `AppShell` and retained compact spacing as the default CSS token set.
+- Added required `Your name` field on create-group page and sent `creatorName` to API.
+- Updated `groupCreate` API validation to require trimmed `creatorName` (max 40) and seed creator person with that name.
+- Strengthened app-route guard: session/phone required; group mismatch clears session; join verification failure clears session and redirects with `?err=not_allowed`; join page surfaces this error.
+- Added explicit `group_not_found` handling by introducing `GroupNotFoundError` from storage adapters and mapping it in `groupJoin`, `chat`, and `direct`.
+- Added/updated API tests for creator name persistence and missing-group gate responses.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `api/src/functions/groupCreate.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `api/src/lib/storage/storage.ts`
+- `api/src/lib/storage/localFileStorage.ts`
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/functions/groupCreate.test.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api test` ✅ passed (8 tests).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated with SIGINT after capture.
+
+### Follow-ups
+
+- Validate full end-to-end join redirect behavior in local integrated `pnpm dev` environment with API host running.

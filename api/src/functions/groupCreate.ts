@@ -4,7 +4,7 @@ import { createEmptyAppState } from '../lib/state.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
 
-type CreateGroupBody = { groupName?: unknown; groupKey?: unknown; creatorPhone?: unknown };
+type CreateGroupBody = { groupName?: unknown; groupKey?: unknown; creatorPhone?: unknown; creatorName?: unknown };
 
 const storage = createStorageAdapter();
 
@@ -21,6 +21,9 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
   if (groupName.length > 60) return badRequest('groupName must be 60 characters or less');
   if (!/^\d{6}$/.test(groupKey)) return badRequest('groupKey must be exactly 6 digits');
   if (typeof body.creatorPhone !== 'string') return badRequest('creatorPhone is required');
+  const creatorName = typeof body.creatorName === 'string' ? body.creatorName.trim().replace(/\s+/g, ' ') : '';
+  if (!creatorName) return badRequest('creatorName is required');
+  if (creatorName.length > 40) return badRequest('creatorName must be 40 characters or less');
 
   let creatorPhone: { e164: string; display: string };
   try {
@@ -37,7 +40,7 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
   const state = createEmptyAppState(groupId, groupName);
   state.createdAt = now;
   state.updatedAt = now;
-  state.people = [{ personId: creatorPersonId, name: 'Creator', cellE164: creatorPhone.e164, cellDisplay: creatorPhone.display, status: 'active', createdAt: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
+  state.people = [{ personId: creatorPersonId, name: creatorName, cellE164: creatorPhone.e164, cellDisplay: creatorPhone.display, status: 'active', createdAt: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
 
   await storage.initIfMissing(groupId, state);
   context.debug('group_create_success', { traceId, groupId, peopleCount: state.people.length });
