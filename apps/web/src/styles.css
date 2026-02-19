@@ -328,3 +328,24 @@ input {
   gap: 0.45rem;
   align-items: center;
 }
+
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.time-cell {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.data-table textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}

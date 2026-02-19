@@ -210,3 +210,10 @@ After every merged PR, update this file with:
 - Backward compatibility retained: legacy model `kind="clarify"` is normalized into `kind="question"` with free-text enabled by default.
 - Web now blocks with a dedicated question modal whenever `pendingQuestion` exists; users can answer by button click or typed response, and Close dismisses without mutation.
 - Proposal confirm/cancel modal behavior remains unchanged.
+
+## Recent update (2026-02-19 06:15 UTC)
+
+- Added deterministic direct-mutation API endpoint: `POST /api/direct` for inline appointment edits without OpenAI.
+- Added direct appointment actions: `create_blank_appointment`, `set_appointment_date`, `set_appointment_start_time`, `set_appointment_desc`, `set_appointment_location`, `set_appointment_notes`, `set_appointment_duration`, and `delete_appointment`.
+- Appointments pane now supports direct inline editing for date/time/description/location/notes and add/delete row UX.
+- Delete appointment remains confirmation-gated; inline edits apply immediately with no confirm modal.
