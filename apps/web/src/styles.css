@@ -174,3 +174,70 @@ input {
 .status-tag.available { color:#166534; border-color:#86efac; }
 .status-tag.unavailable { color:#991b1b; border-color:#fca5a5; }
 .status-tag.unknown { color:#334155; }
+
+.action-icons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.15rem;
+}
+
+.icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: #e2e8f0;
+}
+
+.icon-button:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.field-grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.field-grid label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.field-grid select {
+  font: inherit;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid #94a3b8;
+}
+
+.switch-row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.switch-row input {
+  flex: 0;
+}

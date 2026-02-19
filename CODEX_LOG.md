@@ -1391,3 +1391,35 @@ Implement people-management overhaul across API/web with phone validation, avail
 - `pnpm -C apps/web build` ✅ pass.
 - `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
 - Playwright screenshot capture ✅ artifact at `browser:/tmp/codex_browser_invocations/2a3f08c69739c60e/artifacts/artifacts/people-view.png`.
+
+## 2026-02-19 04:10 UTC (people pane ux: icon actions, delete confirm, rule modal)
+
+### Objective
+
+Implement People-pane UX actions: icon action buttons, delete/deactivate confirmation flow, and a modal-based availability/unavailability rule proposal form.
+
+### Approach
+
+- Replaced People-row text action buttons with compact icon-only buttons and hover tooltips.
+- Added dedicated delete-confirm modal that submits a deactivation command for the selected person.
+- Added rule proposal modal with date, all-day toggle, native time input, duration select, and optional notes/reason.
+- Ensured active-only filtering is applied in People table view (inactive hidden by default), while appointment people picker continues to list active people only.
+- Updated project continuity status notes.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm install` ⚠️ failed for new dependency fetch attempt due to registry access restriction (`ERR_PNPM_FETCH_403`).
+- `pnpm -C apps/web typecheck` ✅ passed.
+- `pnpm -C apps/web build` ✅ passed.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- If strict shadcn primitives are required (Tooltip/Popover/Calendar/Switch/Button components), install and wire those UI dependencies once registry access is available; current implementation preserves requested UX behavior with existing stack.
