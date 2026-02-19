@@ -916,3 +916,36 @@ Implement dashboard-first UX (always-visible appointments/availability, collapse
 ### Follow-ups
 
 - Run end-to-end manual acceptance flow with local API host (`pnpm dev`) in an environment with Azure Functions Core Tools installed.
+
+
+## 2026-02-19 UTC (web UX tables for appointments + availability)
+
+### Objective
+
+Implement table-based task panels in `apps/web` for appointments and availability, including sorting and optional code copy UX.
+
+### Approach
+
+- Replaced list rendering with compact table rendering for both dashboard panels.
+- Added deterministic date/time formatting helpers and sorting in the React layer.
+- Added code click-to-copy buttons and an `Unassigned` badge when appointment assignees are empty/missing.
+- Added table styling for compact rows and horizontal overflow on small screens.
+- Captured a browser screenshot artifact with mocked API response data to verify visible table rendering.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local Vite server for screenshot capture.
+- `playwright script via mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact with populated tables using mocked `/api/chat` snapshot.
+
+### Follow-ups
+
+- If desired, add explicit toast/feedback for successful clipboard copy action.
