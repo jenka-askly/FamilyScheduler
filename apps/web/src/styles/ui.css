@@ -1,0 +1,113 @@
+:root {
+  --ui-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ui-font-size: 13px;
+  --ui-line-height: 1.4;
+  --ui-bg: #f3f4f6;
+  --ui-surface: #ffffff;
+  --ui-border: #d1d5db;
+  --ui-border-strong: #9ca3af;
+  --ui-text: #111827;
+  --ui-text-muted: #4b5563;
+  --ui-primary: #2563eb;
+  --ui-primary-hover: #1d4ed8;
+  --ui-radius: 8px;
+  --ui-radius-sm: 6px;
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-control-height: 36px;
+  --ui-control-padding-x: 10px;
+  --ui-table-cell-y: 7px;
+  --ui-table-cell-x: 8px;
+}
+
+html,
+body {
+  font-family: var(--ui-font-family);
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-line-height);
+  color: var(--ui-text);
+  background: var(--ui-bg);
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0 0 var(--ui-space-2);
+  color: var(--ui-text);
+  line-height: 1.25;
+}
+
+p,
+ul,
+ol {
+  margin: 0 0 var(--ui-space-2);
+  color: var(--ui-text-muted);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--ui-text);
+  border-radius: var(--ui-radius-sm);
+  border: 1px solid var(--ui-border-strong);
+  background: #fff;
+  min-height: var(--ui-control-height);
+  box-sizing: border-box;
+}
+
+input,
+select,
+textarea,
+button {
+  padding: 0 var(--ui-control-padding-x);
+}
+
+textarea {
+  min-height: 72px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+button {
+  background: var(--ui-primary);
+  border-color: var(--ui-primary);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+button:hover {
+  background: var(--ui-primary-hover);
+  border-color: var(--ui-primary-hover);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--ui-surface);
+}
+
+th,
+td {
+  padding: var(--ui-table-cell-y) var(--ui-table-cell-x);
+  border-top: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: var(--ui-text-muted);
+  font-weight: 600;
+  border-top: 0;
+}

@@ -51,6 +51,13 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 - Shared package has initial placeholder type (`Person`) and builds.
 - CI installs dependencies and runs workspace build checks with `pnpm -r --if-present build`.
 
+
+### UI Baseline (CODEX-001)
+- Added global ui.css design tokens
+- Installed and imported Inter font
+- Standardized typography, spacing, controls
+- No layout/page changes yet
+
 ## How to run locally
 
 1. Install prerequisites:
