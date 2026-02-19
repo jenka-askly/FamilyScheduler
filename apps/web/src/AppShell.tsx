@@ -3,7 +3,7 @@ import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useRef, useState } 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
-  people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'inactive'; timezone?: string; notes?: string }>;
+  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
   historyCount?: number;
 };
@@ -109,6 +109,12 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
+  const [personDraft, setPersonDraft] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
+  const [personEditError, setPersonEditError] = useState<string | null>(null);
+  const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
+  const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
+  const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
   const [ruleModal, setRuleModal] = useState<{ person: Snapshot['people'][0]; kind: 'available' | 'unavailable' } | null>(null);
   const [ruleDate, setRuleDate] = useState('');
@@ -157,17 +163,60 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
 
   const sendDirectAction = async (action: Record<string, unknown>) => {
     const response = await fetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, phone }) });
-    if (!response.ok) return null;
-    const json = await response.json() as { ok: boolean; snapshot?: Snapshot };
+    const json = await response.json() as { ok?: boolean; snapshot?: Snapshot; message?: string; personId?: string };
     if (json.snapshot) setSnapshot(json.snapshot);
-    return json.snapshot ?? null;
+    if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
+    return { ok: true, snapshot: json.snapshot ?? null, personId: json.personId } as const;
   };
 
   const addAppointment = async () => {
     const previousCodes = new Set(snapshot.appointments.map((appointment) => appointment.code));
-    const nextSnapshot = await sendDirectAction({ type: 'create_blank_appointment' });
-    const created = nextSnapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
+    const result = await sendDirectAction({ type: 'create_blank_appointment' });
+    if (!result.ok) return;
+    const created = result.snapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
     if (created) setEditingApptCode(created.code);
+  };
+
+
+  const startEditingPerson = (person: Snapshot['people'][0]) => {
+    setEditingPersonId(person.personId);
+    setPersonDraft({ name: person.name, phone: person.cellDisplay || person.cellE164 || '' });
+    setPersonEditError(null);
+  };
+
+  const cancelPersonEdit = async () => {
+    const pendingId = pendingBlankPersonId;
+    const editingId = editingPersonId;
+    const draft = personDraft;
+    setEditingPersonId(null);
+    setPersonEditError(null);
+    setPersonDraft({ name: '', phone: '' });
+    if (pendingId && editingId === pendingId && !draft.name.trim() && !draft.phone.trim()) {
+      await sendDirectAction({ type: 'delete_person', personId: pendingId });
+    }
+    setPendingBlankPersonId(null);
+  };
+
+  const submitPersonEdit = async () => {
+    if (!editingPersonId) return;
+    const result = await sendDirectAction({ type: 'update_person', personId: editingPersonId, name: personDraft.name, phone: personDraft.phone });
+    if (!result.ok) {
+      setPersonEditError(result.message);
+      return;
+    }
+    setEditingPersonId(null);
+    setPendingBlankPersonId(null);
+    setPersonEditError(null);
+  };
+
+  const addPerson = async () => {
+    const result = await sendDirectAction({ type: 'create_blank_person' });
+    if (!result.ok || !result.personId) return;
+    const created = result.snapshot?.people.find((person) => person.personId === result.personId);
+    setEditingPersonId(result.personId);
+    setPendingBlankPersonId(result.personId);
+    setPersonDraft({ name: created?.name ?? '', phone: created?.cellDisplay ?? '' });
+    setPersonEditError(null);
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -218,6 +267,21 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
   }, [editingApptCode, snapshot.appointments]);
 
   useEffect(() => {
+    if (!editingPersonId) return;
+    const exists = snapshot.people.some((person) => person.personId === editingPersonId && person.status === 'active');
+    if (!exists) {
+      setEditingPersonId(null);
+      setPendingBlankPersonId(null);
+      setPersonEditError(null);
+    }
+  }, [editingPersonId, snapshot.people]);
+
+  useEffect(() => {
+    if (!editingPersonId) return;
+    personNameInputRef.current?.focus();
+  }, [editingPersonId]);
+
+  useEffect(() => {
     if (!editingApptCode) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setEditingApptCode(null);
@@ -241,6 +305,31 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
       document.removeEventListener('touchstart', onPointerDown);
     };
   }, [editingApptCode]);
+
+  useEffect(() => {
+    if (!editingPersonId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        void cancelPersonEdit();
+      }
+    };
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const editingRow = editingPersonRowRef.current;
+      const target = event.target;
+      if (!editingRow || !(target instanceof Node)) return;
+      if (!editingRow.contains(target)) void cancelPersonEdit();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [editingPersonId, cancelPersonEdit]);
+
 
   return (
     <main>
@@ -327,25 +416,32 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
       ) : null}
 
       {view === 'people' ? (
-        <section className="panel">
-          <h2>People</h2>
-          <button type="button" onClick={() => { const n = prompt('Name'); const c = prompt('Cell'); if (n && c) void sendMessage(`Add person name=${n} cell=${c}`); }}>Add person</button>
+        <section className="panel"> 
+          <div className="panel-header"> 
+            <h2>People</h2>
+            <button type="button" onClick={() => void addPerson()}>Add Person</button>
+          </div>
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Name</th><th>Cell</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
+                  const isEditingPerson = editingPersonId === person.personId;
                   return (
                     <Fragment key={person.personId}>
-                      <tr key={person.personId}>
-                        <td>{person.name}</td>
-                        <td>{person.cellDisplay}</td>
-                        <td>{person.status}</td>
-                        <td>{person.notes || '—'}</td>
+                      <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                         <td>
-                          <div className="action-icons">
-                            <button type="button" className="icon-button" aria-label="Edit" data-tooltip="Edit" onClick={() => { const name = prompt('Name', person.name); const cell = prompt('Cell', person.cellDisplay); if (name || cell) void sendMessage(`Update person personId=${person.personId}${name ? ` name=${name}` : ''}${cell ? ` cell=${cell}` : ''}`); }}><Pencil /></button>
+                          {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
+                        </td>
+                        <td>
+                          {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} placeholder="(425) 555-1234" /> : <span>{person.cellDisplay || '—'}</span>}
+                          {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
+                        </td>
+                        <td><span className={`status-tag ${person.status === 'active' ? 'available' : 'unknown'}`}>{person.status}</span></td>
+                        <td>
+                          <div className="action-icons"> 
+                            <button type="button" className="icon-button" aria-label={isEditingPerson ? 'Done editing person' : 'Edit person'} data-tooltip={isEditingPerson ? 'Done' : 'Edit'} onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}>{isEditingPerson ? <CheckCircle /> : <Pencil />}</button>
                             <button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
                             <button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button>
                             <button type="button" className="icon-button" aria-label="Add unavailable" data-tooltip="Add Unavailable" onClick={() => openRuleModal(person, 'unavailable')}><Ban /></button>
@@ -354,7 +450,7 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
                       </tr>
                       {personRules.length > 0 ? (
                         <tr key={`${person.personId}-rules`}>
-                          <td colSpan={5} className="rules-cell">
+                          <td colSpan={4} className="rules-cell">
                             <ul className="rules-list">
                               {personRules.map((rule) => (
                                 <li key={rule.code} className="rule-item">
@@ -387,7 +483,7 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
 
       {appointmentToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
 
-      {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete person?</h3><p>This will deactivate {personToDelete.name}. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Deactivate person personId=${personToDelete.personId}`); setPersonToDelete(null); }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+      {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 

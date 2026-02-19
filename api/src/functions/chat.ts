@@ -19,7 +19,7 @@ type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQue
 
 type ResponseSnapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
-  people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'inactive'; timezone?: string; notes?: string }>;
+  people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
   historyCount?: number;
 };
@@ -69,7 +69,7 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       notes: appointment.notes ?? ''
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status, timezone: person.timezone, notes: person.notes ?? '' })),
+  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status === 'active' ? 'active' : 'removed', timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, personId: rule.personId, kind: rule.kind, date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });

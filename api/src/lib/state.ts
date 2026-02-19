@@ -5,7 +5,7 @@ export type Person = {
   name: string;
   cellE164: string;
   cellDisplay?: string;
-  status: 'active' | 'inactive';
+  status: 'active' | 'removed';
   createdAt?: string;
   timezone?: string;
   notes?: string;
@@ -103,16 +103,14 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
   for (let i = 0; i < value.length; i += 1) {
     const raw = value[i] as Record<string, unknown>;
     const name = typeof raw?.name === 'string' ? normalizeText(raw.name) : '';
-    if (!name) continue;
-    const key = name.toLowerCase();
+    const legacyId = typeof raw?.id === 'string' ? raw.id : undefined;
+    const personId = typeof raw?.personId === 'string' ? raw.personId : legacyId ? `P-${legacyId.replace(/^person-/i, '').toUpperCase()}` : toPersonId(name || `person-${i + 1}`, i);
+    const key = name ? name.toLowerCase() : personId.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-
-    const legacyId = typeof raw?.id === 'string' ? raw.id : undefined;
-    const personId = typeof raw?.personId === 'string' ? raw.personId : legacyId ? `P-${legacyId.replace(/^person-/i, '').toUpperCase()}` : toPersonId(name, i);
-    const status = raw?.status === 'inactive' ? 'inactive' : 'active';
-    const cellE164 = typeof raw?.cellE164 === 'string' && raw.cellE164.trim() ? raw.cellE164.trim() : '+10000000000';
-    const cellDisplay = typeof raw?.cellDisplay === 'string' && raw.cellDisplay.trim() ? raw.cellDisplay.trim() : cellE164;
+    const status = raw?.status === 'removed' || raw?.status === 'inactive' ? 'removed' : 'active';
+    const cellE164 = typeof raw?.cellE164 === 'string' ? raw.cellE164.trim() : '';
+    const cellDisplay = typeof raw?.cellDisplay === 'string' ? raw.cellDisplay.trim() : cellE164;
     const createdAt = typeof raw?.createdAt === 'string' && raw.createdAt.trim() ? raw.createdAt.trim() : undefined;
     const timezone = typeof raw?.timezone === 'string' && raw.timezone.trim() ? raw.timezone.trim() : DEFAULT_TZ;
     const notes = typeof raw?.notes === 'string' ? raw.notes.trim().slice(0, 500) : '';

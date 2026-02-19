@@ -2048,3 +2048,41 @@ Enforce join gating for `/#/g/:groupId/app` and stop duplicate/early `/api/chat`
 ### Follow-ups
 
 - Manual browser QA in incognito for hash-route redirect and network-call verification with `VITE_DEBUG_AUTH_LOGS=true`.
+
+
+## 2026-02-19 UTC (people pane row-edit parity + direct people actions)
+
+### Objective
+
+Make People pane match Appointments pane UX (row-based add/edit/delete), add deterministic direct people actions, and enforce join allowlist semantics for active people with phones only.
+
+### Approach
+
+- Added `/api/direct` actions: `create_blank_person`, `update_person`, and `delete_person` (soft delete to `removed`).
+- Added server-side validation in direct update path for required name, valid phone normalization, and duplicate active-phone rejection.
+- Updated state normalization/status handling to preserve blank draft people and map legacy inactive status to removed.
+- Updated People pane to inline row edit mode with draft state, Done save, outside-click/Esc cancel, and auto-delete newly created blank rows when canceled untouched.
+- Kept People availability-rule controls and table styling aligned with existing appointments table density/action icon styling.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `api/src/lib/state.ts`
+- `api/src/lib/groupAuth.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/functions/chat.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -w --filter ./api test` ✅ pass (including new direct people-action test).
+- `pnpm -w --filter ./apps/web build` ✅ pass.
+- `pnpm --filter ./apps/web dev --host 0.0.0.0 --port 4173` ✅ starts locally; manually stopped after screenshot attempt.
+- `mcp__browser_tools__run_playwright_script` ⚠️ failed in this environment due Chromium crash (`SIGSEGV`), so no screenshot artifact available.
+
+### Follow-ups
+
+- If Playwright/browser container stability improves, capture a People-pane screenshot for visual QA documentation.
