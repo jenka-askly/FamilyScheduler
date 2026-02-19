@@ -16,7 +16,7 @@ type PendingQuestion = { message: string; options?: Array<{ label: string; value
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; notes: string }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'inactive'; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
   historyCount?: number;
@@ -57,7 +57,13 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       isAllDay: appointment.isAllDay ?? derived.isAllDay,
       people: appointment.people ?? [],
       peopleDisplay: (appointment.people ?? []).map((personId) => state.people.find((person) => person.personId === personId)?.name ?? personId),
-      location: appointment.location ?? '',
+      location: appointment.locationDisplay ?? appointment.location ?? '',
+      locationRaw: appointment.locationRaw ?? '',
+      locationDisplay: appointment.locationDisplay ?? appointment.location ?? '',
+      locationMapQuery: appointment.locationMapQuery ?? appointment.locationAddress ?? appointment.locationDisplay ?? appointment.location ?? '',
+      locationName: appointment.locationName ?? '',
+      locationAddress: appointment.locationAddress ?? '',
+      locationDirections: appointment.locationDirections ?? '',
       notes: appointment.notes ?? ''
     };
   }),
@@ -112,7 +118,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   if (session.pendingProposal) {
     if (confirmSynonyms.has(normalized)) {
       try {
-        const execution = executeActions(state, session.pendingProposal.actions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+        const execution = await executeActions(state, session.pendingProposal.actions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
         const written = await storage.putState(execution.nextState, session.pendingProposal.expectedEtag);
         session.activePersonId = execution.nextActivePersonId;
         session.pendingProposal = null;
@@ -149,14 +155,14 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (parsed.kind === 'proposal') {
       const mutationActions = normalizedActions.filter(isMutationAction);
       if (mutationActions.length === 0) return respond({ kind: 'question', message: 'Please clarify the change with a valid action and summary.', allowFreeText: true });
-      const previewExecution = executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      const previewExecution = await executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       session.pendingProposal = toProposal(loaded.etag, mutationActions);
       session.pendingQuestion = null;
       return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
     }
     session.pendingQuestion = null;
     if (normalizedActions.length > 0) {
-      const execution = executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      const execution = await executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
     }
     return respond({ kind: 'reply', assistantText: parsed.message });

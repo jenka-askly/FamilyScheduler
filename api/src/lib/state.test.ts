@@ -17,4 +17,7 @@ test('normalizes legacy appointments without notes to empty string', () => {
   assert.equal(normalized.appointments[0].locationDisplay, 'Kaiser');
   assert.equal(normalized.appointments[0].locationMapQuery, 'Kaiser');
   assert.equal(normalized.appointments[0].location, 'Kaiser');
+  assert.equal(normalized.appointments[0].locationName, '');
+  assert.equal(normalized.appointments[0].locationAddress, '');
+  assert.equal(normalized.appointments[0].locationDirections, '');
 });

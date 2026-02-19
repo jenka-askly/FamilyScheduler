@@ -4,6 +4,7 @@ import { intervalBounds, overlaps } from '../availability/interval.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../validation/phone.js';
 import type { Action } from './schema.js';
 import { normalizeLocation } from '../location/normalize.js';
+import { aiParseLocation } from '../location/aiParseLocation.js';
 
 export type ExecutionContext = { activePersonId: string | null; timezoneName: string; };
 export type ExecuteActionsResult = { nextState: AppState; effectsTextLines: string[]; appliedAll: boolean; nextActivePersonId: string | null; };
@@ -40,13 +41,30 @@ export const resolveAppointmentTimes = (date: string, startTime?: string, durati
 const describeTime = (date: string, startTime?: string, durationMins?: number): string => (!startTime ? `${date} (all day)` : `${date} ${startTime} (${durationMins ?? 60}m)`);
 const todayIsoDate = (): string => new Date().toISOString().slice(0, 10);
 
-const applyAppointmentLocation = (appointment: Appointment, locationRawInput: string): void => {
+const isLocationAiFormattingEnabled = (): boolean => (process.env.LOCATION_AI_FORMATTING ?? 'false').toLowerCase() === 'true';
+
+const applyAppointmentLocation = async (appointment: Appointment, locationRawInput: string): Promise<void> => {
   const locationRaw = locationRawInput;
-  const normalized = normalizeLocation(locationRaw);
   appointment.locationRaw = locationRaw;
-  appointment.locationDisplay = normalized.display;
-  appointment.locationMapQuery = normalized.mapQuery;
-  appointment.location = normalized.display;
+
+  if (!isLocationAiFormattingEnabled()) {
+    const normalized = normalizeLocation(locationRaw);
+    appointment.locationDisplay = normalized.display;
+    appointment.locationMapQuery = normalized.mapQuery;
+    appointment.locationName = '';
+    appointment.locationAddress = '';
+    appointment.locationDirections = '';
+    appointment.location = normalized.display;
+    return;
+  }
+
+  const parsed = await aiParseLocation(locationRaw);
+  appointment.locationDisplay = parsed.display;
+  appointment.locationMapQuery = parsed.mapQuery;
+  appointment.locationName = parsed.name;
+  appointment.locationAddress = parsed.address;
+  appointment.locationDirections = parsed.directions;
+  appointment.location = parsed.display;
 };
 
 const resolvePeopleRefs = (state: AppState, refs: string[]): { ids: string[]; unresolved: string[] } => {
@@ -64,7 +82,7 @@ const resolvePeopleRefs = (state: AppState, refs: string[]): { ids: string[]; un
 const ensureNameUnique = (state: AppState, name: string, excludePersonId?: string): boolean => !state.people.some((person) => person.status === 'active' && person.personId !== excludePersonId && normalizeName(person.name) === normalizeName(name));
 const ensureCellUnique = (state: AppState, e164: string, excludePersonId?: string): boolean => !state.people.some((person) => person.status === 'active' && person.personId !== excludePersonId && person.cellE164 === e164);
 
-export const executeActions = (state: AppState, actions: Action[], context: ExecutionContext): ExecuteActionsResult => {
+export const executeActions = async (state: AppState, actions: Action[], context: ExecutionContext): Promise<ExecuteActionsResult> => {
   const nextState = normalizeAppState(structuredClone(state));
   const effectsTextLines: string[] = [];
   let appliedAll = true;
@@ -163,7 +181,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     if (action.type === 'create_blank_appointment') {
       const code = getNextAppointmentCode(nextState);
       const date = todayIsoDate();
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: '', start: undefined, end: undefined, isAllDay: true, date, startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', notes: '' });
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: '', start: undefined, end: undefined, isAllDay: true, date, startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
       effectsTextLines.push(`Added ${code} — blank appointment on ${date} (all day)`);
       continue;
     }
@@ -171,7 +189,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     if (action.type === 'add_appointment') {
       const code = getNextAppointmentCode(nextState); const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
       const resolvedPeople = resolvePeopleRefs(nextState, action.people ?? []);
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: action.desc, start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', notes: '' });
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: action.desc, start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
       applyAppointmentLocation(nextState.appointments[nextState.appointments.length - 1], action.location ?? '');
       effectsTextLines.push(`Added ${code} — ${action.desc} on ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;
@@ -192,7 +210,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       if (action.type === 'set_appointment_date') { const resolved = resolveAppointmentTimes(action.date, appointment.startTime, appointment.durationMins, appointment.timezone ?? context.timezoneName); appointment.date = action.date; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set date for ${appointment.code} to ${action.date}.`); continue; }
       if (action.type === 'set_appointment_start_time') { const resolved = resolveAppointmentTimes(appointment.date ?? todayIsoDate(), action.startTime, appointment.durationMins, appointment.timezone ?? context.timezoneName); appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? (appointment.durationMins ?? 60) : undefined; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set start time for ${appointment.code}.`); continue; }
       if (action.type === 'set_appointment_duration') { const duration = appointment.startTime ? action.durationMins : undefined; const resolved = resolveAppointmentTimes(appointment.date ?? todayIsoDate(), appointment.startTime, duration, appointment.timezone ?? context.timezoneName); appointment.durationMins = duration; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set duration for ${appointment.code}.`); continue; }
-      if (action.type === 'set_appointment_location') { applyAppointmentLocation(appointment, action.locationRaw ?? action.location ?? ''); effectsTextLines.push('Set location updated.'); continue; }
+      if (action.type === 'set_appointment_location') { await applyAppointmentLocation(appointment, action.locationRaw ?? action.location ?? ''); effectsTextLines.push('Set location updated.'); continue; }
       if (action.type === 'set_appointment_notes') { appointment.notes = action.notes.trim(); effectsTextLines.push('Set notes updated.'); continue; }
 
       if (action.type === 'clear_people_on_appointment') {
