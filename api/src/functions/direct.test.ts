@@ -23,8 +23,11 @@ test('direct endpoint creates/edits/deletes appointment deterministically', asyn
   response = await sendDirect({ type: 'set_appointment_start_time', code, startTime: '13:00' });
   assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.startTime === '13:00'), true);
 
-  response = await sendDirect({ type: 'set_appointment_location', code, location: 'Kaiser' });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.location === 'Kaiser'), true);
+  response = await sendDirect({ type: 'set_appointment_location', code, locationRaw: 'Kaiser	Redwood City' });
+  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.location === 'Kaiser, Redwood City' && item.locationRaw === 'Kaiser\tRedwood City' && item.locationMapQuery === 'Kaiser, Redwood City'), true);
+
+  response = await sendDirect({ type: 'set_appointment_location', code, location: 'Kaiser SF' });
+  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.locationRaw === 'Kaiser SF' && item.locationDisplay === 'Kaiser SF'), true);
 
   response = await sendDirect({ type: 'set_appointment_notes', code, notes: 'Bring ID' });
   assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.notes === 'Bring ID'), true);

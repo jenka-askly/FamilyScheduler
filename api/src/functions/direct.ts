@@ -7,7 +7,7 @@ import { ConflictError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; notes: string }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'inactive'; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
   historyCount?: number;
@@ -20,7 +20,7 @@ type DirectAction =
   | { type: 'delete_appointment'; code: string }
   | { type: 'set_appointment_date'; code: string; date: string }
   | { type: 'set_appointment_start_time'; code: string; startTime?: string }
-  | { type: 'set_appointment_location'; code: string; location: string }
+  | { type: 'set_appointment_location'; code: string; location?: string; locationRaw?: string }
   | { type: 'set_appointment_notes'; code: string; notes: string }
   | { type: 'set_appointment_desc'; code: string; desc: string }
   | { type: 'set_appointment_duration'; code: string; durationMins?: number };
@@ -49,7 +49,10 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       isAllDay: appointment.isAllDay ?? derived.isAllDay,
       people: appointment.people ?? [],
       peopleDisplay: (appointment.people ?? []).map((personId) => state.people.find((person) => person.personId === personId)?.name ?? personId),
-      location: appointment.location ?? '',
+      location: appointment.locationDisplay ?? appointment.location ?? '',
+      locationRaw: appointment.locationRaw ?? '',
+      locationDisplay: appointment.locationDisplay ?? appointment.location ?? '',
+      locationMapQuery: appointment.locationMapQuery ?? appointment.locationDisplay ?? appointment.location ?? '',
       notes: appointment.notes ?? ''
     };
   }),
@@ -91,7 +94,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
   if (type === 'set_appointment_location') {
     const code = asString(value.code);
     if (!code) throw new Error('code is required');
-    return { type, code, location: typeof value.location === 'string' ? value.location : '' };
+    return { type, code, locationRaw: typeof value.locationRaw === 'string' ? value.locationRaw : (typeof value.location === 'string' ? value.location : ''), location: typeof value.location === 'string' ? value.location : undefined };
   }
   if (type === 'set_appointment_notes') {
     const code = asString(value.code);

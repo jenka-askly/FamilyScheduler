@@ -21,7 +21,7 @@ export type Action =
   | { type: 'remove_people_from_appointment'; code: string; people: string[] }
   | { type: 'replace_people_on_appointment'; code: string; people: string[] }
   | { type: 'clear_people_on_appointment'; code: string }
-  | { type: 'set_appointment_location'; code: string; location: string }
+  | { type: 'set_appointment_location'; code: string; location?: string; locationRaw?: string }
   | { type: 'set_appointment_notes'; code: string; notes: string }
   | { type: 'add_person'; name: string; cell: string; timezone?: string; notes?: string }
   | { type: 'update_person'; personId: string; name?: string; cell?: string; timezone?: string; notes?: string }
@@ -65,7 +65,7 @@ const assertPeopleArray = (value: unknown, field: string, minItems: number, maxI
 
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'name', 'month', 'start', 'end', 'location', 'notes', 'personId', 'cell', 'kind']);
+  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'name', 'month', 'start', 'end', 'location', 'locationRaw', 'notes', 'personId', 'cell', 'kind']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'create_blank_appointment') return { type };
@@ -81,7 +81,7 @@ const parseAction = (value: unknown): Action => {
   if (type === 'remove_people_from_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
   if (type === 'replace_people_on_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 0, 20) };
   if (type === 'clear_people_on_appointment') return { type, code: assertString(value.code, 'code') };
-  if (type === 'set_appointment_location') return { type, code: assertString(value.code, 'code'), location: typeof value.location === 'string' ? normalizeText(value.location) : '' };
+  if (type === 'set_appointment_location') return { type, code: assertString(value.code, 'code'), locationRaw: typeof value.locationRaw === 'string' ? value.locationRaw : (typeof value.location === 'string' ? value.location : ''), location: typeof value.location === 'string' ? value.location : undefined };
   if (type === 'set_appointment_notes') return { type, code: assertString(value.code, 'code'), notes: typeof value.notes === 'string' ? value.notes.trim() : '' };
   if (type === 'add_person') return { type, name: assertString(value.name, 'name'), cell: assertString(value.cell, 'cell'), timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined, notes: typeof value.notes === 'string' ? value.notes.trim() : undefined };
   if (type === 'update_person') return { type, personId: assertString(value.personId, 'personId'), name: typeof value.name === 'string' ? assertString(value.name, 'name') : undefined, cell: typeof value.cell === 'string' ? assertString(value.cell, 'cell') : undefined, timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined, notes: typeof value.notes === 'string' ? value.notes.trim() : undefined };

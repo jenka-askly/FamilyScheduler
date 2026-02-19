@@ -11,6 +11,9 @@ test('A: add appointment date+desc only creates all-day', () => {
   assert.equal(appt.start, undefined);
   assert.deepEqual(appt.people, []);
   assert.equal(appt.location, '');
+  assert.equal(appt.locationRaw, '');
+  assert.equal(appt.locationDisplay, '');
+  assert.equal(appt.locationMapQuery, '');
   assert.equal(appt.notes, '');
 });
 
@@ -24,7 +27,7 @@ test('B: add appointment with startTime+duration stores timed range', () => {
 
 test('C: reschedule date-only sets all-day', () => {
   const state = createEmptyAppState();
-  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', startTime: '09:00', durationMins: 60, start: '2026-03-01T09:00:00-08:00', end: '2026-03-01T10:00:00-08:00', assigned: [], people: [], location: '', notes: '' });
+  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', startTime: '09:00', durationMins: 60, start: '2026-03-01T09:00:00-08:00', end: '2026-03-01T10:00:00-08:00', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', notes: '' });
   const result = executeActions(state, [{ type: 'reschedule_appointment', code: 'APPT-1', date: '2026-03-05' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   const appt = result.nextState.appointments[0];
   assert.equal(appt.date, '2026-03-05');
@@ -34,7 +37,7 @@ test('C: reschedule date-only sets all-day', () => {
 
 test('D: people operations + idempotency + location/notes set-clear', () => {
   const state = createEmptyAppState();
-  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', assigned: [], people: [], location: '', notes: '' });
+  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', notes: '' });
 
   let result = executeActions(state, [{ type: 'add_people_to_appointment', code: 'APPT-1', people: [' Joe ', 'Sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.deepEqual(result.nextState.appointments[0].people, ['Joe', 'Sam']);
@@ -48,8 +51,11 @@ test('D: people operations + idempotency + location/notes set-clear', () => {
   result = executeActions(result.nextState, [{ type: 'remove_people_from_appointment', code: 'APPT-1', people: ['sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.deepEqual(result.nextState.appointments[0].people, []);
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', location: ' Kaiser Redwood City ' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
-  assert.equal(result.nextState.appointments[0].location, 'Kaiser Redwood City');
+  result = executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', locationRaw: 'Kaiser	Redwood City' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  assert.equal(result.nextState.appointments[0].locationRaw, 'Kaiser	Redwood City');
+  assert.equal(result.nextState.appointments[0].locationDisplay, 'Kaiser, Redwood City');
+  assert.equal(result.nextState.appointments[0].locationMapQuery, 'Kaiser, Redwood City');
+  assert.equal(result.nextState.appointments[0].location, 'Kaiser, Redwood City');
 
   result = executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', location: '' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].location, '');
