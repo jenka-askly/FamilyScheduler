@@ -13,5 +13,8 @@ test('normalizes legacy appointments without notes to empty string', () => {
 
   const normalized = normalizeAppState(legacy);
   assert.equal(normalized.appointments[0].notes, '');
+  assert.equal(normalized.appointments[0].locationRaw, '  Kaiser  ');
+  assert.equal(normalized.appointments[0].locationDisplay, 'Kaiser');
+  assert.equal(normalized.appointments[0].locationMapQuery, 'Kaiser');
   assert.equal(normalized.appointments[0].location, 'Kaiser');
 });

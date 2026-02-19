@@ -1,3 +1,5 @@
+import { normalizeLocation } from './location/normalize.js';
+
 export type Person = {
   personId: string;
   name: string;
@@ -22,6 +24,9 @@ export type Appointment = {
   assigned: string[];
   people: string[];
   location: string;
+  locationRaw: string;
+  locationDisplay: string;
+  locationMapQuery: string;
   notes: string;
 };
 
@@ -142,6 +147,16 @@ export const normalizeAppState = (state: AppState): AppState => {
       ? raw.people
       : assigned.map((personId) => people.find((person) => person.personId === personId)?.name ?? personId);
 
+    const legacyLocation = typeof raw.location === 'string' ? raw.location : '';
+    const locationRaw = typeof raw.locationRaw === 'string' ? raw.locationRaw : legacyLocation;
+    const normalizedLocation = normalizeLocation(locationRaw);
+    const locationDisplay = typeof raw.locationDisplay === 'string' && raw.locationDisplay.trim()
+      ? raw.locationDisplay.trim()
+      : normalizedLocation.display;
+    const locationMapQuery = typeof raw.locationMapQuery === 'string' && raw.locationMapQuery.trim()
+      ? raw.locationMapQuery.trim()
+      : normalizedLocation.mapQuery;
+
     return {
       id: typeof raw.id === 'string' ? raw.id : `appt-${idx + 1}`,
       code: typeof raw.code === 'string' ? raw.code : `APPT-${idx + 1}`,
@@ -155,7 +170,10 @@ export const normalizeAppState = (state: AppState): AppState => {
       isAllDay: Boolean(raw.isAllDay),
       assigned,
       people: normalizePeople(peopleSource),
-      location: typeof raw.location === 'string' ? normalizeText(raw.location) : '',
+      location: locationDisplay,
+      locationRaw,
+      locationDisplay,
+      locationMapQuery,
       notes: typeof raw.notes === 'string' ? raw.notes.trim().slice(0, 500) : ''
     };
   });

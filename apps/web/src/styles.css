@@ -349,3 +349,26 @@ input {
   border: 1px solid #cbd5e1;
   border-radius: 4px;
 }
+
+.location-cell {
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.location-preview-wrap {
+  margin-top: 0.25rem;
+}
+
+.location-preview {
+  margin: 0 0 0.15rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.location-map-link {
+  font-size: 0.8rem;
+}

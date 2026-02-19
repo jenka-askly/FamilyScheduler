@@ -1686,3 +1686,44 @@ Implement deterministic inline appointment editing with direct API mutations, pl
 ### Follow-ups
 
 - Optional: switch appointments table to click-to-open popovers for date/time pickers and textarea editors if stricter interaction parity is required.
+
+## 2026-02-19 06:19 UTC (location normalization + map link)
+
+### Objective
+
+Implement deterministic appointment location formatting with raw fidelity storage, backward-compatible action payloads, and a web map link UX.
+
+### Approach
+
+- Added a deterministic location normalizer utility and unit tests.
+- Expanded appointment model/state normalization to persist `locationRaw`, `locationDisplay`, and `locationMapQuery`, including legacy `location` migration defaults.
+- Updated action schema/executor and direct endpoint parsing to accept either `{location}` or `{locationRaw}` and always persist normalized display/query fields.
+- Updated appointments table location cell UX: raw textarea edit on blur, normalized multi-line preview clamp, and external Google Maps search link.
+- Updated continuity docs with behavior changes.
+
+### Files changed
+
+- `api/src/lib/location/normalize.ts`
+- `api/src/lib/location/normalize.test.ts`
+- `api/src/lib/state.ts`
+- `api/src/lib/state.test.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed (build + node test suite).
+- `pnpm --filter @familyscheduler/web build` ✅ passed (typecheck + vite build).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated with SIGINT after capture.
+
+### Follow-ups
+
+- Optional: implement feature-flagged AI-assisted location reformatting path (`LOCATION_AI_FORMATTING`) as a non-blocking enhancement if desired.

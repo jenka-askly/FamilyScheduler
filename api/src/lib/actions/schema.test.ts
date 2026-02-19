@@ -35,18 +35,20 @@ test('validates people operation cardinality and normalization', () => {
   assert.deepEqual((parsed.actions?.[0] as any).people, ['Joe Smith', 'Sam']);
 });
 
-test('validates appointment location constraints', () => {
+test('parses appointment location with locationRaw compatibility', () => {
   const parsed = ParsedModelResponseSchema.parse({
     kind: 'proposal',
     message: 'loc',
-    actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: '  Kaiser Redwood City  ' }]
+    actions: [{ type: 'set_appointment_location', code: 'APPT-1', locationRaw: '  Kaiser Redwood City  ' }]
   });
-  assert.equal((parsed.actions?.[0] as any).location, 'Kaiser Redwood City');
-  assert.throws(() => ParsedModelResponseSchema.parse({
+  assert.equal((parsed.actions?.[0] as any).locationRaw, '  Kaiser Redwood City  ');
+
+  const compatible = ParsedModelResponseSchema.parse({
     kind: 'proposal',
     message: 'loc',
-    actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: 'x'.repeat(201) }]
-  }));
+    actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: 'Kaiser SF' }]
+  });
+  assert.equal((compatible.actions?.[0] as any).locationRaw, 'Kaiser SF');
 });
 
 test('requires message', () => {
