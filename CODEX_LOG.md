@@ -1344,3 +1344,50 @@ Rename user-visible web UI branding from `FamilyScheduler` to `Scheduler` within
 ### Follow-ups
 
 - Run local web app (`pnpm dev:web`) and confirm browser tab/header text visually in host environment.
+
+## 2026-02-19 04:20 UTC (People pane + phone validation + rules + appt picker)
+
+### Objective
+
+Implement people-management overhaul across API/web with phone validation, availability rules, and appointment people picker while keeping confirm gate.
+
+### Approach
+
+- Migrated state model to `people` and `rules` with legacy availability back-compat.
+- Added phone validation utility and server-side validations in executor for people add/update.
+- Expanded action schema/planner surface for people/rules actions and updated chat snapshot structure.
+- Reworked web UI with Appointments/People toggle, People table actions, rule shortcuts, and appointment picker status tags.
+- Updated prompt help + continuity docs.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/validation/phone.ts`
+- `api/src/lib/availability/computeStatus.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/buildContext.ts`
+- `api/src/lib/openai/prompts.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api add libphonenumber-js` ⚠️ blocked by npm registry 403 (no auth header in environment).
+- `pnpm -r --filter @familyscheduler/api test` (pending; run after compile fixes).
+- `pnpm -C apps/web build` (pending; run after compile fixes).
+
+### Follow-ups
+
+- Replace fallback phone validation helper with `libphonenumber-js` once registry access is available.
+
+### Verification addendum
+
+- `pnpm -r --filter @familyscheduler/api test` ✅ pass.
+- `pnpm -C apps/web build` ✅ pass.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
+- Playwright screenshot capture ✅ artifact at `browser:/tmp/codex_browser_invocations/2a3f08c69739c60e/artifacts/artifacts/people-view.png`.

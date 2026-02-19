@@ -1,85 +1,25 @@
-import { createEmptyAppState, type AppState, type Appointment, type AvailabilityBlock, type Person, normalizeAppState } from '../state.js';
+import { createEmptyAppState, type AppState, type Appointment, type AvailabilityRule, type Person, normalizeAppState } from '../state.js';
+import { computePersonStatusForInterval } from '../availability/computeStatus.js';
+import { PhoneValidationError, validateAndNormalizePhone } from '../validation/phone.js';
 import type { Action } from './schema.js';
 
-export type ExecutionContext = {
-  activePersonId: string | null;
-  timezoneName: string;
-};
-
-export type ExecuteActionsResult = {
-  nextState: AppState;
-  effectsTextLines: string[];
-  appliedAll: boolean;
-  nextActivePersonId: string | null;
-};
-
-export type ResolvedAppointmentTimes = {
-  startIso?: string;
-  endIso?: string;
-  isAllDay: boolean;
-};
+export type ExecutionContext = { activePersonId: string | null; timezoneName: string; };
+export type ExecuteActionsResult = { nextState: AppState; effectsTextLines: string[]; appliedAll: boolean; nextActivePersonId: string | null; };
+export type ResolvedAppointmentTimes = { startIso?: string; endIso?: string; isAllDay: boolean; };
 
 const normalizeCode = (value: string): string => value.trim().toUpperCase();
 const normalizeName = (value: string): string => value.trim().replace(/\s+/g, ' ').toLowerCase();
 const normalizePersonValue = (value: string): string => value.trim().replace(/\s+/g, ' ');
-const parseStoredDateTime = (value: string): Date => new Date(value);
-
 const findAppointmentByCode = (state: AppState, inputCode: string): Appointment | undefined => state.appointments.find((item) => normalizeCode(item.code) === normalizeCode(inputCode));
-const findAvailabilityByCode = (state: AppState, inputCode: string): AvailabilityBlock | undefined => state.availability.find((item) => normalizeCode(item.code) === normalizeCode(inputCode));
+const findRuleByCode = (state: AppState, inputCode: string): AvailabilityRule | undefined => state.rules.find((item) => normalizeCode(item.code) === normalizeCode(inputCode));
+const findPersonById = (state: AppState, personId: string): Person | undefined => state.people.find((person) => person.personId === personId);
 const findPersonByName = (state: AppState, name: string): Person | undefined => state.people.find((person) => normalizeName(person.name) === normalizeName(name));
 
-const ensurePersonByName = (state: AppState, name: string): Person => {
-  const existing = findPersonByName(state, name);
-  if (existing) return existing;
-  const normalized = normalizePersonValue(name);
-  const idToken = normalizeName(name).replace(/\s+/g, '-');
-  const created: Person = { id: `person-${idToken}`, name: normalized };
-  state.people.push(created);
-  return created;
-};
-
-const getPersonDisplayName = (state: AppState, personId: string): string => state.people.find((person) => person.id === personId)?.name ?? personId;
-const formatDate = (value: string): string => {
-  const date = parseStoredDateTime(value);
-  return Number.isNaN(date.getTime()) ? value : date.toISOString().slice(0, 10);
-};
-const formatTime = (value: string): string => {
-  const match = value.match(/T(\d{2}:\d{2})/);
-  if (match) return match[1];
-  const date = parseStoredDateTime(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return `${date.getUTCHours().toString().padStart(2, '0')}:${date.getUTCMinutes().toString().padStart(2, '0')}`;
-};
-const formatDateTimeRange = (start: string, end: string): string => `${formatDate(start)} ${formatTime(start)}–${formatTime(end)}`;
-const overlaps = (startA: Date, endA: Date, startB: Date, endB: Date): boolean => startA < endB && endA > startB;
-
 const getNextAppointmentCode = (state: AppState): string => `APPT-${state.appointments.reduce((max, appointment) => {
-  const match = appointment.code.match(/^APPT-(\d+)$/i);
-  return match ? Math.max(max, Number(match[1])) : max;
+  const match = appointment.code.match(/^APPT-(\d+)$/i); return match ? Math.max(max, Number(match[1])) : max;
 }, 0) + 1}`;
-
-const createAvailabilityCode = (state: AppState, name: string): string => {
-  const nameToken = name.toUpperCase().replace(/[^A-Z0-9]+/g, '') || 'PERSON';
-  const maxCodeValue = state.availability.reduce((maxValue, block) => {
-    const match = block.code.match(new RegExp(`^AVL-${nameToken}-(\\d+)$`, 'i'));
-    return match ? Math.max(maxValue, Number(match[1])) : maxValue;
-  }, 0);
-  return `AVL-${nameToken}-${maxCodeValue + 1}`;
-};
-
-const parseWhoIsAvailableRange = (action: Extract<Action, { type: 'who_is_available' }>): { start: Date; end: Date } | null => {
-  if (action.month) {
-    const [year, month] = action.month.split('-').map(Number);
-    return { start: new Date(Date.UTC(year, month - 1, 1, 0, 0, 0)), end: new Date(Date.UTC(year, month, 0, 23, 59, 59)) };
-  }
-  if (action.start && action.end) {
-    const start = new Date(`${action.start}T00:00:00-08:00`);
-    const end = new Date(`${action.end}T23:59:59-08:00`);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return null;
-    return { start, end };
-  }
-  return null;
-};
+const getNextPersonId = (state: AppState): string => `P-${state.people.reduce((max, person) => { const m = person.personId.match(/^P-(\d+)$/i); return m ? Math.max(max, Number(m[1])) : max; }, 0) + 1}`;
+const getNextRuleCode = (state: AppState): string => `RULE-${state.rules.reduce((max, rule) => { const m = rule.code.match(/^RULE-(\d+)$/i); return m ? Math.max(max, Number(m[1])) : max; }, 0) + 1}`;
 
 const getTimeZoneOffset = (date: Date, timeZone: string): string => {
   const formatter = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' });
@@ -88,33 +28,29 @@ const getTimeZoneOffset = (date: Date, timeZone: string): string => {
   if (!match) return '-08:00';
   return `${match[1]}${match[2].padStart(2, '0')}:${(match[3] ?? '00').padStart(2, '0')}`;
 };
-
-const buildIsoAtZone = (date: string, startTime: string, timezone: string): string => {
-  const asUtc = new Date(`${date}T${startTime}:00Z`);
-  return `${date}T${startTime}:00${getTimeZoneOffset(asUtc, timezone)}`;
-};
-
+const buildIsoAtZone = (date: string, startTime: string, timezone: string): string => `${date}T${startTime}:00${getTimeZoneOffset(new Date(`${date}T${startTime}:00Z`), timezone)}`;
 export const resolveAppointmentTimes = (date: string, startTime?: string, durationMins?: number, timezone = 'America/Los_Angeles'): ResolvedAppointmentTimes => {
   if (!startTime) return { isAllDay: true };
   const startIso = buildIsoAtZone(date, startTime, timezone);
   const endIso = new Date(new Date(startIso).getTime() + (durationMins ?? 60) * 60_000).toISOString();
   return { startIso, endIso, isAllDay: false };
 };
-
 const describeTime = (date: string, startTime?: string, durationMins?: number): string => (!startTime ? `${date} (all day)` : `${date} ${startTime} (${durationMins ?? 60}m)`);
 
-const toUniquePeople = (people: string[]): string[] => {
-  const seen = new Set<string>();
-  const unique: string[] = [];
-  for (const raw of people) {
-    const person = normalizePersonValue(raw);
-    const key = person.toLowerCase();
-    if (!person || seen.has(key)) continue;
-    seen.add(key);
-    unique.push(person);
+const resolvePeopleRefs = (state: AppState, refs: string[]): { ids: string[]; unresolved: string[] } => {
+  const ids: string[] = []; const unresolved: string[] = []; const seen = new Set<string>();
+  for (const refRaw of refs) {
+    const ref = normalizePersonValue(refRaw);
+    const person = findPersonById(state, ref) ?? findPersonByName(state, ref);
+    if (!person) { unresolved.push(ref); if (seen.has(ref)) continue; seen.add(ref); ids.push(ref); continue; }
+    if (seen.has(person.personId)) continue;
+    seen.add(person.personId); ids.push(person.personId);
   }
-  return unique;
+  return { ids, unresolved };
 };
+
+const ensureNameUnique = (state: AppState, name: string, excludePersonId?: string): boolean => !state.people.some((person) => person.status === 'active' && person.personId !== excludePersonId && normalizeName(person.name) === normalizeName(name));
+const ensureCellUnique = (state: AppState, e164: string, excludePersonId?: string): boolean => !state.people.some((person) => person.status === 'active' && person.personId !== excludePersonId && person.cellE164 === e164);
 
 export const executeActions = (state: AppState, actions: Action[], context: ExecutionContext): ExecuteActionsResult => {
   const nextState = normalizeAppState(structuredClone(state));
@@ -125,239 +61,132 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
   for (const action of actions) {
     if (action.type === 'reset_state') {
       const reset = createEmptyAppState();
-      nextState.people = reset.people;
-      nextState.appointments = reset.appointments;
-      nextState.availability = reset.availability;
-      nextActivePersonId = null;
+      nextState.people = reset.people; nextState.appointments = reset.appointments; nextState.rules = reset.rules; nextActivePersonId = null;
       effectsTextLines.push('State reset.');
       continue;
     }
 
+    if (action.type === 'add_person') {
+      if (action.name.trim().length > 60 || !ensureNameUnique(nextState, action.name)) { effectsTextLines.push(`Cannot add person: duplicate/invalid name ${action.name}.`); appliedAll = false; continue; }
+      const activeCount = nextState.people.filter((person) => person.status === 'active').length;
+      if (activeCount >= 10) { effectsTextLines.push('Cannot add person: active people limit (10) reached.'); appliedAll = false; continue; }
+      try {
+        const phone = validateAndNormalizePhone(action.cell);
+        if (!ensureCellUnique(nextState, phone.e164)) { effectsTextLines.push(`Cannot add person: phone ${phone.e164} already in use.`); appliedAll = false; continue; }
+        const personId = getNextPersonId(nextState);
+        nextState.people.push({ personId, name: normalizePersonValue(action.name), cellE164: phone.e164, cellDisplay: phone.display, status: 'active', timezone: action.timezone ?? context.timezoneName, notes: (action.notes ?? '').trim() });
+        effectsTextLines.push(`Add person ${action.name} (${phone.e164}).`);
+      } catch (error) {
+        if (error instanceof PhoneValidationError) { effectsTextLines.push(`Cannot add person: ${error.message}`); appliedAll = false; continue; }
+        throw error;
+      }
+      continue;
+    }
+
+    if (action.type === 'update_person') {
+      const person = findPersonById(nextState, action.personId);
+      if (!person) { effectsTextLines.push(`Not found: ${action.personId}`); appliedAll = false; continue; }
+      const changes: string[] = [];
+      if (action.name !== undefined) {
+        if (action.name.trim().length > 60 || !ensureNameUnique(nextState, action.name, person.personId)) { effectsTextLines.push(`Cannot update person: duplicate/invalid name ${action.name}.`); appliedAll = false; continue; }
+        person.name = normalizePersonValue(action.name); changes.push('name');
+      }
+      if (action.cell !== undefined) {
+        try {
+          const phone = validateAndNormalizePhone(action.cell);
+          if (!ensureCellUnique(nextState, phone.e164, person.personId)) { effectsTextLines.push(`Cannot update person: phone ${phone.e164} already in use.`); appliedAll = false; continue; }
+          person.cellE164 = phone.e164; person.cellDisplay = phone.display; changes.push('cell');
+        } catch (error) {
+          if (error instanceof PhoneValidationError) { effectsTextLines.push(`Cannot update person: ${error.message}`); appliedAll = false; continue; }
+          throw error;
+        }
+      }
+      if (action.timezone !== undefined) { person.timezone = action.timezone; changes.push('timezone'); }
+      if (action.notes !== undefined) { person.notes = action.notes.trim(); changes.push('notes'); }
+      effectsTextLines.push(`Update person ${person.name}: ${changes.join(', ') || 'no-op'}.`);
+      continue;
+    }
+
+    if (action.type === 'deactivate_person' || action.type === 'reactivate_person') {
+      const person = findPersonById(nextState, action.personId);
+      if (!person) { effectsTextLines.push(`Not found: ${action.personId}`); appliedAll = false; continue; }
+      person.status = action.type === 'deactivate_person' ? 'inactive' : 'active';
+      effectsTextLines.push(`${action.type === 'deactivate_person' ? 'Deactivate' : 'Reactivate'} person ${person.name}.`);
+      continue;
+    }
+
+    if (action.type === 'add_rule') {
+      const person = findPersonById(nextState, action.personId);
+      if (!person) { effectsTextLines.push(`Not found: ${action.personId}`); appliedAll = false; continue; }
+      const code = getNextRuleCode(nextState);
+      nextState.rules.push({ code, personId: action.personId, kind: action.kind, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone: action.timezone ?? person.timezone ?? context.timezoneName, desc: (action.desc ?? '').trim() });
+      effectsTextLines.push(`Mark ${person.name} ${action.kind.toUpperCase()} on ${describeTime(action.date, action.startTime, action.durationMins)}.`);
+      continue;
+    }
+
+    if (action.type === 'delete_rule') {
+      const index = nextState.rules.findIndex((rule) => normalizeCode(rule.code) === normalizeCode(action.code));
+      if (index < 0) { effectsTextLines.push(`Not found: ${action.code}`); appliedAll = false; continue; }
+      const [removed] = nextState.rules.splice(index, 1);
+      effectsTextLines.push(`Deleted ${removed.code}.`);
+      continue;
+    }
+
     if (action.type === 'add_appointment') {
-      const code = getNextAppointmentCode(nextState);
-      const timezone = action.timezone ?? context.timezoneName;
-      const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
-      nextState.appointments.push({
-        id: `${Date.now()}-${code}`,
-        code,
-        title: action.desc,
-        start: resolved.startIso,
-        end: resolved.endIso,
-        isAllDay: resolved.isAllDay,
-        date: action.date,
-        startTime: action.startTime,
-        durationMins: action.startTime ? (action.durationMins ?? 60) : undefined,
-        timezone,
-        assigned: [],
-        people: toUniquePeople(action.people ?? []),
-        location: (action.location ?? '').trim(),
-        notes: ''
-      });
+      const code = getNextAppointmentCode(nextState); const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
+      const resolvedPeople = resolvePeopleRefs(nextState, action.people ?? []);
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: action.desc, start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: (action.location ?? '').trim(), notes: '' });
       effectsTextLines.push(`Added ${code} — ${action.desc} on ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;
     }
 
     if (action.type === 'delete_appointment') {
       const index = nextState.appointments.findIndex((item) => normalizeCode(item.code) === normalizeCode(action.code));
-      if (index === -1) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
-      }
-      const [removed] = nextState.appointments.splice(index, 1);
-      effectsTextLines.push(`Deleted ${removed.code} — ${removed.title}`);
-      continue;
+      if (index === -1) { effectsTextLines.push(`Not found: ${action.code}`); appliedAll = false; continue; }
+      const [removed] = nextState.appointments.splice(index, 1); effectsTextLines.push(`Deleted ${removed.code} — ${removed.title}`); continue;
     }
 
-    if (action.type === 'update_appointment_desc') {
-      const appointment = findAppointmentByCode(nextState, action.code);
-      if (!appointment) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
-      }
-      appointment.title = action.desc;
-      effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`);
-      continue;
-    }
+    if (action.type === 'update_appointment_desc' || action.type === 'reschedule_appointment' || action.type === 'set_appointment_location' || action.type === 'set_appointment_notes' || action.type === 'add_people_to_appointment' || action.type === 'remove_people_from_appointment' || action.type === 'replace_people_on_appointment' || action.type === 'clear_people_on_appointment') {
+      const appointment = findAppointmentByCode(nextState, 'code' in action ? action.code : '');
+      if (!appointment) { effectsTextLines.push(`Not found: ${'code' in action ? action.code : ''}`); appliedAll = false; continue; }
 
-    if (action.type === 'reschedule_appointment') {
-      const appointment = findAppointmentByCode(nextState, action.code);
-      if (!appointment) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
-      }
-      const timezone = action.timezone ?? context.timezoneName;
-      const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
-      appointment.date = action.date;
-      appointment.startTime = action.startTime;
-      appointment.durationMins = action.startTime ? (action.durationMins ?? 60) : undefined;
-      appointment.timezone = timezone;
-      appointment.isAllDay = resolved.isAllDay;
-      appointment.start = resolved.startIso;
-      appointment.end = resolved.endIso;
-      effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`);
-      continue;
-    }
+      if (action.type === 'update_appointment_desc') { appointment.title = action.desc; effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`); continue; }
+      if (action.type === 'reschedule_appointment') { const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone); appointment.date = action.date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? (action.durationMins ?? 60) : undefined; appointment.timezone = timezone; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`); continue; }
+      if (action.type === 'set_appointment_location') { appointment.location = action.location.trim(); effectsTextLines.push('Set location updated.'); continue; }
+      if (action.type === 'set_appointment_notes') { appointment.notes = action.notes.trim(); effectsTextLines.push('Set notes updated.'); continue; }
 
-    if (action.type === 'add_people_to_appointment' || action.type === 'remove_people_from_appointment' || action.type === 'replace_people_on_appointment' || action.type === 'clear_people_on_appointment') {
-      const appointment = findAppointmentByCode(nextState, action.code);
-      if (!appointment) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
+      if (action.type === 'clear_people_on_appointment') {
+        appointment.people = []; appointment.assigned = []; effectsTextLines.push(`Clear people on ${appointment.code} — ${appointment.title}.`); continue;
       }
 
-      if (action.type === 'add_people_to_appointment') {
-        appointment.people = appointment.people ?? [];
-        const existing = new Set(appointment.people.map((person) => person.toLowerCase()));
-        const additions: string[] = [];
-        for (const person of toUniquePeople(action.people)) {
-          if (existing.has(person.toLowerCase())) continue;
-          appointment.people.push(person);
-          additions.push(person);
-          existing.add(person.toLowerCase());
-        }
-        effectsTextLines.push(`Add people [${toUniquePeople(action.people).join(', ')}] to ${appointment.code} — ${appointment.title}.`);
-        continue;
-      }
+      const refs = action.type === 'replace_people_on_appointment' ? action.people : action.people;
+      const resolvedPeople = resolvePeopleRefs(nextState, refs);
+      if (action.type === 'replace_people_on_appointment') appointment.people = resolvedPeople.ids;
+      if (action.type === 'add_people_to_appointment') appointment.people = [...new Set([...appointment.people, ...resolvedPeople.ids])];
+      if (action.type === 'remove_people_from_appointment') appointment.people = appointment.people.filter((id) => !resolvedPeople.ids.includes(id));
+      appointment.assigned = [...appointment.people];
 
-      if (action.type === 'remove_people_from_appointment') {
-        const toRemove = new Set(toUniquePeople(action.people).map((person) => person.toLowerCase()));
-        appointment.people = appointment.people.filter((person) => !toRemove.has(person.toLowerCase()));
-        effectsTextLines.push(`Remove people [${toUniquePeople(action.people).join(', ')}] from ${appointment.code} — ${appointment.title}.`);
-        continue;
-      }
-
-      if (action.type === 'replace_people_on_appointment') {
-        const nextPeople = toUniquePeople(action.people);
-        appointment.people = nextPeople;
-        effectsTextLines.push(nextPeople.length > 0
-          ? `Set people on ${appointment.code} — ${appointment.title} to [${nextPeople.join(', ')}].`
-          : `Clear people on ${appointment.code} — ${appointment.title}.`);
-        continue;
-      }
-
-      appointment.people = [];
-      effectsTextLines.push(`Clear people on ${appointment.code} — ${appointment.title}.`);
-      continue;
-    }
-
-    if (action.type === 'set_appointment_location') {
-      const appointment = findAppointmentByCode(nextState, action.code);
-      if (!appointment) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
-      }
-      appointment.location = action.location.trim();
-      effectsTextLines.push(appointment.location
-        ? `Set location on ${appointment.code} — ${appointment.title} to “${appointment.location}”.`
-        : `Clear location on ${appointment.code} — ${appointment.title}.`);
-      continue;
-    }
-
-    if (action.type === 'set_appointment_notes') {
-      const appointment = findAppointmentByCode(nextState, action.code);
-      if (!appointment) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
-      }
-      appointment.notes = action.notes.trim();
-      effectsTextLines.push(appointment.notes
-        ? `Set notes on ${appointment.code} — ${appointment.title} to “${appointment.notes}”.`
-        : `Clear notes on ${appointment.code} — ${appointment.title}.`);
-      continue;
-    }
-
-    if (action.type === 'add_availability') {
-      const person = ensurePersonByName(nextState, action.personName);
-      const code = createAvailabilityCode(nextState, person.name);
-      const timezone = action.timezone ?? context.timezoneName;
-      const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
-      nextState.availability.push({
-        id: `${Date.now()}-${code}`,
-        code,
-        personId: person.id,
-        start: resolved.startIso,
-        end: resolved.endIso,
-        date: action.date,
-        startTime: action.startTime,
-        durationMins: action.startTime ? (action.durationMins ?? 60) : undefined,
-        timezone,
-        isAllDay: resolved.isAllDay,
-        reason: action.desc
-      });
-      effectsTextLines.push(`Added ${code} — ${person.name} ${describeTime(action.date, action.startTime, action.durationMins)} (${action.desc})`);
-      continue;
-    }
-
-    if (action.type === 'delete_availability') {
-      const index = nextState.availability.findIndex((item) => normalizeCode(item.code) === normalizeCode(action.code));
-      if (index === -1) {
-        effectsTextLines.push(`Not found: ${action.code}`);
-        appliedAll = false;
-        continue;
-      }
-      const [removed] = nextState.availability.splice(index, 1);
-      effectsTextLines.push(`Deleted ${removed.code} — ${getPersonDisplayName(nextState, removed.personId)} ${removed.date ?? formatDateTimeRange(removed.start ?? '', removed.end ?? '')}`);
+      const warningPeople = appointment.people
+        .map((personId) => ({ personId, status: computePersonStatusForInterval(personId, { date: appointment.date ?? '', startTime: appointment.startTime, durationMins: appointment.durationMins }, nextState.rules), name: findPersonById(nextState, personId)?.name ?? personId }))
+        .filter((entry) => entry.status.status === 'unavailable');
+      effectsTextLines.push(`Set people on ${appointment.code} — ${appointment.title}.`);
+      warningPeople.forEach((entry) => effectsTextLines.push(`Warning: ${entry.name} is marked UNAVAILABLE during this appointment.`));
       continue;
     }
 
     if (action.type === 'set_identity') {
-      const person = ensurePersonByName(nextState, action.name);
-      nextActivePersonId = person.id;
-      effectsTextLines.push(`Got it. You are ${person.name}.`);
-      continue;
+      const person = findPersonByName(nextState, action.name);
+      if (!person) { effectsTextLines.push(`Unknown person for identity: ${action.name}`); appliedAll = false; continue; }
+      nextActivePersonId = person.personId; effectsTextLines.push(`Got it. You are ${person.name}.`); continue;
     }
 
-    if (action.type === 'list_appointments') {
-      effectsTextLines.push(nextState.appointments.length > 0 ? nextState.appointments.map((appointment) => `${appointment.code} — ${appointment.title}`).join('\n') : '(none)');
-      continue;
-    }
-
-    if (action.type === 'show_appointment') {
-      const appointment = findAppointmentByCode(nextState, action.code);
-      effectsTextLines.push(appointment
-        ? `${appointment.code} — ${appointment.title}\nid: ${appointment.id}\nstart: ${appointment.start ?? '(none)'}\nend: ${appointment.end ?? '(none)'}\npeople: ${appointment.people.length > 0 ? appointment.people.join(', ') : '(none)'}\nlocation: ${appointment.location || '(none)'}\nnotes: ${appointment.notes || '(none)'}`
-        : `Not found: ${action.code}`);
-      continue;
-    }
-
-    if (action.type === 'list_availability') {
-      const person = action.personName ? findPersonByName(nextState, action.personName) : undefined;
-      const blocks = person ? nextState.availability.filter((block) => block.personId === person.id) : nextState.availability;
-      effectsTextLines.push(blocks.length > 0
-        ? blocks.sort((a, b) => parseStoredDateTime(a.start ?? '').getTime() - parseStoredDateTime(b.start ?? '').getTime()).map((block) => `${block.code} — ${getPersonDisplayName(nextState, block.personId)} ${block.date ?? formatDateTimeRange(block.start ?? '', block.end ?? '')}${block.reason ? ` (${block.reason})` : ''}`).join('\n')
-        : '(none)');
-      continue;
-    }
-
-    if (action.type === 'show_availability') {
-      const block = findAvailabilityByCode(nextState, action.code);
-      effectsTextLines.push(block ? `${block.code} — ${getPersonDisplayName(nextState, block.personId)}\nid: ${block.id}\nstart: ${block.start ?? '(none)'}\nend: ${block.end ?? '(none)'}\nreason: ${block.reason ?? '(none)'}` : `Not found: ${action.code}`);
-      continue;
-    }
-
-    if (action.type === 'who_is_available') {
-      const range = parseWhoIsAvailableRange(action);
-      if (!range) {
-        effectsTextLines.push('Please provide month (YYYY-MM) or start/end dates (YYYY-MM-DD).');
-        appliedAll = false;
-        continue;
-      }
-      const lines: string[] = [];
-      nextState.people.forEach((person) => {
-        const blocks = nextState.availability.filter((block) => block.personId === person.id).filter((block) => block.start && block.end).filter((block) => overlaps(parseStoredDateTime(block.start as string), parseStoredDateTime(block.end as string), range.start, range.end));
-        lines.push(`${person.name}: ${blocks.length} unavailable block(s)`);
-      });
-      effectsTextLines.push(lines.length > 0 ? lines.join('\n') : '(none)');
-      continue;
-    }
-
-    if (action.type === 'help') effectsTextLines.push('Try commands: add appt <desc> <date>, list appointments, list availability, show <CODE>, delete <CODE>.');
+    if (action.type === 'list_appointments') { effectsTextLines.push(nextState.appointments.length > 0 ? nextState.appointments.map((a) => `${a.code} — ${a.title}`).join('\n') : '(none)'); continue; }
+    if (action.type === 'show_appointment') { const appointment = findAppointmentByCode(nextState, action.code); effectsTextLines.push(appointment ? `${appointment.code} — ${appointment.title}` : `Not found: ${action.code}`); continue; }
+    if (action.type === 'list_people') { effectsTextLines.push(nextState.people.length ? nextState.people.map((p) => `${p.personId} — ${p.name} (${p.status})`).join('\n') : '(none)'); continue; }
+    if (action.type === 'show_person') { const person = findPersonById(nextState, action.personId); effectsTextLines.push(person ? `${person.personId} — ${person.name}` : `Not found: ${action.personId}`); continue; }
+    if (action.type === 'list_rules') { const rules = action.personId ? nextState.rules.filter((r) => r.personId === action.personId) : nextState.rules; effectsTextLines.push(rules.length ? rules.map((r) => `${r.code} — ${r.personId} ${r.kind} ${describeTime(r.date, r.startTime, r.durationMins)}`).join('\n') : '(none)'); continue; }
+    if (action.type === 'show_rule') { const rule = findRuleByCode(nextState, action.code); effectsTextLines.push(rule ? `${rule.code} — ${rule.kind}` : `Not found: ${action.code}`); continue; }
+    if (action.type === 'help') { effectsTextLines.push('Try commands: add person, add appointment, add rule, list appointments, list people.'); continue; }
   }
 
   return { nextState: normalizeAppState(nextState), effectsTextLines, appliedAll, nextActivePersonId };

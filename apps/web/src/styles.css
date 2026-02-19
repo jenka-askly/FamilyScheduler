@@ -166,3 +166,11 @@ input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.toggle-row { display:flex; gap:.5rem; margin-bottom:.75rem; }
+.active-toggle { background:#1d4ed8; color:white; }
+.linkish { border:0; background:none; color:#1d4ed8; padding:0; cursor:pointer; }
+.picker-row { display:flex; gap:.5rem; align-items:center; margin-bottom:.35rem; }
+.status-tag { border-radius:999px; padding:0 .4rem; font-size:.75rem; text-transform:capitalize; border:1px solid #cbd5e1; }
+.status-tag.available { color:#166534; border-color:#86efac; }
+.status-tag.unavailable { color:#991b1b; border-color:#fca5a5; }
+.status-tag.unknown { color:#334155; }
