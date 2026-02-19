@@ -28,6 +28,7 @@ Production storage mode uses Azure Blob with SAS.
 
 ## Documentation index
 
+- Roadmap and wishlist: [`docs/WISHLIST.md`](docs/WISHLIST.md)
 - Architecture: [`docs/architecture.md`](docs/architecture.md)
 - API contract: [`docs/api.md`](docs/api.md)
 - Data model and code rules: [`docs/data-model.md`](docs/data-model.md)
@@ -35,6 +36,11 @@ Production storage mode uses Azure Blob with SAS.
 - Runbook and operations: [`docs/runbook.md`](docs/runbook.md)
 - Architectural decisions (ADRs): [`docs/decisions/`](docs/decisions)
 - Continuity status: [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
+
+
+## Roadmap
+
+- Wishlist/backlog ideas: [`docs/WISHLIST.md`](docs/WISHLIST.md)
 
 ## Monorepo layout
 

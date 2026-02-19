@@ -105,6 +105,7 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 
 ## Next steps
 
+- Wishlist: AI ingestion from uploaded artifacts (text/PDF/image) with confirm gate.
 1. Replace naive parsing with a structured action schema.
 2. Add availability model for assignment/scheduling decisions.
 3. Add persistent local file storage for appointments/proposals.
