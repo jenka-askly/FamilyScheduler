@@ -1644,3 +1644,38 @@ Change the Appointments pane `Description` column to render as multi-line wrappe
 - `pnpm --filter @familyscheduler/web build` ✅ passed.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (stopped with SIGINT after screenshot capture).
 - Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/46723266d1c1da17/artifacts/artifacts/appointments-description-multiline.png`.
+
+## 2026-02-19 06:11 UTC (UTC)
+
+### Objective
+
+Add incremental appointment-editing actions in parser + executor and cover them with tests, including start-time clear behavior.
+
+### Approach
+
+- Extended action union and parser branches with new appointment actions.
+- Updated parser start-time handling to allow explicit clear (`''`/`null`) only for `set_appointment_start_time` while preserving strict `HH:MM` regex validation for set values.
+- Implemented executor branches for creating blank appointments and mutating appointment date/start-time/duration/description while recomputing timing consistency via existing `resolveAppointmentTimes`.
+- Added targeted unit tests in schema/executor suites for parsing and runtime behavior (new actions + clear-time behavior).
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` (pending)
+
+### Follow-ups
+
+- If product requires a specific default date for `create_blank_appointment`, wire it from UX/input context; current behavior uses empty date and all-day defaults.
+
+### Verification updates (post-implementation)
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed.

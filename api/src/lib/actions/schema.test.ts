@@ -106,3 +106,31 @@ test('validates appointment notes constraints', () => {
     actions: [{ type: 'set_appointment_notes', code: 'APPT-1', notes: 'x'.repeat(501) }]
   }));
 });
+
+
+test('parses create_blank_appointment', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'create blank',
+    actions: [{ type: 'create_blank_appointment' }]
+  });
+  assert.equal((parsed.actions?.[0] as any).type, 'create_blank_appointment');
+});
+
+test('parses and validates set_appointment_date and set_appointment_start_time clear', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'set date/time',
+    actions: [
+      { type: 'set_appointment_date', code: 'APPT-1', date: '2026-03-03' },
+      { type: 'set_appointment_start_time', code: 'APPT-1', startTime: '' }
+    ]
+  });
+  assert.equal((parsed.actions?.[0] as any).date, '2026-03-03');
+  assert.equal((parsed.actions?.[1] as any).startTime, undefined);
+  assert.throws(() => ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'bad time',
+    actions: [{ type: 'set_appointment_start_time', code: 'APPT-1', startTime: '9:00' }]
+  }));
+});

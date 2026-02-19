@@ -210,3 +210,11 @@ After every merged PR, update this file with:
 - Backward compatibility retained: legacy model `kind="clarify"` is normalized into `kind="question"` with free-text enabled by default.
 - Web now blocks with a dedicated question modal whenever `pendingQuestion` exists; users can answer by button click or typed response, and Close dismisses without mutation.
 - Proposal confirm/cancel modal behavior remains unchanged.
+
+## Recent update (2026-02-19 06:11 UTC)
+
+- Added new appointment mutation actions for incremental editing: `create_blank_appointment`, `set_appointment_date`, `set_appointment_start_time` (supports clear), `set_appointment_duration`, and `set_appointment_desc`.
+- Parser now validates date/time formats for these actions and allows explicit time-clear via empty string/null for `set_appointment_start_time`.
+- Executor now supports blank appointment creation with default empty fields and APPT code generation via existing sequencing.
+- Executor now supports date-only and start-time mutations while keeping timing fields (`isAllDay`, `start`, `end`, `durationMins`) internally consistent.
+- Existing appointment location/notes and delete behavior remains unchanged.

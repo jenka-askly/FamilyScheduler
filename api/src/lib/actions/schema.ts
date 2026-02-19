@@ -9,7 +9,12 @@ export type TimedActionFields = {
 
 export type Action =
   | ({ type: 'add_appointment'; desc: string; people?: string[]; location?: string } & TimedActionFields)
+  | { type: 'create_blank_appointment' }
   | ({ type: 'reschedule_appointment'; code: string } & TimedActionFields)
+  | { type: 'set_appointment_date'; code: string; date: string }
+  | { type: 'set_appointment_start_time'; code: string; startTime?: string }
+  | { type: 'set_appointment_duration'; code: string; durationMins?: number }
+  | { type: 'set_appointment_desc'; code: string; desc: string }
   | { type: 'update_appointment_desc'; code: string; desc: string }
   | { type: 'delete_appointment'; code: string }
   | { type: 'add_people_to_appointment'; code: string; people: string[] }
@@ -50,7 +55,13 @@ const assertKeys = (value: Record<string, unknown>, allowed: string[]): void => 
 const normalizeText = (value: string): string => value.trim().replace(/\s+/g, ' ');
 const assertString = (value: unknown, field: string): string => { if (typeof value !== 'string' || !value.trim()) throw new Error(`Invalid ${field}`); return normalizeText(value); };
 const assertDate = (value: unknown): string => { const date = assertString(value, 'date'); if (!datePattern.test(date)) throw new Error('Invalid date'); return date; };
-const parseOptionalStartTime = (value: unknown): string | undefined => { if (value === undefined) return undefined; const startTime = assertString(value, 'startTime'); if (!startTimePattern.test(startTime)) throw new Error('Invalid startTime'); return startTime; };
+const parseOptionalStartTime = (value: unknown, allowClear = false): string | undefined => {
+  if (value === undefined) return undefined;
+  if (allowClear && (value === null || value === '')) return undefined;
+  const startTime = assertString(value, 'startTime');
+  if (!startTimePattern.test(startTime)) throw new Error('Invalid startTime');
+  return startTime;
+};
 const parseOptionalDuration = (value: unknown): number | undefined => { if (value === undefined) return undefined; if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > (24 * 60)) throw new Error('Invalid durationMins'); return value; };
 const parseTimedFields = (value: Record<string, unknown>): TimedActionFields => ({ date: assertDate(value.date), startTime: parseOptionalStartTime(value.startTime), durationMins: parseOptionalDuration(value.durationMins), timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined });
 const assertPeopleArray = (value: unknown, field: string, minItems: number, maxItems: number): string[] => {
@@ -64,7 +75,12 @@ const parseAction = (value: unknown): Action => {
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'add_appointment') return { type, desc: assertString(value.desc, 'desc'), ...parseTimedFields(value), people: value.people === undefined ? undefined : assertPeopleArray(value.people, 'people', 1, 20), location: typeof value.location === 'string' ? normalizeText(value.location) : undefined };
+  if (type === 'create_blank_appointment') return { type };
   if (type === 'reschedule_appointment') return { type, code: assertString(value.code, 'code'), ...parseTimedFields(value) };
+  if (type === 'set_appointment_date') return { type, code: assertString(value.code, 'code'), date: assertDate(value.date) };
+  if (type === 'set_appointment_start_time') return { type, code: assertString(value.code, 'code'), startTime: parseOptionalStartTime(value.startTime, true) };
+  if (type === 'set_appointment_duration') return { type, code: assertString(value.code, 'code'), durationMins: parseOptionalDuration(value.durationMins) };
+  if (type === 'set_appointment_desc') return { type, code: assertString(value.code, 'code'), desc: assertString(value.desc, 'desc') };
   if (type === 'update_appointment_desc') return { type, code: assertString(value.code, 'code'), desc: assertString(value.desc, 'desc') };
   if (type === 'delete_appointment') return { type, code: assertString(value.code, 'code') };
   if (type === 'add_people_to_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };

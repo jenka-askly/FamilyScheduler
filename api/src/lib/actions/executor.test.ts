@@ -102,3 +102,35 @@ test('G: add unavailable rule removes overlapping available rules', () => {
   assert.equal(result.nextState.rules[0].kind, 'unavailable');
   assert.equal(result.effectsTextLines.some((line) => line.includes('Remove conflicting AVAILABLE rule RULE-1')), true);
 });
+
+
+test('H: create blank appointment uses defaults and next code', () => {
+  const state = createEmptyAppState();
+  state.appointments.push({ id: 'appt-1', code: 'APPT-2', title: 'Existing', assigned: [], people: [], location: '', notes: '' });
+  const result = executeActions(state, [{ type: 'create_blank_appointment' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  const appt = result.nextState.appointments[1];
+  assert.equal(appt.code, 'APPT-3');
+  assert.equal(appt.title, '');
+  assert.equal(appt.location, '');
+  assert.equal(appt.notes, '');
+  assert.deepEqual(appt.people, []);
+});
+
+test('I: set appointment date and start time clear keeps timing consistency', () => {
+  const state = createEmptyAppState();
+  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', startTime: '09:00', durationMins: 30, start: '2026-03-01T09:00:00-08:00', end: '2026-03-01T09:30:00-08:00', isAllDay: false, timezone: 'America/Los_Angeles', assigned: [], people: [], location: '', notes: '' });
+
+  let result = executeActions(state, [{ type: 'set_appointment_date', code: 'APPT-1', date: '2026-03-10' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  let appt = result.nextState.appointments[0];
+  assert.equal(appt.date, '2026-03-10');
+  assert.equal(appt.isAllDay, false);
+  assert.equal(typeof appt.start, 'string');
+
+  result = executeActions(result.nextState, [{ type: 'set_appointment_start_time', code: 'APPT-1', startTime: '' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  appt = result.nextState.appointments[0];
+  assert.equal(appt.startTime, undefined);
+  assert.equal(appt.durationMins, undefined);
+  assert.equal(appt.isAllDay, true);
+  assert.equal(appt.start, undefined);
+  assert.equal(appt.end, undefined);
+});

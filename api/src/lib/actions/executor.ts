@@ -157,18 +157,28 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       continue;
     }
 
+    if (action.type === 'create_blank_appointment') {
+      const code = getNextAppointmentCode(nextState);
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: '', start: undefined, end: undefined, isAllDay: true, date: '', startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', notes: '' });
+      effectsTextLines.push(`Created blank appointment ${code}.`);
+      continue;
+    }
+
     if (action.type === 'delete_appointment') {
       const index = nextState.appointments.findIndex((item) => normalizeCode(item.code) === normalizeCode(action.code));
       if (index === -1) { effectsTextLines.push(`Not found: ${action.code}`); appliedAll = false; continue; }
       const [removed] = nextState.appointments.splice(index, 1); effectsTextLines.push(`Deleted ${removed.code} — ${removed.title}`); continue;
     }
 
-    if (action.type === 'update_appointment_desc' || action.type === 'reschedule_appointment' || action.type === 'set_appointment_location' || action.type === 'set_appointment_notes' || action.type === 'add_people_to_appointment' || action.type === 'remove_people_from_appointment' || action.type === 'replace_people_on_appointment' || action.type === 'clear_people_on_appointment') {
+    if (action.type === 'update_appointment_desc' || action.type === 'set_appointment_desc' || action.type === 'reschedule_appointment' || action.type === 'set_appointment_date' || action.type === 'set_appointment_start_time' || action.type === 'set_appointment_duration' || action.type === 'set_appointment_location' || action.type === 'set_appointment_notes' || action.type === 'add_people_to_appointment' || action.type === 'remove_people_from_appointment' || action.type === 'replace_people_on_appointment' || action.type === 'clear_people_on_appointment') {
       const appointment = findAppointmentByCode(nextState, 'code' in action ? action.code : '');
       if (!appointment) { effectsTextLines.push(`Not found: ${'code' in action ? action.code : ''}`); appliedAll = false; continue; }
 
-      if (action.type === 'update_appointment_desc') { appointment.title = action.desc; effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`); continue; }
+      if (action.type === 'update_appointment_desc' || action.type === 'set_appointment_desc') { appointment.title = action.desc; effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`); continue; }
       if (action.type === 'reschedule_appointment') { const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone); appointment.date = action.date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? (action.durationMins ?? 60) : undefined; appointment.timezone = timezone; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`); continue; }
+      if (action.type === 'set_appointment_date') { const resolved = resolveAppointmentTimes(action.date, appointment.startTime, appointment.durationMins, appointment.timezone ?? context.timezoneName); appointment.date = action.date; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set date on ${appointment.code} to ${action.date}.`); continue; }
+      if (action.type === 'set_appointment_start_time') { const timezone = appointment.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(appointment.date ?? '', action.startTime, appointment.durationMins, timezone); appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? (appointment.durationMins ?? 60) : undefined; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(action.startTime ? `Set start time on ${appointment.code} to ${action.startTime}.` : `Cleared start time on ${appointment.code}.`); continue; }
+      if (action.type === 'set_appointment_duration') { if (!appointment.startTime) { appointment.durationMins = undefined; appointment.isAllDay = true; appointment.start = undefined; appointment.end = undefined; effectsTextLines.push(`Ignored duration for all-day ${appointment.code}.`); continue; } const durationMins = action.durationMins ?? 60; const resolved = resolveAppointmentTimes(appointment.date ?? '', appointment.startTime, durationMins, appointment.timezone ?? context.timezoneName); appointment.durationMins = durationMins; appointment.isAllDay = false; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set duration on ${appointment.code} to ${durationMins}m.`); continue; }
       if (action.type === 'set_appointment_location') { appointment.location = action.location.trim(); effectsTextLines.push('Set location updated.'); continue; }
       if (action.type === 'set_appointment_notes') { appointment.notes = action.notes.trim(); effectsTextLines.push('Set notes updated.'); continue; }
 
