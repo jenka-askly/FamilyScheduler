@@ -13,7 +13,7 @@ export type OpenAiContextEnvelope = {
   };
   data: {
     appointments: AppState['appointments'];
-    availability: AppState['availability'];
+    rules: AppState['rules'];
     people: AppState['people'];
   };
   history: ChatHistoryEntry[];
@@ -58,7 +58,7 @@ export const buildContext = (params: {
   },
   data: {
     appointments: params.state.appointments,
-    availability: params.state.availability,
+    rules: params.state.rules,
     people: params.state.people
   },
   history: trimHistory(params.history)

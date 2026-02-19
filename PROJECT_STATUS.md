@@ -180,3 +180,13 @@ After every merged PR, update this file with:
 - Included `notes` in API snapshots consumed by web UI.
 - Updated appointments table with a compact Notes column (`—` when empty, ellipsis + title on long values).
 - Updated help docs with note-setting/clearing examples.
+
+## Recent update (2026-02-19 04:20 UTC)
+
+- Started People system overhaul: state now uses `people` + `rules` (availability rules) with legacy `availability` migration into `rules` (`kind=unavailable` default).
+- API snapshot now returns people/rules and appointment `peopleDisplay` values.
+- Added phone validation/normalization helper (E.164-like validation fallback due registry restrictions).
+- Added/updated action schema + executor paths for people CRUD, rules CRUD, and appointment person assignment with unavailable warnings.
+- Web now has `Appointments | People` toggle, People table actions, and appointment people picker with Available/Unavailable/Unknown tags.
+- Confirm gate remains in place for mutations.
+- Known limitation: could not install `libphonenumber-js` (npm registry 403 in this environment), so validation currently uses local fallback logic.
