@@ -27,12 +27,12 @@ test('OPENAI_LOG_ENABLED=true writes redacted request and response NDJSON lines'
   globalThis.fetch = (async () => ({
     ok: true,
     json: async () => ({
-      choices: [{ message: { content: JSON.stringify({ kind: 'query', actions: [{ type: 'help' }] }) } }]
+      choices: [{ message: { content: JSON.stringify({ kind: 'reply', message: 'help', actions: [{ type: 'help' }] }) } }]
     })
   })) as unknown as typeof fetch;
 
   const parsed = await parseToActions('help https://example.test?sig=abc123', createContext(), { traceId: 'trace-1', sessionIdHash: 'sess-1' });
-  assert.equal(parsed.kind, 'query');
+  assert.equal(parsed.kind, 'reply');
 
   const logPath = path.join(tmpDir, 'openai.ndjson');
   const file = await fs.readFile(logPath, 'utf8');
@@ -56,7 +56,7 @@ test('OPENAI_LOG_ENABLED=false does not write log file', async () => {
   globalThis.fetch = (async () => ({
     ok: true,
     json: async () => ({
-      choices: [{ message: { content: JSON.stringify({ kind: 'query', actions: [{ type: 'help' }] }) } }]
+      choices: [{ message: { content: JSON.stringify({ kind: 'reply', message: 'help', actions: [{ type: 'help' }] }) } }]
     })
   })) as unknown as typeof fetch;
 

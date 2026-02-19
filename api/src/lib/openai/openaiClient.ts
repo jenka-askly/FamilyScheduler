@@ -78,12 +78,14 @@ export const parseToActions = async (input: string, context: ParserContext, opti
   }
 
   const parsedJson = JSON.parse(rawContent) as unknown;
+  console.info(JSON.stringify({ traceId: options.traceId, stage: 'openai_raw_response', rawModelResponse: rawContent }));
   let parsed: ParsedModelResponse | undefined;
   let validationErrors: string[] | undefined;
   try {
     parsed = ParsedModelResponseSchema.parse(parsedJson);
   } catch (error) {
     validationErrors = [error instanceof Error ? error.message : 'unknown validation error'];
+    console.warn(JSON.stringify({ traceId: options.traceId, stage: 'openai_schema_validation', validationErrors }));
     throw error;
   } finally {
     if (loggingEnabled) {

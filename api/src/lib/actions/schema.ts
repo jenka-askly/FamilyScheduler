@@ -1,4 +1,4 @@
-export const ActionSchemaVersion = 1;
+export const ActionSchemaVersion = 2;
 
 export type Action =
   | { type: 'add_appointment'; title: string; start?: string; end?: string }
@@ -18,16 +18,12 @@ export type Action =
   | { type: 'help' };
 
 export type ParsedModelResponse = {
-  kind: 'query' | 'mutation' | 'clarify';
-  actions: Action[];
-  clarificationQuestion?: string;
+  kind: 'reply' | 'proposal' | 'clarify';
+  message: string;
+  actions?: Action[];
   confidence?: number;
-  needsConfirmation?: boolean;
-  assumptions?: string[];
 };
 
-const appointmentCodePattern = /^APPT-\d+$/;
-const availabilityCodePattern = /^AVL-[A-Z0-9_-]+-\d+$/;
 const yearMonthPattern = /^\d{4}-\d{2}$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -52,17 +48,14 @@ const parseAction = (value: unknown): Action => {
   }
   if (type === 'delete_appointment') {
     const code = assertString(value.code, 'code');
-    if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     return { type, code };
   }
   if (type === 'update_appointment_title') {
     const code = assertString(value.code, 'code');
-    if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     return { type, code, title: assertString(value.title, 'title') };
   }
   if (type === 'update_appointment_schedule' || type === 'reschedule_appointment') {
     const code = assertString(value.code, 'code');
-    if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     const start = assertString(value.start, 'start');
     const end = assertString(value.end, 'end');
     return { type, code, start, end, timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined, isAllDay: value.isAllDay === true ? true : undefined } as Action;
@@ -78,7 +71,6 @@ const parseAction = (value: unknown): Action => {
   }
   if (type === 'delete_availability') {
     const code = assertString(value.code, 'code');
-    if (!availabilityCodePattern.test(code)) throw new Error('Invalid availability code');
     return { type, code };
   }
   if (type === 'set_identity') return { type, name: assertString(value.name, 'name') };
@@ -86,13 +78,11 @@ const parseAction = (value: unknown): Action => {
   if (type === 'list_appointments') return { type };
   if (type === 'show_appointment') {
     const code = assertString(value.code, 'code');
-    if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     return { type, code };
   }
   if (type === 'list_availability') return { type, personName: typeof value.personName === 'string' ? assertString(value.personName, 'personName') : undefined };
   if (type === 'show_availability') {
     const code = assertString(value.code, 'code');
-    if (!availabilityCodePattern.test(code)) throw new Error('Invalid availability code');
     return { type, code };
   }
   if (type === 'who_is_available') {
@@ -112,35 +102,20 @@ const parseAction = (value: unknown): Action => {
 export const ParsedModelResponseSchema = {
   parse(value: unknown): ParsedModelResponse {
     if (!isRecord(value)) throw new Error('Response must be an object');
-    assertKeys(value, ['kind', 'actions', 'clarificationQuestion', 'assumptions', 'confidence', 'needsConfirmation']);
+    assertKeys(value, ['kind', 'message', 'actions', 'confidence']);
 
-    if (value.kind !== 'query' && value.kind !== 'mutation' && value.kind !== 'clarify') {
+    if (value.kind !== 'reply' && value.kind !== 'proposal' && value.kind !== 'clarify') {
       throw new Error('Invalid kind');
     }
 
-    if (!Array.isArray(value.actions)) throw new Error('actions must be an array');
-    const actions = value.actions.map((item) => parseAction(item));
-
-    const clarificationQuestion = typeof value.clarificationQuestion === 'string' ? value.clarificationQuestion : undefined;
-    if (value.kind === 'clarify' && (!clarificationQuestion || clarificationQuestion.trim().length === 0)) {
-      throw new Error('clarificationQuestion is required when kind=clarify');
-    }
+    const message = assertString(value.message, 'message');
+    const actions = value.actions === undefined ? undefined : (Array.isArray(value.actions) ? value.actions.map((item) => parseAction(item)) : (() => { throw new Error('actions must be an array'); })());
 
     const confidence = typeof value.confidence === 'number' ? value.confidence : undefined;
     if (confidence !== undefined && (Number.isNaN(confidence) || confidence < 0 || confidence > 1)) {
       throw new Error('confidence must be a number between 0 and 1');
     }
 
-    const needsConfirmation = typeof value.needsConfirmation === 'boolean' ? value.needsConfirmation : undefined;
-
-    let assumptions: string[] | undefined;
-    if (value.assumptions !== undefined) {
-      if (!Array.isArray(value.assumptions) || value.assumptions.some((item) => typeof item !== 'string')) {
-        throw new Error('assumptions must be string[]');
-      }
-      assumptions = value.assumptions;
-    }
-
-    return { kind: value.kind, actions, clarificationQuestion, confidence, needsConfirmation, assumptions };
+    return { kind: value.kind, message, actions, confidence };
   }
 };

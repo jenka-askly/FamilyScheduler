@@ -1126,3 +1126,43 @@ Fix deterministic update parsing to support explicit `update appointment ... sta
 ### Follow-ups
 
 - Consider DST-aware conversion for offset-less local timestamps if runtime needs seasonal offset correctness beyond current `-08:00` behavior.
+
+## 2026-02-19 01:46 UTC (AI-first parser routing + strict response contract)
+
+### Objective
+
+Implement AI-first intent parsing with deterministic confirm/cancel gate, remove most regex command parsing, enforce strict parser response schema, add post-processing validation, and cover acceptance scenarios.
+
+### Approach
+
+- Reworked `chat.ts` routing to:
+  - deterministically handle pending proposal (confirm/cancel/"Please confirm or cancel."),
+  - send pending clarification turns to OpenAI with clarification context,
+  - use OpenAI for all other non-help/non-session-init messages.
+- Simplified deterministic parsing surface to only help, confirm/cancel synonyms, and passkey/session init handling.
+- Migrated parser schema to `kind: reply|proposal|clarify` with required `message`, optional `actions`, and optional `confidence`.
+- Added post-processing in chat for code normalization + existence validation + proposal action/summary guards.
+- Added logging for full context envelope, raw model response, and validation errors.
+- Replaced chat tests with acceptance tests matching the requested scenarios and fetch-mocked OpenAI responses.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `api/src/lib/openai/openaiClient.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ❌ failed initially (schema test compile errors from old response shape).
+- `pnpm --filter @familyscheduler/api test` ❌ failed second run (schema rejected non-canonical code before chat post-processor normalization).
+- `pnpm --filter @familyscheduler/api test` ✅ passed (5/5 tests in current suite).
+
+### Follow-ups
+
+- Consider adding a dedicated unit test for chat post-processor code normalization to catch regressions independently from end-to-end acceptance tests.

@@ -2,299 +2,48 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chat } from './chat.js';
 
-const sendChat = async (message: string) => chat({ json: async () => ({ message }) } as any, {} as any);
+type RouteMap = Record<string, unknown>;
 
-const resetState = async () => {
-  await sendChat('cancel');
-  const resetProposal = await sendChat('reset state');
-  assert.equal(resetProposal.status, 200);
-  assert.equal((resetProposal.jsonBody as any).kind, 'proposal');
+const originalFetch = globalThis.fetch;
 
-  const resetApplied = await sendChat('confirm');
-  assert.equal(resetApplied.status, 200);
-  assert.equal((resetApplied.jsonBody as any).kind, 'applied');
+const sendChat = async (message: string, sessionId = 'test-session') => chat({
+  json: async () => ({ message }),
+  headers: { get: (name: string) => (name.toLowerCase() === 'x-session-id' ? sessionId : null) }
+} as any, {} as any);
+
+const installFetchStub = (routes: RouteMap): { calls: () => number } => {
+  let count = 0;
+  globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+    count += 1;
+    const body = JSON.parse(String(init?.body ?? '{}')) as { messages?: Array<{ content?: string }> };
+    const prompt = body.messages?.[1]?.content ?? '';
+    const inputMatch = prompt.match(/User input:\n([\s\S]*?)\n\nContext envelope:/);
+    const input = inputMatch?.[1]?.trim() ?? '';
+    const mapped = routes[input] ?? { kind: 'clarify', message: 'Could you clarify?' };
+    return {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify(mapped) } }] })
+    } as any;
+  }) as typeof fetch;
+  return { calls: () => count };
 };
 
-test('who is available in march query is normalized across punctuation/case', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const uppercaseQuestion = await sendChat('Who is available in March?');
-  const lowercase = await sendChat('who is available in march');
-
-  assert.equal((uppercaseQuestion.jsonBody as any).kind, 'reply');
-  assert.equal((lowercase.jsonBody as any).kind, 'reply');
-  assert.equal((uppercaseQuestion.jsonBody as any).assistantText, (lowercase.jsonBody as any).assistantText);
+test.afterEach(() => {
+  globalThis.fetch = originalFetch;
+  delete process.env.OPENAI_API_KEY;
 });
 
-test('mutations still require confirm', async () => {
+test('acceptance: show my appt returns list reply', async () => {
   process.env.STORAGE_MODE = 'local';
-  await resetState();
+  process.env.OPENAI_API_KEY = 'sk-test';
+  installFetchStub({
+    'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', title: 'Dentist' }] },
+    'show my appt': { kind: 'reply', message: 'Listing appointments', actions: [{ type: 'list_appointments' }] }
+  });
 
-  const addResponse = await sendChat('add appt Team sync');
-  assert.equal(addResponse.status, 200);
-  assert.equal((addResponse.jsonBody as any).kind, 'proposal');
-  assert.deepEqual((addResponse.jsonBody as any).snapshot.appointments, []);
-  assert.deepEqual((addResponse.jsonBody as any).snapshot.availability, []);
-});
-
-test('responses include snapshot and applied updates it', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const proposal = await sendChat('add appt Dentist');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-  assert.equal((proposal.jsonBody as any).snapshot.appointments.length, 0);
-
-  const applied = await sendChat('confirm');
-  assert.equal((applied.jsonBody as any).kind, 'applied');
-  assert.equal((applied.jsonBody as any).snapshot.appointments.length, 1);
-  assert.equal((applied.jsonBody as any).snapshot.appointments[0].title, 'Dentist');
-
-  const clarify = await sendChat('list my availability');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-  assert.equal((clarify.jsonBody as any).snapshot.appointments.length, 1);
-  assert.deepEqual((clarify.jsonBody as any).snapshot.availability, []);
-});
-
-test('delete APPT-1 still parses as mutation proposal', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const deleteResponse = await sendChat('delete APPT-1');
-  assert.equal(deleteResponse.status, 200);
-  assert.equal((deleteResponse.jsonBody as any).kind, 'proposal');
-});
-
-test('clarification reply fills missing personName for list availability', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const mark = await sendChat('mark Joe unavailable 2026-03-10 10:00-11:00 busy');
-  assert.equal((mark.jsonBody as any).kind, 'proposal');
-  const markApplied = await sendChat('confirm');
-  assert.equal((markApplied.jsonBody as any).kind, 'applied');
-
-  const clarify = await sendChat('list my availability');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-  assert.equal((clarify.jsonBody as any).question, 'Whose availability?');
-
-  const resolved = await sendChat('Joe');
-  assert.equal((resolved.jsonBody as any).kind, 'reply');
-  assert.match((resolved.jsonBody as any).assistantText, /AVL-JOE-1/);
-});
-
-test('identity can be confirmed then used for show my availability query', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const setIdentity = await sendChat('I am Joe');
-  assert.equal((setIdentity.jsonBody as any).kind, 'proposal');
+  await sendChat('reset state');
   await sendChat('confirm');
-
-  const mark = await sendChat('mark me unavailable 2026-03-10 10:00-11:00 busy');
-  assert.equal((mark.jsonBody as any).kind, 'proposal');
-  await sendChat('confirm');
-
-  const showMine = await sendChat('show my availability');
-  assert.equal((showMine.jsonBody as any).kind, 'reply');
-  assert.match((showMine.jsonBody as any).assistantText, /AVL-JOE-1/);
-});
-
-test('missing identity triggers clarify and resolving personName executes query without setting identity', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const mark = await sendChat('mark Joe unavailable 2026-03-10 10:00-11:00 busy');
-  assert.equal((mark.jsonBody as any).kind, 'proposal');
-  await sendChat('confirm');
-
-  const askMine = await sendChat('show my availability');
-  assert.equal((askMine.jsonBody as any).kind, 'clarify');
-  assert.equal((askMine.jsonBody as any).question, 'Whose availability?');
-
-  const resolved = await sendChat('joe');
-  assert.equal((resolved.jsonBody as any).kind, 'reply');
-  assert.match((resolved.jsonBody as any).assistantText, /AVL-JOE-1/);
-
-  const markMe = await sendChat('mark me unavailable 2026-03-11 10:00-11:00 busy');
-  assert.equal((markMe.jsonBody as any).kind, 'proposal');
-  assert.match((markMe.jsonBody as any).assistantText, /Mark me unavailable/i);
-});
-
-test('bare name without pending clarification does not set identity', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const bare = await sendChat('joe');
-  assert.equal((bare.jsonBody as any).kind, 'reply');
-  assert.equal((bare.jsonBody as any).assistantText, 'Natural language parsing is disabled. Try commands: help');
-
-  const markMe = await sendChat('mark me unavailable 2026-03-12 10:00-11:00 busy');
-  assert.equal((markMe.jsonBody as any).kind, 'proposal');
-  assert.match((markMe.jsonBody as any).assistantText, /Mark me unavailable/i);
-});
-
-test('I am Joe now requires confirmation', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const response = await sendChat('I am Joe');
-  assert.equal((response.jsonBody as any).kind, 'proposal');
-
-  const applied = await sendChat('confirm');
-  assert.equal((applied.jsonBody as any).kind, 'applied');
-  assert.equal((applied.jsonBody as any).assistantText, 'Got it. You are Joe.');
-});
-
-test('cancel clears pending clarification', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const clarify = await sendChat('list my availability');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-
-  const cancelled = await sendChat('cancel');
-  assert.equal((cancelled.jsonBody as any).kind, 'reply');
-  assert.equal((cancelled.jsonBody as any).assistantText, 'Cancelled.');
-
-  const next = await sendChat('Joe');
-  assert.equal((next.jsonBody as any).kind, 'reply');
-  assert.equal((next.jsonBody as any).assistantText, 'Natural language parsing is disabled. Try commands: help');
-});
-
-
-test('delete dentist clarify binds follow-up code and confirms deletion flow', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const addFirst = await sendChat('add appt Dentist');
-  assert.equal((addFirst.jsonBody as any).kind, 'proposal');
-  await sendChat('confirm');
-
-  const addOther = await sendChat('add appt Team sync');
-  assert.equal((addOther.jsonBody as any).kind, 'proposal');
-  await sendChat('confirm');
-
-  const addThird = await sendChat('add appt Dentist follow-up');
-  assert.equal((addThird.jsonBody as any).kind, 'proposal');
-  await sendChat('confirm');
-
-  const clarify = await sendChat('Delete the dentist one');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-  assert.match((clarify.jsonBody as any).question, /APPT-1/);
-  assert.match((clarify.jsonBody as any).question, /APPT-3/);
-
-  const proposal = await sendChat('APPt1');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-  assert.match((proposal.jsonBody as any).assistantText, /delete APPT-1/i);
-
-  const applied = await sendChat('confirm');
-  assert.equal((applied.jsonBody as any).kind, 'applied');
-
-  const list = await sendChat('list appointments');
-  assert.equal((list.jsonBody as any).kind, 'reply');
-  assert.doesNotMatch((list.jsonBody as any).assistantText, /APPT-1\s+—/);
-  assert.match((list.jsonBody as any).assistantText, /APPT-3\s+—/);
-});
-
-test('clarification persists on invalid code replies', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  await sendChat('add appt Dentist');
-  await sendChat('confirm');
-  await sendChat('add appt Dentist follow-up');
-  await sendChat('confirm');
-
-  const clarify = await sendChat('Delete the dentist one');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-
-  const nonsense = await sendChat('what?');
-  assert.equal((nonsense.jsonBody as any).kind, 'clarify');
-  assert.match((nonsense.jsonBody as any).question, /Which code should I use/i);
-});
-
-test('reschedule follow-up fills pending clarification with time range and confirms', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  await sendChat('add appt Dentist');
-  await sendChat('confirm');
-
-  const clarify = await sendChat('update appt 1 to March 11, 2026');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-  assert.equal((clarify.jsonBody as any).question, 'Please provide a time range like 9am-10am.');
-
-  const proposal = await sendChat('9am to 10am');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1 to 2026-03-11/i);
-
-  const applied = await sendChat('confirm');
-  assert.equal((applied.jsonBody as any).kind, 'applied');
-  assert.match((applied.jsonBody as any).assistantText, /Rescheduled APPT-1/i);
-});
-
-test('reschedule with morning maps to deterministic range', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  await sendChat('add appt Dentist');
-  await sendChat('confirm');
-
-  const proposal = await sendChat('change appt1 to March 10 morning');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-
-  const applied = await sendChat('confirm');
-  assert.equal((applied.jsonBody as any).kind, 'applied');
-  assert.match((applied.jsonBody as any).assistantText, /09:00–12:00/);
-});
-
-test('explicit update appointment start/end command returns deterministic proposal and yes applies', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  await sendChat('add appt Dentist');
-  await sendChat('confirm');
-
-  const proposal = await sendChat('update appointment APPT-1 to start 2026-03-03T10:00:00-08:00 end 2026-03-03T11:00:00-08:00');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1/i);
-
-  const applied = await sendChat('yes');
-  assert.equal((applied.jsonBody as any).kind, 'applied');
-  assert.match((applied.jsonBody as any).assistantText, /Rescheduled APPT-1/i);
-});
-
-test('explicit update appointment without offset asks timezone clarify and yes proceeds to proposal', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  await sendChat('add appt Dentist');
-  await sendChat('confirm');
-
-  const clarify = await sendChat('update appointment APPT-1 to start 2026-03-03T10:00:00 end 2026-03-03T11:00:00');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-  assert.match((clarify.jsonBody as any).question, /America\/Los_Angeles/);
-
-  const proposal = await sendChat('yes');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1/i);
-});
-
-test('seattle time and la time resolve to same pacific timezone', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const response = await sendChat('Seattle time vs LA time');
-  assert.equal((response.jsonBody as any).kind, 'reply');
-  assert.equal((response.jsonBody as any).assistantText, 'Same Pacific timezone.');
-});
-
-test('show my appt lists appointments directly', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
   await sendChat('add appt Dentist');
   await sendChat('confirm');
 
@@ -303,46 +52,71 @@ test('show my appt lists appointments directly', async () => {
   assert.match((listed.jsonBody as any).assistantText, /APPT-1 — Dentist/);
 });
 
-
-
-test('show list defaults to appointments list when appointments exist', async () => {
+test('acceptance: update appt proposal then confirm applies', async () => {
   process.env.STORAGE_MODE = 'local';
-  await resetState();
+  process.env.OPENAI_API_KEY = 'sk-test';
+  installFetchStub({
+    'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', title: 'Dentist' }] },
+    'update appt 1 date to March 3 2026 10-11': {
+      kind: 'proposal',
+      message: 'Reschedule APPT-1 to March 3, 2026 10-11.',
+      actions: [{ type: 'reschedule_appointment', code: 'appt 1', start: '2026-03-03T10:00:00-08:00', end: '2026-03-03T11:00:00-08:00' }]
+    }
+  });
 
-  await sendChat('add appt Dentist');
-  await sendChat('confirm');
+  await sendChat('reset state', 'session-2');
+  await sendChat('confirm', 'session-2');
+  await sendChat('add appt Dentist', 'session-2');
+  await sendChat('confirm', 'session-2');
 
-  const listed = await sendChat('show list');
-  assert.equal((listed.jsonBody as any).kind, 'reply');
-  assert.match((listed.jsonBody as any).assistantText, /APPT-1 — Dentist/);
+  const proposal = await sendChat('update appt 1 date to March 3 2026 10-11', 'session-2');
+  assert.equal((proposal.jsonBody as any).kind, 'proposal');
+
+  const applied = await sendChat('yes', 'session-2');
+  assert.equal((applied.jsonBody as any).kind, 'applied');
+  assert.match((applied.jsonBody as any).assistantText, /Rescheduled APPT-1/);
 });
 
-test('time-only message without pending clarification asks for context', async () => {
+test('acceptance: pending proposal yes confirms deterministically without openai call', async () => {
   process.env.STORAGE_MODE = 'local';
-  await resetState();
+  process.env.OPENAI_API_KEY = 'sk-test';
+  const tracker = installFetchStub({
+    'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', title: 'Dentist' }] }
+  });
 
-  const clarify = await sendChat('9am to 10am');
-  assert.equal((clarify.jsonBody as any).kind, 'clarify');
-  assert.equal((clarify.jsonBody as any).question, 'What date and what are you changing?');
+  await sendChat('reset state', 'session-3');
+  await sendChat('confirm', 'session-3');
+  const proposal = await sendChat('add appt Dentist', 'session-3');
+  assert.equal((proposal.jsonBody as any).kind, 'proposal');
+
+  const before = tracker.calls();
+  await sendChat('yes', 'session-3');
+  assert.equal(tracker.calls(), before);
 });
 
-
-test('cancel synonym no cancels pending proposal', async () => {
+test('acceptance: random yes with no proposal asks clarify', async () => {
   process.env.STORAGE_MODE = 'local';
-  await resetState();
+  process.env.OPENAI_API_KEY = 'sk-test';
+  installFetchStub({});
 
-  await sendChat('add appt Dentist');
-  const cancelled = await sendChat('no');
-  assert.equal((cancelled.jsonBody as any).kind, 'reply');
-  assert.equal((cancelled.jsonBody as any).assistantText, 'Cancelled.');
-});
-
-
-test('mark 9 2026 asks clarify to disambiguate month token', async () => {
-  process.env.STORAGE_MODE = 'local';
-  await resetState();
-
-  const response = await sendChat('mark 9 2026');
+  const response = await sendChat('yes', 'session-4');
   assert.equal((response.jsonBody as any).kind, 'clarify');
-  assert.match((response.jsonBody as any).question, /spell the month/i);
+  assert.equal((response.jsonBody as any).question, 'What should I confirm?');
+});
+
+test('acceptance: unknown code returns clarify', async () => {
+  process.env.STORAGE_MODE = 'local';
+  process.env.OPENAI_API_KEY = 'sk-test';
+  installFetchStub({
+    'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
+    'update appt 999 title to x': { kind: 'proposal', message: 'Update APPT-999', actions: [{ type: 'update_appointment_title', code: 'APPT-999', title: 'x' }] }
+  });
+
+  await sendChat('reset state', 'session-5');
+  await sendChat('confirm', 'session-5');
+  const response = await sendChat('update appt 999 title to x', 'session-5');
+  assert.equal((response.jsonBody as any).kind, 'clarify');
+  assert.match((response.jsonBody as any).question, /cannot find APPT-999/i);
 });
