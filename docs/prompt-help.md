@@ -20,3 +20,4 @@ Notes:
 - `cell` is required when adding a person.
 - If no rule overlaps an appointment, person status is `unknown`.
 - `unavailable` wins over `available` if both overlap.
+- AI may ask follow-up questions in a modal dialog with up to 5 suggested answer buttons, and you can still type a custom response unless explicitly disabled.

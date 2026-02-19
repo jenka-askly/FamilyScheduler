@@ -201,3 +201,11 @@ After every merged PR, update this file with:
 - People view prompt header/input is hidden; Appointments view prompt input remains unchanged.
 - Rule conflict policy now auto-resolves contradictory overlaps on `add_rule`: overlapping opposite-kind rules for the same person/date are removed before inserting the new rule.
 - Proposal previews are now generated from executor dry-run effects so confirm modals explicitly show conflict removals (e.g., `This will remove X conflicting rule(s).`).
+
+## Recent update (2026-02-19 06:10 UTC)
+
+- Question dialog implemented for AI clarifications.
+- API model/schema now supports `kind="question"` with optional up-to-5 button options (`label`/`value`/`style`) and `allowFreeText`.
+- Backward compatibility retained: legacy model `kind="clarify"` is normalized into `kind="question"` with free-text enabled by default.
+- Web now blocks with a dedicated question modal whenever `pendingQuestion` exists; users can answer by button click or typed response, and Close dismisses without mutation.
+- Proposal confirm/cancel modal behavior remains unchanged.

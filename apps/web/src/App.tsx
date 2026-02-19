@@ -12,7 +12,49 @@ type ChatResponse =
   | { kind: 'reply'; assistantText: string; snapshot?: Snapshot }
   | { kind: 'proposal'; proposalId: string; assistantText: string; snapshot?: Snapshot }
   | { kind: 'applied'; assistantText: string; snapshot?: Snapshot }
-  | { kind: 'clarify'; question: string; snapshot?: Snapshot };
+  | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText?: boolean; snapshot?: Snapshot };
+
+type PendingQuestion = { message: string; options: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
+
+const QuestionDialog = ({
+  question,
+  value,
+  onValueChange,
+  onOptionSelect,
+  onSubmitText,
+  onClose
+}: {
+  question: PendingQuestion;
+  value: string;
+  onValueChange: (next: string) => void;
+  onOptionSelect: (reply: string) => void;
+  onSubmitText: () => void;
+  onClose: () => void;
+}) => (
+  <div className="modal-backdrop">
+    <div className="modal">
+      <h3>Question</h3>
+      <p>{question.message}</p>
+      {question.options.length > 0 ? (
+        <div className="question-options">
+          {question.options.map((option, index) => (
+            <button key={`${option.label}-${index}`} type="button" className={`question-option ${option.style ?? 'secondary'}`} onClick={() => onOptionSelect(option.value)}>{option.label}</button>
+          ))}
+        </div>
+      ) : null}
+      {question.allowFreeText ? (
+        <form onSubmit={(event) => { event.preventDefault(); onSubmitText(); }}>
+          <label htmlFor="question-input">Your response</label>
+          <div className="input-row">
+            <input id="question-input" value={value} onChange={(event) => onValueChange(event.target.value)} autoComplete="off" />
+            <button type="submit" disabled={!value.trim()}>Send</button>
+          </div>
+        </form>
+      ) : null}
+      <div className="modal-actions"><button type="button" onClick={onClose}>Close</button></div>
+    </div>
+  </div>
+);
 
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
 
@@ -53,6 +95,8 @@ export function App() {
   const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
   const [proposalText, setProposalText] = useState<string | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
+  const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
@@ -87,9 +131,15 @@ export function App() {
       }
       const json = (await response.json()) as ChatResponse;
       if (json.snapshot) setSnapshot(json.snapshot);
-      const text = json.kind === 'clarify' ? json.question : json.assistantText;
+      const text = json.kind === 'question' ? json.message : json.assistantText;
       setTranscript((p) => [...p, { role: 'assistant', text }]);
       setProposalText(json.kind === 'proposal' ? json.assistantText : null);
+      if (json.kind === 'question') {
+        setPendingQuestion({ message: json.message, options: (json.options ?? []).slice(0, 5), allowFreeText: json.allowFreeText !== false });
+      } else {
+        setPendingQuestion(null);
+        setQuestionInput('');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -97,7 +147,7 @@ export function App() {
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!message.trim() || proposalText) return;
+    if (!message.trim() || proposalText || pendingQuestion) return;
     const out = message;
     setMessage('');
     await sendMessage(out);
@@ -182,9 +232,11 @@ export function App() {
         </section>
       ) : null}
 
-      {view === 'appointments' ? <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText)}>Send</button></div></form> : null}
+      {view === 'appointments' ? <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button></div></form> : null}
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
+
+      {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
 
       {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete person?</h3><p>This will deactivate {personToDelete.name}. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Deactivate person personId=${personToDelete.personId}`); setPersonToDelete(null); }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 

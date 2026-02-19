@@ -35,10 +35,12 @@ export type Action =
   | { type: 'help' };
 
 export type ParsedModelResponse = {
-  kind: 'reply' | 'proposal' | 'clarify';
+  kind: 'reply' | 'proposal' | 'question';
   message: string;
   actions?: Action[];
   confidence?: number;
+  options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>;
+  allowFreeText?: boolean;
 };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -94,12 +96,36 @@ const parseAction = (value: unknown): Action => {
 export const ParsedModelResponseSchema = {
   parse(value: unknown): ParsedModelResponse {
     if (!isRecord(value)) throw new Error('Response must be an object');
-    assertKeys(value, ['kind', 'message', 'actions', 'confidence']);
-    if (value.kind !== 'reply' && value.kind !== 'proposal' && value.kind !== 'clarify') throw new Error('Invalid kind');
+    assertKeys(value, ['kind', 'message', 'actions', 'confidence', 'options', 'allowFreeText']);
+    if (value.kind !== 'reply' && value.kind !== 'proposal' && value.kind !== 'question' && value.kind !== 'clarify') throw new Error('Invalid kind');
     const message = assertString(value.message, 'message');
     const actions = value.actions === undefined ? undefined : (Array.isArray(value.actions) ? value.actions.map((item) => parseAction(item)) : (() => { throw new Error('actions must be an array'); })());
     const confidence = typeof value.confidence === 'number' ? value.confidence : undefined;
+    const options = value.options === undefined
+      ? undefined
+      : (Array.isArray(value.options)
+        ? value.options.map((item) => {
+          if (!isRecord(item)) throw new Error('question option must be an object');
+          assertKeys(item, ['label', 'value', 'style']);
+          const styleRaw = item.style === undefined ? undefined : assertString(item.style, 'style');
+          if (styleRaw !== undefined && styleRaw !== 'primary' && styleRaw !== 'secondary' && styleRaw !== 'danger') throw new Error('Invalid option style');
+          const style = styleRaw as ('primary' | 'secondary' | 'danger' | undefined);
+          return { label: assertString(item.label, 'label'), value: assertString(item.value, 'value'), style };
+        })
+        : (() => { throw new Error('options must be an array'); })());
+    if (options && options.length > 5) throw new Error('options must have at most 5 items');
+    const allowFreeText = value.allowFreeText === undefined ? undefined : (() => {
+      if (typeof value.allowFreeText !== 'boolean') throw new Error('allowFreeText must be a boolean');
+      return value.allowFreeText;
+    })();
     if (confidence !== undefined && (Number.isNaN(confidence) || confidence < 0 || confidence > 1)) throw new Error('confidence must be a number between 0 and 1');
-    return { kind: value.kind, message, actions, confidence };
+    return {
+      kind: value.kind === 'clarify' ? 'question' : value.kind,
+      message,
+      actions,
+      confidence,
+      options,
+      allowFreeText: (value.kind === 'clarify' && allowFreeText === undefined) ? true : allowFreeText
+    };
   }
 };
