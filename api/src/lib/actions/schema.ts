@@ -1,4 +1,4 @@
-export const ACTION_SCHEMA_VERSION = 2;
+export const ACTION_SCHEMA_VERSION = 3;
 
 export type TimedActionFields = {
   date: string;
@@ -8,10 +8,15 @@ export type TimedActionFields = {
 };
 
 export type Action =
-  | ({ type: 'add_appointment'; desc: string; people?: string[] } & TimedActionFields)
+  | ({ type: 'add_appointment'; desc: string; people?: string[]; location?: string } & TimedActionFields)
   | ({ type: 'reschedule_appointment'; code: string } & TimedActionFields)
   | { type: 'update_appointment_desc'; code: string; desc: string }
   | { type: 'delete_appointment'; code: string }
+  | { type: 'add_people_to_appointment'; code: string; people: string[] }
+  | { type: 'remove_people_from_appointment'; code: string; people: string[] }
+  | { type: 'replace_people_on_appointment'; code: string; people: string[] }
+  | { type: 'clear_people_on_appointment'; code: string }
+  | { type: 'set_appointment_location'; code: string; location: string }
   | ({ type: 'add_availability'; personName: string; desc: string } & TimedActionFields)
   | { type: 'delete_availability'; code: string }
   | { type: 'set_identity'; name: string }
@@ -40,9 +45,10 @@ const assertKeys = (value: Record<string, unknown>, allowed: string[]): void => 
     if (!allowed.includes(key)) throw new Error(`Unknown field: ${key}`);
   }
 };
+const normalizeText = (value: string): string => value.trim().replace(/\s+/g, ' ');
 const assertString = (value: unknown, field: string): string => {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`Invalid ${field}`);
-  return value.trim();
+  return normalizeText(value);
 };
 const assertDate = (value: unknown): string => {
   const date = assertString(value, 'date');
@@ -68,16 +74,28 @@ const parseTimedFields = (value: Record<string, unknown>): TimedActionFields => 
   timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined
 });
 
+const assertLocation = (value: unknown): string => {
+  if (typeof value !== 'string') throw new Error('Invalid location');
+  const location = normalizeText(value);
+  if (location.length > 200) throw new Error('Invalid location');
+  return location;
+};
+
+const assertPeopleArray = (value: unknown, field: string, minItems: number, maxItems: number): string[] => {
+  if (!Array.isArray(value)) throw new Error(`Invalid ${field}`);
+  if (value.length < minItems || value.length > maxItems) throw new Error(`Invalid ${field}`);
+  return value.map((person) => assertString(person, field));
+};
+
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'personName', 'name', 'month', 'start', 'end']);
+  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'personName', 'name', 'month', 'start', 'end', 'location']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'add_appointment') {
-    const people = value.people === undefined
-      ? undefined
-      : (Array.isArray(value.people) ? value.people.map((person) => assertString(person, 'people')) : (() => { throw new Error('Invalid people'); })());
-    return { type, desc: assertString(value.desc, 'desc'), ...parseTimedFields(value), people };
+    const people = value.people === undefined ? undefined : assertPeopleArray(value.people, 'people', 1, 20);
+    const location = value.location === undefined ? undefined : assertLocation(value.location);
+    return { type, desc: assertString(value.desc, 'desc'), ...parseTimedFields(value), people, location };
   }
   if (type === 'reschedule_appointment') {
     return { type, code: assertString(value.code, 'code'), ...parseTimedFields(value) };
@@ -87,6 +105,21 @@ const parseAction = (value: unknown): Action => {
   }
   if (type === 'delete_appointment') {
     return { type, code: assertString(value.code, 'code') };
+  }
+  if (type === 'add_people_to_appointment') {
+    return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
+  }
+  if (type === 'remove_people_from_appointment') {
+    return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
+  }
+  if (type === 'replace_people_on_appointment') {
+    return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 0, 20) };
+  }
+  if (type === 'clear_people_on_appointment') {
+    return { type, code: assertString(value.code, 'code') };
+  }
+  if (type === 'set_appointment_location') {
+    return { type, code: assertString(value.code, 'code'), location: assertLocation(value.location) };
   }
   if (type === 'add_availability') {
     return { type, personName: assertString(value.personName, 'personName'), desc: assertString(value.desc, 'desc'), ...parseTimedFields(value) };

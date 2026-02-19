@@ -15,6 +15,8 @@ export type Appointment = {
   timezone?: string;
   isAllDay?: boolean;
   assigned: string[];
+  people: string[];
+  location: string;
 };
 
 export type AvailabilityBlock = {
@@ -49,3 +51,39 @@ export const createEmptyAppState = (): AppState => ({
   availability: [],
   history: []
 });
+
+const normalizeText = (value: string): string => value.trim().replace(/\s+/g, ' ');
+
+const normalizePeople = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const person = normalizeText(item);
+    if (!person) continue;
+    const key = person.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(person);
+  }
+  return normalized;
+};
+
+export const normalizeAppState = (state: AppState): AppState => {
+  const normalized = structuredClone(state);
+  normalized.appointments = normalized.appointments.map((appointment) => {
+    const assigned = Array.isArray(appointment.assigned) ? appointment.assigned : [];
+    const peopleSource = Array.isArray(appointment.people)
+      ? appointment.people
+      : assigned.map((personId) => normalized.people.find((person) => person.id === personId)?.name ?? personId);
+
+    return {
+      ...appointment,
+      assigned,
+      people: normalizePeople(peopleSource),
+      location: typeof appointment.location === 'string' ? normalizeText(appointment.location) : ''
+    };
+  });
+  return normalized;
+};

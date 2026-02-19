@@ -1203,3 +1203,43 @@ Implement the new action schema semantics: appointment/availability mutations us
 ### Follow-ups
 
 - Consider a future DST-focused utility for timezone-aware end-time rendering consistency if user-facing local-time display needs strict wall-clock semantics across all zones.
+
+
+## 2026-02-19 02:16 UTC (people ops + appointment location schema v3)
+
+### Objective
+
+Implement ACTION_SCHEMA_VERSION v3 for full appointment people operations (add/remove/replace/clear, multi-person) plus optional appointment location end-to-end.
+
+### Approach
+
+- Extended action schema and parser validation for new people/location mutations.
+- Added executor support with idempotent, case-insensitive people handling and location set/clear preview text.
+- Added state/storage normalization for backward-compatible reads from older blobs lacking `people`/`location`.
+- Updated chat snapshot/UI fields and OpenAI planner prompt guidance.
+- Added acceptance-focused tests for schema, executor, and chat flow.
+
+### Files changed
+
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/lib/state.ts`
+- `api/src/lib/storage/localFileStorage.ts`
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `apps/web/src/App.tsx`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --filter api test` ✅ pass.
+- `pnpm -r --if-present build` ✅ pass.
+
+### Follow-ups
+
+- Consider removing legacy `assigned` from appointment model once all consumers are migrated.

@@ -63,3 +63,8 @@ Examples:
 - `Delete the dentist appointment` (expected clarify response with explicit code candidates)
 
 Safety reminder: changes still require explicit `confirm` before mutation is applied.
+
+- `add Joe and Sam to APPT-1`
+- `replace people on APPT-1 with Joe`
+- `clear people on APPT-1`
+- `set location of APPT-1 to Kaiser Redwood City`

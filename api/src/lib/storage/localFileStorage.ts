@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createEmptyAppState, type AppState } from '../state.js';
+import { createEmptyAppState, normalizeAppState, type AppState } from '../state.js';
 import { ConflictError, type StorageAdapter } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,7 +24,7 @@ const readStateFile = async (filePath: string): Promise<{ state: AppState; raw: 
   const raw = await fs.readFile(filePath, 'utf-8');
   const parsed = JSON.parse(raw) as AppState;
   return {
-    state: parsed,
+    state: normalizeAppState(parsed),
     raw,
     etag: computeEtag(raw)
   };
@@ -67,14 +67,15 @@ export class LocalFileStorage implements StorageAdapter {
       throw new ConflictError('State changed during update');
     }
 
-    const nextContents = stableStringify(nextState);
+    const normalizedNextState = normalizeAppState(nextState);
+    const nextContents = stableStringify(normalizedNextState);
     const tempPath = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
 
     await fs.writeFile(tempPath, nextContents, 'utf-8');
     await fs.rename(tempPath, this.filePath);
 
     return {
-      state: nextState,
+      state: normalizedNextState,
       etag: computeEtag(nextContents)
     };
   }

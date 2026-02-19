@@ -6,7 +6,7 @@ type TranscriptEntry = {
 };
 
 type Snapshot = {
-  appointments: Array<{ code: string; title: string; start?: string; end?: string; assigned?: string[] }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; location: string }>;
   availability: Array<{ code: string; personName: string; start: string; end: string; reason?: string }>;
   historyCount?: number;
 };
@@ -37,11 +37,16 @@ type ChatResponse =
 const initialSnapshot: Snapshot = { appointments: [], availability: [] };
 
 function formatDate(value?: string) {
-  if (!value) return '—';
-  return value.slice(0, 10);
+  return value || '—';
 }
 
-function formatTimeRange(start?: string, end?: string) {
+function formatTimeRange(startTime?: string, durationMins?: number, isAllDay?: boolean) {
+  if (isAllDay) return 'All day';
+  if (!startTime) return '—';
+  return `${startTime} (${durationMins ?? 60}m)`;
+}
+
+function formatIsoTimeRange(start?: string, end?: string) {
   if (!start && !end) return '—';
   const startText = start ? start.slice(11, 16) : '—';
   const endText = end ? end.slice(11, 16) : '—';
@@ -131,9 +136,7 @@ export function App() {
 
   const sortedAppointments = useMemo(() => {
     return [...snapshot.appointments].sort((left, right) => {
-      if (left.start && right.start) return left.start.localeCompare(right.start);
-      if (left.start) return -1;
-      if (right.start) return 1;
+      if (left.date && right.date) return left.date.localeCompare(right.date);
       return numericCode(left.code) - numericCode(right.code);
     });
   }, [snapshot.appointments]);
@@ -163,6 +166,7 @@ export function App() {
                   <th>Time</th>
                   <th>Description</th>
                   <th>People</th>
+                  <th>Location</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,14 +177,15 @@ export function App() {
                         <code>{appointment.code}</code>
                       </button>
                     </td>
-                    <td>{formatDate(appointment.start)}</td>
-                    <td>{formatTimeRange(appointment.start, appointment.end)}</td>
-                    <td>{appointment.title}</td>
+                    <td>{formatDate(appointment.date)}</td>
+                    <td>{formatTimeRange(appointment.startTime, appointment.durationMins, appointment.isAllDay)}</td>
+                    <td>{appointment.desc}</td>
                     <td>
-                      {appointment.assigned?.length
-                        ? appointment.assigned.join(', ')
+                      {appointment.people?.length
+                        ? appointment.people.join(', ')
                         : <span className="unassigned-badge">Unassigned</span>}
                     </td>
+                    <td>{appointment.location || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -213,7 +218,7 @@ export function App() {
                     </td>
                     <td>{availability.personName}</td>
                     <td>{formatDate(availability.start)}</td>
-                    <td>{formatTimeRange(availability.start, availability.end)}</td>
+                    <td>{formatIsoTimeRange(availability.start, availability.end)}</td>
                     <td>{availability.reason ?? '—'}</td>
                   </tr>
                 ))}
