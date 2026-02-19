@@ -66,7 +66,7 @@ const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppS
   snapshot: toResponseSnapshot(state)
 });
 const storage = createStorageAdapter();
-type ClarificationMissing = 'code' | 'personName' | 'start' | 'end' | 'title' | 'action';
+type ClarificationMissing = 'code' | 'personName' | 'start' | 'end' | 'title' | 'action' | 'confirmTimezone';
 type PendingClarificationAction = {
   type: Action['type'];
   code?: string;
@@ -197,6 +197,35 @@ const parseRescheduleCommand = (message: string): { code: string; interpretation
   const dateOnly = parseFlexibleDateWithOptionalYear(tail);
   if (!dateOnly) return null;
   return { code, date: dateOnly };
+};
+const parseExplicitIsoToken = (rawValue: string): { iso: string; hadOffset: boolean } | null => {
+  const value = rawValue.trim();
+  if (!value) return null;
+  const withOffsetPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+  if (withOffsetPattern.test(value)) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return { iso: value, hadOffset: true };
+  }
+  const withoutOffsetPattern = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::(\d{2}))?$/;
+  const match = value.match(withoutOffsetPattern);
+  if (!match) return null;
+  const normalized = `${match[1]}:${match[2] ?? '00'}-08:00`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return { iso: normalized, hadOffset: false };
+};
+const parseExplicitRescheduleCommand = (message: string): { code: string; startIso: string; endIso: string; hasExplicitOffsets: boolean } | null => {
+  const match = message.match(/^update\s+appointment\s+(APPT[\s-]?\d+)\s+to\s+start\s+(\S+)\s+end\s+(\S+)$/i)
+    ?? message.match(/^reschedule\s+(APPT[\s-]?\d+)\s+start\s+(\S+)\s+end\s+(\S+)$/i);
+  if (!match) return null;
+  const code = normalizeAppointmentCode(match[1]);
+  if (!code) return null;
+  const start = parseExplicitIsoToken(match[2]);
+  const end = parseExplicitIsoToken(match[3]);
+  if (!start || !end) return null;
+  if (new Date(end.iso) <= new Date(start.iso)) return null;
+  return { code, startIso: start.iso, endIso: end.iso, hasExplicitOffsets: start.hadOffset && end.hadOffset };
 };
 const parseDateAndRange = (dateToken: string, rangeToken: string): ParsedDateTime | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateToken)) return null;
@@ -348,6 +377,7 @@ const renderClarificationQuestion = (pending: PendingClarification): string => {
   if (nextMissing === 'action') return 'What action do you want: delete, show, or update?';
   if (nextMissing === 'start') return 'Please provide a start date/time.';
   if (nextMissing === 'end') return 'Please provide an end date/time.';
+  if (nextMissing === 'confirmTimezone') return 'Use America/Los_Angeles (Pacific) for those local times? Reply yes/no.';
   return 'Please provide the missing details.';
 };
 const getCurrentIdentityName = (state: AppState, activePersonId: string | null): string | null => {
@@ -409,6 +439,8 @@ const findDeleteByTitleCandidates = (message: string, state: AppState): Array<{ 
     .filter((appointment) => normalizeUserText(appointment.title).includes(titleHint))
     .map((appointment) => ({ code: appointment.code, label: appointment.title }));
 };
+const CONFIRM_INPUTS = new Set(['confirm', 'yes', 'y', 'ok', 'okay', 'sure']);
+const CANCEL_INPUTS = new Set(['cancel', 'no', 'n', 'stop', 'nevermind', 'never mind']);
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = randomUUID().slice(0, 8);
   const sessionId = getSessionId(request);
@@ -437,13 +469,15 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       jsonBody: withSnapshot({ ...payload, traceId }, snapshotState)
     };
   };
+  const isConfirmInput = CONFIRM_INPUTS.has(normalizedMessage);
+  const isCancelInput = CANCEL_INPUTS.has(normalizedMessage);
   const isShowListCommand = ['show list', 'list', 'show', 'show all', 'list all'].includes(normalizedMessage);
-  if (normalizedMessage.includes('cancel')) {
+  if (isCancelInput && !session.pendingClarification) {
     session.pendingProposal = null;
     session.pendingClarification = null;
     return respond({ kind: 'reply', assistantText: 'Cancelled.' });
   }
-  if (normalizedMessage.includes('confirm')) {
+  if (isConfirmInput && !session.pendingClarification) {
     if (!session.pendingProposal) return respond({ kind: 'reply', assistantText: 'No pending change.' });
     const proposalToApply = session.pendingProposal;
     session.pendingProposal = null;
@@ -464,6 +498,17 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     return respond({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, execution.nextState);
   }
   if (session.pendingClarification) {
+    if (isCancelInput) {
+      session.pendingClarification = null;
+      return respond({ kind: 'reply', assistantText: 'Cancelled.' });
+    }
+    if (session.pendingClarification.missing.includes('confirmTimezone')) {
+      if (isConfirmInput) {
+        session.pendingClarification.missing = session.pendingClarification.missing.filter((item) => item !== 'confirmTimezone');
+      } else {
+        return respond({ kind: 'clarify', question: renderClarificationQuestion(session.pendingClarification) });
+      }
+    }
     if ((session.pendingClarification.action.type === 'reschedule_appointment' || session.pendingClarification.action.type === 'update_appointment_schedule')
       && session.pendingClarification.missing.includes('start')
       && session.pendingClarification.missing.includes('end')) {
@@ -546,8 +591,30 @@ Reply 'confirm' or 'cancel'.`
   if (normalizedMessage.includes('seattle time') || normalizedMessage.includes('la time')) {
     return respond({ kind: 'reply', assistantText: 'Same Pacific timezone.' });
   }
-  if (normalizedMessage.includes('pacific') || normalizedMessage.includes('seattle time') || normalizedMessage.includes('la time')) {
-    return respond({ kind: 'reply', assistantText: 'Using America/Los_Angeles (Pacific).' });
+  const explicitRescheduleCommand = parseExplicitRescheduleCommand(message);
+  if (explicitRescheduleCommand) {
+    const action: Action = {
+      type: 'reschedule_appointment',
+      code: explicitRescheduleCommand.code,
+      start: explicitRescheduleCommand.startIso,
+      end: explicitRescheduleCommand.endIso,
+      timezone: 'America/Los_Angeles'
+    };
+    if (!explicitRescheduleCommand.hasExplicitOffsets) {
+      session.pendingClarification = {
+        kind: 'action_fill',
+        action,
+        missing: ['confirmTimezone'],
+        expectedEtag: etag
+      };
+      return respond({ kind: 'clarify', question: 'Use America/Los_Angeles (Pacific) for those local times? Reply yes/no.' });
+    }
+    deterministicActions.push(action);
+  } else if (/^update\s+appointment\b/i.test(message) || (/^reschedule\b/i.test(message) && /\bstart\b/i.test(message) && /\bend\b/i.test(message))) {
+    return respond({
+      kind: 'clarify',
+      question: 'Use: update appointment APPT-1 to start 2026-03-03T10:00:00-08:00 end 2026-03-03T11:00:00-08:00'
+    });
   }
   const rescheduleCommand = parseRescheduleCommand(message);
   if (rescheduleCommand?.interpretation) {

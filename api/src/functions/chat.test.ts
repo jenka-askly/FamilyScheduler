@@ -245,9 +245,41 @@ test('reschedule with morning maps to deterministic range', async () => {
   const proposal = await sendChat('change appt1 to March 10 morning');
   assert.equal((proposal.jsonBody as any).kind, 'proposal');
 
-  const applied = await sendChat('confirm please');
+  const applied = await sendChat('confirm');
   assert.equal((applied.jsonBody as any).kind, 'applied');
   assert.match((applied.jsonBody as any).assistantText, /09:00–12:00/);
+});
+
+test('explicit update appointment start/end command returns deterministic proposal and yes applies', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  await sendChat('add appt Dentist');
+  await sendChat('confirm');
+
+  const proposal = await sendChat('update appointment APPT-1 to start 2026-03-03T10:00:00-08:00 end 2026-03-03T11:00:00-08:00');
+  assert.equal((proposal.jsonBody as any).kind, 'proposal');
+  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1/i);
+
+  const applied = await sendChat('yes');
+  assert.equal((applied.jsonBody as any).kind, 'applied');
+  assert.match((applied.jsonBody as any).assistantText, /Rescheduled APPT-1/i);
+});
+
+test('explicit update appointment without offset asks timezone clarify and yes proceeds to proposal', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  await sendChat('add appt Dentist');
+  await sendChat('confirm');
+
+  const clarify = await sendChat('update appointment APPT-1 to start 2026-03-03T10:00:00 end 2026-03-03T11:00:00');
+  assert.equal((clarify.jsonBody as any).kind, 'clarify');
+  assert.match((clarify.jsonBody as any).question, /America\/Los_Angeles/);
+
+  const proposal = await sendChat('yes');
+  assert.equal((proposal.jsonBody as any).kind, 'proposal');
+  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1/i);
 });
 
 test('seattle time and la time resolve to same pacific timezone', async () => {
@@ -295,12 +327,12 @@ test('time-only message without pending clarification asks for context', async (
 });
 
 
-test('cancel keyword anywhere cancels pending proposal', async () => {
+test('cancel synonym no cancels pending proposal', async () => {
   process.env.STORAGE_MODE = 'local';
   await resetState();
 
   await sendChat('add appt Dentist');
-  const cancelled = await sendChat('west coast cancel');
+  const cancelled = await sendChat('no');
   assert.equal((cancelled.jsonBody as any).kind, 'reply');
   assert.equal((cancelled.jsonBody as any).assistantText, 'Cancelled.');
 });
