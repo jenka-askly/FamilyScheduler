@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './AppShell';
 
 type Session = { groupId: string; phone: string; joinedAt: string };
@@ -159,21 +159,21 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   return <main className="app-shell"><form onSubmit={submit} className="panel"><h2>Join Group</h2><p>Group: {groupId}</p><label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label><button type="submit">Join</button>{error ? <p>{error}</p> : null}</form></main>;
 }
 
-function GuardedApp({ groupId }: { groupId: string }) {
+function GroupAuthGate({ groupId, children }: { groupId: string; children: (phone: string) => ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
   const [authError, setAuthError] = useState<AuthError | undefined>();
-  const [phone, setPhone] = useState('');
   const [traceId] = useState(() => createTraceId());
+  const [phone, setPhone] = useState<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
     const session = readSession();
-    authLog({ stage: 'auth_start', traceId, routeGroupId: groupId, hasSession: !!session, sessionGroupId: session?.groupId ?? null, hasPhone: !!session?.phone });
+    authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.phone });
     if (!session || !session.phone) {
       if (canceled) return;
       setAuthStatus('denied');
       setAuthError('no_session');
-      authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: 'no_session' });
+      authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'no_session' });
       nav(toJoinRoute(groupId, 'no_session', traceId), { replace: true });
       return;
     }
@@ -183,39 +183,38 @@ function GuardedApp({ groupId }: { groupId: string }) {
       if (canceled) return;
       setAuthStatus('denied');
       setAuthError('group_mismatch');
-      authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: 'group_mismatch' });
+      authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'mismatch' });
       nav(toJoinRoute(groupId, 'group_mismatch', traceId), { replace: true });
       return;
     }
 
     setPhone(session.phone);
-    authLog({ stage: 'auth_join_request', traceId, groupId });
+    authLog({ stage: 'gate_join_request', groupId });
     void fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
       .then(async (response) => {
         const data = await response.json() as { ok?: boolean; error?: AuthError };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
-        authLog({ stage: 'auth_join_response', traceId, ok: response.ok && !!data.ok, error: responseError ?? null });
+        authLog({ stage: 'gate_join_result', ok: response.ok && !!data.ok, error: responseError ?? null });
         if (!response.ok || !data.ok) {
           clearSession();
           if (canceled) return;
           const deniedError = responseError ?? 'join_failed';
           setAuthStatus('denied');
           setAuthError(deniedError);
-          authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: deniedError });
+          authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'not_allowed' });
           nav(toJoinRoute(groupId, deniedError, traceId), { replace: true });
           return;
         }
         if (canceled) return;
         setAuthStatus('allowed');
-        authLog({ stage: 'auth_decision', traceId, authStatus: 'allowed', authError: null });
       })
       .catch(() => {
         clearSession();
         if (canceled) return;
         setAuthStatus('denied');
         setAuthError('join_failed');
-        authLog({ stage: 'auth_join_response', traceId, ok: false, error: 'join_failed' });
-        authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: 'join_failed' });
+        authLog({ stage: 'gate_join_result', ok: false, error: 'join_failed' });
+        authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'not_allowed' });
         nav(toJoinRoute(groupId, 'join_failed', traceId), { replace: true });
       });
 
@@ -224,8 +223,8 @@ function GuardedApp({ groupId }: { groupId: string }) {
     };
   }, [groupId, traceId]);
 
-  if (authStatus !== 'allowed') return <main className="app-shell"><p>{authStatus === 'checking' ? 'Checking access...' : `Redirecting to join (${authError ?? 'denied'})...`}</p></main>;
-  return <AppShell groupId={groupId} phone={phone} />;
+  if (authStatus !== 'allowed' || !phone) return <main className="app-shell"><p>{authStatus === 'checking' ? 'Checking access...' : `Redirecting to join (${authError ?? 'denied'})...`}</p></main>;
+  return <>{children(phone)}</>;
 }
 
 export function App() {
@@ -239,5 +238,9 @@ export function App() {
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
-  return <GuardedApp groupId={route.groupId} />;
+  return (
+    <GroupAuthGate groupId={route.groupId}>
+      {(phone) => <AppShell groupId={route.groupId} phone={phone} />}
+    </GroupAuthGate>
+  );
 }

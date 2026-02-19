@@ -58,6 +58,12 @@ const QuestionDialog = ({
 
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
 
+const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+const authLog = (payload: Record<string, unknown>): void => {
+  if (!debugAuthLogsEnabled) return;
+  console.log(payload);
+};
+
 const Icon = ({ children }: { children: ReactNode }) => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     {children}
@@ -110,6 +116,7 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
   const [ruleStartTime, setRuleStartTime] = useState('09:00');
   const [ruleDurationMins, setRuleDurationMins] = useState('60');
   const [ruleDesc, setRuleDesc] = useState('');
+  const didInitialLoad = useRef(false);
 
   const toggleAppointmentPerson = (appointment: Snapshot['appointments'][0], personId: string) => {
     const selected = new Set(appointment.people);
@@ -193,6 +200,9 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
 
 
   useEffect(() => {
+    if (didInitialLoad.current) return;
+    didInitialLoad.current = true;
+    authLog({ stage: 'initial_chat_triggered' });
     fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
       .then(async (response) => {
         if (!response.ok) return;

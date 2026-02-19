@@ -2019,3 +2019,32 @@ Enforce a hard access gate for `/#/g/:groupId/app` (no app render before join au
 ### Follow-ups
 
 - Run manual browser QA script for incognito / wrong phone / allowed scenarios and capture trace-linked logs.
+
+## 2026-02-19 08:45 UTC (route gate hardening + initial chat dedupe)
+
+### Objective
+
+Enforce join gating for `/#/g/:groupId/app` and stop duplicate/early `/api/chat` bootstrap calls.
+
+### Approach
+
+- Reworked app-route protection into `GroupAuthGate` that checks session presence/group match and validates with `/api/group/join` before mounting `AppShell`.
+- Added debug log stages requested for gate enter/request/result/redirect.
+- Ensured `AppShell` initial snapshot bootstrap executes exactly once via `useRef` guard and emits `initial_chat_triggered` only once when enabled.
+- Updated continuity doc (`PROJECT_STATUS.md`) with the new gate + dedupe behavior.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `git diff -- apps/web/src/App.tsx apps/web/src/AppShell.tsx PROJECT_STATUS.md CODEX_LOG.md` ✅ verified scoped diffs.
+
+### Follow-ups
+
+- Manual browser QA in incognito for hash-route redirect and network-call verification with `VITE_DEBUG_AUTH_LOGS=true`.
