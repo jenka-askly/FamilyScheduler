@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { ConflictError } from '../lib/storage/storage.js';
@@ -106,7 +107,7 @@ const trimSessionHistory = (session: SessionRuntimeState): void => {
   const max = Number(process.env.OPENAI_SESSION_HISTORY_MAX ?? '120');
   if (session.chatHistory.length > max) session.chatHistory = session.chatHistory.slice(-max);
 };
-const badRequest = (message: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message } });
+const badRequest = (message: string, traceId?: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, ...(traceId ? { traceId } : {}) } });
 const normalizeName = (value: string): string => value.trim().replace(/\s+/g, ' ').toLowerCase();
 const parseDeleteCommand = (message: string): { code: string } | null => {
   const match = message.match(/^delete\s+(.+)$/i);
@@ -409,17 +410,17 @@ const findDeleteByTitleCandidates = (message: string, state: AppState): Array<{ 
     .map((appointment) => ({ code: appointment.code, label: appointment.title }));
 };
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const traceId = crypto.randomUUID();
+  const traceId = randomUUID().slice(0, 8);
   const sessionId = getSessionId(request);
   const session = getSessionState(sessionId);
   let body: ChatRequest;
   try {
     body = (await request.json()) as ChatRequest;
   } catch {
-    return badRequest('message is required');
+    return badRequest('message is required', traceId);
   }
   if (typeof body.message !== 'string' || body.message.trim().length === 0) {
-    return badRequest('message is required');
+    return badRequest('message is required', traceId);
   }
   await storage.initIfMissing();
   const { state, etag } = await storage.getState();
@@ -665,7 +666,10 @@ Reply 'confirm' or 'cancel'.`
       pendingProposal: session.pendingProposal ? { summary: renderProposalText(session.pendingProposal.actions), actions: session.pendingProposal.actions } : null,
       pendingClarification: toPendingClarificationContext(session.pendingClarification),
       history: session.chatHistory
-    })));
+    }), {
+      traceId,
+      sessionIdHash: createHash('sha256').update(sessionId).digest('hex').slice(0, 16)
+    }));
     console.info(JSON.stringify({ traceId, openaiUsed: true, model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', responseKind: parsed.kind }));
     const confidenceThreshold = Number(process.env.OPENAI_CONFIDENCE_THRESHOLD ?? '0.6');
     if (typeof parsed.confidence === 'number' && parsed.confidence < confidenceThreshold) {
