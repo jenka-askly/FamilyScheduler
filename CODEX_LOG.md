@@ -1763,3 +1763,32 @@ Implement appointments UX cleanup in `apps/web`: single-row edit mode with Edit/
 ### Follow-ups
 
 - Optional: add keyboard shortcut (Esc) to exit row edit mode for faster data entry ergonomics.
+
+## 2026-02-19 06:31 UTC (appointments row edit cancel UX)
+
+### Objective
+
+Make appointment row edit mode easier to exit by adding explicit cancel affordances beyond the Done icon.
+
+### Approach
+
+- Added keyboard cancel: while an appointment row is in edit mode, pressing `Escape` exits edit mode.
+- Added pointer cancel: clicking/tapping outside the active editing row exits edit mode.
+- Added an edit-row `ref` and scoped outside-click detection to the currently edited `<tr>`.
+- Updated Done icon tooltip to `Done (Esc/outside click)` so the behavior is discoverable.
+- Updated `PROJECT_STATUS.md` continuity notes.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started successfully (terminated with SIGINT after verification).
+
+### Follow-ups
+
+- Optional: add visible helper text in the Actions column for edit mode keyboard shortcuts if discoverability is still an issue for first-time users.

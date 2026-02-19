@@ -228,3 +228,4 @@ After every merged PR, update this file with:
 - Appointments table includes inline duration editing while in row edit mode; read-only rows show compact text values and clamped multi-line content.
 - Web layout is now full-width (`main` no longer constrained to centered max width) with consistent page padding.
 - Typography and control sizing were reduced for denser system-like UI defaults.
+- 2026-02-19: Appointments row edit mode now supports cancel by keyboard/mouse: pressing `Esc` or clicking/tapping outside the active row exits edit mode; Done tooltip now hints at `Esc/outside click` to improve discoverability.

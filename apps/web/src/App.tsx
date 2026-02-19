@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -99,6 +99,7 @@ export function App() {
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingApptCode, setEditingApptCode] = useState<string | null>(null);
+  const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
@@ -196,6 +197,31 @@ export function App() {
     if (!exists) setEditingApptCode(null);
   }, [editingApptCode, snapshot.appointments]);
 
+  useEffect(() => {
+    if (!editingApptCode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEditingApptCode(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [editingApptCode]);
+
+  useEffect(() => {
+    if (!editingApptCode) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      const editingRow = editingAppointmentRowRef.current;
+      const target = event.target;
+      if (!editingRow || !(target instanceof Node)) return;
+      if (!editingRow.contains(target)) setEditingApptCode(null);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [editingApptCode]);
+
   return (
     <main>
       <h1>Scheduler</h1>
@@ -217,7 +243,7 @@ export function App() {
                   {sortedAppointments.map((appointment) => {
                     const isEditing = editingApptCode === appointment.code;
                     return (
-                      <tr key={appointment.code}>
+                      <tr key={appointment.code} ref={isEditing ? editingAppointmentRowRef : undefined}>
                         <td><code>{appointment.code}</code></td>
                         <td>
                           {isEditing ? (
@@ -264,7 +290,7 @@ export function App() {
                         </td>
                         <td>
                           <div className="action-icons">
-                            <button type="button" className="icon-button" aria-label={isEditing ? 'Done editing appointment' : 'Edit appointment'} data-tooltip={isEditing ? 'Done' : 'Edit'} onClick={() => setEditingApptCode(isEditing ? null : appointment.code)}>{isEditing ? <CheckCircle /> : <Pencil />}</button>
+                            <button type="button" className="icon-button" aria-label={isEditing ? 'Done editing appointment' : 'Edit appointment'} data-tooltip={isEditing ? 'Done (Esc/outside click)' : 'Edit'} onClick={() => setEditingApptCode(isEditing ? null : appointment.code)}>{isEditing ? <CheckCircle /> : <Pencil />}</button>
                             <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
                           </div>
                         </td>
