@@ -195,6 +195,16 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
     await sendMessage(sentence);
   };
 
+
+  useEffect(() => {
+    fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const json = (await response.json()) as ChatResponse;
+        if (json.snapshot) setSnapshot(json.snapshot);
+      });
+  }, [groupId, phone]);
+
   useEffect(() => {
     if (!editingApptCode) return;
     const exists = snapshot.appointments.some((appointment) => appointment.code === editingApptCode);
@@ -235,6 +245,8 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
     <main>
       <h1>Scheduler</h1>
       <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button><button type="button" onClick={() => setDensity((current) => (current === 'normal' ? 'compact' : 'normal'))} aria-pressed={density === 'compact'}>{density === 'compact' ? 'Density: Compact' : 'Density: Normal'}</button></div>
+
+      {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
       {view === 'appointments' ? (
         <section className="panel">

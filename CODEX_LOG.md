@@ -1906,3 +1906,39 @@ Implement lightweight group creation/join with phone allowlist gating, move stor
 ### Follow-ups
 
 - Replace local phone parser with `libphonenumber-js` once registry access is available in the environment.
+
+## 2026-02-19 07:42 UTC (create group seed + share link + create page polish)
+
+### Objective
+
+Fix Create Group flow so creator is automatically added to People, share link is visible immediately after create, and form layout is polished.
+
+### Approach
+
+- Updated `POST /api/group/create` to seed creator into `people[]` with normalized phone + createdAt and return `groupName`, `creatorPersonId`, and `linkPath`.
+- Added debug log for successful creates (`traceId`, `groupId`, `peopleCount`).
+- Updated web Create page to keep user on create screen post-submit, show share link + copy button, and add Continue-to-app action.
+- Added initial app snapshot fetch on AppShell mount and a dev-only warning banner when snapshot people is empty.
+- Polished create form spacing/alignment via scoped CSS utility classes.
+- Added API tests for group create success path (creator seeded) and invalid phone rejection.
+
+### Files changed
+
+- `api/src/functions/groupCreate.ts`
+- `api/src/lib/state.ts`
+- `api/src/functions/groupCreate.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api test` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Consider passing normalized creator phone from create response/session write to avoid keeping raw input formatting in local session payload.
