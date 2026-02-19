@@ -1610,3 +1610,37 @@ Fix the appointments table so long `Location` and `Notes` values are readable wi
 ### Follow-ups
 
 - Optional: add visual regression coverage for appointment table cell wrapping behavior.
+
+## 2026-02-19 05:52 UTC (appointments description multiline display)
+
+### Objective
+
+Change the Appointments pane `Description` column to render as multi-line wrapped content, matching Location/Notes readability behavior.
+
+### Approach
+
+- Applied existing `multiline-cell` table cell class to the Description `<td>` in appointments rows.
+- Reused existing CSS (`.data-table td.multiline-cell`) to avoid new style surface area and keep smallest-change scope.
+- Updated continuity docs to reflect Description now wraps in the appointments table.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` (pending)
+- `pnpm --filter @familyscheduler/web build` (pending)
+
+### Follow-ups
+
+- Optional: include Description wrapping in any future visual regression coverage for appointments table layout.
+
+### Verification updates (post-implementation)
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (stopped with SIGINT after screenshot capture).
+- Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/46723266d1c1da17/artifacts/artifacts/appointments-description-multiline.png`.
