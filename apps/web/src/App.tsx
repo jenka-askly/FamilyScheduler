@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useMemo, useState } from 'react';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -11,6 +11,12 @@ type Snapshot = {
 type ChatResponse = { kind: 'reply'; assistantText: string; snapshot?: Snapshot } | { kind: 'proposal'; proposalId: string; assistantText: string; snapshot?: Snapshot } | { kind: 'applied'; assistantText: string; snapshot?: Snapshot } | { kind: 'clarify'; question: string; snapshot?: Snapshot };
 
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
+
+const Icon = ({ children }: { children: ReactNode }) => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{children}</svg>;
+const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" /></Icon>;
+const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
+const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
+const Ban = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" /></Icon>;
 
 const computePersonStatusForInterval = (personId: string, interval: { date: string; startTime?: string; durationMins?: number }, rules: Snapshot['rules']) => {
   const toMin = (time?: string) => time ? (Number(time.split(':')[0]) * 60) + Number(time.split(':')[1]) : 0;
@@ -31,6 +37,13 @@ export function App() {
   const [proposalText, setProposalText] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
+  const [ruleModal, setRuleModal] = useState<{ person: Snapshot['people'][0]; kind: 'available' | 'unavailable' } | null>(null);
+  const [ruleDate, setRuleDate] = useState('');
+  const [ruleAllDay, setRuleAllDay] = useState(true);
+  const [ruleStartTime, setRuleStartTime] = useState('09:00');
+  const [ruleDurationMins, setRuleDurationMins] = useState('60');
+  const [ruleDesc, setRuleDesc] = useState('');
 
   const sendMessage = async (outgoingMessage: string) => {
     const trimmed = outgoingMessage.trim(); if (!trimmed) return;
@@ -50,6 +63,24 @@ export function App() {
 
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => a.date.localeCompare(b.date)), [snapshot.appointments]);
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
+  const peopleInView = snapshot.people.filter((person) => person.status === 'active');
+
+  const openRuleModal = (person: Snapshot['people'][0], kind: 'available' | 'unavailable') => {
+    setRuleModal({ person, kind });
+    setRuleDate(new Date().toISOString().slice(0, 10));
+    setRuleAllDay(true);
+    setRuleStartTime('09:00');
+    setRuleDurationMins('60');
+    setRuleDesc('');
+  };
+
+  const submitRuleProposal = async () => {
+    if (!ruleModal || !ruleDate) return;
+    const ruleKind = ruleModal.kind;
+    const sentence = `Add ${ruleKind} rule for personId=${ruleModal.person.personId} on ${ruleDate}${ruleAllDay ? ' allDay=true' : ` startTime=${ruleStartTime} durationMins=${ruleDurationMins}`}${ruleDesc ? ` desc='${ruleDesc.replace(/'/g, "’")}'` : ''}.`;
+    setRuleModal(null);
+    await sendMessage(sentence);
+  };
 
   return (
     <main>
@@ -58,11 +89,15 @@ export function App() {
 
       {view === 'appointments' ? <section className="panel"><h2>Appointments</h2>{sortedAppointments.length === 0 ? <p>No appointments yet.</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Code</th><th>Date</th><th>Time</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th></tr></thead><tbody>{sortedAppointments.map((appointment) => <tr key={appointment.code}><td><code>{appointment.code}</code></td><td>{appointment.date || '—'}</td><td>{appointment.isAllDay ? 'All day' : `${appointment.startTime ?? '—'} (${appointment.durationMins ?? 60}m)`}</td><td>{appointment.desc}</td><td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td><td>{appointment.location || '—'}</td><td>{appointment.notes || '—'}</td></tr>)}</tbody></table></div>}</section> : null}
 
-      {view === 'people' ? <section className="panel"><h2>People</h2><button type="button" onClick={() => { const n = prompt('Name'); const c = prompt('Cell'); if (n && c) void sendMessage(`Add person name=${n} cell=${c}`); }}>Add person</button><div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Cell</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{snapshot.people.map((person) => <tr key={person.personId}><td>{person.name}</td><td>{person.cellDisplay}</td><td>{person.status}</td><td>{person.notes || '—'}</td><td><button type="button" onClick={() => { const name = prompt('Name', person.name); const cell = prompt('Cell', person.cellDisplay); if (name || cell) void sendMessage(`Update person personId=${person.personId}${name ? ` name=${name}` : ''}${cell ? ` cell=${cell}` : ''}`); }}>Edit</button><button type="button" onClick={() => void sendMessage(`${person.status === 'active' ? 'Deactivate' : 'Reactivate'} person personId=${person.personId}`)}>{person.status === 'active' ? 'Deactivate' : 'Reactivate'}</button><button type="button" onClick={() => { const date = prompt('Date YYYY-MM-DD'); if (!date) return; const allDay = confirm('All day?'); const start = allDay ? '' : (prompt('Start HH:MM') ?? ''); const duration = allDay ? '' : (prompt('Duration mins') ?? '60'); void sendMessage(`Add ${'available'} rule personId=${person.personId} date=${date}${allDay ? '' : ` startTime=${start} durationMins=${duration}`}`); }}>Add Available...</button><button type="button" onClick={() => { const date = prompt('Date YYYY-MM-DD'); if (!date) return; const allDay = confirm('All day?'); const start = allDay ? '' : (prompt('Start HH:MM') ?? ''); const duration = allDay ? '' : (prompt('Duration mins') ?? '60'); void sendMessage(`Add unavailable rule personId=${person.personId} date=${date}${allDay ? '' : ` startTime=${start} durationMins=${duration}`}`); }}>Add Unavailable...</button></td></tr>)}</tbody></table></div></section> : null}
+      {view === 'people' ? <section className="panel"><h2>People</h2><button type="button" onClick={() => { const n = prompt('Name'); const c = prompt('Cell'); if (n && c) void sendMessage(`Add person name=${n} cell=${c}`); }}>Add person</button><div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Cell</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{peopleInView.map((person) => <tr key={person.personId}><td>{person.name}</td><td>{person.cellDisplay}</td><td>{person.status}</td><td>{person.notes || '—'}</td><td><div className="action-icons"><button type="button" className="icon-button" aria-label="Edit" data-tooltip="Edit" onClick={() => { const name = prompt('Name', person.name); const cell = prompt('Cell', person.cellDisplay); if (name || cell) void sendMessage(`Update person personId=${person.personId}${name ? ` name=${name}` : ''}${cell ? ` cell=${cell}` : ''}`); }}><Pencil /></button><button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button><button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button><button type="button" className="icon-button" aria-label="Add unavailable" data-tooltip="Add Unavailable" onClick={() => openRuleModal(person, 'unavailable')}><Ban /></button></div></td></tr>)}</tbody></table></div></section> : null}
 
       <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText)}>Send</button></div></form>
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
+
+      {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete person?</h3><p>This will deactivate {personToDelete.name}. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Deactivate person personId=${personToDelete.personId}`); setPersonToDelete(null); }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+
+      {ruleModal ? <div className="modal-backdrop"><div className="modal"><h3>{ruleModal.kind === 'available' ? 'Add Available' : 'Add Unavailable'} Rule</h3><div className="field-grid"><label>Date<input type="date" value={ruleDate} onChange={(event) => setRuleDate(event.target.value)} /></label><label className="switch-row">All-day<input type="checkbox" checked={ruleAllDay} onChange={(event) => setRuleAllDay(event.target.checked)} /></label>{!ruleAllDay ? <><label>Start time<input type="time" value={ruleStartTime} onChange={(event) => setRuleStartTime(event.target.value)} /></label><label>Duration<select value={ruleDurationMins} onChange={(event) => setRuleDurationMins(event.target.value)}><option value="30">30 mins</option><option value="60">60 mins</option><option value="90">90 mins</option><option value="120">120 mins</option><option value="180">180 mins</option><option value="240">240 mins</option></select></label></> : null}<label>Notes/reason<input type="text" placeholder="Optional" value={ruleDesc} onChange={(event) => setRuleDesc(event.target.value)} /></label></div><div className="modal-actions"><button type="button" onClick={() => void submitRuleProposal()} disabled={!ruleDate}>Propose</button><button type="button" onClick={() => setRuleModal(null)}>Cancel</button></div></div></div> : null}
 
       {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3>{activePeople.map((person) => {
         const status = computePersonStatusForInterval(person.personId, { date: selectedAppointment.date, startTime: selectedAppointment.startTime, durationMins: selectedAppointment.durationMins }, snapshot.rules);
