@@ -21,6 +21,8 @@ export type ParsedModelResponse = {
   kind: 'query' | 'mutation' | 'clarify';
   actions: Action[];
   clarificationQuestion?: string;
+  confidence?: number;
+  needsConfirmation?: boolean;
   assumptions?: string[];
 };
 
@@ -110,7 +112,7 @@ const parseAction = (value: unknown): Action => {
 export const ParsedModelResponseSchema = {
   parse(value: unknown): ParsedModelResponse {
     if (!isRecord(value)) throw new Error('Response must be an object');
-    assertKeys(value, ['kind', 'actions', 'clarificationQuestion', 'assumptions']);
+    assertKeys(value, ['kind', 'actions', 'clarificationQuestion', 'assumptions', 'confidence', 'needsConfirmation']);
 
     if (value.kind !== 'query' && value.kind !== 'mutation' && value.kind !== 'clarify') {
       throw new Error('Invalid kind');
@@ -124,6 +126,13 @@ export const ParsedModelResponseSchema = {
       throw new Error('clarificationQuestion is required when kind=clarify');
     }
 
+    const confidence = typeof value.confidence === 'number' ? value.confidence : undefined;
+    if (confidence !== undefined && (Number.isNaN(confidence) || confidence < 0 || confidence > 1)) {
+      throw new Error('confidence must be a number between 0 and 1');
+    }
+
+    const needsConfirmation = typeof value.needsConfirmation === 'boolean' ? value.needsConfirmation : undefined;
+
     let assumptions: string[] | undefined;
     if (value.assumptions !== undefined) {
       if (!Array.isArray(value.assumptions) || value.assumptions.some((item) => typeof item !== 'string')) {
@@ -132,6 +141,6 @@ export const ParsedModelResponseSchema = {
       assumptions = value.assumptions;
     }
 
-    return { kind: value.kind, actions, clarificationQuestion, assumptions };
+    return { kind: value.kind, actions, clarificationQuestion, confidence, needsConfirmation, assumptions };
   }
 };

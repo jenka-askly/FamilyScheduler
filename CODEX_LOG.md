@@ -1028,3 +1028,38 @@ Implement deterministic `show list` defaults and preserve pending reschedule con
 ### Follow-ups
 
 - Consider extracting fixed `-08:00` offset handling into timezone-aware formatting if DST-sensitive scheduling is required.
+
+
+## 2026-02-19 UTC (chunk 10 full-context OpenAI parsing + per-session runtime scope)
+
+### Objective
+
+Implement full-context OpenAI parsing with per-session runtime state and safety boundaries (deterministic-first routing, confirmation hard-stop for mutations, bounded history/token controls).
+
+### Approach
+
+- Added per-session runtime map keyed by `x-session-id` (`default` fallback) to store identity, pending proposal, pending clarification, and chat history.
+- Added `buildContext` envelope builder for OpenAI with timezone, identity, pending context, full data snapshot, and history truncation guardrails.
+- Extended parser schema/prompt for `confidence` and `needsConfirmation`; enforced confidence threshold clarify fallback.
+- Preserved deterministic routing first; OpenAI only used as fallback.
+- Ensured all mutations require confirmation (including identity updates).
+- Added ambiguity clarify for `mark 9 2026` and test coverage updates.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/buildContext.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed (20/20 tests).
+
+### Follow-ups
+
+- Add unit tests for `buildContext` truncation behavior (assistant-first truncation and hard character cap).
