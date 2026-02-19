@@ -1063,3 +1063,37 @@ Implement full-context OpenAI parsing with per-session runtime state and safety 
 ### Follow-ups
 
 - Add unit tests for `buildContext` truncation behavior (assistant-first truncation and hard character cap).
+
+## 2026-02-19 01:22 UTC (OpenAI request/response NDJSON logging)
+
+### Objective
+
+Implement API-only OpenAI request/response logging with redaction, per-session correlation, NDJSON append/rotation, and default-off behavior.
+
+### Approach
+
+- Added a reusable NDJSON logger utility with directory creation and file size rotation.
+- Added deep redaction helper for sensitive key names and `sig=` query values.
+- Integrated logging in OpenAI client wrapper before/after OpenAI calls, including `traceId`, `sessionIdHash`, request/response payloads, parser validation errors, and latency.
+- Updated chat handler to generate short trace IDs, hash session IDs, and pass both into OpenAI client calls.
+- Added API tests to verify logging on/off behavior and redaction signals.
+- Updated `PROJECT_STATUS.md` with new debug switches and logging behavior.
+
+### Files changed
+
+- `api/src/lib/logging/ndjsonLogger.ts`
+- `api/src/lib/logging/redact.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `api/src/lib/openai/openaiClient.test.ts`
+- `api/src/functions/chat.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ pass (build + full API test suite, including new logging tests).
+- `rg -n "parseToActions\(" api/src` ✅ confirmed only updated call sites/signature usage.
+
+### Follow-ups
+
+- If needed later, split logs per day/session file for easier operational browsing in long-running environments.
