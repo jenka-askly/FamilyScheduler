@@ -141,8 +141,9 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (parsed.kind === 'proposal') {
       const mutationActions = normalizedActions.filter(isMutationAction);
       if (mutationActions.length === 0) return respond({ kind: 'clarify', question: 'Please clarify the change with a valid action and summary.' });
+      const previewExecution = executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       session.pendingProposal = toProposal(loaded.etag, mutationActions);
-      return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: parsed.message });
+      return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
     }
     if (normalizedActions.length > 0) {
       const execution = executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });

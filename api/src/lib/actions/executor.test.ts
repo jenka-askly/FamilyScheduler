@@ -66,3 +66,39 @@ test('resolveAppointmentTimes ignores duration when startTime missing', () => {
   assert.equal(resolved.isAllDay, true);
   assert.equal(resolved.startIso, undefined);
 });
+
+test('E: add_rule removes overlapping opposite-kind conflicts and keeps new rule', () => {
+  const state = createEmptyAppState();
+  state.people.push({ personId: 'P-1', name: 'Jay Yap', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
+  state.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', desc: '' });
+
+  const result = executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'available', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+
+  assert.equal(result.nextState.rules.length, 1);
+  assert.equal(result.nextState.rules[0].kind, 'available');
+  assert.equal(result.effectsTextLines[0], 'This will remove 1 conflicting rule(s).');
+  assert.equal(result.effectsTextLines.some((line) => line.includes('Remove conflicting UNAVAILABLE rule RULE-1')), true);
+});
+
+test('F: add_rule allows overlapping same-kind rules', () => {
+  const state = createEmptyAppState();
+  state.people.push({ personId: 'P-1', name: 'Jay Yap', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
+  state.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', desc: '' });
+
+  const result = executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+
+  assert.equal(result.nextState.rules.length, 2);
+  assert.equal(result.effectsTextLines.some((line) => line.includes('conflicting rule')), false);
+});
+
+test('G: add unavailable rule removes overlapping available rules', () => {
+  const state = createEmptyAppState();
+  state.people.push({ personId: 'P-1', name: 'Jay Yap', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
+  state.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'available', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', desc: '' });
+
+  const result = executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+
+  assert.equal(result.nextState.rules.length, 1);
+  assert.equal(result.nextState.rules[0].kind, 'unavailable');
+  assert.equal(result.effectsTextLines.some((line) => line.includes('Remove conflicting AVAILABLE rule RULE-1')), true);
+});

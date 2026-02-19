@@ -1,5 +1,6 @@
 import { createEmptyAppState, type AppState, type Appointment, type AvailabilityRule, type Person, normalizeAppState } from '../state.js';
 import { computePersonStatusForInterval } from '../availability/computeStatus.js';
+import { intervalBounds, overlaps } from '../availability/interval.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../validation/phone.js';
 import type { Action } from './schema.js';
 
@@ -118,9 +119,25 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     if (action.type === 'add_rule') {
       const person = findPersonById(nextState, action.personId);
       if (!person) { effectsTextLines.push(`Not found: ${action.personId}`); appliedAll = false; continue; }
+      const timezone = action.timezone ?? person.timezone ?? context.timezoneName;
+      const newRule = { personId: action.personId, kind: action.kind, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone, desc: (action.desc ?? '').trim() };
+      const newBounds = intervalBounds({ date: newRule.date, startTime: newRule.startTime, durationMins: newRule.startTime ? newRule.durationMins : undefined });
+      const conflicts = nextState.rules
+        .filter((rule) => rule.personId === action.personId && rule.date === action.date)
+        .filter((rule) => rule.kind !== action.kind)
+        .filter((rule) => overlaps(newBounds, intervalBounds({ date: rule.date, startTime: rule.startTime, durationMins: rule.startTime ? rule.durationMins : undefined })));
+
+      if (conflicts.length > 0) {
+        nextState.rules = nextState.rules.filter((rule) => !conflicts.some((conflict) => conflict.code === rule.code));
+        effectsTextLines.push(`This will remove ${conflicts.length} conflicting rule(s).`);
+        conflicts.forEach((conflict) => {
+          effectsTextLines.push(`Remove conflicting ${conflict.kind.toUpperCase()} rule ${conflict.code} for ${person.name} on ${describeTime(conflict.date, conflict.startTime, conflict.durationMins)}.`);
+        });
+      }
+
       const code = getNextRuleCode(nextState);
-      nextState.rules.push({ code, personId: action.personId, kind: action.kind, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone: action.timezone ?? person.timezone ?? context.timezoneName, desc: (action.desc ?? '').trim() });
-      effectsTextLines.push(`Mark ${person.name} ${action.kind.toUpperCase()} on ${describeTime(action.date, action.startTime, action.durationMins)}.`);
+      nextState.rules.push({ code, ...newRule });
+      effectsTextLines.push(`Add ${action.kind.toUpperCase()} rule for ${person.name} on ${describeTime(newRule.date, newRule.startTime, newRule.durationMins)}.`);
       continue;
     }
 

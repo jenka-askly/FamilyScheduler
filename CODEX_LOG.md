@@ -1458,3 +1458,43 @@ Implement People view availability rules visibility and delete flow, ensure conf
 ### Follow-ups
 
 - Optional: add UI-level automated test for People rules expand/delete interactions.
+
+## 2026-02-19 04:58 UTC (people inline rules + prompt hide + add_rule conflict auto-resolve)
+
+### Objective
+
+Implement People UX updates (inline rules + no prompt label/input) and API conflict policy for overlapping opposite-kind availability rules, including explicit conflict preview messaging.
+
+### Approach
+
+- Removed People row clock-toggle behavior and always render rules inline when a person has at least one rule.
+- Added rule sorting (date asc, then all-day first, then start time) for People rule rows.
+- Scoped prompt input rendering to Appointments view only, leaving backend prompt system unchanged.
+- Introduced shared availability interval helper (`intervalBounds` + `overlaps`) and reused it in status computation and rule conflict handling.
+- Updated `add_rule` executor path to auto-remove overlapping opposite-kind rules for same person/date, then insert the new rule.
+- Added explicit effect lines for proposal/confirm text, including `This will remove X conflicting rule(s).` and per-rule removal details.
+- Updated proposal response generation to use executor dry-run effects so preview text in confirm modal is explicit.
+- Added executor tests for both conflict directions and same-kind overlap allowance.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `api/src/lib/availability/interval.ts`
+- `api/src/lib/availability/computeStatus.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter api test` ❌ failed initially due temporary TypeScript syntax error introduced during edit; fixed.
+- `pnpm --filter api test` ✅ passed after fix.
+- `pnpm --filter web build` ✅ passed.
+- `pnpm --filter web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
+- Playwright screenshot capture ✅ artifact at `browser:/tmp/codex_browser_invocations/843d72d0688e6550/artifacts/artifacts/people-inline-rules.png`.
+
+### Follow-ups
+
+- Optional: add web UI automation test for People inline rule rendering + prompt input hidden in People view.

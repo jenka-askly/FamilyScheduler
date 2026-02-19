@@ -193,3 +193,10 @@ After every merged PR, update this file with:
 - Web now has `Appointments | People` toggle, People table actions, and appointment people picker with Available/Unavailable/Unknown tags.
 - Confirm gate remains in place for mutations.
 - Known limitation: could not install `libphonenumber-js` (npm registry 403 in this environment), so validation currently uses local fallback logic.
+
+## Recent update (2026-02-19 04:58 UTC)
+
+- People view now renders per-person rules inline by default whenever rules exist (clock toggle removed), sorted by date then time with all-day rules first.
+- People view prompt header/input is hidden; Appointments view prompt input remains unchanged.
+- Rule conflict policy now auto-resolves contradictory overlaps on `add_rule`: overlapping opposite-kind rules for the same person/date are removed before inserting the new rule.
+- Proposal previews are now generated from executor dry-run effects so confirm modals explicitly show conflict removals (e.g., `This will remove X conflicting rule(s).`).
