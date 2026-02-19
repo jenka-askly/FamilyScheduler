@@ -949,3 +949,45 @@ Implement table-based task panels in `apps/web` for appointments and availabilit
 ### Follow-ups
 
 - If desired, add explicit toast/feedback for successful clipboard copy action.
+
+## 2026-02-19 00:28 UTC (UX improvements for rescheduling defaults/timezone/flexible dates)
+
+### Objective
+
+Implement API parsing + executor UX upgrades for rescheduling defaults, fuzzy time-of-day, timezone aliases, query shortcuts, and robust confirm/cancel detection.
+
+### Approach
+
+- Added a dedicated flexible date parser in `api/src/lib/time/parseDate.ts` with unit coverage.
+- Added deterministic reschedule parsing for `change <appt-code> to <date|date time-of-day>`.
+- Added `update_appointment_schedule` action in schema + executor to apply reschedules.
+- Updated chat command handling to:
+  - treat any message containing `confirm`/`cancel` as proposal control,
+  - support `show my appt`/`show my appointments` direct listing,
+  - only ask for code on `show appointment` when there are more than 5 appointments,
+  - map Seattle/LA/Pacific timezone aliases with explicit response text.
+- Added acceptance-style chat tests covering requested scenarios A–E.
+
+### Files changed
+
+- `api/src/lib/time/parseDate.ts`
+- `api/src/lib/time/parseDate.test.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ❌ initial failure due new `March 10 morning` parse/time formatting gaps.
+- `pnpm --filter @familyscheduler/api test` ✅ pass after adding optional-year month/day parsing + local-time formatting in executor output.
+- `pnpm -r --if-present test` ✅ workspace tests pass.
+- `date '+%Y-%m-%d %H:%M %Z'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- If DST-sensitive scheduling is needed later, replace fixed `-08:00` reschedule offset generation with timezone-aware conversion based on `America/Los_Angeles` rules.

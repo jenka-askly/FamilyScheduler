@@ -7,6 +7,7 @@ import { type Action, ParsedModelResponseSchema } from '../lib/actions/schema.js
 import { parseToActions } from '../lib/openai/openaiClient.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { looksLikeSingleCodeToken, normalizeAppointmentCode, normalizeAvailabilityCode } from '../lib/text/normalizeCode.js';
+import { parseFlexibleDate } from '../lib/time/parseDate.js';
 
 type ChatRequest = { message?: unknown };
 
@@ -22,6 +23,13 @@ type ParsedDateTime = {
   endTime: string;
   startIso: string;
   endIso: string;
+};
+
+type RescheduleInterpretation = {
+  start: string;
+  end: string;
+  label: string;
+  isAllDay?: boolean;
 };
 
 type ResponseSnapshot = {
@@ -134,6 +142,64 @@ const parse24HourTime = (value: string): string | null => {
 };
 const parseTimeToken = (value: string): string | null => parse24HourTime(value) ?? parse12HourTime(value);
 const toIsoString = (date: string, time: string): string => `${date}T${time}:00-08:00`;
+
+const toPacificIsoString = (date: string, time: string): string => `${date}T${time}:00-08:00`;
+const TIME_OF_DAY_RANGES: Record<string, { start: string; end: string }> = {
+  morning: { start: '09:00', end: '12:00' },
+  afternoon: { start: '13:00', end: '17:00' },
+  evening: { start: '17:00', end: '21:00' }
+};
+
+
+const parseFlexibleDateWithOptionalYear = (input: string): string | null => {
+  const direct = parseFlexibleDate(input);
+  if (direct) return direct;
+  const monthDayMatch = input.trim().match(/^([a-zA-Z]+)\s+(\d{1,2})$/);
+  if (!monthDayMatch) return null;
+  const now = new Date();
+  const candidateThisYear = parseFlexibleDate(`${monthDayMatch[1]} ${monthDayMatch[2]} ${now.getUTCFullYear()}`);
+  if (!candidateThisYear) return null;
+  if (candidateThisYear >= now.toISOString().slice(0, 10)) return candidateThisYear;
+  return parseFlexibleDate(`${monthDayMatch[1]} ${monthDayMatch[2]} ${now.getUTCFullYear() + 1}`);
+};
+
+const parseRescheduleCommand = (message: string): { code: string; interpretation: RescheduleInterpretation } | null => {
+  const match = message.match(/^change\s+([^\s]+)\s+to\s+(.+)$/i);
+  if (!match) return null;
+  const code = normalizeAppointmentCode(match[1]);
+  if (!code) return null;
+
+  const tail = match[2].trim().replace(/\s+/g, ' ');
+  const tailLower = tail.toLowerCase();
+
+  for (const [label, range] of Object.entries(TIME_OF_DAY_RANGES)) {
+    if (tailLower.endsWith(` ${label}`)) {
+      const datePart = tail.slice(0, -(label.length + 1)).trim();
+      const date = parseFlexibleDateWithOptionalYear(datePart);
+      if (!date) return null;
+      return {
+        code,
+        interpretation: {
+          start: toPacificIsoString(date, range.start),
+          end: toPacificIsoString(date, range.end),
+          label: `${date} ${label} (${range.start}–${range.end})`
+        }
+      };
+    }
+  }
+
+  const dateOnly = parseFlexibleDateWithOptionalYear(tail);
+  if (!dateOnly) return null;
+  return {
+    code,
+    interpretation: {
+      start: toPacificIsoString(dateOnly, '00:00'),
+      end: toPacificIsoString(dateOnly, '23:59'),
+      label: `${dateOnly} (all day)`,
+      isAllDay: true
+    }
+  };
+};
 const parseDateAndRange = (dateToken: string, rangeToken: string): ParsedDateTime | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateToken)) return null;
   const [rawStart, rawEnd] = rangeToken.split('-');
@@ -197,13 +263,17 @@ const parseMonthRangeQuery = (normalizedMessage: string): { month?: string; star
 };
 
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), actions, expectedEtag });
-const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_title', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
+const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_title', 'update_appointment_schedule', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
 
 const renderProposalText = (actions: Action[]): string => {
   const lines = actions.map((action, index) => {
     if (action.type === 'add_appointment') return `${index + 1}) Add appointment '${action.title}'`;
     if (action.type === 'delete_appointment') return `${index + 1}) Delete appointment ${action.code}`;
     if (action.type === 'update_appointment_title') return `${index + 1}) Update ${action.code} title to '${action.title}'`;
+    if (action.type === 'update_appointment_schedule') {
+      const dayHint = action.isAllDay ? ' (all day)' : '';
+      return `${index + 1}) Reschedule ${action.code} to ${action.start}–${action.end}${dayHint}`;
+    }
     if (action.type === 'add_availability') return `${index + 1}) Mark ${action.personName ?? 'me'} unavailable ${action.start}–${action.end}${action.reason ? ` (${action.reason})` : ''}`;
     if (action.type === 'delete_availability') return `${index + 1}) Delete availability ${action.code}`;
     if (action.type === 'set_identity') return `${index + 1}) Set identity to ${action.name}`;
@@ -374,13 +444,13 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     jsonBody: withSnapshot({ ...payload, traceId }, snapshotState)
   });
 
-  if (normalizedMessage === 'cancel') {
+  if (normalizedMessage.includes('cancel')) {
     pendingProposal = null;
     pendingClarification = null;
     return respond({ kind: 'reply', assistantText: 'Cancelled.' });
   }
 
-  if (normalizedMessage === 'confirm') {
+  if (normalizedMessage.includes('confirm')) {
     if (!pendingProposal) return respond({ kind: 'reply', assistantText: 'No pending change.' });
     const proposalToApply = pendingProposal;
     pendingProposal = null;
@@ -462,6 +532,26 @@ Reply 'confirm' or 'cancel'.`
   }
 
   const deterministicActions: Action[] = [];
+
+  if (normalizedMessage.includes('seattle time') || normalizedMessage.includes('la time')) {
+    return respond({ kind: 'reply', assistantText: 'Same Pacific timezone.' });
+  }
+
+  if (normalizedMessage.includes('pacific') || normalizedMessage.includes('seattle time') || normalizedMessage.includes('la time')) {
+    return respond({ kind: 'reply', assistantText: 'Using America/Los_Angeles (Pacific).' });
+  }
+
+  const rescheduleCommand = parseRescheduleCommand(message);
+  if (rescheduleCommand) {
+    const { code, interpretation } = rescheduleCommand;
+    deterministicActions.push({
+      type: 'update_appointment_schedule',
+      code,
+      start: interpretation.start,
+      end: interpretation.end,
+      isAllDay: interpretation.isAllDay
+    });
+  }
   const iAmCommand = parseIAmCommand(message);
   if (iAmCommand) deterministicActions.push({ type: 'set_identity', name: iAmCommand.name });
 
@@ -504,11 +594,16 @@ Reply 'confirm' or 'cancel'.`
   const updateCommand = parseUpdateTitleCommand(message);
   if (updateCommand && updateCommand.title) deterministicActions.push({ type: 'update_appointment_title', code: updateCommand.code, title: updateCommand.title });
 
-  if (normalizedMessage === 'list appointments') deterministicActions.push({ type: 'list_appointments' });
+  if (normalizedMessage === 'list appointments' || normalizedMessage === 'show my appt' || normalizedMessage === 'show my appointments') deterministicActions.push({ type: 'list_appointments' });
   if (normalizedMessage === 'list availability') deterministicActions.push({ type: 'list_availability' });
   if (normalizedMessage === 'list my availability' || normalizedMessage === 'show my availability') deterministicActions.push({ type: 'list_availability' });
   const listForMatch = message.match(/^list\s+availability\s+for\s+(.+)$/i);
   if (listForMatch) deterministicActions.push({ type: 'list_availability', personName: listForMatch[1].trim() });
+
+  if (normalizedMessage === 'show appointment') {
+    if (state.appointments.length > 5) return respond({ kind: 'clarify', question: 'Which appointment code should I show?' });
+    deterministicActions.push({ type: 'list_appointments' });
+  }
 
   if (normalizedMessage.startsWith('show ')) {
     const rawCode = message.slice(message.toLowerCase().indexOf('show ') + 'show '.length);
@@ -533,6 +628,12 @@ Reply 'confirm' or 'cancel'.`
 
     if (mutationActions.length > 0) {
       pendingProposal = toProposal(etag, mutationActions);
+      if (mutationActions.length === 1 && mutationActions[0].type === 'update_appointment_schedule') {
+        const schedule = mutationActions[0];
+        const dateOnly = schedule.start.slice(0, 10);
+        const allDayLabel = schedule.isAllDay ? ' (all day)' : '';
+        return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: `Reschedule ${schedule.code} to ${dateOnly}${allDayLabel}. Confirm?` });
+      }
       return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions) });
     }
 
