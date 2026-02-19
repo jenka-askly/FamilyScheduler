@@ -1580,3 +1580,33 @@ Replace text-only `clarify` handling with structured AI `question` responses and
 - `pnpm --filter @familyscheduler/web build` ✅ passed.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture (stopped with SIGINT after capture).
 - Playwright screenshot with mocked `/api/chat` response ✅ artifact: `browser:/tmp/codex_browser_invocations/5eb466f6dede5a7d/artifacts/artifacts/question-dialog.png`.
+
+## 2026-02-19 05:49 UTC (appointments location/notes multiline display)
+
+### Objective
+
+Fix the appointments table so long `Location` and `Notes` values are readable without excessive horizontal scrolling.
+
+### Approach
+
+- Added a targeted `multiline-cell` class to appointments `Location` and `Notes` table cells only.
+- Added scoped CSS for `.data-table td.multiline-cell` to enable `pre-wrap` and apply bounded width so content wraps into multiple lines while the rest of the table remains unchanged.
+- Updated continuity docs to reflect the UI behavior change.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (stopped with SIGINT after screenshot capture).
+- Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/199c65cc30e725c7/artifacts/artifacts/appointments-multiline.png`.
+
+### Follow-ups
+
+- Optional: add visual regression coverage for appointment table cell wrapping behavior.

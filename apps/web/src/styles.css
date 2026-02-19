@@ -53,6 +53,12 @@ main {
   white-space: nowrap;
 }
 
+.data-table td.multiline-cell {
+  white-space: pre-wrap;
+  min-width: 180px;
+  max-width: 320px;
+}
+
 .data-table th {
   border-top: 0;
   color: #334155;
