@@ -84,12 +84,13 @@ test('clarification reply fills missing personName for list availability', async
   assert.match((resolved.jsonBody as any).assistantText, /AVL-JOE-1/);
 });
 
-test('identity is used for show my availability query', async () => {
+test('identity can be confirmed then used for show my availability query', async () => {
   process.env.STORAGE_MODE = 'local';
   await resetState();
 
   const setIdentity = await sendChat('I am Joe');
-  assert.equal((setIdentity.jsonBody as any).kind, 'reply');
+  assert.equal((setIdentity.jsonBody as any).kind, 'proposal');
+  await sendChat('confirm');
 
   const mark = await sendChat('mark me unavailable 2026-03-10 10:00-11:00 busy');
   assert.equal((mark.jsonBody as any).kind, 'proposal');
@@ -134,13 +135,16 @@ test('bare name without pending clarification does not set identity', async () =
   assert.match((markMe.jsonBody as any).assistantText, /Mark me unavailable/i);
 });
 
-test('I am Joe sets identity immediately', async () => {
+test('I am Joe now requires confirmation', async () => {
   process.env.STORAGE_MODE = 'local';
   await resetState();
 
   const response = await sendChat('I am Joe');
-  assert.equal((response.jsonBody as any).kind, 'reply');
-  assert.equal((response.jsonBody as any).assistantText, 'Got it. You are Joe.');
+  assert.equal((response.jsonBody as any).kind, 'proposal');
+
+  const applied = await sendChat('confirm');
+  assert.equal((applied.jsonBody as any).kind, 'applied');
+  assert.equal((applied.jsonBody as any).assistantText, 'Got it. You are Joe.');
 });
 
 test('cancel clears pending clarification', async () => {
@@ -299,4 +303,14 @@ test('cancel keyword anywhere cancels pending proposal', async () => {
   const cancelled = await sendChat('west coast cancel');
   assert.equal((cancelled.jsonBody as any).kind, 'reply');
   assert.equal((cancelled.jsonBody as any).assistantText, 'Cancelled.');
+});
+
+
+test('mark 9 2026 asks clarify to disambiguate month token', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const response = await sendChat('mark 9 2026');
+  assert.equal((response.jsonBody as any).kind, 'clarify');
+  assert.match((response.jsonBody as any).question, /spell the month/i);
 });

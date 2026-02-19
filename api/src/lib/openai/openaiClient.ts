@@ -1,12 +1,8 @@
 import { ParsedModelResponseSchema, type ParsedModelResponse } from '../actions/schema.js';
 import { buildParserSystemPrompt, buildParserUserPrompt } from './prompts.js';
+import { type OpenAiContextEnvelope } from './buildContext.js';
 
-export type ParserContext = {
-  peopleNames: string[];
-  appointmentsSummary: string[];
-  availabilitySummary: string[];
-  timezoneName: string;
-};
+export type ParserContext = OpenAiContextEnvelope;
 
 const truncate = (value: string, maxChars: number): string => value.length <= maxChars ? value : `${value.slice(0, maxChars)}...`;
 
@@ -17,8 +13,8 @@ export const parseToActions = async (input: string, context: ParserContext): Pro
   }
 
   const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
-  const maxContextChars = Number(process.env.OPENAI_MAX_CONTEXT_CHARS ?? '8000');
-  const contextText = truncate(JSON.stringify(context, null, 2), Number.isFinite(maxContextChars) ? maxContextChars : 8000);
+  const maxContextChars = Number(process.env.OPENAI_MAX_CONTEXT_CHARS ?? '40000');
+  const contextText = truncate(JSON.stringify(context, null, 2), Number.isFinite(maxContextChars) ? maxContextChars : 40000);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

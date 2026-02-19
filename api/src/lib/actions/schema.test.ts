@@ -35,3 +35,23 @@ test('parses reschedule_appointment action', () => {
   });
   assert.equal(parsed.actions[0].type, 'reschedule_appointment');
 });
+
+
+test('parses confidence and needsConfirmation', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'mutation',
+    actions: [{ type: 'set_identity', name: 'Joe' }],
+    confidence: 0.75,
+    needsConfirmation: false
+  });
+  assert.equal(parsed.confidence, 0.75);
+  assert.equal(parsed.needsConfirmation, false);
+});
+
+test('rejects invalid confidence', () => {
+  assert.throws(() => ParsedModelResponseSchema.parse({
+    kind: 'query',
+    actions: [{ type: 'help' }],
+    confidence: 2
+  }));
+});
