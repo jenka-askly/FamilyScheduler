@@ -5,6 +5,7 @@ export type Action =
   | { type: 'delete_appointment'; code: string }
   | { type: 'update_appointment_title'; code: string; title: string }
   | { type: 'update_appointment_schedule'; code: string; start: string; end: string; isAllDay?: boolean }
+  | { type: 'reschedule_appointment'; code: string; start: string; end: string; timezone?: string; isAllDay?: boolean }
   | { type: 'add_availability'; personName?: string; start: string; end: string; reason?: string }
   | { type: 'delete_availability'; code: string }
   | { type: 'set_identity'; name: string }
@@ -41,7 +42,7 @@ const assertString = (value: unknown, field: string): string => {
 
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'title', 'start', 'end', 'code', 'personName', 'reason', 'name', 'month', 'isAllDay']);
+  assertKeys(value, ['type', 'title', 'start', 'end', 'code', 'personName', 'reason', 'name', 'month', 'isAllDay', 'timezone']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'add_appointment') {
@@ -57,12 +58,12 @@ const parseAction = (value: unknown): Action => {
     if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     return { type, code, title: assertString(value.title, 'title') };
   }
-  if (type === 'update_appointment_schedule') {
+  if (type === 'update_appointment_schedule' || type === 'reschedule_appointment') {
     const code = assertString(value.code, 'code');
     if (!appointmentCodePattern.test(code)) throw new Error('Invalid appointment code');
     const start = assertString(value.start, 'start');
     const end = assertString(value.end, 'end');
-    return { type, code, start, end, isAllDay: value.isAllDay === true ? true : undefined };
+    return { type, code, start, end, timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined, isAllDay: value.isAllDay === true ? true : undefined } as Action;
   }
   if (type === 'add_availability') {
     return {
