@@ -5,6 +5,7 @@ import type { Action } from '../lib/actions/schema.js';
 import { type AppState } from '../lib/state.js';
 import { ConflictError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
+import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 
 type ResponseSnapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
@@ -13,7 +14,7 @@ type ResponseSnapshot = {
   historyCount?: number;
 };
 
-type DirectBody = { action?: unknown };
+type DirectBody = { action?: unknown; groupId?: unknown; phone?: unknown };
 
 type DirectAction =
   | { type: 'create_blank_appointment' }
@@ -122,8 +123,9 @@ const parseDirectAction = (value: unknown): DirectAction => {
 
 export async function direct(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = randomUUID();
-  await storage.initIfMissing();
   const body = await request.json() as DirectBody;
+  const identity = validateJoinRequest(body.groupId, body.phone);
+  if (!identity.ok) return identity.response;
 
   let directAction: DirectAction;
   try {
@@ -132,12 +134,13 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     return badRequest(error instanceof Error ? error.message : 'invalid action', traceId);
   }
 
-  const loaded = await storage.getState();
+  const loaded = await storage.load(identity.groupId);
+  if (!findActivePersonByPhone(loaded.state, identity.phoneE164)) return { status: 403, jsonBody: { error: 'not_allowed' } };
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (!execution.appliedAll) return { status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } };
 
   try {
-    const written = await storage.putState(execution.nextState, loaded.etag);
+    const written = await storage.save(identity.groupId, execution.nextState, loaded.etag);
     return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
   } catch (error) {
     if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };

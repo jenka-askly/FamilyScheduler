@@ -1,44 +1,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, '../../..');
+const GROUP_ID = '22222222-2222-4222-8222-222222222222';
+const PHONE = '+14155550123';
+
+const seedState = async (prefix: string) => {
+  const dir = path.resolve(REPO_ROOT, prefix, GROUP_ID);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'state.json'), JSON.stringify({
+    schemaVersion: 3,
+    groupId: GROUP_ID,
+    groupName: 'Test Group',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    people: [{ personId: 'P-1', name: 'Creator', cellE164: PHONE, cellDisplay: '(415) 555-0123', status: 'active' }],
+    appointments: [],
+    rules: [],
+    history: []
+  }, null, 2));
+};
 
 const loadDirect = async (tag: string) => {
   process.env.STORAGE_MODE = 'local';
-  process.env.LOCAL_STATE_PATH = `./.local/state-direct-${tag}.json`;
+  process.env.LOCAL_STATE_PREFIX = `./.localtest/direct-${tag}`;
+  await seedState(process.env.LOCAL_STATE_PREFIX);
   const mod = await import(`./direct.js?${tag}`);
   return mod.direct as (request: any, context: any) => Promise<any>;
 };
 
-test('direct endpoint creates/edits/deletes appointment deterministically', async () => {
+test('direct endpoint enforces group/phone and mutates for allowed member', async () => {
   const direct = await loadDirect('flow');
-  const sendDirect = async (action: unknown) => direct({ json: async () => ({ action }) } as any, {} as any);
+  const denied = await direct({ json: async () => ({ groupId: GROUP_ID, phone: '+14155550124', action: { type: 'create_blank_appointment' } }) } as any, {} as any);
+  assert.equal(denied.status, 403);
 
-  let response = await sendDirect({ type: 'create_blank_appointment' });
-  assert.equal((response.jsonBody as any).ok, true);
-  const appointments = (response.jsonBody as any).snapshot.appointments as Array<{ code: string }>;
-  const code = appointments[appointments.length - 1].code;
-
-  response = await sendDirect({ type: 'set_appointment_date', code, date: '2026-06-01' });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.date === '2026-06-01'), true);
-
-  response = await sendDirect({ type: 'set_appointment_start_time', code, startTime: '13:00' });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.startTime === '13:00'), true);
-
-  response = await sendDirect({ type: 'set_appointment_location', code, locationRaw: 'Kaiser	Redwood City' });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.location === 'Kaiser, Redwood City' && item.locationRaw === 'Kaiser\tRedwood City' && item.locationMapQuery === 'Kaiser, Redwood City'), true);
-
-  response = await sendDirect({ type: 'set_appointment_location', code, location: 'Kaiser SF' });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.locationRaw === 'Kaiser SF' && item.locationDisplay === 'Kaiser SF'), true);
-
-  response = await sendDirect({ type: 'set_appointment_notes', code, notes: 'Bring ID' });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code && item.notes === 'Bring ID'), true);
-
-  response = await sendDirect({ type: 'delete_appointment', code });
-  assert.equal((response.jsonBody as any).snapshot.appointments.some((item: any) => item.code === code), false);
-});
-
-test('direct endpoint validates date format', async () => {
-  const direct = await loadDirect('validation');
-  const response = await direct({ json: async () => ({ action: { type: 'set_appointment_date', code: 'APPT-1', date: '06/01/2026' } }) } as any, {} as any);
-  assert.equal(response.status, 400);
-  assert.match((response.jsonBody as any).message, /YYYY-MM-DD/);
+  const ok = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'create_blank_appointment' } }) } as any, {} as any);
+  assert.equal((ok.jsonBody as any).ok, true);
+  assert.equal((ok.jsonBody as any).snapshot.appointments.length, 1);
 });

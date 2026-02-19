@@ -232,3 +232,18 @@ After every merged PR, update this file with:
 - Web layout is now full-width (`main` no longer constrained to centered max width) with consistent page padding.
 - Typography and control sizing were reduced for denser system-like UI defaults.
 - 2026-02-19: Appointments row edit mode now supports cancel by keyboard/mouse: pressing `Esc` or clicking/tapping outside the active row exits edit mode; Done tooltip now hints at `Esc/outside click` to improve discoverability.
+
+
+## Recent update (2026-02-19 07:20 UTC)
+
+- Added v1 group create/join flow with hash routes (`/#/`, `/#/g/:groupId`, `/#/g/:groupId/app`) and localStorage session wiring (`groupId` + `phone`).
+- API now has deterministic endpoints: `POST /api/group/create` and `POST /api/group/join`.
+- `/api/chat` and `/api/direct` now require `groupId` + `phone`, normalize/validate phone, and return `403 { error: "not_allowed" }` when phone is not in active People.
+- Storage is now per-group (`familyscheduler/groups/<groupId>/state.json`) for both Azure and local modes.
+- App state schema now carries `schemaVersion`, `groupId`, `groupName`, `createdAt`, `updatedAt`.
+
+### Debug switches / env notes
+
+- `STATE_BLOB_PREFIX` defaults to `familyscheduler/groups`.
+- `DEFAULT_COUNTRY` defaults to `US` for phone normalization.
+- Local state root defaults to `.localstate/familyscheduler/groups`.

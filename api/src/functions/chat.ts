@@ -9,8 +9,9 @@ import { ConflictError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
+import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 
-type ChatRequest = { message?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
@@ -27,7 +28,7 @@ const sessionState = new Map<string, SessionRuntimeState>();
 const confirmSynonyms = new Set(['confirm', 'yes', 'y', 'ok']);
 const cancelSynonyms = new Set(['cancel', 'no', 'n']);
 
-const getSessionId = (request: HttpRequest): string => ((request as { headers?: { get?: (name: string) => string | null } }).headers?.get?.('x-session-id')?.trim() || 'default');
+const getSessionId = (request: HttpRequest, groupId: string, phoneE164: string): string => `${groupId}:${phoneE164}:${((request as { headers?: { get?: (name: string) => string | null } }).headers?.get?.('x-session-id')?.trim() || 'default')}`;
 const getSessionState = (sessionId: string): SessionRuntimeState => {
   const existing = sessionState.get(sessionId);
   if (existing) return existing;
@@ -96,30 +97,34 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = randomUUID();
-  await storage.initIfMissing();
   const body = await request.json() as ChatRequest;
+  const identity = validateJoinRequest(body.groupId, body.phone);
+  if (!identity.ok) return identity.response;
   if (typeof body.message !== 'string' || body.message.trim().length === 0) return badRequest('message is required', traceId);
   const message = body.message.trim();
   const normalized = normalizeUserText(message);
 
-  const session = getSessionState(getSessionId(request));
-  const loaded = await storage.getState();
+  const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
+  const loaded = await storage.load(identity.groupId);
   const state = loaded.state;
+  const allowed = findActivePersonByPhone(state, identity.phoneE164);
+  if (!allowed) return { status: 403, jsonBody: { error: 'not_allowed' } };
+  session.activePersonId = allowed.personId;
 
   session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
   trimHistory(session);
 
-  const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }): HttpResponseInit => {
+  const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }, currentState: AppState = state): HttpResponseInit => {
     session.chatHistory.push({ role: 'assistant', text: payload.kind === 'question' ? payload.message : payload.assistantText, ts: new Date().toISOString() });
     trimHistory(session);
-    return { status: 200, jsonBody: withSnapshot(payload, state) };
+    return { status: 200, jsonBody: withSnapshot(payload, currentState) };
   };
 
   if (session.pendingProposal) {
     if (confirmSynonyms.has(normalized)) {
       try {
         const execution = await executeActions(state, session.pendingProposal.actions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-        const written = await storage.putState(execution.nextState, session.pendingProposal.expectedEtag);
+        const written = await storage.save(identity.groupId, execution.nextState, session.pendingProposal.expectedEtag);
         session.activePersonId = execution.nextActivePersonId;
         session.pendingProposal = null;
         return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
@@ -139,7 +144,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
   try {
-    const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request), traceId });
+    const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
     const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
     const codeError = validateReferencedCodes(state, normalizedActions);
     if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
