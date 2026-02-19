@@ -1498,3 +1498,34 @@ Implement People UX updates (inline rules + no prompt label/input) and API confl
 ### Follow-ups
 
 - Optional: add web UI automation test for People inline rule rendering + prompt input hidden in People view.
+
+## 2026-02-19 05:09 UTC (assign people modal alignment + UX polish)
+
+### Objective
+
+Fix Assign People modal alignment issue by rendering each person as a single row and improve selection interaction clarity.
+
+### Approach
+
+- Reworked assign-people modal row rendering to one row per person with left-side checkbox/name and right-side status badge.
+- Added shared toggle helper so row click and checkbox click both update selected people deterministically.
+- Added list/row styles for hover affordance, consistent spacing, optional separators, and fixed badge column width to prevent jitter.
+- Updated continuity docs with behavior change and captured verification commands.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed and produced Vite build output.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual check (stopped with SIGINT after capture).
+- Playwright screenshot capture via browser tool ✅ artifact: `browser:/tmp/codex_browser_invocations/0423b99c7793512f/artifacts/artifacts/assign-people-ui.png`.
+
+### Follow-ups
+
+- Validate assign-people modal interactions end-to-end against live appointment data in local full-stack run (`pnpm dev`) to visually confirm row behavior in the modal itself.
