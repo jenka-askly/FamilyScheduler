@@ -2150,3 +2150,32 @@ Replace the default favicon with a minimal calendar SVG and set browser tab titl
 
 - Install/restore web font dependencies and Azure Functions Core Tools to run `pnpm dev` end-to-end and manually confirm favicon/title in browser.
 - Hard refresh the browser tab (`Shift+Reload`) after startup to force favicon cache refresh.
+
+## 2026-02-19 18:14 UTC (CODEX-003 layout primitives)
+
+### Objective
+
+Add reusable layout primitives (`Page`, `PageHeader`, `FooterHelp`) without migrating existing pages.
+
+### Approach
+
+- Created new `apps/web/src/components/layout/` folder and added the three layout components with the exact requested structure.
+- Updated `PROJECT_STATUS.md` with a new CODEX-003 UI Structure section.
+- Ran local dev startup check to verify compilation and catch runtime startup issues.
+
+### Files changed
+
+- `apps/web/src/components/layout/Page.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/components/layout/FooterHelp.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+- `pnpm dev` ⚠️ web host started, but startup failed due existing environment issues (`@fontsource/inter/latin-*.css` unresolved and missing `func` binary for API).
+
+### Follow-ups
+
+- Migrate existing pages to the new layout primitives in a separate task.

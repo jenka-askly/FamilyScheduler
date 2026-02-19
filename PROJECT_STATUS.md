@@ -52,6 +52,13 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 - CI installs dependencies and runs workspace build checks with `pnpm -r --if-present build`.
 
 
+
+### UI Structure (CODEX-003)
+- Added reusable Page layout component
+- Added PageHeader component
+- Added FooterHelp component
+- No page migrations yet
+
 ### UI Polish (CODEX-002)
 - Replaced default Vite favicon with minimal calendar SVG
 - Set browser title to “Family Scheduler”
