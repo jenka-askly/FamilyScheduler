@@ -1316,3 +1316,32 @@ Add an appointment Notes column in web UI and implement persisted `notes` suppor
 ### Follow-ups
 
 - Optionally add an explicit UI integration test for Notes column cell truncation behavior.
+
+## 2026-02-19 UTC (docs wishlist: AI ingestion artifacts)
+
+### Objective
+
+Add a documented wishlist item for AI ingestion from uploaded/pasted appointment artifacts, and link it through top-level docs continuity files.
+
+### Approach
+
+- Added a dedicated `docs/WISHLIST.md` file with an "AI Ingestion" section covering flow, supported formats, ambiguity handling, and privacy/logging constraints.
+- Updated `README.md` documentation index + roadmap section to link the wishlist file.
+- Updated `PROJECT_STATUS.md` next steps with a succinct backlog line for the AI ingestion confirm-gated flow.
+
+### Files changed
+
+- `docs/WISHLIST.md`
+- `README.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ updated documentation files with minimal targeted edits.
+- `git diff -- README.md PROJECT_STATUS.md docs/WISHLIST.md CODEX_LOG.md` ✅ verified expected documentation-only changes.
+
+### Follow-ups
+
+- Flesh out implementation design and ADRs when ingestion work is scheduled beyond wishlist stage.
+
