@@ -25,7 +25,6 @@ const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Ban = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" /></Icon>;
-const Clock = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
 const computePersonStatusForInterval = (personId: string, interval: { date: string; startTime?: string; durationMins?: number }, rules: Snapshot['rules']) => {
   const toMin = (time?: string) => (time ? (Number(time.split(':')[0]) * 60) + Number(time.split(':')[1]) : 0);
@@ -40,6 +39,14 @@ const computePersonStatusForInterval = (personId: string, interval: { date: stri
 
 const formatRuleTime = (rule: Snapshot['rules'][0]) => (!rule.startTime ? 'All day' : `${rule.startTime} (${rule.durationMins ?? 60}m)`);
 
+const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
+  const byDate = a.date.localeCompare(b.date);
+  if (byDate !== 0) return byDate;
+  if (!a.startTime && b.startTime) return -1;
+  if (a.startTime && !b.startTime) return 1;
+  return (a.startTime ?? '').localeCompare(b.startTime ?? '');
+});
+
 export function App() {
   const [message, setMessage] = useState('');
   const [view, setView] = useState<'appointments' | 'people'>('appointments');
@@ -50,7 +57,6 @@ export function App() {
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
-  const [rulesExpanded, setRulesExpanded] = useState<Record<string, boolean>>({});
   const [ruleModal, setRuleModal] = useState<{ person: Snapshot['people'][0]; kind: 'available' | 'unavailable' } | null>(null);
   const [ruleDate, setRuleDate] = useState('');
   const [ruleAllDay, setRuleAllDay] = useState(true);
@@ -107,8 +113,6 @@ export function App() {
     await sendMessage(sentence);
   };
 
-  const toggleRules = (personId: string) => setRulesExpanded((prev) => ({ ...prev, [personId]: !prev[personId] }));
-
   return (
     <main>
       <h1>Scheduler</h1>
@@ -125,8 +129,7 @@ export function App() {
               <thead><tr><th>Name</th><th>Cell</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
               <tbody>
                 {peopleInView.map((person) => {
-                  const personRules = snapshot.rules.filter((rule) => rule.personId === person.personId);
-                  const expanded = Boolean(rulesExpanded[person.personId]);
+                  const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                   return (
                     <Fragment key={person.personId}>
                       <tr key={person.personId}>
@@ -136,7 +139,6 @@ export function App() {
                         <td>{person.notes || '—'}</td>
                         <td>
                           <div className="action-icons">
-                            <button type="button" className="icon-button" aria-label="Show rules" data-tooltip="Show rules" onClick={() => toggleRules(person.personId)}><Clock /></button>
                             <button type="button" className="icon-button" aria-label="Edit" data-tooltip="Edit" onClick={() => { const name = prompt('Name', person.name); const cell = prompt('Cell', person.cellDisplay); if (name || cell) void sendMessage(`Update person personId=${person.personId}${name ? ` name=${name}` : ''}${cell ? ` cell=${cell}` : ''}`); }}><Pencil /></button>
                             <button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
                             <button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button>
@@ -144,22 +146,20 @@ export function App() {
                           </div>
                         </td>
                       </tr>
-                      {expanded ? (
+                      {personRules.length > 0 ? (
                         <tr key={`${person.personId}-rules`}>
                           <td colSpan={5} className="rules-cell">
-                            {personRules.length === 0 ? <span className="muted-empty">No rules.</span> : (
-                              <ul className="rules-list">
-                                {personRules.map((rule) => (
-                                  <li key={rule.code} className="rule-item">
-                                    <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
-                                    <span>{rule.date}</span>
-                                    <span>{formatRuleTime(rule)}</span>
-                                    <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
-                                    <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
+                            <ul className="rules-list">
+                              {personRules.map((rule) => (
+                                <li key={rule.code} className="rule-item">
+                                  <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
+                                  <span>{rule.date}</span>
+                                  <span>{formatRuleTime(rule)}</span>
+                                  <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
+                                  <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
+                                </li>
+                              ))}
+                            </ul>
                           </td>
                         </tr>
                       ) : null}
@@ -172,7 +172,7 @@ export function App() {
         </section>
       ) : null}
 
-      <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText)}>Send</button></div></form>
+      {view === 'appointments' ? <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText)}>Send</button></div></form> : null}
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
