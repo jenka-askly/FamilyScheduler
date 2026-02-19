@@ -79,11 +79,11 @@ main {
   padding: var(--table-cell-pad-y) var(--table-cell-pad-x);
   border-top: 1px solid #e2e8f0;
   vertical-align: top;
-  white-space: normal;
+  white-space: pre-line;
 }
 
 .data-table td.multiline-cell {
-  white-space: normal;
+  white-space: pre-line;
   min-width: 180px;
   max-width: 320px;
 }
@@ -225,7 +225,7 @@ input {
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
+  white-space: pre-line;
 }
 .toggle-row { display:flex; gap:.5rem; margin-bottom:.75rem; }
 .active-toggle { background:#1d4ed8; color:white; }
@@ -307,7 +307,7 @@ input {
   font-size: 0.75rem;
   border-radius: 4px;
   padding: 0.1rem 0.35rem;
-  white-space: normal;
+  white-space: pre-line;
   z-index: 5;
 }
 
@@ -341,7 +341,7 @@ input {
 }
 
 .rules-cell {
-  white-space: normal;
+  white-space: pre-line;
   background: #f8fafc;
 }
 
@@ -396,7 +396,7 @@ input {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  white-space: normal;
+  white-space: pre-line;
   word-break: break-word;
 }
 

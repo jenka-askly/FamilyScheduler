@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createEmptyAppState } from '../state.js';
 import { executeActions, resolveAppointmentTimes } from './executor.js';
 
-test('A: add appointment date+desc only creates all-day', () => {
-  const result = executeActions(createEmptyAppState(), [{ type: 'add_appointment', date: '2026-03-03', desc: 'Dentist' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+test('A: add appointment date+desc only creates all-day', async () => {
+  const result = await executeActions(createEmptyAppState(), [{ type: 'add_appointment', date: '2026-03-03', desc: 'Dentist' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   const appt = result.nextState.appointments[0];
   assert.equal(appt.date, '2026-03-03');
   assert.equal(appt.isAllDay, true);
@@ -14,56 +14,59 @@ test('A: add appointment date+desc only creates all-day', () => {
   assert.equal(appt.locationRaw, '');
   assert.equal(appt.locationDisplay, '');
   assert.equal(appt.locationMapQuery, '');
+  assert.equal(appt.locationName, '');
+  assert.equal(appt.locationAddress, '');
+  assert.equal(appt.locationDirections, '');
   assert.equal(appt.notes, '');
 });
 
-test('B: add appointment with startTime+duration stores timed range', () => {
-  const result = executeActions(createEmptyAppState(), [{ type: 'add_appointment', date: '2026-03-03', desc: 'Dentist', startTime: '10:00', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+test('B: add appointment with startTime+duration stores timed range', async () => {
+  const result = await executeActions(createEmptyAppState(), [{ type: 'add_appointment', date: '2026-03-03', desc: 'Dentist', startTime: '10:00', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   const appt = result.nextState.appointments[0];
   assert.equal(appt.startTime, '10:00');
   assert.equal(appt.durationMins, 60);
   assert.equal(appt.isAllDay, false);
 });
 
-test('C: reschedule date-only sets all-day', () => {
+test('C: reschedule date-only sets all-day', async () => {
   const state = createEmptyAppState();
-  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', startTime: '09:00', durationMins: 60, start: '2026-03-01T09:00:00-08:00', end: '2026-03-01T10:00:00-08:00', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', notes: '' });
-  const result = executeActions(state, [{ type: 'reschedule_appointment', code: 'APPT-1', date: '2026-03-05' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', startTime: '09:00', durationMins: 60, start: '2026-03-01T09:00:00-08:00', end: '2026-03-01T10:00:00-08:00', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
+  const result = await executeActions(state, [{ type: 'reschedule_appointment', code: 'APPT-1', date: '2026-03-05' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   const appt = result.nextState.appointments[0];
   assert.equal(appt.date, '2026-03-05');
   assert.equal(appt.isAllDay, true);
   assert.equal(appt.start, undefined);
 });
 
-test('D: people operations + idempotency + location/notes set-clear', () => {
+test('D: people operations + idempotency + location/notes set-clear', async () => {
   const state = createEmptyAppState();
-  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', notes: '' });
+  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
 
-  let result = executeActions(state, [{ type: 'add_people_to_appointment', code: 'APPT-1', people: [' Joe ', 'Sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  let result = await executeActions(state, [{ type: 'add_people_to_appointment', code: 'APPT-1', people: [' Joe ', 'Sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.deepEqual(result.nextState.appointments[0].people, ['Joe', 'Sam']);
 
-  result = executeActions(result.nextState, [{ type: 'add_people_to_appointment', code: 'APPT-1', people: ['joe'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'add_people_to_appointment', code: 'APPT-1', people: ['joe'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.deepEqual(result.nextState.appointments[0].people, ['Joe', 'Sam']);
 
-  result = executeActions(result.nextState, [{ type: 'replace_people_on_appointment', code: 'APPT-1', people: ['Sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'replace_people_on_appointment', code: 'APPT-1', people: ['Sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.deepEqual(result.nextState.appointments[0].people, ['Sam']);
 
-  result = executeActions(result.nextState, [{ type: 'remove_people_from_appointment', code: 'APPT-1', people: ['sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'remove_people_from_appointment', code: 'APPT-1', people: ['sam'] }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.deepEqual(result.nextState.appointments[0].people, []);
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', locationRaw: 'Kaiser	Redwood City' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', locationRaw: 'Kaiser	Redwood City' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].locationRaw, 'Kaiser	Redwood City');
   assert.equal(result.nextState.appointments[0].locationDisplay, 'Kaiser, Redwood City');
   assert.equal(result.nextState.appointments[0].locationMapQuery, 'Kaiser, Redwood City');
   assert.equal(result.nextState.appointments[0].location, 'Kaiser, Redwood City');
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', location: '' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_location', code: 'APPT-1', location: '' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].location, '');
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_notes', code: 'APPT-1', notes: ' Bring insurance card ' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_notes', code: 'APPT-1', notes: ' Bring insurance card ' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].notes, 'Bring insurance card');
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_notes', code: 'APPT-1', notes: '' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_notes', code: 'APPT-1', notes: '' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].notes, '');
 });
 
@@ -73,12 +76,12 @@ test('resolveAppointmentTimes ignores duration when startTime missing', () => {
   assert.equal(resolved.startIso, undefined);
 });
 
-test('E: add_rule removes overlapping opposite-kind conflicts and keeps new rule', () => {
+test('E: add_rule removes overlapping opposite-kind conflicts and keeps new rule', async () => {
   const state = createEmptyAppState();
   state.people.push({ personId: 'P-1', name: 'Jay Yap', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
   state.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', desc: '' });
 
-  const result = executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'available', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  const result = await executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'available', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
 
   assert.equal(result.nextState.rules.length, 1);
   assert.equal(result.nextState.rules[0].kind, 'available');
@@ -86,39 +89,39 @@ test('E: add_rule removes overlapping opposite-kind conflicts and keeps new rule
   assert.equal(result.effectsTextLines.some((line) => line.includes('Remove conflicting UNAVAILABLE rule RULE-1')), true);
 });
 
-test('F: add_rule allows overlapping same-kind rules', () => {
+test('F: add_rule allows overlapping same-kind rules', async () => {
   const state = createEmptyAppState();
   state.people.push({ personId: 'P-1', name: 'Jay Yap', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
   state.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', desc: '' });
 
-  const result = executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  const result = await executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
 
   assert.equal(result.nextState.rules.length, 2);
   assert.equal(result.effectsTextLines.some((line) => line.includes('conflicting rule')), false);
 });
 
-test('G: add unavailable rule removes overlapping available rules', () => {
+test('G: add unavailable rule removes overlapping available rules', async () => {
   const state = createEmptyAppState();
   state.people.push({ personId: 'P-1', name: 'Jay Yap', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
   state.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'available', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', desc: '' });
 
-  const result = executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  const result = await executeActions(state, [{ type: 'add_rule', personId: 'P-1', kind: 'unavailable', date: '2026-02-19', startTime: '09:30', durationMins: 60 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
 
   assert.equal(result.nextState.rules.length, 1);
   assert.equal(result.nextState.rules[0].kind, 'unavailable');
   assert.equal(result.effectsTextLines.some((line) => line.includes('Remove conflicting AVAILABLE rule RULE-1')), true);
 });
 
-test('H: direct appointment inline actions update fields', () => {
+test('H: direct appointment inline actions update fields', async () => {
   const state = createEmptyAppState();
-  let result = executeActions(state, [{ type: 'create_blank_appointment' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  let result = await executeActions(state, [{ type: 'create_blank_appointment' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   const code = result.nextState.appointments[0].code;
   assert.equal(result.nextState.appointments[0].title, '');
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_date', code, date: '2026-05-01' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
-  result = executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: '14:30' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
-  result = executeActions(result.nextState, [{ type: 'set_appointment_desc', code, desc: 'CT Scan' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
-  result = executeActions(result.nextState, [{ type: 'set_appointment_duration', code, durationMins: 90 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_date', code, date: '2026-05-01' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: '14:30' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_desc', code, desc: 'CT Scan' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_duration', code, durationMins: 90 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
 
   const appt = result.nextState.appointments[0];
   assert.equal(appt.date, '2026-05-01');
@@ -126,7 +129,7 @@ test('H: direct appointment inline actions update fields', () => {
   assert.equal(appt.durationMins, 90);
   assert.equal(appt.title, 'CT Scan');
 
-  result = executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: undefined }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = await executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: undefined }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].startTime, undefined);
   assert.equal(result.nextState.appointments[0].durationMins, undefined);
 });

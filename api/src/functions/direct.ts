@@ -7,7 +7,7 @@ import { ConflictError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; notes: string }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'inactive'; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
   historyCount?: number;
@@ -52,7 +52,10 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       location: appointment.locationDisplay ?? appointment.location ?? '',
       locationRaw: appointment.locationRaw ?? '',
       locationDisplay: appointment.locationDisplay ?? appointment.location ?? '',
-      locationMapQuery: appointment.locationMapQuery ?? appointment.locationDisplay ?? appointment.location ?? '',
+      locationMapQuery: appointment.locationMapQuery ?? appointment.locationAddress ?? appointment.locationDisplay ?? appointment.location ?? '',
+      locationName: appointment.locationName ?? '',
+      locationAddress: appointment.locationAddress ?? '',
+      locationDirections: appointment.locationDirections ?? '',
       notes: appointment.notes ?? ''
     };
   }),
@@ -130,7 +133,7 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
   }
 
   const loaded = await storage.getState();
-  const execution = executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+  const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (!execution.appliedAll) return { status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } };
 
   try {

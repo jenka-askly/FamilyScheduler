@@ -7,6 +7,9 @@
     "LOCAL_STATE_PATH": "./.local/state.json",
     "BLOB_SAS_URL": "",
     "STATE_BLOB_NAME": "state.json",
-    "BLOB_KIND": ""
+    "BLOB_KIND": "",
+    "LOCATION_AI_FORMATTING": "false",
+    "LOCATION_AI_MODEL": "",
+    "LOCATION_AI_LOG_RAW": "false"
   }
 }
