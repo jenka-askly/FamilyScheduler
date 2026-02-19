@@ -1985,3 +1985,37 @@ Implement the requested focused updates across web+api: remove density toggle, c
 ### Follow-ups
 
 - Validate full end-to-end join redirect behavior in local integrated `pnpm dev` environment with API host running.
+
+## 2026-02-19 08:17 UTC (hard route gate + auth trace logs)
+
+### Objective
+
+Enforce a hard access gate for `/#/g/:groupId/app` (no app render before join authorization), propagate deny reasons to join page, and add traceable auth logs across web and API.
+
+### Approach
+
+- Reworked web guarded route flow to explicit `authStatus` (`checking|allowed|denied`) and deny reason codes.
+- Added per-navigation `traceId`, hard non-render policy until allow, and `replace` redirects to avoid back-loop.
+- Propagated `err` + `trace` query params to join page and added join-page error banner mapping + debug logs.
+- Added API auth logging utility and instrumented `/api/group/join`, `/api/chat`, and `/api/direct` gate stages behind `DEBUG_AUTH_LOGS`.
+- Documented auth debug flags in README and PROJECT_STATUS.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `api/src/lib/logging/authLogs.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `README.md`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present test` ✅ all existing API tests passed.
+- `pnpm -r --if-present build` ❌ first run failed on a TypeScript narrowing issue in `apps/web/src/App.tsx`.
+- `pnpm -r --if-present build` ✅ second run passed after fixing denied-error narrowing.
+
+### Follow-ups
+
+- Run manual browser QA script for incognito / wrong phone / allowed scenarios and capture trace-linked logs.

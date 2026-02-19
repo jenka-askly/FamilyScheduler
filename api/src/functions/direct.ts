@@ -6,6 +6,7 @@ import { type AppState } from '../lib/state.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
+import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 
 type ResponseSnapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
@@ -14,7 +15,7 @@ type ResponseSnapshot = {
   historyCount?: number;
 };
 
-type DirectBody = { action?: unknown; groupId?: unknown; phone?: unknown };
+type DirectBody = { action?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown };
 
 type DirectAction =
   | { type: 'create_blank_appointment' }
@@ -122,10 +123,12 @@ const parseDirectAction = (value: unknown): DirectAction => {
 };
 
 export async function direct(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const traceId = randomUUID();
+  const fallbackTraceId = randomUUID();
   const body = await request.json() as DirectBody;
+  const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
   const identity = validateJoinRequest(body.groupId, body.phone);
   if (!identity.ok) return identity.response;
+  logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
 
   let directAction: DirectAction;
   try {
@@ -141,7 +144,12 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     if (error instanceof GroupNotFoundError) return { status: 404, jsonBody: { ok: false, error: 'group_not_found' } };
     throw error;
   }
-  if (!findActivePersonByPhone(loaded.state, identity.phoneE164)) return { status: 403, jsonBody: { error: 'not_allowed' } };
+  const allowed = findActivePersonByPhone(loaded.state, identity.phoneE164);
+  if (!allowed) {
+    logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
+    return { status: 403, jsonBody: { error: 'not_allowed' } };
+  }
+  logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (!execution.appliedAll) return { status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } };
 

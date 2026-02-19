@@ -31,3 +31,10 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 
 - People pane “Add person” is the invite mechanism: add sibling phone, then sibling can join by link + phone.
 - All admitted members can edit all data.
+
+
+## Auth debugging
+
+- Web auth trace logs: set `VITE_DEBUG_AUTH_LOGS=true` (default `false`).
+- API auth/join/gate trace logs: set `DEBUG_AUTH_LOGS=true` (default `false`).
+- Join and guarded-app flows propagate `traceId` so web and API logs can be correlated.

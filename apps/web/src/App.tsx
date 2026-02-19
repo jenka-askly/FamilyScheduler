@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './AppShell';
 
 type Session = { groupId: string; phone: string; joinedAt: string };
+type AuthStatus = 'checking' | 'allowed' | 'denied';
+type AuthError = 'no_session' | 'group_mismatch' | 'not_allowed' | 'group_not_found' | 'join_failed';
 
 const SESSION_KEY = 'familyscheduler.session';
 
@@ -24,7 +26,17 @@ const clearSession = (): void => {
   window.localStorage.removeItem(SESSION_KEY);
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string } => {
+const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+const authLog = (payload: Record<string, unknown>): void => {
+  if (!debugAuthLogsEnabled) return;
+  console.log(payload);
+};
+const createTraceId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -32,11 +44,20 @@ const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'ap
   const appMatch = path.match(/^\/g\/([^/]+)\/app$/);
   if (appMatch) return { type: 'app', groupId: appMatch[1] };
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
-  if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined };
+  if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined, traceId: query.get('trace') ?? undefined };
   return { type: 'create' };
 };
 
-const nav = (path: string) => { window.location.hash = path; };
+const nav = (path: string, options?: { replace?: boolean }) => {
+  if (options?.replace) {
+    const next = `${window.location.pathname}${window.location.search}#${path.startsWith('/') ? path : `/${path}`}`;
+    window.location.replace(next);
+    return;
+  }
+  window.location.hash = path;
+};
+
+const toJoinRoute = (groupId: string, error: AuthError, traceId: string): string => `/g/${groupId}?err=${error}&trace=${traceId}`;
 
 function CreateGroupPage() {
   const [groupName, setGroupName] = useState('');
@@ -112,14 +133,19 @@ function CreateGroupPage() {
   );
 }
 
-function JoinGroupPage({ groupId, routeError }: { groupId: string; routeError?: string }) {
+function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
   const [phone, setPhone] = useState('');
-  const [error, setError] = useState<string | null>(routeError === 'not_allowed' ? 'Not authorized. Ask someone to add your phone.' : null);
+  const [error, setError] = useState<string | null>(routeError === 'not_allowed' ? 'Not authorized. Ask someone to add your phone.' : routeError === 'group_not_found' ? 'Group not found.' : routeError === 'group_mismatch' ? 'Session was for another group. Please join again.' : routeError === 'join_failed' ? 'Unable to verify access. Please try again.' : routeError === 'no_session' ? 'Please join the group to continue.' : null);
+
+  useEffect(() => {
+    authLog({ stage: 'join_page_loaded', groupId, err: routeError ?? null, traceId: traceId ?? null });
+  }, [groupId, routeError, traceId]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    const response = await fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone }) });
+    const requestTraceId = createTraceId();
+    const response = await fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       setError('Not authorized. Ask someone in the group to add your phone in People.');
@@ -134,37 +160,71 @@ function JoinGroupPage({ groupId, routeError }: { groupId: string; routeError?: 
 }
 
 function GuardedApp({ groupId }: { groupId: string }) {
-  const [ready, setReady] = useState(false);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
+  const [authError, setAuthError] = useState<AuthError | undefined>();
   const [phone, setPhone] = useState('');
+  const [traceId] = useState(() => createTraceId());
 
   useEffect(() => {
+    let canceled = false;
     const session = readSession();
+    authLog({ stage: 'auth_start', traceId, routeGroupId: groupId, hasSession: !!session, sessionGroupId: session?.groupId ?? null, hasPhone: !!session?.phone });
     if (!session || !session.phone) {
-      nav(`/g/${groupId}`);
+      if (canceled) return;
+      setAuthStatus('denied');
+      setAuthError('no_session');
+      authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: 'no_session' });
+      nav(toJoinRoute(groupId, 'no_session', traceId), { replace: true });
       return;
     }
 
     if (session.groupId !== groupId) {
       clearSession();
-      nav(`/g/${groupId}`);
+      if (canceled) return;
+      setAuthStatus('denied');
+      setAuthError('group_mismatch');
+      authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: 'group_mismatch' });
+      nav(toJoinRoute(groupId, 'group_mismatch', traceId), { replace: true });
       return;
     }
 
     setPhone(session.phone);
-    fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone }) })
+    authLog({ stage: 'auth_join_request', traceId, groupId });
+    void fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
       .then(async (response) => {
-        const data = await response.json();
+        const data = await response.json() as { ok?: boolean; error?: AuthError };
+        const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
+        authLog({ stage: 'auth_join_response', traceId, ok: response.ok && !!data.ok, error: responseError ?? null });
         if (!response.ok || !data.ok) {
           clearSession();
-          const err = data?.error === 'not_allowed' ? 'not_allowed' : 'not_allowed';
-          nav(`/g/${groupId}?err=${err}`);
+          if (canceled) return;
+          const deniedError = responseError ?? 'join_failed';
+          setAuthStatus('denied');
+          setAuthError(deniedError);
+          authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: deniedError });
+          nav(toJoinRoute(groupId, deniedError, traceId), { replace: true });
           return;
         }
-        setReady(true);
+        if (canceled) return;
+        setAuthStatus('allowed');
+        authLog({ stage: 'auth_decision', traceId, authStatus: 'allowed', authError: null });
+      })
+      .catch(() => {
+        clearSession();
+        if (canceled) return;
+        setAuthStatus('denied');
+        setAuthError('join_failed');
+        authLog({ stage: 'auth_join_response', traceId, ok: false, error: 'join_failed' });
+        authLog({ stage: 'auth_decision', traceId, authStatus: 'denied', authError: 'join_failed' });
+        nav(toJoinRoute(groupId, 'join_failed', traceId), { replace: true });
       });
-  }, [groupId]);
 
-  if (!ready) return <main className="app-shell"><p>Checking access...</p></main>;
+    return () => {
+      canceled = true;
+    };
+  }, [groupId, traceId]);
+
+  if (authStatus !== 'allowed') return <main className="app-shell"><p>{authStatus === 'checking' ? 'Checking access...' : `Redirecting to join (${authError ?? 'denied'})...`}</p></main>;
   return <AppShell groupId={groupId} phone={phone} />;
 }
 
@@ -178,6 +238,6 @@ export function App() {
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
-  if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} />;
+  if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
   return <GuardedApp groupId={route.groupId} />;
 }

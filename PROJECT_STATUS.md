@@ -6,6 +6,8 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 
 ## What works now
 
+- Hard route gate is now enforced for `/#/g/:groupId/app`: app UI only renders after a successful `/api/group/join`; denied sessions are redirected with `err` + `trace` query params to join.
+- Debug auth logging is available behind `VITE_DEBUG_AUTH_LOGS` (web) and `DEBUG_AUTH_LOGS` (api), including join and gate decision stages.
 - Create group now initializes creator as the first active person in `people[]` with normalized phone values and creation metadata.
 - Create Group page now shows a share link (with Copy) before navigating, plus a Continue button to enter the app.
 - Optional AI-assisted location parsing is now available behind `LOCATION_AI_FORMATTING` (default `false`), with fallback heuristic normalization preserved when disabled or parsing fails.
