@@ -1,26 +1,35 @@
-import { FormEvent, ReactNode, useMemo, useState } from 'react';
+import { FormEvent, Fragment, ReactNode, useMemo, useState } from 'react';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'inactive'; timezone?: string; notes?: string }>;
-  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; desc?: string }>;
+  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
   historyCount?: number;
 };
 
-type ChatResponse = { kind: 'reply'; assistantText: string; snapshot?: Snapshot } | { kind: 'proposal'; proposalId: string; assistantText: string; snapshot?: Snapshot } | { kind: 'applied'; assistantText: string; snapshot?: Snapshot } | { kind: 'clarify'; question: string; snapshot?: Snapshot };
+type ChatResponse =
+  | { kind: 'reply'; assistantText: string; snapshot?: Snapshot }
+  | { kind: 'proposal'; proposalId: string; assistantText: string; snapshot?: Snapshot }
+  | { kind: 'applied'; assistantText: string; snapshot?: Snapshot }
+  | { kind: 'clarify'; question: string; snapshot?: Snapshot };
 
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
 
-const Icon = ({ children }: { children: ReactNode }) => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{children}</svg>;
+const Icon = ({ children }: { children: ReactNode }) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    {children}
+  </svg>
+);
 const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" /></Icon>;
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Ban = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m6 6 12 12" /></Icon>;
+const Clock = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
 const computePersonStatusForInterval = (personId: string, interval: { date: string; startTime?: string; durationMins?: number }, rules: Snapshot['rules']) => {
-  const toMin = (time?: string) => time ? (Number(time.split(':')[0]) * 60) + Number(time.split(':')[1]) : 0;
-  const bounds = (startTime?: string, durationMins?: number) => !startTime ? { s: 0, e: 1440 } : { s: toMin(startTime), e: Math.min(1440, toMin(startTime) + (durationMins ?? 60)) };
+  const toMin = (time?: string) => (time ? (Number(time.split(':')[0]) * 60) + Number(time.split(':')[1]) : 0);
+  const bounds = (startTime?: string, durationMins?: number) => (!startTime ? { s: 0, e: 1440 } : { s: toMin(startTime), e: Math.min(1440, toMin(startTime) + (durationMins ?? 60)) });
   const appt = bounds(interval.startTime, interval.durationMins);
   const overlaps = (a: { s: number; e: number }, b: { s: number; e: number }) => a.s < b.e && a.e > b.s;
   const matching = rules.filter((rule) => rule.personId === personId && rule.date === interval.date).filter((rule) => overlaps(appt, bounds(rule.startTime, rule.durationMins)));
@@ -29,15 +38,19 @@ const computePersonStatusForInterval = (personId: string, interval: { date: stri
   return { status: 'unknown' as const };
 };
 
+const formatRuleTime = (rule: Snapshot['rules'][0]) => (!rule.startTime ? 'All day' : `${rule.startTime} (${rule.durationMins ?? 60}m)`);
+
 export function App() {
   const [message, setMessage] = useState('');
   const [view, setView] = useState<'appointments' | 'people'>('appointments');
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
+  const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
   const [proposalText, setProposalText] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
+  const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
+  const [rulesExpanded, setRulesExpanded] = useState<Record<string, boolean>>({});
   const [ruleModal, setRuleModal] = useState<{ person: Snapshot['people'][0]; kind: 'available' | 'unavailable' } | null>(null);
   const [ruleDate, setRuleDate] = useState('');
   const [ruleAllDay, setRuleAllDay] = useState(true);
@@ -46,20 +59,33 @@ export function App() {
   const [ruleDesc, setRuleDesc] = useState('');
 
   const sendMessage = async (outgoingMessage: string) => {
-    const trimmed = outgoingMessage.trim(); if (!trimmed) return;
-    setTranscript((p) => [...p, { role: 'user', text: trimmed }]); setIsSubmitting(true);
+    const trimmed = outgoingMessage.trim();
+    if (!trimmed) return;
+    setTranscript((p) => [...p, { role: 'user', text: trimmed }]);
+    setIsSubmitting(true);
     try {
       const response = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed }) });
-      if (!response.ok) { setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]); return; }
+      if (!response.ok) {
+        setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]);
+        return;
+      }
       const json = (await response.json()) as ChatResponse;
       if (json.snapshot) setSnapshot(json.snapshot);
       const text = json.kind === 'clarify' ? json.question : json.assistantText;
       setTranscript((p) => [...p, { role: 'assistant', text }]);
       setProposalText(json.kind === 'proposal' ? json.assistantText : null);
-    } finally { setIsSubmitting(false); }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!message.trim() || proposalText) return; const out = message; setMessage(''); await sendMessage(out); };
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!message.trim() || proposalText) return;
+    const out = message;
+    setMessage('');
+    await sendMessage(out);
+  };
 
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => a.date.localeCompare(b.date)), [snapshot.appointments]);
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
@@ -76,11 +102,12 @@ export function App() {
 
   const submitRuleProposal = async () => {
     if (!ruleModal || !ruleDate) return;
-    const ruleKind = ruleModal.kind;
-    const sentence = `Add ${ruleKind} rule for personId=${ruleModal.person.personId} on ${ruleDate}${ruleAllDay ? ' allDay=true' : ` startTime=${ruleStartTime} durationMins=${ruleDurationMins}`}${ruleDesc ? ` desc='${ruleDesc.replace(/'/g, "’")}'` : ''}.`;
+    const sentence = `Add ${ruleModal.kind} rule for personId=${ruleModal.person.personId} on ${ruleDate}${ruleAllDay ? ' allDay=true' : ` startTime=${ruleStartTime} durationMins=${ruleDurationMins}`}${ruleDesc ? ` desc='${ruleDesc.replace(/'/g, '’')}'` : ''}.`;
     setRuleModal(null);
     await sendMessage(sentence);
   };
+
+  const toggleRules = (personId: string) => setRulesExpanded((prev) => ({ ...prev, [personId]: !prev[personId] }));
 
   return (
     <main>
@@ -89,13 +116,69 @@ export function App() {
 
       {view === 'appointments' ? <section className="panel"><h2>Appointments</h2>{sortedAppointments.length === 0 ? <p>No appointments yet.</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Code</th><th>Date</th><th>Time</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th></tr></thead><tbody>{sortedAppointments.map((appointment) => <tr key={appointment.code}><td><code>{appointment.code}</code></td><td>{appointment.date || '—'}</td><td>{appointment.isAllDay ? 'All day' : `${appointment.startTime ?? '—'} (${appointment.durationMins ?? 60}m)`}</td><td>{appointment.desc}</td><td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td><td>{appointment.location || '—'}</td><td>{appointment.notes || '—'}</td></tr>)}</tbody></table></div>}</section> : null}
 
-      {view === 'people' ? <section className="panel"><h2>People</h2><button type="button" onClick={() => { const n = prompt('Name'); const c = prompt('Cell'); if (n && c) void sendMessage(`Add person name=${n} cell=${c}`); }}>Add person</button><div className="table-wrap"><table className="data-table"><thead><tr><th>Name</th><th>Cell</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{peopleInView.map((person) => <tr key={person.personId}><td>{person.name}</td><td>{person.cellDisplay}</td><td>{person.status}</td><td>{person.notes || '—'}</td><td><div className="action-icons"><button type="button" className="icon-button" aria-label="Edit" data-tooltip="Edit" onClick={() => { const name = prompt('Name', person.name); const cell = prompt('Cell', person.cellDisplay); if (name || cell) void sendMessage(`Update person personId=${person.personId}${name ? ` name=${name}` : ''}${cell ? ` cell=${cell}` : ''}`); }}><Pencil /></button><button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button><button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button><button type="button" className="icon-button" aria-label="Add unavailable" data-tooltip="Add Unavailable" onClick={() => openRuleModal(person, 'unavailable')}><Ban /></button></div></td></tr>)}</tbody></table></div></section> : null}
+      {view === 'people' ? (
+        <section className="panel">
+          <h2>People</h2>
+          <button type="button" onClick={() => { const n = prompt('Name'); const c = prompt('Cell'); if (n && c) void sendMessage(`Add person name=${n} cell=${c}`); }}>Add person</button>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Cell</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+              <tbody>
+                {peopleInView.map((person) => {
+                  const personRules = snapshot.rules.filter((rule) => rule.personId === person.personId);
+                  const expanded = Boolean(rulesExpanded[person.personId]);
+                  return (
+                    <Fragment key={person.personId}>
+                      <tr key={person.personId}>
+                        <td>{person.name}</td>
+                        <td>{person.cellDisplay}</td>
+                        <td>{person.status}</td>
+                        <td>{person.notes || '—'}</td>
+                        <td>
+                          <div className="action-icons">
+                            <button type="button" className="icon-button" aria-label="Show rules" data-tooltip="Show rules" onClick={() => toggleRules(person.personId)}><Clock /></button>
+                            <button type="button" className="icon-button" aria-label="Edit" data-tooltip="Edit" onClick={() => { const name = prompt('Name', person.name); const cell = prompt('Cell', person.cellDisplay); if (name || cell) void sendMessage(`Update person personId=${person.personId}${name ? ` name=${name}` : ''}${cell ? ` cell=${cell}` : ''}`); }}><Pencil /></button>
+                            <button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
+                            <button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button>
+                            <button type="button" className="icon-button" aria-label="Add unavailable" data-tooltip="Add Unavailable" onClick={() => openRuleModal(person, 'unavailable')}><Ban /></button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr key={`${person.personId}-rules`}>
+                          <td colSpan={5} className="rules-cell">
+                            {personRules.length === 0 ? <span className="muted-empty">No rules.</span> : (
+                              <ul className="rules-list">
+                                {personRules.map((rule) => (
+                                  <li key={rule.code} className="rule-item">
+                                    <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
+                                    <span>{rule.date}</span>
+                                    <span>{formatRuleTime(rule)}</span>
+                                    <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
+                                    <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText)}>Send</button></div></form>
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
       {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete person?</h3><p>This will deactivate {personToDelete.name}. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Deactivate person personId=${personToDelete.personId}`); setPersonToDelete(null); }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+
+      {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {ruleModal ? <div className="modal-backdrop"><div className="modal"><h3>{ruleModal.kind === 'available' ? 'Add Available' : 'Add Unavailable'} Rule</h3><div className="field-grid"><label>Date<input type="date" value={ruleDate} onChange={(event) => setRuleDate(event.target.value)} /></label><label className="switch-row">All-day<input type="checkbox" checked={ruleAllDay} onChange={(event) => setRuleAllDay(event.target.checked)} /></label>{!ruleAllDay ? <><label>Start time<input type="time" value={ruleStartTime} onChange={(event) => setRuleStartTime(event.target.value)} /></label><label>Duration<select value={ruleDurationMins} onChange={(event) => setRuleDurationMins(event.target.value)}><option value="30">30 mins</option><option value="60">60 mins</option><option value="90">90 mins</option><option value="120">120 mins</option><option value="180">180 mins</option><option value="240">240 mins</option></select></label></> : null}<label>Notes/reason<input type="text" placeholder="Optional" value={ruleDesc} onChange={(event) => setRuleDesc(event.target.value)} /></label></div><div className="modal-actions"><button type="button" onClick={() => void submitRuleProposal()} disabled={!ruleDate}>Propose</button><button type="button" onClick={() => setRuleModal(null)}>Cancel</button></div></div></div> : null}
 

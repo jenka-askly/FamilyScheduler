@@ -241,3 +241,23 @@ input {
 .switch-row input {
   flex: 0;
 }
+
+.rules-cell {
+  white-space: normal;
+  background: #f8fafc;
+}
+
+.rules-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.rule-item {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+}
