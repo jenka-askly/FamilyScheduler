@@ -1,4 +1,7 @@
 import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { FooterHelp } from './components/layout/FooterHelp';
+import { Page } from './components/layout/Page';
+import { PageHeader } from './components/layout/PageHeader';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -95,8 +98,14 @@ const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
   return (a.startTime ?? '').localeCompare(b.startTime ?? '');
 });
 
-export function AppShell({ groupId, phone }: { groupId: string; phone: string }) {
+function autoGrowTextarea(el: HTMLTextAreaElement) {
+  el.style.height = 'auto';
+  el.style.height = `${Math.max(el.scrollHeight, 60)}px`;
+}
+
+export function AppShell({ groupId, phone, groupName: initialGroupName }: { groupId: string; phone: string; groupName?: string }) {
   const [message, setMessage] = useState('');
+  const [groupName, setGroupName] = useState<string | undefined>(initialGroupName);
   const [view, setView] = useState<'appointments' | 'people'>('appointments');
   const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
@@ -123,6 +132,7 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
   const [ruleDurationMins, setRuleDurationMins] = useState('60');
   const [ruleDesc, setRuleDesc] = useState('');
   const didInitialLoad = useRef(false);
+  const appointmentDescRef = useRef<HTMLTextAreaElement | null>(null);
 
   const toggleAppointmentPerson = (appointment: Snapshot['appointments'][0], personId: string) => {
     const selected = new Set(appointment.people);
@@ -281,6 +291,32 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
     personNameInputRef.current?.focus();
   }, [editingPersonId]);
 
+
+  useEffect(() => {
+    let canceled = false;
+
+    const loadGroupMeta = async () => {
+      try {
+        const response = await fetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
+        if (!response.ok) return;
+        const data = await response.json() as { ok?: boolean; groupName?: string };
+        if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
+      } catch {
+        // Ignore metadata load failures; header can still render with groupId.
+      }
+    };
+
+    if (!initialGroupName) void loadGroupMeta();
+    return () => {
+      canceled = true;
+    };
+  }, [groupId, initialGroupName]);
+
+  useEffect(() => {
+    if (!editingApptCode || !appointmentDescRef.current) return;
+    autoGrowTextarea(appointmentDescRef.current);
+  }, [editingApptCode]);
+
   useEffect(() => {
     if (!editingApptCode) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -332,8 +368,13 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
 
 
   return (
-    <main>
-      <h1>Scheduler</h1>
+    <Page variant="workspace">
+      <PageHeader
+        title="Appointments"
+        description="Add, edit, and track upcoming appointments for this group."
+        groupName={groupName}
+        groupId={groupId}
+      />
       <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
 
       {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
@@ -342,9 +383,21 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
         <section className="panel">
           <div className="panel-header">
             <h2>Appointments</h2>
-            <button type="button" onClick={() => void addAppointment()}>Add</button>
+            <button className="fs-btnPrimary" type="button" onClick={() => void addAppointment()}>Add Appointment</button>
           </div>
-          {sortedAppointments.length === 0 ? <p>No appointments yet.</p> : (
+          {sortedAppointments.length === 0 ? (
+            <div className="fs-alert" style={{ maxWidth: 760 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
+              <div style={{ color: 'var(--muted)' }}>
+                Click “Add Appointment” to create the first entry.
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <button className="fs-btnPrimary" type="button" onClick={() => void addAppointment()}>
+                  Add Appointment
+                </button>
+              </div>
+            </div>
+          ) : (
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
@@ -379,7 +432,7 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
                         </td>
                         <td className="multiline-cell">
                           {isEditing ? (
-                            <textarea rows={2} autoFocus={editingApptCode === appointment.code && !appointment.desc} defaultValue={appointment.desc} onBlur={(event) => { if (event.currentTarget.value !== appointment.desc) void sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: event.currentTarget.value }); }} />
+                            <textarea ref={isEditing ? appointmentDescRef : undefined} rows={2} autoFocus={editingApptCode === appointment.code && !appointment.desc} defaultValue={appointment.desc} onInput={(event) => autoGrowTextarea(event.currentTarget)} onBlur={(event) => { if (event.currentTarget.value !== appointment.desc) void sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: event.currentTarget.value }); }} />
                           ) : (
                             <span className="line-clamp" title={appointment.desc}>{appointment.desc || '—'}</span>
                           )}
@@ -497,6 +550,7 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
           <div className="picker-status-wrap"><span className={`status-tag ${status.status}`}>{status.status === 'available' ? 'Available' : status.status === 'unavailable' ? 'Unavailable' : 'Unknown'}</span></div>
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
-    </main>
+      <FooterHelp />
+    </Page>
   );
 }

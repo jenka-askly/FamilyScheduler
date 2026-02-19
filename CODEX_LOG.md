@@ -2249,3 +2249,36 @@ Upgrade the Create Group page to use form layout primitives and present a polish
 ### Follow-ups
 
 - Install Azure Functions Core Tools (`func`) in local dev/runtime to run full-stack `pnpm dev` and verify create flow against real API.
+
+## 2026-02-19 23:00 UTC (CODEX-006 appointments workspace UX upgrade)
+
+### Objective
+
+Upgrade the appointments workspace UX with page layout primitives, empty-state CTA, and multiline auto-growing description editing.
+
+### Approach
+
+- Updated `AppShell` to use `Page variant="workspace"`, `PageHeader`, and `FooterHelp` for app-level workspace framing.
+- Added group metadata loading for the header (`groupName`) via `/api/group/meta` fallback.
+- Updated appointments panel UX:
+  - `Add Appointment` button now uses `fs-btnPrimary` and non-full-width behavior.
+  - Added empty-state alert panel with CTA wired to existing `addAppointment` flow.
+- Updated appointment description edit control to use `<textarea>` with auto-grow helper and edit-entry grow trigger.
+- Updated continuity docs in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 5173` ✅ started for browser verification (stopped with SIGINT after capture).
+- `mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact `appointments-workspace-ux.png`.
+
+### Follow-ups
+
+- Optional: convert more row-edit textareas (location/notes) to auto-grow for full consistency.
