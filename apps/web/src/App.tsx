@@ -137,7 +137,7 @@ export function App() {
 
   return (
     <main>
-      <h1>FamilyScheduler</h1>
+      <h1>Scheduler</h1>
 
       <section className="panel" aria-label="Appointments">
         <h2>Appointments</h2>
