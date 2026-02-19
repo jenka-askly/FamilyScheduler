@@ -1,30 +1,33 @@
 :root {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 14px;
   line-height: 1.4;
 }
 
 body {
   margin: 0;
+  font-size: 1rem;
   background: #f8fafc;
 }
 
 main {
   max-width: 760px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1.5rem 0.875rem;
 }
 
 .panel,
-.transcript {
+.transcript,
+.assistant-prompt {
   background: white;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .transcript {
-  min-height: 150px;
+  min-height: 120px;
 }
 
 .panel h2 {
@@ -38,13 +41,13 @@ main {
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
 }
 
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.4rem 0.5rem;
+  padding: 0.3rem 0.45rem;
   border-top: 1px solid #e2e8f0;
   vertical-align: top;
   white-space: nowrap;
@@ -62,7 +65,7 @@ main {
 
 .code-button code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .unassigned-badge {
@@ -76,7 +79,7 @@ main {
 
 form {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .input-row {
@@ -87,7 +90,7 @@ form {
 input,
 button {
   font: inherit;
-  padding: 0.6rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   border-radius: 6px;
   border: 1px solid #94a3b8;
 }
@@ -101,8 +104,29 @@ input {
 }
 
 .history-toggle {
-  margin-bottom: 0.5rem;
-  background: white;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.history-toggle:hover {
+  color: #334155;
+}
+
+.assistant-prompt-label {
+  margin: 0 0 0.25rem;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.assistant-prompt-text {
+  margin: 0;
 }
 
 .modal-backdrop {

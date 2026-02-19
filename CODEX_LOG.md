@@ -1243,3 +1243,32 @@ Implement ACTION_SCHEMA_VERSION v3 for full appointment people operations (add/r
 ### Follow-ups
 
 - Consider removing legacy `assigned` from appointment model once all consumers are migrated.
+
+## 2026-02-19 02:34 UTC (web UX simplify dashboard + minimal history)
+
+### Objective
+
+Apply UI-only polish in `apps/web`: hide Availability pane, reduce baseline typography/spacing, and collapse transcript by default while preserving clarify/proposal attention handling.
+
+### Approach
+
+- Updated dashboard rendering to remove the Availability section while leaving snapshot data contracts untouched.
+- Added response-kind-driven UI state (`lastResponseKind`) and compact assistant callout shown only for clarify responses.
+- Kept full transcript behind a subtle expandable/collapsible History link, with default hidden state.
+- Reduced typography baseline to 14px and tightened table/card/input spacing for denser layout.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C apps/web build` ✅ build passed.
+- `pnpm -C apps/web lint` ⚠️ script not defined in `apps/web/package.json`.
+
+### Follow-ups
+
+- Run full app manual QA (`pnpm dev`) to exercise clarify/proposal paths end-to-end against API.

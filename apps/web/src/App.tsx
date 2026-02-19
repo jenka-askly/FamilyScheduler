@@ -46,13 +46,6 @@ function formatTimeRange(startTime?: string, durationMins?: number, isAllDay?: b
   return `${startTime} (${durationMins ?? 60}m)`;
 }
 
-function formatIsoTimeRange(start?: string, end?: string) {
-  if (!start && !end) return '—';
-  const startText = start ? start.slice(11, 16) : '—';
-  const endText = end ? end.slice(11, 16) : '—';
-  return `${startText}–${endText}`;
-}
-
 function numericCode(code: string) {
   const digits = code.match(/\d+/g)?.join('') ?? '';
   return Number.parseInt(digits, 10) || Number.MAX_SAFE_INTEGER;
@@ -67,6 +60,8 @@ export function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [proposalText, setProposalText] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastResponseKind, setLastResponseKind] = useState<ChatResponse['kind'] | null>(null);
+  const [assistantPrompt, setAssistantPrompt] = useState<string | null>(null);
 
   const sendMessage = async (outgoingMessage: string) => {
     const trimmed = outgoingMessage.trim();
@@ -91,13 +86,17 @@ export function App() {
 
       const json = (await response.json()) as ChatResponse;
       if (json.snapshot) setSnapshot(json.snapshot);
+      setLastResponseKind(json.kind);
 
       if (json.kind === 'reply' || json.kind === 'proposal' || json.kind === 'applied') {
         setTranscript((previous) => [...previous, { role: 'assistant', text: json.assistantText }]);
+        setAssistantPrompt(null);
       } else if (json.kind === 'clarify') {
         setTranscript((previous) => [...previous, { role: 'assistant', text: json.question }]);
+        setAssistantPrompt(json.question);
       } else {
         setTranscript((previous) => [...previous, { role: 'assistant', text: 'error: unsupported response kind' }]);
+        setAssistantPrompt(null);
       }
 
       if (json.kind === 'proposal') {
@@ -122,16 +121,6 @@ export function App() {
     await sendMessage(trimmed);
   };
 
-  const visibleTranscript = useMemo(() => {
-    if (showHistory) return transcript;
-
-    const reversed = [...transcript].reverse();
-    const lastAssistant = reversed.find((entry) => entry.role === 'assistant');
-    const lastUser = reversed.find((entry) => entry.role === 'user');
-
-    return transcript.filter((entry) => entry === lastUser || entry === lastAssistant);
-  }, [showHistory, transcript]);
-
   const historyCount = transcript.length;
 
   const sortedAppointments = useMemo(() => {
@@ -140,10 +129,6 @@ export function App() {
       return numericCode(left.code) - numericCode(right.code);
     });
   }, [snapshot.appointments]);
-
-  const sortedAvailability = useMemo(() => {
-    return [...snapshot.availability].sort((left, right) => left.start.localeCompare(right.start));
-  }, [snapshot.availability]);
 
   const copyCode = async (code: string) => {
     if (!navigator.clipboard) return;
@@ -194,50 +179,25 @@ export function App() {
         )}
       </section>
 
-      <section className="panel" aria-label="Availability">
-        <h2>Availability</h2>
-        {snapshot.availability.length === 0 ? <p>No availability blocks.</p> : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Person</th>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedAvailability.map((availability) => (
-                  <tr key={availability.code}>
-                    <td>
-                      <button type="button" className="code-button" onClick={() => { void copyCode(availability.code); }}>
-                        <code>{availability.code}</code>
-                      </button>
-                    </td>
-                    <td>{availability.personName}</td>
-                    <td>{formatDate(availability.start)}</td>
-                    <td>{formatIsoTimeRange(availability.start, availability.end)}</td>
-                    <td>{availability.reason ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {lastResponseKind === 'clarify' && assistantPrompt ? (
+        <section className="assistant-prompt" aria-label="Assistant prompt">
+          <p className="assistant-prompt-label">Assistant</p>
+          <p className="assistant-prompt-text">{assistantPrompt}</p>
+        </section>
+      ) : null}
 
       <button type="button" onClick={() => setShowHistory((previous) => !previous)} className="history-toggle">
-        History ({historyCount})
+        {showHistory ? 'Hide history' : `History (${historyCount})`}
       </button>
-      <section aria-label="Transcript" className="transcript">
-        {visibleTranscript.map((entry, index) => (
-          <p key={`${entry.role}-${index}`} className="transcript-line">
-            <strong>{entry.role}:</strong> {entry.text}
-          </p>
-        ))}
-      </section>
+      {showHistory ? (
+        <section aria-label="Transcript" className="transcript">
+          {transcript.map((entry, index) => (
+            <p key={`${entry.role}-${index}`} className="transcript-line">
+              <strong>{entry.role}:</strong> {entry.text}
+            </p>
+          ))}
+        </section>
+      ) : null}
 
       <form onSubmit={onSubmit}>
         <label htmlFor="prompt">What would you like to do?</label>
