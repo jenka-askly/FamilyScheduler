@@ -1,4 +1,4 @@
-export const ACTION_SCHEMA_VERSION = 3;
+export const ACTION_SCHEMA_VERSION = 4;
 
 export type TimedActionFields = {
   date: string;
@@ -17,6 +17,7 @@ export type Action =
   | { type: 'replace_people_on_appointment'; code: string; people: string[] }
   | { type: 'clear_people_on_appointment'; code: string }
   | { type: 'set_appointment_location'; code: string; location: string }
+  | { type: 'set_appointment_notes'; code: string; notes: string }
   | ({ type: 'add_availability'; personName: string; desc: string } & TimedActionFields)
   | { type: 'delete_availability'; code: string }
   | { type: 'set_identity'; name: string }
@@ -81,6 +82,14 @@ const assertLocation = (value: unknown): string => {
   return location;
 };
 
+
+const assertNotes = (value: unknown): string => {
+  if (typeof value !== 'string') throw new Error('Invalid notes');
+  const notes = value.trim();
+  if (notes.length > 500) throw new Error('Invalid notes');
+  return notes;
+};
+
 const assertPeopleArray = (value: unknown, field: string, minItems: number, maxItems: number): string[] => {
   if (!Array.isArray(value)) throw new Error(`Invalid ${field}`);
   if (value.length < minItems || value.length > maxItems) throw new Error(`Invalid ${field}`);
@@ -89,7 +98,7 @@ const assertPeopleArray = (value: unknown, field: string, minItems: number, maxI
 
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'personName', 'name', 'month', 'start', 'end', 'location']);
+  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'personName', 'name', 'month', 'start', 'end', 'location', 'notes']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'add_appointment') {
@@ -120,6 +129,9 @@ const parseAction = (value: unknown): Action => {
   }
   if (type === 'set_appointment_location') {
     return { type, code: assertString(value.code, 'code'), location: assertLocation(value.location) };
+  }
+  if (type === 'set_appointment_notes') {
+    return { type, code: assertString(value.code, 'code'), notes: assertNotes(value.notes) };
   }
   if (type === 'add_availability') {
     return { type, personName: assertString(value.personName, 'personName'), desc: assertString(value.desc, 'desc'), ...parseTimedFields(value) };

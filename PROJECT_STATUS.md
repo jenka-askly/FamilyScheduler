@@ -6,6 +6,9 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 
 ## What works now
 
+- Appointment notes are now persisted end-to-end (`notes`, default empty string), including backward-compatible normalization for older blobs missing notes.
+- Chat/action layer supports `set_appointment_notes` (set/clear) behind the existing proposal+confirm mutation gate.
+- Appointments table now includes a Notes column; empty notes render as `—`, populated notes are truncated with hover title for full text.
 - Dashboard-first web UI now renders appointments and availability as compact, sortable tables with code-copy buttons, horizontal overflow support, unassigned badge, and date/time columns.
 - Azure persistence mode available with `STORAGE_MODE=azure` using SAS URL + blob ETag optimistic concurrency (`If-Match`).
 - Azure init creates missing blob with `If-None-Match: *` and same seeded empty state as local mode.
@@ -166,3 +169,12 @@ After every merged PR, update this file with:
 - Executor now resolves start/end deterministically from `date/startTime/durationMins/timezone`; date-only actions are stored as all-day (`isAllDay=true`) with no start/end ISO.
 - Storage model remains backward compatible: snapshot shaping derives `date/startTime/durationMins/isAllDay` from legacy `start/end` when needed.
 - Updated parser prompt contract, chat snapshot schema, action tests, and acceptance tests for: date-only add, timed add, and date-only reschedule behavior.
+
+
+## Recent update (2026-02-19 02:55 UTC)
+
+- Added persisted appointment notes (`notes`) with default-empty normalization for legacy state blobs.
+- Added `set_appointment_notes {code,notes}` planner action + executor previews for set/clear.
+- Included `notes` in API snapshots consumed by web UI.
+- Updated appointments table with a compact Notes column (`—` when empty, ellipsis + title on long values).
+- Updated help docs with note-setting/clearing examples.

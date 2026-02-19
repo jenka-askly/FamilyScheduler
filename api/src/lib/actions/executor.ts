@@ -150,7 +150,8 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
         timezone,
         assigned: [],
         people: toUniquePeople(action.people ?? []),
-        location: (action.location ?? '').trim()
+        location: (action.location ?? '').trim(),
+        notes: ''
       });
       effectsTextLines.push(`Added ${code} — ${action.desc} on ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;
@@ -257,6 +258,20 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       continue;
     }
 
+    if (action.type === 'set_appointment_notes') {
+      const appointment = findAppointmentByCode(nextState, action.code);
+      if (!appointment) {
+        effectsTextLines.push(`Not found: ${action.code}`);
+        appliedAll = false;
+        continue;
+      }
+      appointment.notes = action.notes.trim();
+      effectsTextLines.push(appointment.notes
+        ? `Set notes on ${appointment.code} — ${appointment.title} to “${appointment.notes}”.`
+        : `Clear notes on ${appointment.code} — ${appointment.title}.`);
+      continue;
+    }
+
     if (action.type === 'add_availability') {
       const person = ensurePersonByName(nextState, action.personName);
       const code = createAvailabilityCode(nextState, person.name);
@@ -306,7 +321,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     if (action.type === 'show_appointment') {
       const appointment = findAppointmentByCode(nextState, action.code);
       effectsTextLines.push(appointment
-        ? `${appointment.code} — ${appointment.title}\nid: ${appointment.id}\nstart: ${appointment.start ?? '(none)'}\nend: ${appointment.end ?? '(none)'}\npeople: ${appointment.people.length > 0 ? appointment.people.join(', ') : '(none)'}\nlocation: ${appointment.location || '(none)'}`
+        ? `${appointment.code} — ${appointment.title}\nid: ${appointment.id}\nstart: ${appointment.start ?? '(none)'}\nend: ${appointment.end ?? '(none)'}\npeople: ${appointment.people.length > 0 ? appointment.people.join(', ') : '(none)'}\nlocation: ${appointment.location || '(none)'}\nnotes: ${appointment.notes || '(none)'}`
         : `Not found: ${action.code}`);
       continue;
     }
