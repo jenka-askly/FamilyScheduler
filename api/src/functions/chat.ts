@@ -21,7 +21,7 @@ type SessionRuntimeState = {
 };
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[] }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; location: string }>;
   availability: Array<{ code: string; personName: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean }>;
   historyCount?: number;
 };
@@ -73,7 +73,8 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       startTime: appointment.startTime ?? derived.startTime,
       durationMins: appointment.durationMins ?? derived.durationMins,
       isAllDay: appointment.isAllDay ?? derived.isAllDay,
-      people: appointment.assigned
+      people: appointment.people ?? [],
+      location: appointment.location ?? ''
     };
   }),
   availability: [...state.availability].map((availability) => {
@@ -96,7 +97,7 @@ const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppS
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), expectedEtag, actions });
 
-const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_desc', 'reschedule_appointment', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
+const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_desc', 'reschedule_appointment', 'add_people_to_appointment', 'remove_people_from_appointment', 'replace_people_on_appointment', 'clear_people_on_appointment', 'set_appointment_location', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
 
 const normalizeActionCodes = (actions: Action[]): Action[] => actions.map((action) => {
   if ('code' in action && typeof action.code === 'string') {

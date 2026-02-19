@@ -120,3 +120,30 @@ test('acceptance: unknown code returns clarify', async () => {
   assert.equal((response.jsonBody as any).kind, 'clarify');
   assert.match((response.jsonBody as any).question, /cannot find APPT-999/i);
 });
+
+
+test('acceptance: people and location proposal/confirm updates snapshot', async () => {
+  process.env.STORAGE_MODE = 'local';
+  process.env.OPENAI_API_KEY = 'sk-test';
+  installFetchStub({
+    'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03' }] },
+    'add joe and sam to appt-1': { kind: 'proposal', message: 'Add people', actions: [{ type: 'add_people_to_appointment', code: 'APPT-1', people: ['Joe', 'Sam'] }] },
+    'set location of appt-1 to kaiser redwood city': { kind: 'proposal', message: 'Set location', actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: 'Kaiser Redwood City' }] }
+  });
+
+  await sendChat('reset state', 'session-people');
+  await sendChat('confirm', 'session-people');
+  await sendChat('add appt Dentist', 'session-people');
+  await sendChat('confirm', 'session-people');
+
+  await sendChat('add joe and sam to appt-1', 'session-people');
+  let applied = await sendChat('confirm', 'session-people');
+  const peopleSnapshot = (applied.jsonBody as any).snapshot.appointments[0];
+  assert.deepEqual(peopleSnapshot.people, ['Joe', 'Sam']);
+
+  await sendChat('set location of appt-1 to kaiser redwood city', 'session-people');
+  applied = await sendChat('confirm', 'session-people');
+  const locationSnapshot = (applied.jsonBody as any).snapshot.appointments[0];
+  assert.equal(locationSnapshot.location, 'Kaiser Redwood City');
+});

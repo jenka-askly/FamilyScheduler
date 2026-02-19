@@ -1,4 +1,4 @@
-import { createEmptyAppState, type AppState } from '../state.js';
+import { createEmptyAppState, normalizeAppState, type AppState } from '../state.js';
 import { ConflictError, type StorageAdapter } from './storage.js';
 
 const JSON_CONTENT_TYPE = 'application/json; charset=utf-8';
@@ -89,7 +89,7 @@ export class AzureBlobStorage implements StorageAdapter {
       }
 
       return {
-        state: (await reloaded.json()) as AppState,
+        state: normalizeAppState((await reloaded.json()) as AppState),
         etag: normalizeEtag(reloaded.headers.get('etag'))
       };
     }
@@ -100,7 +100,7 @@ export class AzureBlobStorage implements StorageAdapter {
     }
 
     return {
-      state: (await response.json()) as AppState,
+      state: normalizeAppState((await response.json()) as AppState),
       etag: normalizeEtag(response.headers.get('etag'))
     };
   }
@@ -110,6 +110,8 @@ export class AzureBlobStorage implements StorageAdapter {
       throw new Error('Azure blob writes require expectedEtag.');
     }
 
+    const normalizedNextState = normalizeAppState(nextState);
+
     const response = await fetch(this.blobUrl, {
       method: 'PUT',
       headers: {
@@ -117,7 +119,7 @@ export class AzureBlobStorage implements StorageAdapter {
         'If-Match': formatIfMatch(expectedEtag),
         'x-ms-blob-type': 'BlockBlob'
       },
-      body: stableStringify(nextState)
+      body: stableStringify(normalizedNextState)
     });
 
     if (response.status === 412 || response.status === 409) {
@@ -131,7 +133,7 @@ export class AzureBlobStorage implements StorageAdapter {
     }
 
     return {
-      state: nextState,
+      state: normalizedNextState,
       etag: normalizeEtag(response.headers.get('etag'))
     };
   }

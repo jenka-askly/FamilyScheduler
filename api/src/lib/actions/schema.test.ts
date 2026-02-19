@@ -25,6 +25,30 @@ test('accepts all-day add appointment with duration present', () => {
   assert.equal(parsed.actions?.[0].type, 'add_appointment');
 });
 
+test('validates people operation cardinality and normalization', () => {
+  assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'proposal', message: 'x', actions: [{ type: 'add_people_to_appointment', code: 'APPT-1', people: [] }] }));
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'x',
+    actions: [{ type: 'replace_people_on_appointment', code: 'APPT-1', people: ['  Joe  Smith  ', 'Sam'] }]
+  });
+  assert.deepEqual((parsed.actions?.[0] as any).people, ['Joe Smith', 'Sam']);
+});
+
+test('validates appointment location constraints', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'loc',
+    actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: '  Kaiser Redwood City  ' }]
+  });
+  assert.equal((parsed.actions?.[0] as any).location, 'Kaiser Redwood City');
+  assert.throws(() => ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'loc',
+    actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: 'x'.repeat(201) }]
+  }));
+});
+
 test('requires message', () => {
   assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'clarify', actions: [] }));
 });
