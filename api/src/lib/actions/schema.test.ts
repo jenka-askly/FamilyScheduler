@@ -50,7 +50,36 @@ test('validates appointment location constraints', () => {
 });
 
 test('requires message', () => {
-  assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'clarify', actions: [] }));
+  assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'question', actions: [] }));
+});
+
+test('maps clarify to question for backward compatibility', () => {
+  const parsed = ParsedModelResponseSchema.parse({ kind: 'clarify', message: 'Need input' });
+  assert.equal(parsed.kind, 'question');
+  assert.equal(parsed.allowFreeText, true);
+});
+
+test('accepts question options and allowFreeText', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'question',
+    message: 'Update or create?',
+    options: [
+      { label: 'Update APPT-6', value: 'Update APPT-6 with these details', style: 'primary' },
+      { label: 'Create new', value: 'Create a new appointment with these details', style: 'secondary' }
+    ],
+    allowFreeText: false
+  });
+  assert.equal(parsed.kind, 'question');
+  assert.equal(parsed.options?.length, 2);
+  assert.equal(parsed.allowFreeText, false);
+});
+
+test('rejects too many question options', () => {
+  assert.throws(() => ParsedModelResponseSchema.parse({
+    kind: 'question',
+    message: 'Pick one',
+    options: [1, 2, 3, 4, 5, 6].map((index) => ({ label: `L${index}`, value: `V${index}` }))
+  }));
 });
 
 test('parses confidence', () => {

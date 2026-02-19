@@ -19,7 +19,7 @@ const installFetchStub = (routes: RouteMap): { calls: () => number } => {
     const prompt = body.messages?.[1]?.content ?? '';
     const inputMatch = prompt.match(/User input:\n([\s\S]*?)\n\nContext envelope:/);
     const input = inputMatch?.[1]?.trim() ?? '';
-    const mapped = routes[input] ?? { kind: 'clarify', message: 'Could you clarify?' };
+    const mapped = routes[input] ?? { kind: 'question', message: 'Could you clarify?', allowFreeText: true };
     return {
       ok: true,
       json: async () => ({ choices: [{ message: { content: JSON.stringify(mapped) } }] })
@@ -96,17 +96,17 @@ test('acceptance: pending proposal yes confirms deterministically without openai
   assert.equal(tracker.calls(), before);
 });
 
-test('acceptance: random yes with no proposal asks clarify', async () => {
+test('acceptance: random yes with no proposal asks question', async () => {
   process.env.STORAGE_MODE = 'local';
   process.env.OPENAI_API_KEY = 'sk-test';
   installFetchStub({});
 
   const response = await sendChat('yes', 'session-4');
-  assert.equal((response.jsonBody as any).kind, 'clarify');
-  assert.equal((response.jsonBody as any).question, 'What should I confirm?');
+  assert.equal((response.jsonBody as any).kind, 'question');
+  assert.equal((response.jsonBody as any).message, 'What should I confirm?');
 });
 
-test('acceptance: unknown code returns clarify', async () => {
+test('acceptance: unknown code returns question', async () => {
   process.env.STORAGE_MODE = 'local';
   process.env.OPENAI_API_KEY = 'sk-test';
   installFetchStub({
@@ -117,8 +117,8 @@ test('acceptance: unknown code returns clarify', async () => {
   await sendChat('reset state', 'session-5');
   await sendChat('confirm', 'session-5');
   const response = await sendChat('update appt 999 desc to x', 'session-5');
-  assert.equal((response.jsonBody as any).kind, 'clarify');
-  assert.match((response.jsonBody as any).question, /cannot find APPT-999/i);
+  assert.equal((response.jsonBody as any).kind, 'question');
+  assert.match((response.jsonBody as any).message, /cannot find APPT-999/i);
 });
 
 

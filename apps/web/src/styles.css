@@ -155,6 +155,30 @@ input {
   gap: 0.5rem;
 }
 
+.question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.question-option.primary {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.question-option.secondary {
+  background: #fff;
+  color: #334155;
+}
+
+.question-option.danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
 .muted-empty {
   color: #94a3b8;
 }

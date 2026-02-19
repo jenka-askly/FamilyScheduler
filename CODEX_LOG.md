@@ -1529,3 +1529,54 @@ Fix Assign People modal alignment issue by rendering each person as a single row
 ### Follow-ups
 
 - Validate assign-people modal interactions end-to-end against live appointment data in local full-stack run (`pnpm dev`) to visually confirm row behavior in the modal itself.
+
+## 2026-02-19 05:32 UTC (AI question dialog + structured clarify options)
+
+### Objective
+
+Replace text-only `clarify` handling with structured AI `question` responses and add a blocking web dialog that supports up to 5 suggested answer buttons plus optional free-text reply, while keeping proposal confirm flow unchanged.
+
+### Approach
+
+- Extended parser response schema to include `kind="question"`, `options` (max 5), and `allowFreeText`, with compatibility mapping from legacy `clarify` to `question`.
+- Updated OpenAI planner system prompt to instruct `question` usage, 2–5 short options when clear, natural-language option values, and max-5 cap.
+- Updated chat function response routing from clarify -> question semantics, including no-proposal confirm fallback and validation/parse fallback questions.
+- Added pending-question state on web client and introduced a dedicated `QuestionDialog` modal that:
+  - blocks while pending,
+  - renders up to 5 option buttons,
+  - supports free-text input when allowed,
+  - sends selected option value or typed text as the next `/api/chat` message,
+  - supports Close to dismiss without mutation.
+- Left proposal confirm/cancel modal behavior unchanged.
+- Updated docs and project continuity notes to document dialog behavior.
+
+### Files changed
+
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` (pending)
+- `pnpm --filter @familyscheduler/web typecheck` (pending)
+- `pnpm --filter @familyscheduler/web build` (pending)
+
+### Follow-ups
+
+- Run manual full-stack QA for Excel-paste duplicate appointment scenario and validate API question options + question->proposal->confirm progression end-to-end.
+
+### Verification updates (post-implementation)
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed (8 tests).
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture (stopped with SIGINT after capture).
+- Playwright screenshot with mocked `/api/chat` response ✅ artifact: `browser:/tmp/codex_browser_invocations/5eb466f6dede5a7d/artifacts/artifacts/question-dialog.png`.

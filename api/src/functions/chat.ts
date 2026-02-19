@@ -12,8 +12,8 @@ import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 
 type ChatRequest = { message?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
-type PendingClarification = { question: string };
-type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingClarification: PendingClarification | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
+type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
+type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
 
 type ResponseSnapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; notes: string }>;
@@ -31,7 +31,7 @@ const getSessionId = (request: HttpRequest): string => ((request as { headers?: 
 const getSessionState = (sessionId: string): SessionRuntimeState => {
   const existing = sessionState.get(sessionId);
   if (existing) return existing;
-  const created: SessionRuntimeState = { pendingProposal: null, pendingClarification: null, activePersonId: null, chatHistory: [] };
+  const created: SessionRuntimeState = { pendingProposal: null, pendingQuestion: null, activePersonId: null, chatHistory: [] };
   sessionState.set(sessionId, created);
   return created;
 };
@@ -83,7 +83,7 @@ const validateReferencedCodes = (state: AppState, actions: Action[]): string | n
 const getIdentityName = (state: AppState, activePersonId: string | null): string | null => state.people.find((person) => person.personId === activePersonId)?.name ?? null;
 
 const parseWithOpenAi = async (params: { message: string; state: AppState; session: SessionRuntimeState; sessionId: string; traceId: string; }) => {
-  const contextEnvelope = buildContext({ state: params.state, identityName: getIdentityName(params.state, params.session.activePersonId), pendingProposal: params.session.pendingProposal ? { summary: 'Pending proposal', actions: params.session.pendingProposal.actions } : null, pendingClarification: params.session.pendingClarification ? { question: params.session.pendingClarification.question, partialAction: { type: 'help' }, missing: ['action'] } : null, history: params.session.chatHistory });
+  const contextEnvelope = buildContext({ state: params.state, identityName: getIdentityName(params.state, params.session.activePersonId), pendingProposal: params.session.pendingProposal ? { summary: 'Pending proposal', actions: params.session.pendingProposal.actions } : null, pendingClarification: params.session.pendingQuestion ? { question: params.session.pendingQuestion.message, partialAction: { type: 'help' }, missing: ['action'] } : null, history: params.session.chatHistory });
   const rawModel = await parseToActions(params.message, contextEnvelope, { traceId: params.traceId, sessionIdHash: createHash('sha256').update(params.sessionId).digest('hex').slice(0, 16) });
   return ParsedModelResponseSchema.parse(rawModel);
 };
@@ -103,8 +103,8 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
   trimHistory(session);
 
-  const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'clarify'; question: string } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }): HttpResponseInit => {
-    session.chatHistory.push({ role: 'assistant', text: payload.kind === 'clarify' ? payload.question : payload.assistantText, ts: new Date().toISOString() });
+  const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }): HttpResponseInit => {
+    session.chatHistory.push({ role: 'assistant', text: payload.kind === 'question' ? payload.message : payload.assistantText, ts: new Date().toISOString() });
     trimHistory(session);
     return { status: 200, jsonBody: withSnapshot(payload, state) };
   };
@@ -122,12 +122,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         throw error;
       }
     }
-    if (cancelSynonyms.has(normalized)) { session.pendingProposal = null; session.pendingClarification = null; return respond({ kind: 'reply', assistantText: 'Cancelled.' }); }
-    return respond({ kind: 'clarify', question: 'Please confirm or cancel.' });
+    if (cancelSynonyms.has(normalized)) { session.pendingProposal = null; session.pendingQuestion = null; return respond({ kind: 'reply', assistantText: 'Cancelled.' }); }
+    return respond({ kind: 'question', message: 'Please confirm or cancel.', options: [{ label: 'Confirm', value: 'confirm', style: 'primary' }, { label: 'Cancel', value: 'cancel', style: 'secondary' }], allowFreeText: true });
   }
 
 
-  if (confirmSynonyms.has(normalized)) return respond({ kind: 'clarify', question: 'What should I confirm?' });
+  if (confirmSynonyms.has(normalized)) return respond({ kind: 'question', message: 'What should I confirm?', allowFreeText: true });
   if (cancelSynonyms.has(normalized)) return respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
 
   if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
@@ -136,21 +136,31 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request), traceId });
     const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
     const codeError = validateReferencedCodes(state, normalizedActions);
-    if (codeError) return respond({ kind: 'clarify', question: codeError });
-    if (parsed.kind === 'clarify') return respond({ kind: 'clarify', question: parsed.message });
+    if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
+    if (parsed.kind === 'question') {
+      const questionPayload: PendingQuestion = {
+        message: parsed.message,
+        options: parsed.options,
+        allowFreeText: parsed.allowFreeText ?? true
+      };
+      session.pendingQuestion = questionPayload;
+      return respond({ kind: 'question', ...questionPayload });
+    }
     if (parsed.kind === 'proposal') {
       const mutationActions = normalizedActions.filter(isMutationAction);
-      if (mutationActions.length === 0) return respond({ kind: 'clarify', question: 'Please clarify the change with a valid action and summary.' });
+      if (mutationActions.length === 0) return respond({ kind: 'question', message: 'Please clarify the change with a valid action and summary.', allowFreeText: true });
       const previewExecution = executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       session.pendingProposal = toProposal(loaded.etag, mutationActions);
+      session.pendingQuestion = null;
       return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
     }
+    session.pendingQuestion = null;
     if (normalizedActions.length > 0) {
       const execution = executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
     }
     return respond({ kind: 'reply', assistantText: parsed.message });
   } catch {
-    return respond({ kind: 'clarify', question: 'I could not safely parse that. Please provide explicit codes and dates.' });
+    return respond({ kind: 'question', message: 'I could not safely parse that. Please provide explicit codes and dates.', allowFreeText: true });
   }
 }
