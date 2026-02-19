@@ -55,3 +55,28 @@ test('direct endpoint enforces group/phone and mutates for allowed member', asyn
   assert.equal((ok.jsonBody as any).ok, true);
   assert.equal((ok.jsonBody as any).snapshot.appointments.length, 1);
 });
+
+
+test('create/update/delete person direct actions work with validation', async () => {
+  const direct = await loadDirect('people-actions');
+
+  const create = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'create_blank_person' } }) } as any, {} as any);
+  assert.equal((create.jsonBody as any).ok, true);
+  const createdPersonId = (create.jsonBody as any).personId;
+  assert.ok(createdPersonId);
+
+  const badPhone = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'update_person', personId: createdPersonId, name: 'Alex', phone: '123' } }) } as any, {} as any);
+  assert.equal(badPhone.status, 400);
+  assert.equal((badPhone.jsonBody as any).message, 'Invalid phone number');
+
+  const updated = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'update_person', personId: createdPersonId, name: 'Alex', phone: '(206) 555-0199' } }) } as any, {} as any);
+  assert.equal((updated.jsonBody as any).ok, true);
+
+  const duplicate = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'create_blank_person' } }) } as any, {} as any);
+  const duplicatePersonId = (duplicate.jsonBody as any).personId;
+  const dupUpdate = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'update_person', personId: duplicatePersonId, name: 'Pat', phone: '(206) 555-0199' } }) } as any, {} as any);
+  assert.equal(dupUpdate.status, 400);
+
+  const deleted = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'delete_person', personId: createdPersonId } }) } as any, {} as any);
+  assert.equal((deleted.jsonBody as any).ok, true);
+});

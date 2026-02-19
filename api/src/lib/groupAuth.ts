@@ -5,7 +5,7 @@ import { PhoneValidationError, validateAndNormalizePhone } from './validation/ph
 export const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const findActivePersonByPhone = (state: AppState, phoneE164: string): Person | undefined => (
-  state.people.find((person) => person.status === 'active' && person.cellE164 === phoneE164)
+  state.people.find((person) => person.status === 'active' && Boolean(person.cellE164) && person.cellE164 === phoneE164)
 );
 
 export const validateJoinRequest = (groupId: unknown, phone: unknown): { ok: true; groupId: string; phoneE164: string } | { ok: false; response: HttpResponseInit } => {

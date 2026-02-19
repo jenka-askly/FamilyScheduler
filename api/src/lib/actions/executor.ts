@@ -140,7 +140,7 @@ export const executeActions = async (state: AppState, actions: Action[], context
     if (action.type === 'deactivate_person' || action.type === 'reactivate_person') {
       const person = findPersonById(nextState, action.personId);
       if (!person) { effectsTextLines.push(`Not found: ${action.personId}`); appliedAll = false; continue; }
-      person.status = action.type === 'deactivate_person' ? 'inactive' : 'active';
+      person.status = action.type === 'deactivate_person' ? 'removed' : 'active';
       effectsTextLines.push(`${action.type === 'deactivate_person' ? 'Deactivate' : 'Reactivate'} person ${person.name}.`);
       continue;
     }
