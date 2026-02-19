@@ -21,9 +21,9 @@ export function PageHeader({
         <p className="fs-desc">{description}</p>
       )}
 
-      {groupName && (
+      {(groupName || groupId) && (
         <div>
-          <div className="fs-groupName">{groupName}</div>
+          {groupName && <div className="fs-groupName">{groupName}</div>}
           {groupId && (
             <div className="fs-meta">
               Group ID: {groupId}

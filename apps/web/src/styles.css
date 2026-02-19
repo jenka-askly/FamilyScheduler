@@ -460,6 +460,99 @@ h2 {
   font-size: 0.875rem;
 }
 
+.fs-page {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.fs-formWrap {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.fs-card {
+  width: min(100%, 700px);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.5rem;
+  display: grid;
+  gap: 1rem;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+}
+
+.fs-h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fs-desc {
+  margin: 0.5rem 0 0;
+  color: #475569;
+}
+
+
+.fs-groupName {
+  margin-top: 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.fs-meta {
+  margin-top: 0.75rem;
+  color: #64748b;
+  font-size: 0.825rem;
+}
+
+.join-form-wrap {
+  max-width: 420px;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.join-actions {
+  margin-top: 0.25rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.fs-btnPrimary,
+.fs-btnSecondary {
+  min-height: 2.3rem;
+  padding: 0 0.9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.fs-btnPrimary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.fs-btnPrimary:hover {
+  background: #1d4ed8;
+}
+
+.fs-btnSecondary {
+  background: #fff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.fs-footer {
+  margin-top: 0.5rem;
+  color: #64748b;
+  font-size: 0.825rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+}
+
 .share-link {
   display: grid;
   gap: 0.5rem;

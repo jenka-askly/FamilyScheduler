@@ -3,6 +3,7 @@ import { chat } from './functions/chat.js';
 import { direct } from './functions/direct.js';
 import { groupCreate } from './functions/groupCreate.js';
 import { groupJoin } from './functions/groupJoin.js';
+import { groupMeta } from './functions/groupMeta.js';
 
 app.http('groupCreate', {
   methods: ['POST'],
@@ -16,6 +17,13 @@ app.http('groupJoin', {
   authLevel: 'anonymous',
   route: 'group/join',
   handler: groupJoin
+});
+
+app.http('groupMeta', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'group/meta',
+  handler: groupMeta
 });
 
 app.http('chat', {
