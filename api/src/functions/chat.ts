@@ -24,6 +24,44 @@ type ParsedDateTime = {
   endIso: string;
 };
 
+type ResponseSnapshot = {
+  appointments: Array<{ code: string; title: string; start?: string; end?: string; assigned?: string[] }>;
+  availability: Array<{ code: string; personName: string; start: string; end: string; reason?: string }>;
+  historyCount?: number;
+};
+
+const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
+  appointments: [...state.appointments]
+    .sort((left, right) => {
+      if (left.start && right.start) return left.start.localeCompare(right.start);
+      if (left.start) return -1;
+      if (right.start) return 1;
+      return left.code.localeCompare(right.code);
+    })
+    .map((appointment) => ({
+      code: appointment.code,
+      title: appointment.title,
+      start: appointment.start,
+      end: appointment.end,
+      assigned: appointment.assigned
+    })),
+  availability: [...state.availability]
+    .sort((left, right) => left.start.localeCompare(right.start))
+    .map((availability) => ({
+      code: availability.code,
+      personName: state.people.find((person) => person.id === availability.personId)?.name ?? availability.personId,
+      start: availability.start,
+      end: availability.end,
+      reason: availability.reason
+    })),
+  historyCount: Array.isArray(state.history) ? state.history.length : undefined
+});
+
+const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState): T & { snapshot: ResponseSnapshot } => ({
+  ...payload,
+  snapshot: toResponseSnapshot(state)
+});
+
 const storage = createStorageAdapter();
 let pendingProposal: PendingProposal | null = null;
 let activePersonId: string | null = null;
@@ -331,20 +369,24 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   const { state, etag } = await storage.getState();
   const message = body.message.trim();
   const normalizedMessage = normalizeUserText(message);
+  const respond = (payload: Record<string, unknown>, snapshotState: AppState = state): HttpResponseInit => ({
+    status: 200,
+    jsonBody: withSnapshot({ ...payload, traceId }, snapshotState)
+  });
 
   if (normalizedMessage === 'cancel') {
     pendingProposal = null;
     pendingClarification = null;
-    return { status: 200, jsonBody: { kind: 'reply', assistantText: 'Cancelled.', traceId } };
+    return respond({ kind: 'reply', assistantText: 'Cancelled.' });
   }
 
   if (normalizedMessage === 'confirm') {
-    if (!pendingProposal) return { status: 200, jsonBody: { kind: 'reply', assistantText: 'No pending change.', traceId } };
+    if (!pendingProposal) return respond({ kind: 'reply', assistantText: 'No pending change.' });
     const proposalToApply = pendingProposal;
     pendingProposal = null;
     const loaded = await storage.getState();
     if (loaded.etag !== proposalToApply.expectedEtag) {
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: 'State changed since proposal. Please retry.', traceId } };
+      return respond({ kind: 'reply', assistantText: 'State changed since proposal. Please retry.' }, loaded.state);
     }
 
     const execution = executeActions(loaded.state, proposalToApply.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
@@ -354,12 +396,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       await storage.putState(execution.nextState, loaded.etag);
     } catch (error) {
       if (error instanceof ConflictError) {
-        return { status: 200, jsonBody: { kind: 'reply', assistantText: 'State changed since proposal. Please retry.', traceId } };
+        return respond({ kind: 'reply', assistantText: 'State changed since proposal. Please retry.' }, loaded.state);
       }
       throw error;
     }
 
-    return { status: 200, jsonBody: { kind: 'applied', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+    return respond({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, execution.nextState);
   }
 
   if (pendingClarification) {
@@ -367,16 +409,16 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (pendingClarification.missing.length > 0) {
       const looksCodeLike = looksLikeSingleCodeToken(message);
       if (pendingClarification.missing.includes('code') && !looksCodeLike) {
-        return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+        return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
       }
-      return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+      return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
     }
 
     const completedClarification = pendingClarification;
     pendingClarification = null;
     const completedAction = toExecutableAction(completedClarification);
     if (!completedAction) {
-      return { status: 200, jsonBody: { kind: 'clarify', question: 'Please provide the missing details.', traceId } };
+      return respond({ kind: 'clarify', question: 'Please provide the missing details.' });
     }
 
     if (isMutationAction(completedAction)) {
@@ -385,38 +427,38 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       if (completedAction.type === 'delete_appointment') {
         const label = completedClarification.candidates?.find((candidate) => candidate.code === completedAction.code)?.label;
         const targetLabel = label ? ` — ${label}` : '';
-        return {
-          status: 200,
-          jsonBody: {
-            kind: 'proposal',
-            proposalId: pendingProposal.id,
-            assistantText: `Please confirm you want to delete ${completedAction.code}${targetLabel}. Reply confirm/cancel.`,
-            traceId
-          }
-        };
+        return respond({
+          kind: 'proposal',
+          proposalId: pendingProposal.id,
+          assistantText: `Please confirm you want to delete ${completedAction.code}${targetLabel}. Reply confirm/cancel.`
+        });
       }
-      return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText([completedAction]), traceId } };
+      return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText([completedAction]) });
     }
 
     const availabilityResolved = resolveAvailabilityQueries(state, [completedAction]);
     if (availabilityResolved.clarification) {
       pendingClarification = availabilityResolved.clarification;
-      return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+      return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
     }
 
     const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-    return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+    return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
   }
 
   if (normalizedMessage === 'reset state') {
     if ((process.env.STORAGE_MODE ?? 'local') !== 'local') {
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: 'reset state is only supported when STORAGE_MODE=local.', traceId } };
+      return respond({ kind: 'reply', assistantText: 'reset state is only supported when STORAGE_MODE=local.' });
     }
 
     pendingProposal = toProposal(etag, [{ type: 'reset_state' }]);
-    return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: `Please confirm you want to:
+    return respond({
+      kind: 'proposal',
+      proposalId: pendingProposal.id,
+      assistantText: `Please confirm you want to:
 1) Reset state
-Reply 'confirm' or 'cancel'.`, traceId } };
+Reply 'confirm' or 'cancel'.`
+    });
   }
 
   const deterministicActions: Action[] = [];
@@ -455,7 +497,7 @@ Reply 'confirm' or 'cancel'.`, traceId } };
         expectedEtag: etag
       };
       const listed = deleteCandidates.map((candidate) => `${candidate.code} (${candidate.label})`).join(' or ');
-      return { status: 200, jsonBody: { kind: 'clarify', question: `Which appointment code should I delete: ${listed}?`, traceId } };
+      return respond({ kind: 'clarify', question: `Which appointment code should I delete: ${listed}?` });
     }
   }
 
@@ -486,38 +528,34 @@ Reply 'confirm' or 'cancel'.`, traceId } };
       const execution = executeActions(state, mutationActions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       activePersonId = execution.nextActivePersonId;
       await storage.putState(execution.nextState, etag);
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
     }
 
     if (mutationActions.length > 0) {
       pendingProposal = toProposal(etag, mutationActions);
-      return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions), traceId } };
+      return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions) });
     }
 
     const availabilityResolved = resolveAvailabilityQueries(state, deterministicActions);
     if (availabilityResolved.clarification) {
       pendingClarification = availabilityResolved.clarification;
-      return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+      return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
     }
 
     const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-    return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+    return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
   }
 
   if (normalizedMessage.includes('who is available')) {
-    return {
-      status: 200,
-      jsonBody: {
-        kind: 'clarify',
-        question: "Do you mean March 2026? Reply: 'who is available in 2026-03' or 'who is available in march 2026'.",
-        traceId
-      }
-    };
+    return respond({
+      kind: 'clarify',
+      question: "Do you mean March 2026? Reply: 'who is available in 2026-03' or 'who is available in march 2026'."
+    });
   }
 
   const openaiEnabled = (process.env.OPENAI_PARSER_ENABLED ?? 'false').toLowerCase() === 'true';
   if (!openaiEnabled) {
-    return { status: 200, jsonBody: { kind: 'reply', assistantText: 'Natural language parsing is disabled. Try commands: help', traceId } };
+    return respond({ kind: 'reply', assistantText: 'Natural language parsing is disabled. Try commands: help' });
   }
 
   try {
@@ -539,37 +577,37 @@ Reply 'confirm' or 'cancel'.`, traceId } };
           expectedEtag: etag
         };
       }
-      return { status: 200, jsonBody: { kind: 'clarify', question: parsed.clarificationQuestion ?? 'Could you clarify?', traceId } };
+      return respond({ kind: 'clarify', question: parsed.clarificationQuestion ?? 'Could you clarify?' });
     }
 
     if (parsed.kind === 'query') {
       const availabilityResolved = resolveAvailabilityQueries(state, parsed.actions);
       if (availabilityResolved.clarification) {
         pendingClarification = availabilityResolved.clarification;
-        return { status: 200, jsonBody: { kind: 'clarify', question: renderClarificationQuestion(pendingClarification), traceId } };
+        return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
       }
 
       const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
     }
 
     const mutationActions = parsed.actions.filter(isMutationAction);
     const bareNameCommand = parseBareNameCommand(message);
     if (bareNameCommand && mutationActions.length === 1 && mutationActions[0].type === 'set_identity') {
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: "If you want to set identity, reply like: 'I am Joe'.", traceId } };
+      return respond({ kind: 'reply', assistantText: "If you want to set identity, reply like: 'I am Joe'." });
     }
     const setIdentityOnly = mutationActions.length > 0 && mutationActions.every((action) => action.type === 'set_identity');
     if (setIdentityOnly) {
       const execution = executeActions(state, mutationActions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       activePersonId = execution.nextActivePersonId;
       await storage.putState(execution.nextState, etag);
-      return { status: 200, jsonBody: { kind: 'reply', assistantText: execution.effectsTextLines.join('\n'), traceId } };
+      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
     }
 
     pendingProposal = toProposal(etag, mutationActions);
-    return { status: 200, jsonBody: { kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions), traceId } };
+    return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions) });
   } catch (error) {
     console.warn(JSON.stringify({ traceId, openaiUsed: true, validationFailure: true, message: error instanceof Error ? error.message : 'unknown' }));
-    return { status: 200, jsonBody: { kind: 'clarify', question: 'I could not safely parse that. Please provide explicit codes and dates.', traceId } };
+    return respond({ kind: 'clarify', question: 'I could not safely parse that. Please provide explicit codes and dates.' });
   }
 }

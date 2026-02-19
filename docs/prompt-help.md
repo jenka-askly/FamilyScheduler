@@ -32,6 +32,7 @@ Mutation safety:
 
 - Mutations are never applied immediately.
 - You will receive a proposal and a confirmation message.
+- In the web app, when you make a change, a confirm dialog will appear.
 - Reply `confirm` to execute.
 - Reply `cancel` to discard.
 

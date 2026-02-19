@@ -5,6 +5,7 @@ import { chat } from './chat.js';
 const sendChat = async (message: string) => chat({ json: async () => ({ message }) } as any, {} as any);
 
 const resetState = async () => {
+  await sendChat('cancel');
   const resetProposal = await sendChat('reset state');
   assert.equal(resetProposal.status, 200);
   assert.equal((resetProposal.jsonBody as any).kind, 'proposal');
@@ -33,6 +34,27 @@ test('mutations still require confirm', async () => {
   const addResponse = await sendChat('add appt Team sync');
   assert.equal(addResponse.status, 200);
   assert.equal((addResponse.jsonBody as any).kind, 'proposal');
+  assert.deepEqual((addResponse.jsonBody as any).snapshot.appointments, []);
+  assert.deepEqual((addResponse.jsonBody as any).snapshot.availability, []);
+});
+
+test('responses include snapshot and applied updates it', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const proposal = await sendChat('add appt Dentist');
+  assert.equal((proposal.jsonBody as any).kind, 'proposal');
+  assert.equal((proposal.jsonBody as any).snapshot.appointments.length, 0);
+
+  const applied = await sendChat('confirm');
+  assert.equal((applied.jsonBody as any).kind, 'applied');
+  assert.equal((applied.jsonBody as any).snapshot.appointments.length, 1);
+  assert.equal((applied.jsonBody as any).snapshot.appointments[0].title, 'Dentist');
+
+  const clarify = await sendChat('list my availability');
+  assert.equal((clarify.jsonBody as any).kind, 'clarify');
+  assert.equal((clarify.jsonBody as any).snapshot.appointments.length, 1);
+  assert.deepEqual((clarify.jsonBody as any).snapshot.availability, []);
 });
 
 test('delete APPT-1 still parses as mutation proposal', async () => {

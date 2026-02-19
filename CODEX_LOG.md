@@ -882,3 +882,37 @@ Fix availability query behavior so "my availability" uses active identity when a
 ### Follow-ups
 
 - If future action schema introduces `show_availability` with `personName`, extend identity-aware resolver to that action type as well.
+
+## 2026-02-19 00:11 UTC (dashboard-first UX + snapshot responses)
+
+### Objective
+
+Implement dashboard-first UX (always-visible appointments/availability, collapsed history, proposal confirm modal) and add API `snapshot` payload on all chat responses without changing existing action semantics/routes.
+
+### Approach
+
+- Extended API chat responses to include `snapshot` derived from current state for reply/proposal/applied/clarify responses.
+- Added deterministic snapshot sorting (appointments by start or code fallback; availability by start).
+- Updated web app to render always-visible dashboard panels from `snapshot`, a history toggle that collapses to last exchange by default, and a proposal confirm/cancel modal that sends `confirm` / `cancel` prompts.
+- Updated docs/continuity files with UX behavior changes.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed all API tests after snapshot/test updates.
+- `pnpm --filter @familyscheduler/web build` ✅ passed web typecheck/build.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched dev server for screenshot capture (stopped via SIGINT after capture).
+- Playwright screenshot capture ✅ saved artifact `browser:/tmp/codex_browser_invocations/b487b67cfffc40a5/artifacts/artifacts/dashboard-refresh.png`.
+
+### Follow-ups
+
+- Run end-to-end manual acceptance flow with local API host (`pnpm dev`) in an environment with Azure Functions Core Tools installed.

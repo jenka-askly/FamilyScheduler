@@ -26,11 +26,11 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 - Limitation: identity is currently stored globally (`activePersonId`) because auth/session tokens are not implemented yet.
 - No persistence yet for pending proposals.
 - Monorepo is runnable locally with `pnpm dev`.
-- Prompt-only web UI is implemented at `apps/web`:
-  - transcript area
-  - single prompt input
-  - Enter submits prompt
-  - initial hint: `Type 'help' for examples.`
+- Dashboard-first web UI is implemented at `apps/web`:
+  - always-visible `Appointments` and `Availability` panels hydrated from API `snapshot`
+  - conversation transcript collapsed to last user/assistant exchange by default with `History (N)` toggle
+  - proposal responses open a confirm/cancel modal (`Confirm this change?`)
+  - prompt label/placeholder: `What would you like to do?`
 - Stub Azure Functions API endpoint is implemented at `POST /api/chat` with deterministic command handling:
   - request `{ "message": "..." }`
   - queries return `{ "kind":"reply", "assistantText":"You asked: <message>" }`
@@ -63,6 +63,7 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 
 ## Recent changes
 
+- 2026-02-19: UX refresh shipped: API now includes a response `snapshot` (appointments/availability/historyCount) on reply/proposal/applied/clarify responses; web now renders always-visible dashboard panels, collapses history by default behind `History (N)`, and uses a confirm/cancel modal for proposal flows.
 - 2026-02-18: Prioritized pending clarification resolution before identity parsing in chat flow, made `list/show my availability` identity-aware (uses current identity when set, otherwise asks `Whose availability?`), and updated clarification slot-filling to resolve `personName` case-insensitively against existing people names without changing identity state.
 - 2026-02-19: Fixed multi-turn clarification binding for delete/update/query follow-ups by persisting intended action + missing slots, added resilient APPT/AVL code normalization (`appt1` => `APPT-1`), and ensured invalid clarify replies re-prompt without losing intent.
 - 2026-02-18: Added pending clarification handling in chat flow so follow-up replies (e.g. `Joe`) can fill missing query fields (currently `list_availability.personName`) and execute immediately; `cancel` now clears both pending proposals and pending clarifications with reply `Cancelled.`; bare-name messages no longer trigger identity changes (identity remains explicit via `I am <Name>`).
