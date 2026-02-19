@@ -220,3 +220,11 @@ After every merged PR, update this file with:
 - Added direct appointment actions: `create_blank_appointment`, `set_appointment_date`, `set_appointment_start_time`, `set_appointment_desc`, `set_appointment_location`, `set_appointment_notes`, `set_appointment_duration`, and `delete_appointment`.
 - Appointments pane now supports direct inline editing for date/time/description/location/notes and add/delete row UX.
 - Delete appointment remains confirmation-gated; inline edits apply immediately with no confirm modal.
+
+## Recent update (2026-02-19 06:35 UTC)
+
+- Appointments table now defaults to read-only rows and uses per-row edit mode with Edit/Done toggle in Actions.
+- Add appointment now auto-opens edit mode on the newly created APPT row.
+- Appointments table includes inline duration editing while in row edit mode; read-only rows show compact text values and clamped multi-line content.
+- Web layout is now full-width (`main` no longer constrained to centered max width) with consistent page padding.
+- Typography and control sizing were reduced for denser system-like UI defaults.
