@@ -1,12 +1,18 @@
-export const ActionSchemaVersion = 2;
+export const ACTION_SCHEMA_VERSION = 2;
+
+export type TimedActionFields = {
+  date: string;
+  startTime?: string;
+  durationMins?: number;
+  timezone?: string;
+};
 
 export type Action =
-  | { type: 'add_appointment'; title: string; start?: string; end?: string }
+  | ({ type: 'add_appointment'; desc: string; people?: string[] } & TimedActionFields)
+  | ({ type: 'reschedule_appointment'; code: string } & TimedActionFields)
+  | { type: 'update_appointment_desc'; code: string; desc: string }
   | { type: 'delete_appointment'; code: string }
-  | { type: 'update_appointment_title'; code: string; title: string }
-  | { type: 'update_appointment_schedule'; code: string; start: string; end: string; isAllDay?: boolean }
-  | { type: 'reschedule_appointment'; code: string; start: string; end: string; timezone?: string; isAllDay?: boolean }
-  | { type: 'add_availability'; personName?: string; start: string; end: string; reason?: string }
+  | ({ type: 'add_availability'; personName: string; desc: string } & TimedActionFields)
   | { type: 'delete_availability'; code: string }
   | { type: 'set_identity'; name: string }
   | { type: 'reset_state' }
@@ -26,6 +32,7 @@ export type ParsedModelResponse = {
 
 const yearMonthPattern = /^\d{4}-\d{2}$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const startTimePattern = /^\d{2}:\d{2}$/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const assertKeys = (value: Record<string, unknown>, allowed: string[]): void => {
@@ -35,56 +42,64 @@ const assertKeys = (value: Record<string, unknown>, allowed: string[]): void => 
 };
 const assertString = (value: unknown, field: string): string => {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error(`Invalid ${field}`);
+  return value.trim();
+};
+const assertDate = (value: unknown): string => {
+  const date = assertString(value, 'date');
+  if (!datePattern.test(date)) throw new Error('Invalid date');
+  return date;
+};
+const parseOptionalStartTime = (value: unknown): string | undefined => {
+  if (value === undefined) return undefined;
+  const startTime = assertString(value, 'startTime');
+  if (!startTimePattern.test(startTime)) throw new Error('Invalid startTime');
+  return startTime;
+};
+const parseOptionalDuration = (value: unknown): number | undefined => {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > (24 * 60)) throw new Error('Invalid durationMins');
   return value;
 };
 
+const parseTimedFields = (value: Record<string, unknown>): TimedActionFields => ({
+  date: assertDate(value.date),
+  startTime: parseOptionalStartTime(value.startTime),
+  durationMins: parseOptionalDuration(value.durationMins),
+  timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined
+});
+
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'title', 'start', 'end', 'code', 'personName', 'reason', 'name', 'month', 'isAllDay', 'timezone']);
+  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'personName', 'name', 'month', 'start', 'end']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'add_appointment') {
-    return { type, title: assertString(value.title, 'title'), start: typeof value.start === 'string' ? value.start : undefined, end: typeof value.end === 'string' ? value.end : undefined };
+    const people = value.people === undefined
+      ? undefined
+      : (Array.isArray(value.people) ? value.people.map((person) => assertString(person, 'people')) : (() => { throw new Error('Invalid people'); })());
+    return { type, desc: assertString(value.desc, 'desc'), ...parseTimedFields(value), people };
+  }
+  if (type === 'reschedule_appointment') {
+    return { type, code: assertString(value.code, 'code'), ...parseTimedFields(value) };
+  }
+  if (type === 'update_appointment_desc') {
+    return { type, code: assertString(value.code, 'code'), desc: assertString(value.desc, 'desc') };
   }
   if (type === 'delete_appointment') {
-    const code = assertString(value.code, 'code');
-    return { type, code };
-  }
-  if (type === 'update_appointment_title') {
-    const code = assertString(value.code, 'code');
-    return { type, code, title: assertString(value.title, 'title') };
-  }
-  if (type === 'update_appointment_schedule' || type === 'reschedule_appointment') {
-    const code = assertString(value.code, 'code');
-    const start = assertString(value.start, 'start');
-    const end = assertString(value.end, 'end');
-    return { type, code, start, end, timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined, isAllDay: value.isAllDay === true ? true : undefined } as Action;
+    return { type, code: assertString(value.code, 'code') };
   }
   if (type === 'add_availability') {
-    return {
-      type,
-      personName: typeof value.personName === 'string' ? assertString(value.personName, 'personName') : undefined,
-      start: assertString(value.start, 'start'),
-      end: assertString(value.end, 'end'),
-      reason: typeof value.reason === 'string' ? assertString(value.reason, 'reason') : undefined
-    };
+    return { type, personName: assertString(value.personName, 'personName'), desc: assertString(value.desc, 'desc'), ...parseTimedFields(value) };
   }
   if (type === 'delete_availability') {
-    const code = assertString(value.code, 'code');
-    return { type, code };
+    return { type, code: assertString(value.code, 'code') };
   }
   if (type === 'set_identity') return { type, name: assertString(value.name, 'name') };
   if (type === 'reset_state') return { type };
   if (type === 'list_appointments') return { type };
-  if (type === 'show_appointment') {
-    const code = assertString(value.code, 'code');
-    return { type, code };
-  }
+  if (type === 'show_appointment') return { type, code: assertString(value.code, 'code') };
   if (type === 'list_availability') return { type, personName: typeof value.personName === 'string' ? assertString(value.personName, 'personName') : undefined };
-  if (type === 'show_availability') {
-    const code = assertString(value.code, 'code');
-    return { type, code };
-  }
+  if (type === 'show_availability') return { type, code: assertString(value.code, 'code') };
   if (type === 'who_is_available') {
     const month = typeof value.month === 'string' ? value.month : undefined;
     const start = typeof value.start === 'string' ? value.start : undefined;

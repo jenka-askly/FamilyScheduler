@@ -7,8 +7,13 @@ export type Appointment = {
   id: string;
   code: string;
   title: string;
-  start: string;
-  end: string;
+  start?: string;
+  end?: string;
+  date?: string;
+  startTime?: string;
+  durationMins?: number;
+  timezone?: string;
+  isAllDay?: boolean;
   assigned: string[];
 };
 
@@ -16,8 +21,13 @@ export type AvailabilityBlock = {
   id: string;
   code: string;
   personId: string;
-  start: string;
-  end: string;
+  start?: string;
+  end?: string;
+  date?: string;
+  startTime?: string;
+  durationMins?: number;
+  timezone?: string;
+  isAllDay?: boolean;
   reason?: string;
 };
 

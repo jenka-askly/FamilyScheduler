@@ -38,7 +38,7 @@ test('acceptance: show my appt returns list reply', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   installFetchStub({
     'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
-    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', title: 'Dentist' }] },
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03' }] },
     'show my appt': { kind: 'reply', message: 'Listing appointments', actions: [{ type: 'list_appointments' }] }
   });
 
@@ -57,11 +57,11 @@ test('acceptance: update appt proposal then confirm applies', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   installFetchStub({
     'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
-    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', title: 'Dentist' }] },
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03' }] },
     'update appt 1 date to March 3 2026 10-11': {
       kind: 'proposal',
       message: 'Reschedule APPT-1 to March 3, 2026 10-11.',
-      actions: [{ type: 'reschedule_appointment', code: 'appt 1', start: '2026-03-03T10:00:00-08:00', end: '2026-03-03T11:00:00-08:00' }]
+      actions: [{ type: 'reschedule_appointment', code: 'appt 1', date: '2026-03-03', startTime: '10:00', durationMins: 60 }]
     }
   });
 
@@ -83,7 +83,7 @@ test('acceptance: pending proposal yes confirms deterministically without openai
   process.env.OPENAI_API_KEY = 'sk-test';
   const tracker = installFetchStub({
     'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
-    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', title: 'Dentist' }] }
+    'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03' }] }
   });
 
   await sendChat('reset state', 'session-3');
@@ -111,12 +111,12 @@ test('acceptance: unknown code returns clarify', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   installFetchStub({
     'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
-    'update appt 999 title to x': { kind: 'proposal', message: 'Update APPT-999', actions: [{ type: 'update_appointment_title', code: 'APPT-999', title: 'x' }] }
+    'update appt 999 desc to x': { kind: 'proposal', message: 'Update APPT-999', actions: [{ type: 'update_appointment_desc', code: 'APPT-999', desc: 'x' }] }
   });
 
   await sendChat('reset state', 'session-5');
   await sendChat('confirm', 'session-5');
-  const response = await sendChat('update appt 999 title to x', 'session-5');
+  const response = await sendChat('update appt 999 desc to x', 'session-5');
   assert.equal((response.jsonBody as any).kind, 'clarify');
   assert.match((response.jsonBody as any).question, /cannot find APPT-999/i);
 });

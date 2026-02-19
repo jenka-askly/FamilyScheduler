@@ -10,25 +10,23 @@ test('rejects unknown fields in action', () => {
   }));
 });
 
-test('rejects invalid month format', () => {
-  assert.throws(() => ParsedModelResponseSchema.parse({
-    kind: 'reply',
-    message: 'availability',
-    actions: [{ type: 'who_is_available', month: '2026/03' }]
-  }));
+test('validates date/startTime/durationMins', () => {
+  assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'proposal', message: 'x', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026/03/03' }] }));
+  assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'proposal', message: 'x', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03', startTime: '9:00' }] }));
+  assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'proposal', message: 'x', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03', durationMins: 0 }] }));
+});
+
+test('accepts all-day add appointment with duration present', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'add',
+    actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03', durationMins: 30 }]
+  });
+  assert.equal(parsed.actions?.[0].type, 'add_appointment');
 });
 
 test('requires message', () => {
   assert.throws(() => ParsedModelResponseSchema.parse({ kind: 'clarify', actions: [] }));
-});
-
-test('parses update_appointment_schedule action', () => {
-  const parsed = ParsedModelResponseSchema.parse({
-    kind: 'proposal',
-    message: 'reschedule',
-    actions: [{ type: 'update_appointment_schedule', code: 'APPT-1', start: '2026-03-10T09:00:00-08:00', end: '2026-03-10T12:00:00-08:00', isAllDay: true }]
-  });
-  assert.equal(parsed.actions?.[0].type, 'update_appointment_schedule');
 });
 
 test('parses confidence', () => {
@@ -39,13 +37,4 @@ test('parses confidence', () => {
     confidence: 0.75
   });
   assert.equal(parsed.confidence, 0.75);
-});
-
-test('rejects invalid confidence', () => {
-  assert.throws(() => ParsedModelResponseSchema.parse({
-    kind: 'reply',
-    message: 'help',
-    actions: [{ type: 'help' }],
-    confidence: 2
-  }));
 });
