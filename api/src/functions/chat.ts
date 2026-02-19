@@ -21,8 +21,8 @@ type SessionRuntimeState = {
 };
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; title: string; start?: string; end?: string; assigned?: string[] }>;
-  availability: Array<{ code: string; personName: string; start: string; end: string; reason?: string }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[] }>;
+  availability: Array<{ code: string; personName: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean }>;
   historyCount?: number;
 };
 
@@ -49,21 +49,45 @@ const trimHistory = (session: SessionRuntimeState): void => {
   if (session.chatHistory.length > max) session.chatHistory = session.chatHistory.slice(-max);
 };
 
+const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
+  if (!start || !end) return { date: start?.slice(0, 10) ?? '', isAllDay: true };
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return { date: start.slice(0, 10), isAllDay: true };
+  const durationMins = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
+  return {
+    date: start.slice(0, 10),
+    startTime: start.match(/T(\d{2}:\d{2})/)?.[1],
+    durationMins,
+    isAllDay: false
+  };
+};
+
 const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
-  appointments: [...state.appointments].map((appointment) => ({
-    code: appointment.code,
-    title: appointment.title,
-    start: appointment.start,
-    end: appointment.end,
-    assigned: appointment.assigned
-  })),
-  availability: [...state.availability].map((availability) => ({
-    code: availability.code,
-    personName: state.people.find((person) => person.id === availability.personId)?.name ?? availability.personId,
-    start: availability.start,
-    end: availability.end,
-    reason: availability.reason
-  })),
+  appointments: [...state.appointments].map((appointment) => {
+    const derived = deriveDateTimeParts(appointment.start, appointment.end);
+    return {
+      code: appointment.code,
+      desc: appointment.title,
+      date: appointment.date ?? derived.date,
+      startTime: appointment.startTime ?? derived.startTime,
+      durationMins: appointment.durationMins ?? derived.durationMins,
+      isAllDay: appointment.isAllDay ?? derived.isAllDay,
+      people: appointment.assigned
+    };
+  }),
+  availability: [...state.availability].map((availability) => {
+    const derived = deriveDateTimeParts(availability.start, availability.end);
+    return {
+      code: availability.code,
+      personName: state.people.find((person) => person.id === availability.personId)?.name ?? availability.personId,
+      desc: availability.reason ?? '',
+      date: availability.date ?? derived.date,
+      startTime: availability.startTime ?? derived.startTime,
+      durationMins: availability.durationMins ?? derived.durationMins,
+      isAllDay: availability.isAllDay ?? derived.isAllDay
+    };
+  }),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
 
@@ -72,7 +96,7 @@ const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppS
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), expectedEtag, actions });
 
-const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_title', 'update_appointment_schedule', 'reschedule_appointment', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
+const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_desc', 'reschedule_appointment', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
 
 const normalizeActionCodes = (actions: Action[]): Action[] => actions.map((action) => {
   if ('code' in action && typeof action.code === 'string') {
@@ -167,7 +191,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   if (cancelSynonyms.has(normalized)) return respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
 
   if (normalized === 'help') {
-    return respond({ kind: 'reply', assistantText: 'Try commands: add appt <title>, list appointments, list availability, show <CODE>, delete <CODE>.' });
+    return respond({ kind: 'reply', assistantText: 'Try commands: add appt <desc> <date>, list appointments, list availability, show <CODE>, delete <CODE>.' });
   }
   if (normalized.startsWith('passkey') || normalized === 'session init') {
     return respond({ kind: 'reply', assistantText: 'Session ready.' });

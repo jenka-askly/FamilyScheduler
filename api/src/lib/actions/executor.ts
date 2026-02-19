@@ -13,6 +13,12 @@ export type ExecuteActionsResult = {
   nextActivePersonId: string | null;
 };
 
+export type ResolvedAppointmentTimes = {
+  startIso?: string;
+  endIso?: string;
+  isAllDay: boolean;
+};
+
 const normalizeCode = (value: string): string => value.trim().toUpperCase();
 const normalizeName = (value: string): string => value.trim().replace(/\s+/g, ' ').toLowerCase();
 const parseStoredDateTime = (value: string): Date => new Date(value);
@@ -95,6 +101,40 @@ const parseWhoIsAvailableRange = (action: Extract<Action, { type: 'who_is_availa
   return null;
 };
 
+const getTimeZoneOffset = (date: Date, timeZone: string): string => {
+  const formatter = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' });
+  const zonePart = formatter.formatToParts(date).find((part) => part.type === 'timeZoneName')?.value ?? 'GMT-08:00';
+  const match = zonePart.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+  if (!match) return '-08:00';
+  const [, sign, hoursRaw, minsRaw] = match;
+  const hours = hoursRaw.padStart(2, '0');
+  const mins = (minsRaw ?? '00').padStart(2, '0');
+  return `${sign}${hours}:${mins}`;
+};
+
+const buildIsoAtZone = (date: string, startTime: string, timezone: string): string => {
+  const asUtc = new Date(`${date}T${startTime}:00Z`);
+  const offset = getTimeZoneOffset(asUtc, timezone);
+  return `${date}T${startTime}:00${offset}`;
+};
+
+export const resolveAppointmentTimes = (date: string, startTime?: string, durationMins?: number, timezone = 'America/Los_Angeles'): ResolvedAppointmentTimes => {
+  if (!startTime) {
+    return { isAllDay: true };
+  }
+
+  const startIso = buildIsoAtZone(date, startTime, timezone);
+  const duration = durationMins ?? 60;
+  const endIso = new Date(new Date(startIso).getTime() + duration * 60_000).toISOString();
+  return { startIso, endIso, isAllDay: false };
+};
+
+const describeTime = (date: string, startTime?: string, durationMins?: number): string => {
+  if (!startTime) return `${date} (all day)`;
+  const duration = durationMins ?? 60;
+  return `${date} ${startTime} (${duration}m)`;
+};
+
 export const executeActions = (state: AppState, actions: Action[], context: ExecutionContext): ExecuteActionsResult => {
   const nextState = structuredClone(state);
   const effectsTextLines: string[] = [];
@@ -102,7 +142,6 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
   let nextActivePersonId = context.activePersonId;
 
   for (const action of actions) {
-
     if (action.type === 'reset_state') {
       const reset = createEmptyAppState();
       nextState.people = reset.people;
@@ -115,8 +154,22 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
 
     if (action.type === 'add_appointment') {
       const code = getNextAppointmentCode(nextState);
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: action.title, start: action.start ?? '', end: action.end ?? '', assigned: [] });
-      effectsTextLines.push(`Added ${code} — ${action.title}`);
+      const timezone = action.timezone ?? context.timezoneName;
+      const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
+      nextState.appointments.push({
+        id: `${Date.now()}-${code}`,
+        code,
+        title: action.desc,
+        start: resolved.startIso,
+        end: resolved.endIso,
+        isAllDay: resolved.isAllDay,
+        date: action.date,
+        startTime: action.startTime,
+        durationMins: action.startTime ? (action.durationMins ?? 60) : undefined,
+        timezone,
+        assigned: []
+      });
+      effectsTextLines.push(`Added ${code} — ${action.desc} on ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;
     }
 
@@ -132,48 +185,57 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       continue;
     }
 
-    if (action.type === 'update_appointment_title') {
+    if (action.type === 'update_appointment_desc') {
       const appointment = findAppointmentByCode(nextState, action.code);
       if (!appointment) {
         effectsTextLines.push(`Not found: ${action.code}`);
         appliedAll = false;
         continue;
       }
-      appointment.title = action.title;
+      appointment.title = action.desc;
       effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`);
       continue;
     }
 
-
-    if (action.type === 'update_appointment_schedule' || action.type === 'reschedule_appointment') {
+    if (action.type === 'reschedule_appointment') {
       const appointment = findAppointmentByCode(nextState, action.code);
       if (!appointment) {
         effectsTextLines.push(`Not found: ${action.code}`);
         appliedAll = false;
         continue;
       }
-      appointment.start = action.start;
-      appointment.end = action.end;
-      const allDayText = action.isAllDay ? ' (all day)' : '';
-      effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${formatDateTimeRange(action.start, action.end)}${allDayText}`);
+      const timezone = action.timezone ?? context.timezoneName;
+      const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
+      appointment.date = action.date;
+      appointment.startTime = action.startTime;
+      appointment.durationMins = action.startTime ? (action.durationMins ?? 60) : undefined;
+      appointment.timezone = timezone;
+      appointment.isAllDay = resolved.isAllDay;
+      appointment.start = resolved.startIso;
+      appointment.end = resolved.endIso;
+      effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;
     }
 
     if (action.type === 'add_availability') {
-      const person = action.personName
-        ? ensurePersonByName(nextState, action.personName)
-        : (nextActivePersonId ? nextState.people.find((p) => p.id === nextActivePersonId) : undefined);
-
-      if (!person) {
-        effectsTextLines.push('Who are you? Reply: I am Joe');
-        appliedAll = false;
-        continue;
-      }
-
+      const person = ensurePersonByName(nextState, action.personName);
       const code = createAvailabilityCode(nextState, person.name);
-      nextState.availability.push({ id: `${Date.now()}-${code}`, code, personId: person.id, start: action.start, end: action.end, reason: action.reason });
-      const reasonSuffix = action.reason ? ` (${action.reason})` : '';
-      effectsTextLines.push(`Added ${code} — ${person.name} ${formatDateTimeRange(action.start, action.end)}${reasonSuffix}`);
+      const timezone = action.timezone ?? context.timezoneName;
+      const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
+      nextState.availability.push({
+        id: `${Date.now()}-${code}`,
+        code,
+        personId: person.id,
+        start: resolved.startIso,
+        end: resolved.endIso,
+        date: action.date,
+        startTime: action.startTime,
+        durationMins: action.startTime ? (action.durationMins ?? 60) : undefined,
+        timezone,
+        isAllDay: resolved.isAllDay,
+        reason: action.desc
+      });
+      effectsTextLines.push(`Added ${code} — ${person.name} ${describeTime(action.date, action.startTime, action.durationMins)} (${action.desc})`);
       continue;
     }
 
@@ -185,7 +247,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
         continue;
       }
       const [removed] = nextState.availability.splice(index, 1);
-      effectsTextLines.push(`Deleted ${removed.code} — ${getPersonDisplayName(nextState, removed.personId)} ${formatDateTimeRange(removed.start, removed.end)}`);
+      effectsTextLines.push(`Deleted ${removed.code} — ${getPersonDisplayName(nextState, removed.personId)} ${removed.date ?? formatDateTimeRange(removed.start ?? '', removed.end ?? '')}`);
       continue;
     }
 
@@ -206,7 +268,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     if (action.type === 'show_appointment') {
       const appointment = findAppointmentByCode(nextState, action.code);
       effectsTextLines.push(appointment
-        ? `${appointment.code} — ${appointment.title}\nid: ${appointment.id}\nstart: ${appointment.start}\nend: ${appointment.end}\nassigned: ${appointment.assigned.length > 0 ? appointment.assigned.join(', ') : '(none)'}`
+        ? `${appointment.code} — ${appointment.title}\nid: ${appointment.id}\nstart: ${appointment.start ?? '(none)'}\nend: ${appointment.end ?? '(none)'}\nassigned: ${appointment.assigned.length > 0 ? appointment.assigned.join(', ') : '(none)'}`
         : `Not found: ${action.code}`);
       continue;
     }
@@ -216,8 +278,8 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       const blocks = person ? nextState.availability.filter((block) => block.personId === person.id) : nextState.availability;
       effectsTextLines.push(blocks.length > 0
         ? blocks
-          .sort((a, b) => parseStoredDateTime(a.start).getTime() - parseStoredDateTime(b.start).getTime())
-          .map((block) => `${block.code} — ${getPersonDisplayName(nextState, block.personId)} ${formatDateTimeRange(block.start, block.end)}${block.reason ? ` (${block.reason})` : ''}`)
+          .sort((a, b) => parseStoredDateTime(a.start ?? '').getTime() - parseStoredDateTime(b.start ?? '').getTime())
+          .map((block) => `${block.code} — ${getPersonDisplayName(nextState, block.personId)} ${block.date ?? formatDateTimeRange(block.start ?? '', block.end ?? '')}${block.reason ? ` (${block.reason})` : ''}`)
           .join('\n')
         : '(none)');
       continue;
@@ -226,7 +288,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     if (action.type === 'show_availability') {
       const block = findAvailabilityByCode(nextState, action.code);
       effectsTextLines.push(block
-        ? `${block.code} — ${getPersonDisplayName(nextState, block.personId)}\nid: ${block.id}\nstart: ${block.start}\nend: ${block.end}\nreason: ${block.reason ?? '(none)'}`
+        ? `${block.code} — ${getPersonDisplayName(nextState, block.personId)}\nid: ${block.id}\nstart: ${block.start ?? '(none)'}\nend: ${block.end ?? '(none)'}\nreason: ${block.reason ?? '(none)'}`
         : `Not found: ${action.code}`);
       continue;
     }
@@ -242,7 +304,8 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
       nextState.people.forEach((person) => {
         const blocks = nextState.availability
           .filter((block) => block.personId === person.id)
-          .filter((block) => overlaps(parseStoredDateTime(block.start), parseStoredDateTime(block.end), range.start, range.end));
+          .filter((block) => block.start && block.end)
+          .filter((block) => overlaps(parseStoredDateTime(block.start as string), parseStoredDateTime(block.end as string), range.start, range.end));
         lines.push(`${person.name}: ${blocks.length} unavailable block(s)`);
       });
       effectsTextLines.push(lines.length > 0 ? lines.join('\n') : '(none)');
@@ -250,7 +313,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     }
 
     if (action.type === 'help') {
-      effectsTextLines.push('Try commands: add appt <title>, list appointments, list availability, show <CODE>, delete <CODE>, update APPT-1 title <text>, mark me unavailable YYYY-MM-DD HH:MM-HH:MM <reason>');
+      effectsTextLines.push('Try commands: add appt <desc> <date>, list appointments, list availability, show <CODE>, delete <CODE>.');
     }
   }
 

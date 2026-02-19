@@ -1166,3 +1166,40 @@ Implement AI-first intent parsing with deterministic confirm/cancel gate, remove
 ### Follow-ups
 
 - Consider adding a dedicated unit test for chat post-processor code normalization to catch regressions independently from end-to-end acceptance tests.
+
+## 2026-02-19 02:06 UTC (schema v2 date/startTime/duration with all-day default)
+
+### Objective
+
+Implement the new action schema semantics: appointment/availability mutations use `date + startTime? + durationMins?` (no end in schema), with date-only requests defaulting to all-day behavior.
+
+### Approach
+
+- Reworked action schema and parser validation for new fields and action names.
+- Updated executor to compute start/end ISO via `resolveAppointmentTimes(...)`, default all-day when `startTime` is missing, and preserve backward compatibility by keeping legacy `start/end` optional.
+- Updated chat snapshot shaping to return `desc/date/startTime?/durationMins?/isAllDay` and derive those from legacy stored `start/end` when needed.
+- Updated OpenAI planner prompt schema instructions and help docs with new semantics/examples.
+- Added/updated tests for validation rules and acceptance scenarios A/B/C.
+
+### Files changed
+
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/state.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/functions/chat.test.ts`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ❌ first run failed (`RangeError: Invalid time value` in timezone offset formatting).
+- `pnpm --filter @familyscheduler/api test` ✅ pass after timezone offset normalization fix.
+
+### Follow-ups
+
+- Consider a future DST-focused utility for timezone-aware end-time rendering consistency if user-facing local-time display needs strict wall-clock semantics across all zones.
