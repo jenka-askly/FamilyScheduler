@@ -1792,3 +1792,33 @@ Make appointment row edit mode easier to exit by adding explicit cancel affordan
 ### Follow-ups
 
 - Optional: add visible helper text in the Actions column for edit mode keyboard shortcuts if discoverability is still an issue for first-time users.
+
+## 2026-02-19 06:46 UTC (web typography stack normalization)
+
+### Objective
+
+Revise `apps/web/src/styles.css` root font stack to a predictable system stack and verify resulting web build/render path.
+
+### Approach
+
+- Updated `:root` `font-family` from implicit `Inter`-first fallback to explicit system stack:
+  - `system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`
+- Kept existing font-size scale unchanged so text density remains consistent with prior UI compactness.
+- Rebuilt web app and captured fresh screenshot artifact for visual confirmation workflow.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated with SIGINT after capture.
+- Playwright screenshot capture via browser tool ✅ succeeded (`font-stack-system-ui.png`).
+
+### Follow-ups
+
+- Human verification recommended on native Windows + macOS browsers to confirm perceived size parity for body copy, table rows, and form controls under platform-specific system fonts.

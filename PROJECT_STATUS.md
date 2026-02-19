@@ -229,3 +229,9 @@ After every merged PR, update this file with:
 - Web layout is now full-width (`main` no longer constrained to centered max width) with consistent page padding.
 - Typography and control sizing were reduced for denser system-like UI defaults.
 - 2026-02-19: Appointments row edit mode now supports cancel by keyboard/mouse: pressing `Esc` or clicking/tapping outside the active row exits edit mode; Done tooltip now hints at `Esc/outside click` to improve discoverability.
+
+## Recent update (2026-02-19 06:46 UTC)
+
+- Switched web root typography to a predictable pure system font stack (`system-ui`, `-apple-system`, `"Segoe UI"`, `Roboto`, `"Helvetica Neue"`, `Arial`, `sans-serif`) to avoid implicit `Inter` fallback variability across platforms.
+- No functional behavior changes; body text, table row text, and form controls continue to inherit the same root font sizing rules (`14px` base, `1rem` body, `0.875rem` table).
+- Cross-platform visual verification is prepared via updated screenshot capture; final Windows/macOS perceived-size confirmation still requires human-run checks on native OS browsers.
