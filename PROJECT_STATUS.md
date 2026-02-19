@@ -288,3 +288,9 @@ After every merged PR, update this file with:
 - `STATE_BLOB_PREFIX` defaults to `familyscheduler/groups`.
 - `DEFAULT_COUNTRY` defaults to `US` for phone normalization.
 - Local state root defaults to `.localstate/familyscheduler/groups`.
+
+### Appointments UX (CODEX-006)
+- Appointments page moved to Workspace layout with header + footer.
+- Added empty state panel with Add Appointment CTA.
+- Prompt/notes field uses multiline textarea in edit mode with auto-grow.
+- Buttons no longer span full width.
