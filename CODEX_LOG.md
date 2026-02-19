@@ -1423,3 +1423,38 @@ Implement People-pane UX actions: icon action buttons, delete/deactivate confirm
 ### Follow-ups
 
 - If strict shadcn primitives are required (Tooltip/Popover/Calendar/Switch/Button components), install and wire those UI dependencies once registry access is available; current implementation preserves requested UX behavior with existing stack.
+
+## 2026-02-19 04:33 UTC (people rules visibility + snapshot refresh)
+
+### Objective
+
+Implement People view availability rules visibility and delete flow, ensure confirm/cancel updates UI snapshot state, and include complete rule fields in API snapshot.
+
+### Approach
+
+- Updated API response snapshot mapping for rules to include `timezone`.
+- Added acceptance test coverage that confirms `add_rule` + confirm returns `snapshot.rules` with expected fields.
+- Updated web People table with collapsed per-person Rules section toggled by Clock icon.
+- Added inline rule rows with status badge/date/time/notes and delete button.
+- Added delete-rule confirmation modal that sends a rule-delete command.
+- Kept confirm/cancel message flow routed through `sendMessage`, which updates snapshot from response payload.
+- Updated `PROJECT_STATUS.md` recent changes.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter api test` ✅ passed.
+- `pnpm --filter web build` ✅ passed.
+- `pnpm -r --if-present build` ✅ passed.
+
+### Follow-ups
+
+- Optional: add UI-level automated test for People rules expand/delete interactions.

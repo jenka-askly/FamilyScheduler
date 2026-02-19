@@ -159,3 +159,36 @@ test('acceptance: people and location proposal/confirm updates snapshot', async 
   const clearNotesSnapshot = (applied.jsonBody as any).snapshot.appointments[0];
   assert.equal(clearNotesSnapshot.notes, '');
 });
+
+test('acceptance: add rule confirm returns snapshot.rules with timezone', async () => {
+  process.env.STORAGE_MODE = 'local';
+  process.env.OPENAI_API_KEY = 'sk-test';
+  installFetchStub({
+    'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
+    'add person joe': { kind: 'proposal', message: 'Add Joe', actions: [{ type: 'add_person', name: 'Joe', cell: '+14155550123' }] },
+    'add available rule for joe': {
+      kind: 'proposal',
+      message: 'Add rule',
+      actions: [{ type: 'add_rule', personId: 'P-1', kind: 'available', date: '2026-03-03', startTime: '09:00', durationMins: 60, desc: 'morning' }]
+    }
+  });
+
+  await sendChat('reset state', 'session-rule-snapshot');
+  await sendChat('confirm', 'session-rule-snapshot');
+  await sendChat('add person joe', 'session-rule-snapshot');
+  await sendChat('confirm', 'session-rule-snapshot');
+  await sendChat('add available rule for joe', 'session-rule-snapshot');
+  const applied = await sendChat('confirm', 'session-rule-snapshot');
+
+  assert.equal((applied.jsonBody as any).kind, 'applied');
+  assert.equal((applied.jsonBody as any).snapshot.rules.length, 1);
+  const rule = (applied.jsonBody as any).snapshot.rules[0];
+  assert.equal(rule.code, 'RULE-1');
+  assert.equal(rule.personId, 'P-1');
+  assert.equal(rule.kind, 'available');
+  assert.equal(rule.date, '2026-03-03');
+  assert.equal(rule.startTime, '09:00');
+  assert.equal(rule.durationMins, 60);
+  assert.equal(rule.desc, 'morning');
+  assert.equal(rule.timezone, 'America/Los_Angeles');
+});
