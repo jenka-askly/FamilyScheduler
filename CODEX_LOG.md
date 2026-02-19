@@ -2086,3 +2086,35 @@ Make People pane match Appointments pane UX (row-based add/edit/delete), add det
 ### Follow-ups
 
 - If Playwright/browser container stability improves, capture a People-pane screenshot for visual QA documentation.
+
+## 2026-02-19 18:01 UTC (CODEX-001 global UI baseline)
+
+### Objective
+
+Add a compact global UI baseline (typography, spacing, controls, table density) and wire Inter font imports without performing layout refactors.
+
+### Approach
+
+- Added a new global stylesheet at `apps/web/src/styles/ui.css` with baseline tokens and compact control/table defaults.
+- Imported Inter font weights (`400/500/600`) and global UI CSS once in `apps/web/src/main.tsx`.
+- Added `@fontsource/inter` dependency to `apps/web/package.json` (install blocked in this environment by npm registry 403).
+- Updated `PROJECT_STATUS.md` with the requested `UI Baseline (CODEX-001)` status section.
+
+### Files changed
+
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/main.tsx`
+- `apps/web/package.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm add @fontsource/inter` ❌ blocked by pnpm workspace root check (requires `-w` or package filter).
+- `pnpm --filter @familyscheduler/web add @fontsource/inter` ⚠️ failed in this environment due to npm registry access error (`ERR_PNPM_FETCH_403`).
+- `pnpm --filter @familyscheduler/web build` ❌ failed because `@fontsource/inter` could not be resolved (dependency install blocked by registry 403).
+
+### Follow-ups
+
+- Run `pnpm --filter @familyscheduler/web add @fontsource/inter` in a network-enabled environment.
+- Run `pnpm install` then `pnpm dev` to visually verify compact typography/controls/table density and no layout breakage.
