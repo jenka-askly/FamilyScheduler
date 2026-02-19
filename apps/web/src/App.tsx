@@ -64,6 +64,16 @@ export function App() {
   const [ruleDurationMins, setRuleDurationMins] = useState('60');
   const [ruleDesc, setRuleDesc] = useState('');
 
+  const toggleAppointmentPerson = (appointment: Snapshot['appointments'][0], personId: string) => {
+    const selected = new Set(appointment.people);
+    if (selected.has(personId)) selected.delete(personId); else selected.add(personId);
+    setSelectedAppointment({
+      ...appointment,
+      people: [...selected],
+      peopleDisplay: [...selected].map((id) => snapshot.people.find((p) => p.personId === id)?.name ?? id)
+    });
+  };
+
   const sendMessage = async (outgoingMessage: string) => {
     const trimmed = outgoingMessage.trim();
     if (!trimmed) return;
@@ -182,14 +192,14 @@ export function App() {
 
       {ruleModal ? <div className="modal-backdrop"><div className="modal"><h3>{ruleModal.kind === 'available' ? 'Add Available' : 'Add Unavailable'} Rule</h3><div className="field-grid"><label>Date<input type="date" value={ruleDate} onChange={(event) => setRuleDate(event.target.value)} /></label><label className="switch-row">All-day<input type="checkbox" checked={ruleAllDay} onChange={(event) => setRuleAllDay(event.target.checked)} /></label>{!ruleAllDay ? <><label>Start time<input type="time" value={ruleStartTime} onChange={(event) => setRuleStartTime(event.target.value)} /></label><label>Duration<select value={ruleDurationMins} onChange={(event) => setRuleDurationMins(event.target.value)}><option value="30">30 mins</option><option value="60">60 mins</option><option value="90">90 mins</option><option value="120">120 mins</option><option value="180">180 mins</option><option value="240">240 mins</option></select></label></> : null}<label>Notes/reason<input type="text" placeholder="Optional" value={ruleDesc} onChange={(event) => setRuleDesc(event.target.value)} /></label></div><div className="modal-actions"><button type="button" onClick={() => void submitRuleProposal()} disabled={!ruleDate}>Propose</button><button type="button" onClick={() => setRuleModal(null)}>Cancel</button></div></div></div> : null}
 
-      {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3>{activePeople.map((person) => {
+      {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
         const status = computePersonStatusForInterval(person.personId, { date: selectedAppointment.date, startTime: selectedAppointment.startTime, durationMins: selectedAppointment.durationMins }, snapshot.rules);
-        return <label key={person.personId} className="picker-row"><input type="checkbox" defaultChecked={selectedAppointment.people.includes(person.personId)} onChange={(e) => {
-          const selected = new Set(selectedAppointment.people);
-          if (e.target.checked) selected.add(person.personId); else selected.delete(person.personId);
-          setSelectedAppointment({ ...selectedAppointment, people: [...selected], peopleDisplay: [...selected].map((id) => snapshot.people.find((p) => p.personId === id)?.name ?? id) });
-        }} />{person.name}<span className={`status-tag ${status.status}`}>{status.status}</span></label>;
-      })}<div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
+        const isSelected = selectedAppointment.people.includes(person.personId);
+        return <div key={person.personId} className={`picker-row ${index < activePeople.length - 1 ? 'picker-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
+          <div className="picker-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="picker-name">{person.name}</span></div>
+          <div className="picker-status-wrap"><span className={`status-tag ${status.status}`}>{status.status === 'available' ? 'Available' : status.status === 'unavailable' ? 'Unavailable' : 'Unknown'}</span></div>
+        </div>;
+      })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
     </main>
   );
 }
