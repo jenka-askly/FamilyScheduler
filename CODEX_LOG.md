@@ -1858,3 +1858,51 @@ Implement optional API-side AI location parsing into structured fields (`name/ad
 ### Follow-ups
 
 - With `LOCATION_AI_FORMATTING=true` and valid `OPENAI_API_KEY`, run a manual end-to-end verification using the provided EvergreenHealth sample to validate extracted address/directions quality.
+
+## 2026-02-19 07:20 UTC (group link + phone-gated join + per-group state)
+
+### Objective
+
+Implement lightweight group creation/join with phone allowlist gating, move storage to per-group blob/file layout, and wire web hash routes/session propagation.
+
+### Approach
+
+- Refactored API storage adapter contract to `load(groupId)` / `save(groupId, ...)` / `initIfMissing(groupId, initialState?)`.
+- Implemented per-group local and Azure state paths under `STATE_BLOB_PREFIX/<groupId>/state.json`.
+- Added `group/create` and `group/join` endpoints; join checks active People allowlist by normalized E.164 phone.
+- Gated `/api/chat` and `/api/direct` by required `groupId` + `phone`.
+- Added web create/join/app routing and localStorage session checks; all API calls now include `groupId` + `phone`.
+- Updated docs and replaced API tests with focused coverage for group gating behavior.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/storage/storage.ts`
+- `api/src/lib/storage/localFileStorage.ts`
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/lib/groupAuth.ts`
+- `api/src/functions/groupCreate.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `api/src/index.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/functions/direct.test.ts`
+- `api/src/lib/state.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `README.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api test` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot; stopped with SIGINT)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/cdff90f504036a32/artifacts/artifacts/create-group-page.png`
+
+### Follow-ups
+
+- Replace local phone parser with `libphonenumber-js` once registry access is available in the environment.

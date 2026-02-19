@@ -45,7 +45,11 @@ export type AvailabilityRule = {
 };
 
 export type AppState = {
-  version: number;
+  schemaVersion: number;
+  groupId: string;
+  groupName: string;
+  createdAt: string;
+  updatedAt: string;
   people: Person[];
   appointments: Appointment[];
   rules: AvailabilityRule[];
@@ -54,13 +58,20 @@ export type AppState = {
 
 const DEFAULT_TZ = 'America/Los_Angeles';
 
-export const createEmptyAppState = (): AppState => ({
-  version: 2,
-  people: [],
-  appointments: [],
-  rules: [],
-  history: []
-});
+export const createEmptyAppState = (groupId = 'default', groupName = 'Family Scheduler'): AppState => {
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: 3,
+    groupId,
+    groupName,
+    createdAt: now,
+    updatedAt: now,
+    people: [],
+    appointments: [],
+    rules: [],
+    history: []
+  };
+};
 
 const normalizeText = (value: string): string => value.trim().replace(/\s+/g, ' ');
 const normalizePeople = (value: unknown): string[] => {
@@ -187,8 +198,16 @@ export const normalizeAppState = (state: AppState): AppState => {
     };
   });
 
+  const now = new Date().toISOString();
+  const createdAt = typeof stateLike.createdAt === 'string' && stateLike.createdAt.trim() ? stateLike.createdAt : now;
+  const updatedAt = typeof stateLike.updatedAt === 'string' && stateLike.updatedAt.trim() ? stateLike.updatedAt : createdAt;
+
   return {
-    version: typeof stateLike.version === 'number' ? stateLike.version : 2,
+    schemaVersion: typeof stateLike.schemaVersion === 'number' ? stateLike.schemaVersion : (typeof stateLike.version === 'number' ? stateLike.version : 3),
+    groupId: typeof stateLike.groupId === 'string' && stateLike.groupId.trim() ? stateLike.groupId : 'default',
+    groupName: typeof stateLike.groupName === 'string' && stateLike.groupName.trim() ? normalizeText(stateLike.groupName) : 'Family Scheduler',
+    createdAt,
+    updatedAt,
     people,
     appointments: normalizedAppointments,
     rules: normalizeRulesCollection(stateLike, people),
