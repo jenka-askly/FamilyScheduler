@@ -21,6 +21,7 @@ export const buildParserSystemPrompt = (): string => [
   'replace_people_on_appointment {code,people}',
   'clear_people_on_appointment {code}',
   'set_appointment_location {code,location}',
+  'set_appointment_notes {code,notes}',
   'add_availability {personName,date,desc,startTime?,durationMins?,timezone?}',
   'delete_availability {code}',
   'set_identity {name}',
@@ -35,7 +36,8 @@ export const buildParserSystemPrompt = (): string => [
   'Never encode people in appointment title; use people field actions instead.',
   'Prefer multi-person people actions when user mentions multiple people.',
   'Use add_people_to_appointment for add/assign/include people, remove_people_from_appointment for remove/unassign, replace_people_on_appointment for set/replace people, clear_people_on_appointment for clear people.',
-  'Use set_appointment_location for set/clear location (empty string clears).'
+  'Use set_appointment_location for set/clear location (empty string clears).',
+  'Use set_appointment_notes for add/set/clear notes (empty string clears). Keep notes concise.'
 ].join('\n');
 
 export const buildParserUserPrompt = (input: string, context: string): string => `User input:\n${input}\n\nContext envelope:\n${context}`;

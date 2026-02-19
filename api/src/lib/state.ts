@@ -17,6 +17,7 @@ export type Appointment = {
   assigned: string[];
   people: string[];
   location: string;
+  notes: string;
 };
 
 export type AvailabilityBlock = {
@@ -82,7 +83,8 @@ export const normalizeAppState = (state: AppState): AppState => {
       ...appointment,
       assigned,
       people: normalizePeople(peopleSource),
-      location: typeof appointment.location === 'string' ? normalizeText(appointment.location) : ''
+      location: typeof appointment.location === 'string' ? normalizeText(appointment.location) : '',
+      notes: typeof appointment.notes === 'string' ? appointment.notes.trim().slice(0, 500) : ''
     };
   });
   return normalized;

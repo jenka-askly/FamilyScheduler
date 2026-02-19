@@ -68,3 +68,5 @@ Safety reminder: changes still require explicit `confirm` before mutation is app
 - `replace people on APPT-1 with Joe`
 - `clear people on APPT-1`
 - `set location of APPT-1 to Kaiser Redwood City`
+- `set notes on APPT-1 to Bring insurance card`
+- `clear notes on APPT-1`

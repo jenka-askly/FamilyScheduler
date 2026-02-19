@@ -129,7 +129,9 @@ test('acceptance: people and location proposal/confirm updates snapshot', async 
     'reset state': { kind: 'proposal', message: 'Reset state', actions: [{ type: 'reset_state' }] },
     'add appt Dentist': { kind: 'proposal', message: 'Add Dentist', actions: [{ type: 'add_appointment', desc: 'Dentist', date: '2026-03-03' }] },
     'add joe and sam to appt-1': { kind: 'proposal', message: 'Add people', actions: [{ type: 'add_people_to_appointment', code: 'APPT-1', people: ['Joe', 'Sam'] }] },
-    'set location of appt-1 to kaiser redwood city': { kind: 'proposal', message: 'Set location', actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: 'Kaiser Redwood City' }] }
+    'set location of appt-1 to kaiser redwood city': { kind: 'proposal', message: 'Set location', actions: [{ type: 'set_appointment_location', code: 'APPT-1', location: 'Kaiser Redwood City' }] },
+    'set notes on appt-1 to bring insurance card': { kind: 'proposal', message: 'Set notes', actions: [{ type: 'set_appointment_notes', code: 'APPT-1', notes: 'Bring insurance card' }] },
+    'clear notes on appt-1': { kind: 'proposal', message: 'Clear notes', actions: [{ type: 'set_appointment_notes', code: 'APPT-1', notes: '' }] }
   });
 
   await sendChat('reset state', 'session-people');
@@ -146,4 +148,14 @@ test('acceptance: people and location proposal/confirm updates snapshot', async 
   applied = await sendChat('confirm', 'session-people');
   const locationSnapshot = (applied.jsonBody as any).snapshot.appointments[0];
   assert.equal(locationSnapshot.location, 'Kaiser Redwood City');
+
+  await sendChat('set notes on appt-1 to bring insurance card', 'session-people');
+  applied = await sendChat('confirm', 'session-people');
+  const notesSnapshot = (applied.jsonBody as any).snapshot.appointments[0];
+  assert.equal(notesSnapshot.notes, 'Bring insurance card');
+
+  await sendChat('clear notes on appt-1', 'session-people');
+  applied = await sendChat('confirm', 'session-people');
+  const clearNotesSnapshot = (applied.jsonBody as any).snapshot.appointments[0];
+  assert.equal(clearNotesSnapshot.notes, '');
 });

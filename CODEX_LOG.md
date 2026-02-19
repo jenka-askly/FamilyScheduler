@@ -1272,3 +1272,47 @@ Apply UI-only polish in `apps/web`: hide Availability pane, reduce baseline typo
 ### Follow-ups
 
 - Run full app manual QA (`pnpm dev`) to exercise clarify/proposal paths end-to-end against API.
+
+## 2026-02-19 02:55 UTC (UEX notes column + persisted appointment notes)
+
+### Objective
+
+Add an appointment Notes column in web UI and implement persisted `notes` support end-to-end (schema/action/executor/snapshot) with backward compatibility for older blobs.
+
+### Approach
+
+- Added `notes` to appointment state model with normalization default `""` and max length clamp for legacy loads.
+- Bumped action schema to v4 and added `set_appointment_notes {code,notes}` parser validation (trim + max 500).
+- Extended executor mutation handling + preview text for set/clear notes; included notes in add/show flows.
+- Included `notes` in chat snapshot + mutation gate list; updated planner prompt instructions.
+- Added Notes column in `apps/web` appointments table with muted `—` fallback and ellipsis+hover for long notes.
+- Expanded tests for schema/executor/chat plus a state normalization test for old blobs without notes.
+- Updated prompt help and project status docs.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/state.test.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `docs/prompt-help.md`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --filter api test` ❌ initial run failed (prompt string syntax error).
+- `pnpm -r --filter api test` ✅ pass after prompt fix.
+- `pnpm -C apps/web build` ✅ pass.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
+- Playwright screenshot capture ✅ artifact at `browser:/tmp/codex_browser_invocations/c4cc1b47ab8eba1c/artifacts/artifacts/notes-column.png`.
+
+### Follow-ups
+
+- Optionally add an explicit UI integration test for Notes column cell truncation behavior.

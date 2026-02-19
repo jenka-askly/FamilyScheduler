@@ -62,3 +62,18 @@ test('parses confidence', () => {
   });
   assert.equal(parsed.confidence, 0.75);
 });
+
+
+test('validates appointment notes constraints', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'notes',
+    actions: [{ type: 'set_appointment_notes', code: 'APPT-1', notes: '  Bring insurance card  ' }]
+  });
+  assert.equal((parsed.actions?.[0] as any).notes, 'Bring insurance card');
+  assert.throws(() => ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'notes',
+    actions: [{ type: 'set_appointment_notes', code: 'APPT-1', notes: 'x'.repeat(501) }]
+  }));
+});

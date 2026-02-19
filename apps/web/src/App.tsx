@@ -6,7 +6,7 @@ type TranscriptEntry = {
 };
 
 type Snapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; location: string }>;
+  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; location: string; notes: string }>;
   availability: Array<{ code: string; personName: string; start: string; end: string; reason?: string }>;
   historyCount?: number;
 };
@@ -152,6 +152,7 @@ export function App() {
                   <th>Description</th>
                   <th>People</th>
                   <th>Location</th>
+                  <th>Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -171,6 +172,11 @@ export function App() {
                         : <span className="unassigned-badge">Unassigned</span>}
                     </td>
                     <td>{appointment.location || '—'}</td>
+                    <td>
+                      {appointment.notes?.trim()
+                        ? <span className="notes-text" title={appointment.notes}>{appointment.notes}</span>
+                        : <span className="muted-empty">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

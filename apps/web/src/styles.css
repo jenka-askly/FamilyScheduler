@@ -154,3 +154,15 @@ input {
   justify-content: flex-end;
   gap: 0.5rem;
 }
+
+.muted-empty {
+  color: #94a3b8;
+}
+
+.notes-text {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
