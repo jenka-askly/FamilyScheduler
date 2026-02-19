@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { createEmptyAppState } from '../lib/state.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -10,7 +10,9 @@ const storage = createStorageAdapter();
 
 const badRequest = (message: string): HttpResponseInit => ({ status: 400, jsonBody: { error: 'bad_request', message } });
 
-export async function groupCreate(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
+const newPersonId = (): string => `P-${randomBytes(2).toString('hex').toUpperCase()}`;
+
+export async function groupCreate(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const body = await request.json() as CreateGroupBody;
   const groupName = typeof body.groupName === 'string' ? body.groupName.trim().replace(/\s+/g, ' ') : '';
   const groupKey = typeof body.groupKey === 'string' ? body.groupKey.trim() : '';
@@ -28,13 +30,16 @@ export async function groupCreate(request: HttpRequest, _context: InvocationCont
     throw error;
   }
 
+  const traceId = randomUUID();
   const groupId = randomUUID();
   const now = new Date().toISOString();
+  const creatorPersonId = newPersonId();
   const state = createEmptyAppState(groupId, groupName);
   state.createdAt = now;
   state.updatedAt = now;
-  state.people = [{ personId: 'P-1', name: 'Creator', cellE164: creatorPhone.e164, cellDisplay: creatorPhone.display, status: 'active', timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
+  state.people = [{ personId: creatorPersonId, name: 'Creator', cellE164: creatorPhone.e164, cellDisplay: creatorPhone.display, status: 'active', createdAt: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
 
   await storage.initIfMissing(groupId, state);
-  return { status: 200, jsonBody: { groupId, linkPath: `/#/g/${groupId}` } };
+  context.debug('group_create_success', { traceId, groupId, peopleCount: state.people.length });
+  return { status: 200, jsonBody: { groupId, groupName, creatorPersonId, linkPath: `/#/g/${groupId}` } };
 }

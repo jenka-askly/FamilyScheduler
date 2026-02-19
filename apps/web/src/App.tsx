@@ -38,24 +38,67 @@ function CreateGroupPage() {
   const [creatorPhone, setCreatorPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    const response = await fetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone }) });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.message ?? 'Failed to create group');
-      return;
-    }
+    setIsCreating(true);
+    try {
+      const response = await fetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone }) });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.message ?? 'Failed to create group');
+        return;
+      }
 
-    const link = `${window.location.origin}${data.linkPath}`;
-    writeSession({ groupId: data.groupId, phone: creatorPhone, joinedAt: new Date().toISOString() });
-    setShareLink(link);
-    nav(`/g/${data.groupId}/app`);
+      const link = `${window.location.origin}/#/g/${data.groupId}`;
+      writeSession({ groupId: data.groupId, phone: creatorPhone, joinedAt: new Date().toISOString() });
+      setCreatedGroupId(data.groupId);
+      setShareLink(link);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  return <main className="app-shell"><h1>Family Scheduler</h1><form onSubmit={submit} className="panel"><h2>Create Group</h2><label>Group name<input value={groupName} onChange={(e) => setGroupName(e.target.value)} required maxLength={60} /></label><label>Group key (6 digits)<input value={groupKey} onChange={(e) => setGroupKey(e.target.value)} pattern="\d{6}" required /></label><label>Your phone<input value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required /></label><button type="submit">Create</button>{error ? <p>{error}</p> : null}{shareLink ? <p>Share link: <a href={shareLink}>{shareLink}</a> <button type="button" onClick={() => void navigator.clipboard.writeText(shareLink)}>Copy</button></p> : null}</form></main>;
+  return (
+    <main className="create-page">
+      <h1>Family Scheduler</h1>
+      <form onSubmit={submit} className="panel create-card">
+        <h2>Create Group</h2>
+        <div className="create-fields">
+          <label>
+            <span className="field-label">Group name</span>
+            <input className="field-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} required maxLength={60} placeholder="Mom Knee Surgery" />
+          </label>
+          <label>
+            <span className="field-label">Group key (6 digits)</span>
+            <input className="field-input" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} inputMode="numeric" maxLength={6} pattern="\d{6}" required />
+          </label>
+          <label>
+            <span className="field-label">Your phone</span>
+            <input className="field-input" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" />
+            <span className="field-help">Use a number you will use to sign into this group.</span>
+          </label>
+        </div>
+        <button type="submit" className="create-submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create group'}</button>
+        {error ? <p className="form-error">{error}</p> : null}
+
+        {shareLink && createdGroupId ? (
+          <section className="share-link">
+            <p className="field-label">Share link</p>
+            <div className="share-row">
+              <input readOnly value={shareLink} className="field-input" />
+              <button type="button" onClick={() => void navigator.clipboard.writeText(shareLink)}>Copy</button>
+            </div>
+            <p className="field-help">Anyone opening this link must enter a phone number already in People.</p>
+            <button type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
+          </section>
+        ) : null}
+      </form>
+    </main>
+  );
 }
 
 function JoinGroupPage({ groupId }: { groupId: string }) {

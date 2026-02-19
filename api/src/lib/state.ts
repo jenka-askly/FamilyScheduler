@@ -6,6 +6,7 @@ export type Person = {
   cellE164: string;
   cellDisplay?: string;
   status: 'active' | 'inactive';
+  createdAt?: string;
   timezone?: string;
   notes?: string;
 };
@@ -112,10 +113,11 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     const status = raw?.status === 'inactive' ? 'inactive' : 'active';
     const cellE164 = typeof raw?.cellE164 === 'string' && raw.cellE164.trim() ? raw.cellE164.trim() : '+10000000000';
     const cellDisplay = typeof raw?.cellDisplay === 'string' && raw.cellDisplay.trim() ? raw.cellDisplay.trim() : cellE164;
+    const createdAt = typeof raw?.createdAt === 'string' && raw.createdAt.trim() ? raw.createdAt.trim() : undefined;
     const timezone = typeof raw?.timezone === 'string' && raw.timezone.trim() ? raw.timezone.trim() : DEFAULT_TZ;
     const notes = typeof raw?.notes === 'string' ? raw.notes.trim().slice(0, 500) : '';
 
-    people.push({ personId, name, cellE164, cellDisplay, status, timezone, notes });
+    people.push({ personId, name, cellE164, cellDisplay, status, createdAt, timezone, notes });
   }
   return people;
 };
