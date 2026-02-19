@@ -1727,3 +1727,39 @@ Implement deterministic appointment location formatting with raw fidelity storag
 ### Follow-ups
 
 - Optional: implement feature-flagged AI-assisted location reformatting path (`LOCATION_AI_FORMATTING`) as a non-blocking enhancement if desired.
+
+## 2026-02-19 06:35 UTC (appointments UX: row edit mode + full width + compact typography)
+
+### Objective
+
+Implement appointments UX cleanup in `apps/web`: single-row edit mode with Edit/Done actions, auto-edit on Add, full-width layout, and reduced typography scale.
+
+### Approach
+
+- Added `editingApptCode` state and single-row edit toggling behavior.
+- Updated direct action helper to return latest snapshot so Add can detect the newly created appointment and immediately place it in edit mode.
+- Reworked appointments table render logic:
+  - Read-only text cells by default.
+  - Inputs/textareas shown only for the active editing row.
+  - Added Duration column with compact numeric editor in edit mode.
+  - Added Edit/Done + Delete actions in each row.
+- Updated CSS for full-width main layout, slightly denser controls, and read-only multiline clamps for description/notes/location.
+- Captured screenshot artifact of updated UI.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot capture via browser tool ✅ succeeded (`appointments-ux-fullwidth.png`).
+- Stopped dev server with SIGINT after capture ✅ expected.
+
+### Follow-ups
+
+- Optional: add keyboard shortcut (Esc) to exit row edit mode for faster data entry ergonomics.

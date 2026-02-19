@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, ReactNode, useMemo, useState } from 'react';
+import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -98,6 +98,7 @@ export function App() {
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingApptCode, setEditingApptCode] = useState<string | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
@@ -148,12 +149,18 @@ export function App() {
 
   const sendDirectAction = async (action: Record<string, unknown>) => {
     const response = await fetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
-    if (!response.ok) return;
+    if (!response.ok) return null;
     const json = await response.json() as { ok: boolean; snapshot?: Snapshot };
     if (json.snapshot) setSnapshot(json.snapshot);
+    return json.snapshot ?? null;
   };
 
-  const addAppointment = async () => { await sendDirectAction({ type: 'create_blank_appointment' }); };
+  const addAppointment = async () => {
+    const previousCodes = new Set(snapshot.appointments.map((appointment) => appointment.code));
+    const nextSnapshot = await sendDirectAction({ type: 'create_blank_appointment' });
+    const created = nextSnapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
+    if (created) setEditingApptCode(created.code);
+  };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -183,12 +190,93 @@ export function App() {
     await sendMessage(sentence);
   };
 
+  useEffect(() => {
+    if (!editingApptCode) return;
+    const exists = snapshot.appointments.some((appointment) => appointment.code === editingApptCode);
+    if (!exists) setEditingApptCode(null);
+  }, [editingApptCode, snapshot.appointments]);
+
   return (
     <main>
       <h1>Scheduler</h1>
       <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
 
-      {view === 'appointments' ? <section className="panel"><div className="panel-header"><h2>Appointments</h2><button type="button" onClick={() => void addAppointment()}>Add</button></div>{sortedAppointments.length === 0 ? <p>No appointments yet.</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Code</th><th>Date</th><th>Time</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{sortedAppointments.map((appointment) => <tr key={appointment.code}><td><code>{appointment.code}</code></td><td><input type="date" defaultValue={appointment.date || ''} onBlur={(event) => { const value = event.currentTarget.value; if (value && value !== appointment.date) void sendDirectAction({ type: 'set_appointment_date', code: appointment.code, date: value }); }} /></td><td><div className="time-cell"><input type="time" defaultValue={appointment.startTime ?? ''} onBlur={(event) => { const value = event.currentTarget.value; if (value !== (appointment.startTime ?? '')) void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code, startTime: value || undefined }); }} /><button type="button" onClick={() => void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code })}>Clear</button></div></td><td className="multiline-cell"><textarea rows={2} defaultValue={appointment.desc} onBlur={(event) => { if (event.currentTarget.value !== appointment.desc) void sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: event.currentTarget.value }); }} /></td><td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td><td className="multiline-cell"><div className="location-cell"><textarea rows={2} defaultValue={appointment.locationRaw ?? appointment.location} title={appointment.locationDisplay || appointment.location} onBlur={(event) => { if (event.currentTarget.value !== (appointment.locationRaw ?? appointment.location)) void sendDirectAction({ type: 'set_appointment_location', code: appointment.code, locationRaw: event.currentTarget.value }); }} /><div className="location-preview-wrap">{appointment.locationDisplay ? <p className="location-preview" title={appointment.locationDisplay}>{appointment.locationDisplay}</p> : <span className="muted-empty">—</span>}{appointment.locationDisplay ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationDisplay)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></div></td><td className="multiline-cell"><textarea rows={3} defaultValue={appointment.notes} title={appointment.notes} onBlur={(event) => { if (event.currentTarget.value !== appointment.notes) void sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: event.currentTarget.value }); }} /></td><td><button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button></td></tr>)}</tbody></table></div>}</section> : null}
+      {view === 'appointments' ? (
+        <section className="panel">
+          <div className="panel-header">
+            <h2>Appointments</h2>
+            <button type="button" onClick={() => void addAppointment()}>Add</button>
+          </div>
+          {sortedAppointments.length === 0 ? <p>No appointments yet.</p> : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr><th>Code</th><th>Date</th><th>Time</th><th>Duration</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {sortedAppointments.map((appointment) => {
+                    const isEditing = editingApptCode === appointment.code;
+                    return (
+                      <tr key={appointment.code}>
+                        <td><code>{appointment.code}</code></td>
+                        <td>
+                          {isEditing ? (
+                            <input type="date" defaultValue={appointment.date || ''} onBlur={(event) => { const value = event.currentTarget.value; if (value && value !== appointment.date) void sendDirectAction({ type: 'set_appointment_date', code: appointment.code, date: value }); }} />
+                          ) : (
+                            <span>{appointment.date || '—'}</span>
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <div className="time-cell"><input type="time" defaultValue={appointment.startTime ?? ''} onBlur={(event) => { const value = event.currentTarget.value; if (value !== (appointment.startTime ?? '')) void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code, startTime: value || undefined }); }} /><button type="button" className="compact-button" onClick={() => void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code })}>Clear</button></div>
+                          ) : (
+                            <span>{appointment.startTime || (appointment.isAllDay ? 'All day' : '—')}</span>
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input type="number" min={1} max={1440} defaultValue={appointment.durationMins ?? ''} onBlur={(event) => { const value = event.currentTarget.value; const normalized = value ? Number(value) : undefined; if (normalized !== appointment.durationMins) void sendDirectAction({ type: 'set_appointment_duration', code: appointment.code, durationMins: normalized }); }} />
+                          ) : (
+                            <span>{appointment.durationMins ? `${appointment.durationMins}m` : '—'}</span>
+                          )}
+                        </td>
+                        <td className="multiline-cell">
+                          {isEditing ? (
+                            <textarea rows={2} autoFocus={editingApptCode === appointment.code && !appointment.desc} defaultValue={appointment.desc} onBlur={(event) => { if (event.currentTarget.value !== appointment.desc) void sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: event.currentTarget.value }); }} />
+                          ) : (
+                            <span className="line-clamp" title={appointment.desc}>{appointment.desc || '—'}</span>
+                          )}
+                        </td>
+                        <td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
+                        <td className="multiline-cell">
+                          {isEditing ? (
+                            <div className="location-cell"><textarea rows={2} defaultValue={appointment.locationRaw ?? appointment.location} title={appointment.locationDisplay || appointment.location} onBlur={(event) => { if (event.currentTarget.value !== (appointment.locationRaw ?? appointment.location)) void sendDirectAction({ type: 'set_appointment_location', code: appointment.code, locationRaw: event.currentTarget.value }); }} /><div className="location-preview-wrap">{appointment.locationDisplay ? <p className="location-preview" title={appointment.locationDisplay}>{appointment.locationDisplay}</p> : <span className="muted-empty">—</span>}{appointment.locationDisplay ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationDisplay)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></div>
+                          ) : (
+                            <div className="location-preview-wrap"><p className="location-preview" title={appointment.locationDisplay || appointment.location}>{appointment.locationDisplay || appointment.location || '—'}</p>{appointment.locationDisplay ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationDisplay)}`} target="_blank" rel="noreferrer">Map</a> : null}</div>
+                          )}
+                        </td>
+                        <td className="multiline-cell">
+                          {isEditing ? (
+                            <textarea rows={3} defaultValue={appointment.notes} title={appointment.notes} onBlur={(event) => { if (event.currentTarget.value !== appointment.notes) void sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: event.currentTarget.value }); }} />
+                          ) : (
+                            <span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="action-icons">
+                            <button type="button" className="icon-button" aria-label={isEditing ? 'Done editing appointment' : 'Edit appointment'} data-tooltip={isEditing ? 'Done' : 'Edit'} onClick={() => setEditingApptCode(isEditing ? null : appointment.code)}>{isEditing ? <CheckCircle /> : <Pencil />}</button>
+                            <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {view === 'people' ? (
         <section className="panel">
