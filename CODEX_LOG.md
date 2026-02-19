@@ -1097,3 +1097,32 @@ Implement API-only OpenAI request/response logging with redaction, per-session c
 ### Follow-ups
 
 - If needed later, split logs per day/session file for easier operational browsing in long-running environments.
+
+## 2026-02-19 01:28 UTC (deterministic explicit update command + confirm/cancel synonyms)
+
+### Objective
+
+Fix deterministic update parsing to support explicit `update appointment ... start ... end ...` / `reschedule ... start ... end ...`, add confirm/cancel synonyms for pending proposal + yes/no clarification handling, and prevent standalone timezone acknowledgment replies from stranding the flow.
+
+### Approach
+
+- Added deterministic explicit reschedule command parser with strict patterns, appointment code normalization, ISO datetime parsing with and without offsets, and `end > start` validation.
+- Implemented no-offset fallback to Pacific-local interpretation (`-08:00`) and a pending timezone-ack clarification (`confirmTimezone`) that proceeds to proposal on yes/confirm synonyms.
+- Updated confirmation/cancellation logic to exact normalized synonyms instead of substring matching.
+- Added/updated tests covering explicit deterministic command proposal/apply, `yes` as confirm, and timezone clarify -> `yes` -> proposal progression.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+
+### Follow-ups
+
+- Consider DST-aware conversion for offset-less local timestamps if runtime needs seasonal offset correctness beyond current `-08:00` behavior.
