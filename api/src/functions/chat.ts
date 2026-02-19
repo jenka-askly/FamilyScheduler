@@ -8,15 +8,13 @@ import { parseToActions } from '../lib/openai/openaiClient.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { looksLikeSingleCodeToken, normalizeAppointmentCode, normalizeAvailabilityCode } from '../lib/text/normalizeCode.js';
 import { parseFlexibleDate } from '../lib/time/parseDate.js';
-
+import { parseTimeRange } from '../lib/time/parseTimeRange.js';
 type ChatRequest = { message?: unknown };
-
 type PendingProposal = {
   id: string;
   actions: Action[];
   expectedEtag: string;
 };
-
 type ParsedDateTime = {
   date: string;
   startTime: string;
@@ -24,20 +22,17 @@ type ParsedDateTime = {
   startIso: string;
   endIso: string;
 };
-
 type RescheduleInterpretation = {
   start: string;
   end: string;
   label: string;
   isAllDay?: boolean;
 };
-
 type ResponseSnapshot = {
   appointments: Array<{ code: string; title: string; start?: string; end?: string; assigned?: string[] }>;
   availability: Array<{ code: string; personName: string; start: string; end: string; reason?: string }>;
   historyCount?: number;
 };
-
 const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
   appointments: [...state.appointments]
     .sort((left, right) => {
@@ -64,12 +59,10 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
     })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
-
 const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState): T & { snapshot: ResponseSnapshot } => ({
   ...payload,
   snapshot: toResponseSnapshot(state)
 });
-
 const storage = createStorageAdapter();
 let pendingProposal: PendingProposal | null = null;
 let activePersonId: string | null = null;
@@ -78,9 +71,11 @@ type PendingClarificationAction = {
   type: Action['type'];
   code?: string;
   personName?: string;
+  date?: string;
   start?: string;
   end?: string;
   title?: string;
+  timezone?: string;
 };
 type PendingClarification = {
   kind: 'action_fill';
@@ -90,10 +85,8 @@ type PendingClarification = {
   expectedEtag?: string;
 };
 let pendingClarification: PendingClarification | null = null;
-
 const badRequest = (message: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message } });
 const normalizeName = (value: string): string => value.trim().replace(/\s+/g, ' ').toLowerCase();
-
 const parseDeleteCommand = (message: string): { code: string } | null => {
   const match = message.match(/^delete\s+(.+)$/i);
   if (!match) return null;
@@ -115,13 +108,11 @@ const parseIAmCommand = (message: string): { name: string } | null => {
   const match = message.match(/^i\s+am\s+(.+)$/i);
   return match ? { name: match[1].trim() } : null;
 };
-
 const parseBareNameCommand = (message: string): { name: string } | null => {
   const match = message.match(/^[a-z][a-z\s'-]*$/i);
   if (!match) return null;
   return { name: message.trim().replace(/\s+/g, ' ') };
 };
-
 const parse12HourTime = (value: string): string | null => {
   const match = value.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/i);
   if (!match) return null;
@@ -142,15 +133,12 @@ const parse24HourTime = (value: string): string | null => {
 };
 const parseTimeToken = (value: string): string | null => parse24HourTime(value) ?? parse12HourTime(value);
 const toIsoString = (date: string, time: string): string => `${date}T${time}:00-08:00`;
-
 const toPacificIsoString = (date: string, time: string): string => `${date}T${time}:00-08:00`;
 const TIME_OF_DAY_RANGES: Record<string, { start: string; end: string }> = {
   morning: { start: '09:00', end: '12:00' },
   afternoon: { start: '13:00', end: '17:00' },
   evening: { start: '17:00', end: '21:00' }
 };
-
-
 const parseFlexibleDateWithOptionalYear = (input: string): string | null => {
   const direct = parseFlexibleDate(input);
   if (direct) return direct;
@@ -162,16 +150,13 @@ const parseFlexibleDateWithOptionalYear = (input: string): string | null => {
   if (candidateThisYear >= now.toISOString().slice(0, 10)) return candidateThisYear;
   return parseFlexibleDate(`${monthDayMatch[1]} ${monthDayMatch[2]} ${now.getUTCFullYear() + 1}`);
 };
-
-const parseRescheduleCommand = (message: string): { code: string; interpretation: RescheduleInterpretation } | null => {
-  const match = message.match(/^change\s+([^\s]+)\s+to\s+(.+)$/i);
+const parseRescheduleCommand = (message: string): { code: string; interpretation?: RescheduleInterpretation; date?: string } | null => {
+  const match = message.match(/^(?:change|update)\s+([^\s]+(?:\s+\d+)?)\s+to\s+(.+)$/i);
   if (!match) return null;
   const code = normalizeAppointmentCode(match[1]);
   if (!code) return null;
-
   const tail = match[2].trim().replace(/\s+/g, ' ');
   const tailLower = tail.toLowerCase();
-
   for (const [label, range] of Object.entries(TIME_OF_DAY_RANGES)) {
     if (tailLower.endsWith(` ${label}`)) {
       const datePart = tail.slice(0, -(label.length + 1)).trim();
@@ -187,18 +172,9 @@ const parseRescheduleCommand = (message: string): { code: string; interpretation
       };
     }
   }
-
   const dateOnly = parseFlexibleDateWithOptionalYear(tail);
   if (!dateOnly) return null;
-  return {
-    code,
-    interpretation: {
-      start: toPacificIsoString(dateOnly, '00:00'),
-      end: toPacificIsoString(dateOnly, '23:59'),
-      label: `${dateOnly} (all day)`,
-      isAllDay: true
-    }
-  };
+  return { code, date: dateOnly };
 };
 const parseDateAndRange = (dateToken: string, rangeToken: string): ParsedDateTime | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateToken)) return null;
@@ -212,7 +188,6 @@ const parseDateAndRange = (dateToken: string, rangeToken: string): ParsedDateTim
   if (new Date(startIso) >= new Date(endIso)) return null;
   return { date: dateToken, startTime, endTime, startIso, endIso };
 };
-
 const parseMarkUnavailableCommand = (message: string): { target: string; parsedDateTime: ParsedDateTime; reason?: string; isMe: boolean } | null => {
   const match = message.match(/^mark\s+(.+?)\s+unavailable\s+(\d{4}-\d{2}-\d{2})\s+([^\s]+)(?:\s+(.+))?$/i);
   if (!match) return null;
@@ -221,13 +196,11 @@ const parseMarkUnavailableCommand = (message: string): { target: string; parsedD
   const target = match[1].trim();
   return { target, parsedDateTime, reason: match[4]?.trim() || undefined, isMe: normalizeName(target) === 'me' };
 };
-
 const resolveNextYearForMonth = (monthIndex: number, now: Date): number => {
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth();
   return monthIndex < currentMonth ? currentYear + 1 : currentYear;
 };
-
 const parseMonthRangeQuery = (normalizedMessage: string): { month?: string; start?: string; end?: string } | null => {
   const monthTokens = [
     { tokens: ['january', 'jan'], month: 1 },
@@ -243,7 +216,6 @@ const parseMonthRangeQuery = (normalizedMessage: string): { month?: string; star
     { tokens: ['november', 'nov'], month: 11 },
     { tokens: ['december', 'dec'], month: 12 }
   ];
-
   if (normalizedMessage.startsWith('who is available in ')) {
     const monthWithOptionalYear = normalizedMessage.slice('who is available in '.length).trim();
     const monthYearMatch = monthWithOptionalYear.match(/^([a-z]+)(?:\s+(\d{4}))?$/i);
@@ -254,23 +226,19 @@ const parseMonthRangeQuery = (normalizedMessage: string): { month?: string; star
       return { month: `${resolvedYear}-${String(monthEntry.month).padStart(2, '0')}` };
     }
   }
-
   const yearMonthMatch = normalizedMessage.match(/^who\s+is\s+available\s+in\s+(\d{4}-\d{2})$/i);
   if (yearMonthMatch) return { month: yearMonthMatch[1] };
-
   const explicitRangeMatch = normalizedMessage.match(/^who\s+is\s+available\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})$/i);
   return explicitRangeMatch ? { start: explicitRangeMatch[1], end: explicitRangeMatch[2] } : null;
 };
-
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), actions, expectedEtag });
-const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_title', 'update_appointment_schedule', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
-
+const isMutationAction = (action: Action): boolean => ['add_appointment', 'delete_appointment', 'update_appointment_title', 'update_appointment_schedule', 'reschedule_appointment', 'add_availability', 'delete_availability', 'set_identity', 'reset_state'].includes(action.type);
 const renderProposalText = (actions: Action[]): string => {
   const lines = actions.map((action, index) => {
     if (action.type === 'add_appointment') return `${index + 1}) Add appointment '${action.title}'`;
     if (action.type === 'delete_appointment') return `${index + 1}) Delete appointment ${action.code}`;
     if (action.type === 'update_appointment_title') return `${index + 1}) Update ${action.code} title to '${action.title}'`;
-    if (action.type === 'update_appointment_schedule') {
+    if (action.type === 'update_appointment_schedule' || action.type === 'reschedule_appointment') {
       const dayHint = action.isAllDay ? ' (all day)' : '';
       return `${index + 1}) Reschedule ${action.code} to ${action.start}–${action.end}${dayHint}`;
     }
@@ -281,24 +249,19 @@ const renderProposalText = (actions: Action[]): string => {
   });
   return `Please confirm you want to:\n${lines.join('\n')}\nReply 'confirm' or 'cancel'.`;
 };
-
 const buildOpenAiContext = (state: AppState) => ({
   peopleNames: state.people.map((person) => person.name).slice(0, 30),
   appointmentsSummary: state.appointments.slice(0, 40).map((item) => `${item.code}: ${item.title}`),
   availabilitySummary: state.availability.slice(0, 60).map((item) => `${item.code}: ${item.start} to ${item.end}`),
   timezoneName: process.env.TZ ?? 'America/Los_Angeles'
 });
-
 const createClarificationState = (action: Action | undefined): typeof pendingClarification => {
   if (!action) return null;
-
   if (action.type === 'list_availability' && !action.personName) {
     return { kind: 'action_fill', action: { type: 'list_availability' }, missing: ['personName'] };
   }
-
   return null;
 };
-
 const parseClarificationCandidates = (question: string): Array<{ code: string; label: string }> => {
   const candidateMatches = [...question.matchAll(/(APPT[\s-]?\d+)/gi)];
   const candidates = candidateMatches
@@ -307,7 +270,6 @@ const parseClarificationCandidates = (question: string): Array<{ code: string; l
     .map((code) => ({ code, label: code }));
   return candidates.filter((candidate, index) => candidates.findIndex((item) => item.code === candidate.code) === index);
 };
-
 const actionTypeFromInput = (input: string): Action['type'] | null => {
   const normalized = normalizeUserText(input);
   if (normalized === 'delete') return 'delete_appointment';
@@ -315,7 +277,6 @@ const actionTypeFromInput = (input: string): Action['type'] | null => {
   if (normalized === 'update') return 'update_appointment_title';
   return null;
 };
-
 const toExecutableAction = (pending: PendingClarification): Action | null => {
   if (pending.action.type === 'list_availability') {
     return { type: 'list_availability', personName: typeof pending.action.personName === 'string' ? pending.action.personName : undefined };
@@ -335,9 +296,14 @@ const toExecutableAction = (pending: PendingClarification): Action | null => {
   if (pending.action.type === 'update_appointment_title' && typeof pending.action.code === 'string' && typeof pending.action.title === 'string') {
     return { type: 'update_appointment_title', code: pending.action.code, title: pending.action.title };
   }
+  if ((pending.action.type === 'reschedule_appointment' || pending.action.type === 'update_appointment_schedule')
+    && typeof pending.action.code === 'string'
+    && typeof pending.action.start === 'string'
+    && typeof pending.action.end === 'string') {
+    return { type: 'reschedule_appointment', code: pending.action.code, start: pending.action.start, end: pending.action.end, timezone: pending.action.timezone };
+  }
   return null;
 };
-
 const renderClarificationQuestion = (pending: PendingClarification): string => {
   const nextMissing = pending.missing[0];
   if (nextMissing === 'code') {
@@ -353,12 +319,10 @@ const renderClarificationQuestion = (pending: PendingClarification): string => {
   if (nextMissing === 'end') return 'Please provide an end date/time.';
   return 'Please provide the missing details.';
 };
-
 const getCurrentIdentityName = (state: AppState): string | null => {
   if (!activePersonId) return null;
   return state.people.find((person) => person.id === activePersonId)?.name ?? null;
 };
-
 const resolveAvailabilityQueries = (
   state: AppState,
   actions: Action[]
@@ -370,7 +334,6 @@ const resolveAvailabilityQueries = (
     }
     return action;
   });
-
   const needsPersonName = resolvedActions.some((action) => action.type === 'list_availability' && !action.personName);
   if (needsPersonName) {
     return {
@@ -378,10 +341,8 @@ const resolveAvailabilityQueries = (
       clarification: { kind: 'action_fill', action: { type: 'list_availability' }, missing: ['personName'] }
     };
   }
-
   return { actions: resolvedActions };
 };
-
 const fillPendingClarification = (state: AppState, clarification: PendingClarification, value: string): void => {
   const trimmedValue = value.trim();
   for (const missing of [...clarification.missing]) {
@@ -392,14 +353,12 @@ const fillPendingClarification = (state: AppState, clarification: PendingClarifi
       clarification.missing = clarification.missing.filter((item) => item !== 'code');
       continue;
     }
-
     if (missing === 'personName') {
       const matchedPerson = state.people.find((person) => normalizeName(person.name) === normalizeName(trimmedValue));
       clarification.action.personName = matchedPerson?.name ?? trimmedValue;
       clarification.missing = clarification.missing.filter((item) => item !== 'personName');
       continue;
     }
-
     if (missing === 'action') {
       const nextType = actionTypeFromInput(trimmedValue);
       if (!nextType) return;
@@ -407,11 +366,9 @@ const fillPendingClarification = (state: AppState, clarification: PendingClarifi
       clarification.missing = clarification.missing.filter((item) => item !== 'action');
       continue;
     }
-
     return;
   }
 };
-
 const findDeleteByTitleCandidates = (message: string, state: AppState): Array<{ code: string; label: string }> => {
   const match = message.match(/^delete\s+the\s+(.+?)\s+one$/i);
   if (!match) return [];
@@ -420,21 +377,17 @@ const findDeleteByTitleCandidates = (message: string, state: AppState): Array<{ 
     .filter((appointment) => normalizeUserText(appointment.title).includes(titleHint))
     .map((appointment) => ({ code: appointment.code, label: appointment.title }));
 };
-
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = crypto.randomUUID();
   let body: ChatRequest;
-
   try {
     body = (await request.json()) as ChatRequest;
   } catch {
     return badRequest('message is required');
   }
-
   if (typeof body.message !== 'string' || body.message.trim().length === 0) {
     return badRequest('message is required');
   }
-
   await storage.initIfMissing();
   const { state, etag } = await storage.getState();
   const message = body.message.trim();
@@ -443,13 +396,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     status: 200,
     jsonBody: withSnapshot({ ...payload, traceId }, snapshotState)
   });
-
+  const isShowListCommand = ['show list', 'list', 'show', 'show all', 'list all'].includes(normalizedMessage);
   if (normalizedMessage.includes('cancel')) {
     pendingProposal = null;
     pendingClarification = null;
     return respond({ kind: 'reply', assistantText: 'Cancelled.' });
   }
-
   if (normalizedMessage.includes('confirm')) {
     if (!pendingProposal) return respond({ kind: 'reply', assistantText: 'No pending change.' });
     const proposalToApply = pendingProposal;
@@ -458,10 +410,8 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (loaded.etag !== proposalToApply.expectedEtag) {
       return respond({ kind: 'reply', assistantText: 'State changed since proposal. Please retry.' }, loaded.state);
     }
-
     const execution = executeActions(loaded.state, proposalToApply.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
     activePersonId = execution.nextActivePersonId;
-
     try {
       await storage.putState(execution.nextState, loaded.etag);
     } catch (error) {
@@ -470,12 +420,28 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       }
       throw error;
     }
-
     return respond({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, execution.nextState);
   }
-
   if (pendingClarification) {
-    fillPendingClarification(state, pendingClarification, message);
+    if ((pendingClarification.action.type === 'reschedule_appointment' || pendingClarification.action.type === 'update_appointment_schedule')
+      && pendingClarification.missing.includes('start')
+      && pendingClarification.missing.includes('end')) {
+      const parsedRange = parseTimeRange(message);
+      if (!parsedRange) {
+        return respond({ kind: 'clarify', question: 'Please provide a time range like 9am-10am.' });
+      }
+      const actionDate = pendingClarification.action.date;
+      const timezone = pendingClarification.action.timezone ?? 'America/Los_Angeles';
+      if (!actionDate) {
+        return respond({ kind: 'clarify', question: 'Please provide the missing details.' });
+      }
+      pendingClarification.action.start = `${actionDate}T${parsedRange.startHHMM}:00-08:00`;
+      pendingClarification.action.end = `${actionDate}T${parsedRange.endHHMM}:00-08:00`;
+      pendingClarification.action.timezone = timezone;
+      pendingClarification.missing = pendingClarification.missing.filter((item) => item !== 'start' && item !== 'end');
+    } else {
+      fillPendingClarification(state, pendingClarification, message);
+    }
     if (pendingClarification.missing.length > 0) {
       const looksCodeLike = looksLikeSingleCodeToken(message);
       if (pendingClarification.missing.includes('code') && !looksCodeLike) {
@@ -483,14 +449,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       }
       return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
     }
-
     const completedClarification = pendingClarification;
     pendingClarification = null;
     const completedAction = toExecutableAction(completedClarification);
     if (!completedAction) {
       return respond({ kind: 'clarify', question: 'Please provide the missing details.' });
     }
-
     if (isMutationAction(completedAction)) {
       const expectedEtag = completedClarification.expectedEtag ?? etag;
       pendingProposal = toProposal(expectedEtag, [completedAction]);
@@ -505,22 +469,29 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       }
       return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText([completedAction]) });
     }
-
     const availabilityResolved = resolveAvailabilityQueries(state, [completedAction]);
     if (availabilityResolved.clarification) {
       pendingClarification = availabilityResolved.clarification;
       return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
     }
-
     const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
     return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
   }
-
+  if (isShowListCommand) {
+    if (state.appointments.length > 0) {
+      const execution = executeActions(state, [{ type: 'list_appointments' }], { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
+    }
+    if (state.availability.length > 0) {
+      const execution = executeActions(state, [{ type: 'list_availability' }], { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
+    }
+    return respond({ kind: 'reply', assistantText: 'Nothing yet. Try commands: add appt <title> or mark me unavailable YYYY-MM-DD HH:MM-HH:MM <reason>.' });
+  }
   if (normalizedMessage === 'reset state') {
     if ((process.env.STORAGE_MODE ?? 'local') !== 'local') {
       return respond({ kind: 'reply', assistantText: 'reset state is only supported when STORAGE_MODE=local.' });
     }
-
     pendingProposal = toProposal(etag, [{ type: 'reset_state' }]);
     return respond({
       kind: 'proposal',
@@ -530,34 +501,36 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 Reply 'confirm' or 'cancel'.`
     });
   }
-
   const deterministicActions: Action[] = [];
-
   if (normalizedMessage.includes('seattle time') || normalizedMessage.includes('la time')) {
     return respond({ kind: 'reply', assistantText: 'Same Pacific timezone.' });
   }
-
   if (normalizedMessage.includes('pacific') || normalizedMessage.includes('seattle time') || normalizedMessage.includes('la time')) {
     return respond({ kind: 'reply', assistantText: 'Using America/Los_Angeles (Pacific).' });
   }
-
   const rescheduleCommand = parseRescheduleCommand(message);
-  if (rescheduleCommand) {
+  if (rescheduleCommand?.interpretation) {
     const { code, interpretation } = rescheduleCommand;
     deterministicActions.push({
-      type: 'update_appointment_schedule',
+      type: 'reschedule_appointment',
       code,
       start: interpretation.start,
       end: interpretation.end,
       isAllDay: interpretation.isAllDay
     });
+  } else if (rescheduleCommand?.date) {
+    pendingClarification = {
+      kind: 'action_fill',
+      action: { type: 'reschedule_appointment', code: rescheduleCommand.code, date: rescheduleCommand.date, start: undefined, end: undefined, timezone: process.env.TZ ?? 'America/Los_Angeles' },
+      missing: ['start', 'end'],
+      expectedEtag: etag
+    };
+    return respond({ kind: 'clarify', question: 'Please provide a time range like 9am-10am.' });
   }
   const iAmCommand = parseIAmCommand(message);
   if (iAmCommand) deterministicActions.push({ type: 'set_identity', name: iAmCommand.name });
-
   const addCommand = parseAddAppointmentCommand(message);
   if (addCommand) deterministicActions.push({ type: 'add_appointment', title: addCommand.title });
-
   const markUnavailableCommand = parseMarkUnavailableCommand(message);
   if (markUnavailableCommand) {
     deterministicActions.push({
@@ -568,14 +541,12 @@ Reply 'confirm' or 'cancel'.`
       reason: markUnavailableCommand.reason
     });
   }
-
   const deleteCommand = parseDeleteCommand(message);
   if (deleteCommand) {
     deterministicActions.push(deleteCommand.code.startsWith('AVL-')
       ? { type: 'delete_availability', code: deleteCommand.code }
       : { type: 'delete_appointment', code: deleteCommand.code });
   }
-
   if (!deleteCommand) {
     const deleteCandidates = findDeleteByTitleCandidates(message, state);
     if (deleteCandidates.length > 1) {
@@ -590,21 +561,17 @@ Reply 'confirm' or 'cancel'.`
       return respond({ kind: 'clarify', question: `Which appointment code should I delete: ${listed}?` });
     }
   }
-
   const updateCommand = parseUpdateTitleCommand(message);
   if (updateCommand && updateCommand.title) deterministicActions.push({ type: 'update_appointment_title', code: updateCommand.code, title: updateCommand.title });
-
   if (normalizedMessage === 'list appointments' || normalizedMessage === 'show my appt' || normalizedMessage === 'show my appointments') deterministicActions.push({ type: 'list_appointments' });
   if (normalizedMessage === 'list availability') deterministicActions.push({ type: 'list_availability' });
   if (normalizedMessage === 'list my availability' || normalizedMessage === 'show my availability') deterministicActions.push({ type: 'list_availability' });
   const listForMatch = message.match(/^list\s+availability\s+for\s+(.+)$/i);
   if (listForMatch) deterministicActions.push({ type: 'list_availability', personName: listForMatch[1].trim() });
-
   if (normalizedMessage === 'show appointment') {
     if (state.appointments.length > 5) return respond({ kind: 'clarify', question: 'Which appointment code should I show?' });
     deterministicActions.push({ type: 'list_appointments' });
   }
-
   if (normalizedMessage.startsWith('show ')) {
     const rawCode = message.slice(message.toLowerCase().indexOf('show ') + 'show '.length);
     const requestedCode = normalizeAppointmentCode(rawCode) ?? normalizeAvailabilityCode(rawCode);
@@ -612,11 +579,9 @@ Reply 'confirm' or 'cancel'.`
       deterministicActions.push(requestedCode.startsWith('AVL-') ? { type: 'show_availability', code: requestedCode } : { type: 'show_appointment', code: requestedCode });
     }
   }
-
   const monthQuery = parseMonthRangeQuery(normalizedMessage);
   if (monthQuery) deterministicActions.push({ type: 'who_is_available', month: monthQuery.month, start: monthQuery.start, end: monthQuery.end });
   if (normalizedMessage === 'help') deterministicActions.push({ type: 'help' });
-
   if (deterministicActions.length > 0) {
     const mutationActions = deterministicActions.filter(isMutationAction);
     if (mutationActions.length === 1 && mutationActions[0].type === 'set_identity') {
@@ -625,10 +590,9 @@ Reply 'confirm' or 'cancel'.`
       await storage.putState(execution.nextState, etag);
       return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
     }
-
     if (mutationActions.length > 0) {
       pendingProposal = toProposal(etag, mutationActions);
-      if (mutationActions.length === 1 && mutationActions[0].type === 'update_appointment_schedule') {
+      if (mutationActions.length === 1 && (mutationActions[0].type === 'update_appointment_schedule' || mutationActions[0].type === 'reschedule_appointment')) {
         const schedule = mutationActions[0];
         const dateOnly = schedule.start.slice(0, 10);
         const allDayLabel = schedule.isAllDay ? ' (all day)' : '';
@@ -636,33 +600,30 @@ Reply 'confirm' or 'cancel'.`
       }
       return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions) });
     }
-
     const availabilityResolved = resolveAvailabilityQueries(state, deterministicActions);
     if (availabilityResolved.clarification) {
       pendingClarification = availabilityResolved.clarification;
       return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
     }
-
     const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
     return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
   }
-
+  if (parseTimeRange(message)) {
+    return respond({ kind: 'clarify', question: 'What date and what are you changing?' });
+  }
   if (normalizedMessage.includes('who is available')) {
     return respond({
       kind: 'clarify',
       question: "Do you mean March 2026? Reply: 'who is available in 2026-03' or 'who is available in march 2026'."
     });
   }
-
   const openaiEnabled = (process.env.OPENAI_PARSER_ENABLED ?? 'false').toLowerCase() === 'true';
   if (!openaiEnabled) {
     return respond({ kind: 'reply', assistantText: 'Natural language parsing is disabled. Try commands: help' });
   }
-
   try {
     const parsed = ParsedModelResponseSchema.parse(await parseToActions(message, buildOpenAiContext(state)));
     console.info(JSON.stringify({ traceId, openaiUsed: true, model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', responseKind: parsed.kind }));
-
     if (parsed.kind === 'clarify') {
       const question = parsed.clarificationQuestion ?? 'Could you clarify?';
       const actionClarification = createClarificationState(parsed.actions[0]);
@@ -680,18 +641,15 @@ Reply 'confirm' or 'cancel'.`
       }
       return respond({ kind: 'clarify', question: parsed.clarificationQuestion ?? 'Could you clarify?' });
     }
-
     if (parsed.kind === 'query') {
       const availabilityResolved = resolveAvailabilityQueries(state, parsed.actions);
       if (availabilityResolved.clarification) {
         pendingClarification = availabilityResolved.clarification;
         return respond({ kind: 'clarify', question: renderClarificationQuestion(pendingClarification) });
       }
-
       const execution = executeActions(state, availabilityResolved.actions, { activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
       return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
     }
-
     const mutationActions = parsed.actions.filter(isMutationAction);
     const bareNameCommand = parseBareNameCommand(message);
     if (bareNameCommand && mutationActions.length === 1 && mutationActions[0].type === 'set_identity') {
@@ -704,7 +662,6 @@ Reply 'confirm' or 'cancel'.`
       await storage.putState(execution.nextState, etag);
       return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') });
     }
-
     pendingProposal = toProposal(etag, mutationActions);
     return respond({ kind: 'proposal', proposalId: pendingProposal.id, assistantText: renderProposalText(mutationActions) });
   } catch (error) {

@@ -27,3 +27,11 @@ test('parses update_appointment_schedule action', () => {
   });
   assert.equal(parsed.actions[0].type, 'update_appointment_schedule');
 });
+
+test('parses reschedule_appointment action', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'mutation',
+    actions: [{ type: 'reschedule_appointment', code: 'APPT-1', start: '2026-03-11T09:00:00-08:00', end: '2026-03-11T10:00:00-08:00', timezone: 'America/Los_Angeles' }]
+  });
+  assert.equal(parsed.actions[0].type, 'reschedule_appointment');
+});

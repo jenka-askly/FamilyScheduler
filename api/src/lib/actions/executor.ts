@@ -145,7 +145,7 @@ export const executeActions = (state: AppState, actions: Action[], context: Exec
     }
 
 
-    if (action.type === 'update_appointment_schedule') {
+    if (action.type === 'update_appointment_schedule' || action.type === 'reschedule_appointment') {
       const appointment = findAppointmentByCode(nextState, action.code);
       if (!appointment) {
         effectsTextLines.push(`Not found: ${action.code}`);

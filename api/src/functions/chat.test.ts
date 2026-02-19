@@ -211,18 +211,22 @@ test('clarification persists on invalid code replies', async () => {
   assert.match((nonsense.jsonBody as any).question, /Which code should I use/i);
 });
 
-test('reschedule with flexible date defaults to all-day and confirms with contains confirm text', async () => {
+test('reschedule follow-up fills pending clarification with time range and confirms', async () => {
   process.env.STORAGE_MODE = 'local';
   await resetState();
 
   await sendChat('add appt Dentist');
   await sendChat('confirm');
 
-  const proposal = await sendChat('change appt1 to Feb 19 2026');
-  assert.equal((proposal.jsonBody as any).kind, 'proposal');
-  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1 to 2026-02-19 \(all day\)\. Confirm\?/i);
+  const clarify = await sendChat('update appt 1 to March 11, 2026');
+  assert.equal((clarify.jsonBody as any).kind, 'clarify');
+  assert.equal((clarify.jsonBody as any).question, 'Please provide a time range like 9am-10am.');
 
-  const applied = await sendChat('ok confirm');
+  const proposal = await sendChat('9am to 10am');
+  assert.equal((proposal.jsonBody as any).kind, 'proposal');
+  assert.match((proposal.jsonBody as any).assistantText, /Reschedule APPT-1 to 2026-03-11/i);
+
+  const applied = await sendChat('confirm');
   assert.equal((applied.jsonBody as any).kind, 'applied');
   assert.match((applied.jsonBody as any).assistantText, /Rescheduled APPT-1/i);
 });
@@ -262,6 +266,30 @@ test('show my appt lists appointments directly', async () => {
   assert.equal((listed.jsonBody as any).kind, 'reply');
   assert.match((listed.jsonBody as any).assistantText, /APPT-1 — Dentist/);
 });
+
+
+
+test('show list defaults to appointments list when appointments exist', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  await sendChat('add appt Dentist');
+  await sendChat('confirm');
+
+  const listed = await sendChat('show list');
+  assert.equal((listed.jsonBody as any).kind, 'reply');
+  assert.match((listed.jsonBody as any).assistantText, /APPT-1 — Dentist/);
+});
+
+test('time-only message without pending clarification asks for context', async () => {
+  process.env.STORAGE_MODE = 'local';
+  await resetState();
+
+  const clarify = await sendChat('9am to 10am');
+  assert.equal((clarify.jsonBody as any).kind, 'clarify');
+  assert.equal((clarify.jsonBody as any).question, 'What date and what are you changing?');
+});
+
 
 test('cancel keyword anywhere cancels pending proposal', async () => {
   process.env.STORAGE_MODE = 'local';

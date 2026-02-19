@@ -991,3 +991,40 @@ Implement API parsing + executor UX upgrades for rescheduling defaults, fuzzy ti
 ### Follow-ups
 
 - If DST-sensitive scheduling is needed later, replace fixed `-08:00` reschedule offset generation with timezone-aware conversion based on `America/Los_Angeles` rules.
+
+
+## 2026-02-19 00:38 UTC (UX fix: show list default + reschedule clarification time fill)
+
+### Objective
+
+Implement deterministic `show list` defaults and preserve pending reschedule context so time-only follow-ups fill missing slots before any new intent parsing.
+
+### Approach
+
+- Added `parseTimeRange` helper for supported `to`/`-` formats in 12h and 24h time.
+- Extended chat clarification state for reschedule slot filling (`date`, `timezone`, missing `start`/`end`) and resolved time-only clarification replies into proposal mutations immediately.
+- Added deterministic default handling for `show list`, `list`, `show`, `show all`, and `list all` before OpenAI parsing.
+- Added explicit no-context behavior for standalone time ranges (`What date and what are you changing?`).
+- Added `reschedule_appointment` action support in schema/executor and wired proposal rendering/mutation handling.
+- Added acceptance-oriented API tests for show list, reschedule follow-up, and no-pending time-only input.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/lib/time/parseTimeRange.ts`
+- `api/src/lib/time/parseTimeRange.test.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ❌ first run failed with TypeScript syntax error from malformed string literal in `chat.ts`.
+- `pnpm --filter @familyscheduler/api test` ✅ second run passed (19 tests).
+
+### Follow-ups
+
+- Consider extracting fixed `-08:00` offset handling into timezone-aware formatting if DST-sensitive scheduling is required.
