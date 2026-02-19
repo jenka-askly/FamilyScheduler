@@ -1,22 +1,4 @@
 :root {
-  --font-size-base: 14px;
-  --space-1: 0.5rem;
-  --space-2: 0.75rem;
-  --control-pad-y: 0.35rem;
-  --control-pad-x: 0.55rem;
-  --table-cell-pad-y: 0.4rem;
-  --table-cell-pad-x: 0.45rem;
-  --panel-pad: 0.75rem;
-  --main-pad: 1rem;
-  --picker-pad: 0.5rem;
-  --rule-gap: 0.45rem;
-  --modal-pad: 1rem;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  font-size: var(--font-size-base);
-  line-height: 1.4;
-}
-
-body[data-density='compact'] {
   --font-size-base: 13px;
   --space-1: 0.4rem;
   --space-2: 0.6rem;
@@ -29,7 +11,11 @@ body[data-density='compact'] {
   --picker-pad: 0.4rem;
   --rule-gap: 0.35rem;
   --modal-pad: 0.8rem;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: var(--font-size-base);
+  line-height: 1.4;
 }
+
 
 body {
   margin: 0;

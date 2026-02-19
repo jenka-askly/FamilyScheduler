@@ -12,3 +12,10 @@ export class ConflictError extends Error {
     this.name = 'ConflictError';
   }
 }
+
+export class GroupNotFoundError extends Error {
+  constructor(message = 'Group not found') {
+    super(message);
+    this.name = 'GroupNotFoundError';
+  }
+}

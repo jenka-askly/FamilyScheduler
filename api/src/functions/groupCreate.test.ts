@@ -17,7 +17,7 @@ const loadGroupCreate = async (tag: string) => {
 
 test('group create seeds creator in people and returns link payload', async () => {
   const groupCreate = await loadGroupCreate('seeds-person');
-  const response = await groupCreate({ json: async () => ({ groupName: 'Family', groupKey: '123456', creatorPhone: '(415) 555-0123' }) } as any, { debug: () => {} } as any);
+  const response = await groupCreate({ json: async () => ({ groupName: 'Family', groupKey: '123456', creatorPhone: '(415) 555-0123', creatorName: 'Joe' }) } as any, { debug: () => {} } as any);
 
   assert.equal(response.status, 200);
   const body = response.jsonBody as any;
@@ -31,11 +31,12 @@ test('group create seeds creator in people and returns link payload', async () =
   assert.ok(Array.isArray(state.people));
   assert.ok(state.people.length >= 1);
   assert.equal(state.people[0].cellE164, '+14155550123');
+  assert.equal(state.people[0].name, 'Joe');
 });
 
 test('group create rejects invalid phone', async () => {
   const groupCreate = await loadGroupCreate('invalid-phone');
-  const response = await groupCreate({ json: async () => ({ groupName: 'Family', groupKey: '123456', creatorPhone: 'abc' }) } as any, { debug: () => {} } as any);
+  const response = await groupCreate({ json: async () => ({ groupName: 'Family', groupKey: '123456', creatorPhone: 'abc', creatorName: 'Joe' }) } as any, { debug: () => {} } as any);
   assert.equal(response.status, 400);
   assert.match((response.jsonBody as any).message, /phone/i);
 });

@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEmptyAppState, normalizeAppState, type AppState } from '../state.js';
-import { ConflictError, type StorageAdapter } from './storage.js';
+import { ConflictError, GroupNotFoundError, type StorageAdapter } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,9 +63,14 @@ export class LocalFileStorage implements StorageAdapter {
   }
 
   async load(groupId: string): Promise<{ state: AppState; etag: string }> {
-    await this.initIfMissing(groupId);
-    const loaded = await readStateFile(this.getStatePath(groupId));
-    return { state: loaded.state, etag: loaded.etag };
+    const filePath = this.getStatePath(groupId);
+    try {
+      const loaded = await readStateFile(filePath);
+      return { state: loaded.state, etag: loaded.etag };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new GroupNotFoundError();
+      throw error;
+    }
   }
 
   async save(groupId: string, nextState: AppState, expectedEtag: string): Promise<{ state: AppState; etag: string }> {

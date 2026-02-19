@@ -1,5 +1,5 @@
 import { createEmptyAppState, normalizeAppState, type AppState } from '../state.js';
-import { ConflictError, type StorageAdapter } from './storage.js';
+import { ConflictError, GroupNotFoundError, type StorageAdapter } from './storage.js';
 
 const JSON_CONTENT_TYPE = 'application/json; charset=utf-8';
 const DEFAULT_STATE_BLOB_PREFIX = 'familyscheduler/groups';
@@ -58,15 +58,7 @@ export class AzureBlobStorage implements StorageAdapter {
     const blobUrl = this.blobUrl(groupId);
     const response = await fetch(blobUrl, { method: 'GET' });
 
-    if (response.status === 404) {
-      await this.initIfMissing(groupId);
-      const reloaded = await fetch(blobUrl, { method: 'GET' });
-      if (!reloaded.ok) {
-        const detail = await readErrorBody(reloaded);
-        throw new Error(`Failed to read Azure blob state after initialization (${reloaded.status}). ${detail}`.trim());
-      }
-      return { state: normalizeAppState((await reloaded.json()) as AppState), etag: normalizeEtag(reloaded.headers.get('etag')) };
-    }
+    if (response.status === 404) throw new GroupNotFoundError();
 
     if (!response.ok) {
       const detail = await readErrorBody(response);

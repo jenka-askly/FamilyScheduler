@@ -20,13 +20,19 @@ const writeSession = (session: Session): void => {
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string } => {
+const clearSession = (): void => {
+  window.localStorage.removeItem(SESSION_KEY);
+};
+
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
-  const path = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+  const [rawPath, queryString = ''] = cleaned.split('?');
+  const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+  const query = new URLSearchParams(queryString);
   const appMatch = path.match(/^\/g\/([^/]+)\/app$/);
   if (appMatch) return { type: 'app', groupId: appMatch[1] };
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
-  if (joinMatch) return { type: 'join', groupId: joinMatch[1] };
+  if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined };
   return { type: 'create' };
 };
 
@@ -36,6 +42,7 @@ function CreateGroupPage() {
   const [groupName, setGroupName] = useState('');
   const [groupKey, setGroupKey] = useState('');
   const [creatorPhone, setCreatorPhone] = useState('');
+  const [creatorName, setCreatorName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
@@ -46,7 +53,7 @@ function CreateGroupPage() {
     setError(null);
     setIsCreating(true);
     try {
-      const response = await fetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone }) });
+      const response = await fetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone, creatorName }) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.message ?? 'Failed to create group');
@@ -77,6 +84,10 @@ function CreateGroupPage() {
             <input className="field-input" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} inputMode="numeric" maxLength={6} pattern="\d{6}" required />
           </label>
           <label>
+            <span className="field-label">Your name</span>
+            <input className="field-input" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required maxLength={40} placeholder="Joe" />
+          </label>
+          <label>
             <span className="field-label">Your phone</span>
             <input className="field-input" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" />
             <span className="field-help">Use a number you will use to sign into this group.</span>
@@ -101,9 +112,9 @@ function CreateGroupPage() {
   );
 }
 
-function JoinGroupPage({ groupId }: { groupId: string }) {
+function JoinGroupPage({ groupId, routeError }: { groupId: string; routeError?: string }) {
   const [phone, setPhone] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(routeError === 'not_allowed' ? 'Not authorized. Ask someone to add your phone.' : null);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -128,7 +139,13 @@ function GuardedApp({ groupId }: { groupId: string }) {
 
   useEffect(() => {
     const session = readSession();
-    if (!session || session.groupId !== groupId || !session.phone) {
+    if (!session || !session.phone) {
+      nav(`/g/${groupId}`);
+      return;
+    }
+
+    if (session.groupId !== groupId) {
+      clearSession();
       nav(`/g/${groupId}`);
       return;
     }
@@ -138,7 +155,9 @@ function GuardedApp({ groupId }: { groupId: string }) {
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok || !data.ok) {
-          nav(`/g/${groupId}`);
+          clearSession();
+          const err = data?.error === 'not_allowed' ? 'not_allowed' : 'not_allowed';
+          nav(`/g/${groupId}?err=${err}`);
           return;
         }
         setReady(true);
@@ -159,6 +178,6 @@ export function App() {
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
-  if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} />;
+  if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} />;
   return <GuardedApp groupId={route.groupId} />;
 }

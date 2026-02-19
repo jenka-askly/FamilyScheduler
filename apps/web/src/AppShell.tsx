@@ -92,10 +92,6 @@ const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
 export function AppShell({ groupId, phone }: { groupId: string; phone: string }) {
   const [message, setMessage] = useState('');
   const [view, setView] = useState<'appointments' | 'people'>('appointments');
-  const [density, setDensity] = useState<'normal' | 'compact'>(() => {
-    if (typeof window === 'undefined') return 'normal';
-    return window.localStorage.getItem('ui-density') === 'compact' ? 'compact' : 'normal';
-  });
   const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
   const [proposalText, setProposalText] = useState<string | null>(null);
@@ -236,15 +232,10 @@ export function AppShell({ groupId, phone }: { groupId: string; phone: string })
     };
   }, [editingApptCode]);
 
-  useEffect(() => {
-    document.body.dataset.density = density;
-    window.localStorage.setItem('ui-density', density);
-  }, [density]);
-
   return (
     <main>
       <h1>Scheduler</h1>
-      <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button><button type="button" onClick={() => setDensity((current) => (current === 'normal' ? 'compact' : 'normal'))} aria-pressed={density === 'compact'}>{density === 'compact' ? 'Density: Compact' : 'Density: Normal'}</button></div>
+      <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
 
       {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
