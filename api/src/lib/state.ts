@@ -27,6 +27,9 @@ export type Appointment = {
   locationRaw: string;
   locationDisplay: string;
   locationMapQuery: string;
+  locationName: string;
+  locationAddress: string;
+  locationDirections: string;
   notes: string;
 };
 
@@ -156,6 +159,9 @@ export const normalizeAppState = (state: AppState): AppState => {
     const locationMapQuery = typeof raw.locationMapQuery === 'string' && raw.locationMapQuery.trim()
       ? raw.locationMapQuery.trim()
       : normalizedLocation.mapQuery;
+    const locationName = typeof raw.locationName === 'string' ? raw.locationName.trim().slice(0, 200) : '';
+    const locationAddress = typeof raw.locationAddress === 'string' ? raw.locationAddress.trim().slice(0, 300) : '';
+    const locationDirections = typeof raw.locationDirections === 'string' ? raw.locationDirections.trim().slice(0, 300) : '';
 
     return {
       id: typeof raw.id === 'string' ? raw.id : `appt-${idx + 1}`,
@@ -174,6 +180,9 @@ export const normalizeAppState = (state: AppState): AppState => {
       locationRaw,
       locationDisplay,
       locationMapQuery,
+      locationName,
+      locationAddress,
+      locationDirections,
       notes: typeof raw.notes === 'string' ? raw.notes.trim().slice(0, 500) : ''
     };
   });

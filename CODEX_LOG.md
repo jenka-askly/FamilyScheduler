@@ -1792,3 +1792,44 @@ Make appointment row edit mode easier to exit by adding explicit cancel affordan
 ### Follow-ups
 
 - Optional: add visible helper text in the Actions column for edit mode keyboard shortcuts if discoverability is still an issue for first-time users.
+
+## 2026-02-19 06:46 UTC (AI-assisted location parsing into structured fields)
+
+### Objective
+
+Implement optional API-side AI location parsing into structured fields (`name/address/directions`) with safe fallback heuristic behavior, and wire display/map-link behavior in web UI to the new fields.
+
+### Approach
+
+- Extended appointment state with `locationName`, `locationAddress`, and `locationDirections` defaults/migration support while preserving legacy `location` compatibility.
+- Added `aiParseLocation` module with OpenAI JSON parsing, field trimming/clamping, privacy-aware logging (`LOCATION_AI_LOG_RAW`), and automatic fallback to existing heuristic normalizer.
+- Hooked `set_appointment_location` execution path to always store `locationRaw`; use AI parsing when `LOCATION_AI_FORMATTING=true`, otherwise keep heuristic normalization and empty structured fields.
+- Updated API snapshots (chat/direct) and web types/UI map-link fallback chain to use `locationMapQuery || locationAddress || locationDisplay || locationRaw` and preserve multiline display clamping.
+- Added/updated tests for async executor behavior, migration defaults, and AI parser fallback/JSON parse behavior.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/lib/location/aiParseLocation.ts`
+- `api/src/lib/location/aiParseLocation.test.ts`
+- `api/src/lib/state.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/chat.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `packages/shared/src/types.ts`
+- `api/local.settings.example.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed after TypeScript test mock-cast fix.
+- `pnpm -r --if-present build` ✅ passed for shared/api/web workspaces.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started locally for screenshot capture.
+
+### Follow-ups
+
+- With `LOCATION_AI_FORMATTING=true` and valid `OPENAI_API_KEY`, run a manual end-to-end verification using the provided EvergreenHealth sample to validate extracted address/directions quality.

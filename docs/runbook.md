@@ -210,6 +210,9 @@ Environment variables (API):
 
 - `OPENAI_API_KEY=<secret>`
 - `OPENAI_MODEL=gpt-4.1-mini`
+- `LOCATION_AI_FORMATTING=false`
+- `LOCATION_AI_MODEL=<optional override, defaults to OPENAI_MODEL>`
+- `LOCATION_AI_LOG_RAW=false`
 - `OPENAI_PARSER_ENABLED=true` (set `false` in production until validated)
 - `OPENAI_MAX_CONTEXT_CHARS=8000`
 
