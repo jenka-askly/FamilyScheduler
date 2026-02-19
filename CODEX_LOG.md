@@ -1793,6 +1793,23 @@ Make appointment row edit mode easier to exit by adding explicit cancel affordan
 
 - Optional: add visible helper text in the Actions column for edit mode keyboard shortcuts if discoverability is still an issue for first-time users.
 
+## 2026-02-19 06:47 UTC (web density toggle + compact spacing)
+
+### Objective
+
+Implement a compact/normal density switch in the web UI that persists across reloads and reduces typography/spacing in compact mode without changing default normal behavior.
+
+### Approach
+
+- Added density CSS variables on `:root` and a compact override via `body[data-density='compact']`.
+- Applied tokens to main container padding, panel blocks, form controls, table cells, picker rows, rule rows, and modal padding.
+- Added a density toggle button in the App header row, persisted choice to `localStorage` (`ui-density`), and synced `document.body.dataset.density` in `useEffect`.
+- Captured before/after screenshots for normal and compact densities.
+
+### Files changed
+
+- `apps/web/src/styles.css`
+- `apps/web/src/App.tsx`
 ## 2026-02-19 06:46 UTC (AI-assisted location parsing into structured fields)
 
 ### Objective
@@ -1826,6 +1843,14 @@ Implement optional API-side AI location parsing into structured fields (`name/ad
 
 ### Commands run + outcomes
 
+- `rg --files -g 'AGENTS.md'` ✅ confirmed no additional AGENTS instructions inside repo tree.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 5173` ✅ started Vite dev server for screenshot capture (stopped via SIGINT after capture).
+- Playwright browser script (normal + compact screenshots) ✅ captured artifact images.
+
+### Follow-ups
+
+- Optional: add density toggle placement/styling refinement if product wants a dedicated settings area.
 - `pnpm --filter @familyscheduler/api test` ✅ passed after TypeScript test mock-cast fix.
 - `pnpm -r --if-present build` ✅ passed for shared/api/web workspaces.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started locally for screenshot capture.

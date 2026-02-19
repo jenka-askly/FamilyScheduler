@@ -1,7 +1,34 @@
 :root {
+  --font-size-base: 14px;
+  --space-1: 0.5rem;
+  --space-2: 0.75rem;
+  --control-pad-y: 0.35rem;
+  --control-pad-x: 0.55rem;
+  --table-cell-pad-y: 0.4rem;
+  --table-cell-pad-x: 0.45rem;
+  --panel-pad: 0.75rem;
+  --main-pad: 1rem;
+  --picker-pad: 0.5rem;
+  --rule-gap: 0.45rem;
+  --modal-pad: 1rem;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.4;
+}
+
+body[data-density='compact'] {
+  --font-size-base: 13px;
+  --space-1: 0.4rem;
+  --space-2: 0.6rem;
+  --control-pad-y: 0.3rem;
+  --control-pad-x: 0.45rem;
+  --table-cell-pad-y: 0.3rem;
+  --table-cell-pad-x: 0.4rem;
+  --panel-pad: 0.6rem;
+  --main-pad: 0.8rem;
+  --picker-pad: 0.4rem;
+  --rule-gap: 0.35rem;
+  --modal-pad: 0.8rem;
 }
 
 body {
@@ -14,7 +41,7 @@ main {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 1rem;
+  padding: var(--main-pad);
   box-sizing: border-box;
 }
 
@@ -24,8 +51,8 @@ main {
   background: white;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.75rem;
-  margin-bottom: 0.75rem;
+  padding: var(--panel-pad);
+  margin-bottom: var(--space-2);
 }
 
 .transcript {
@@ -49,7 +76,7 @@ main {
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.4rem 0.45rem;
+  padding: var(--table-cell-pad-y) var(--table-cell-pad-x);
   border-top: 1px solid #e2e8f0;
   vertical-align: top;
   white-space: pre-line;
@@ -100,7 +127,7 @@ button,
 textarea,
 select {
   font: inherit;
-  padding: 0.35rem 0.55rem;
+  padding: var(--control-pad-y) var(--control-pad-x);
   border-radius: 6px;
   border: 1px solid #94a3b8;
 }
@@ -152,7 +179,7 @@ input {
   background: white;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
-  padding: 1rem;
+  padding: var(--modal-pad);
 }
 
 .modal h3 {
@@ -211,9 +238,9 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-1);
   border-radius: 6px;
-  padding: 0.5rem;
+  padding: var(--picker-pad);
   cursor: pointer;
   user-select: none;
 }
@@ -329,7 +356,7 @@ input {
 .rule-item {
   display: grid;
   grid-template-columns: auto auto auto 1fr auto;
-  gap: 0.45rem;
+  gap: var(--rule-gap);
   align-items: center;
 }
 
