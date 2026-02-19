@@ -10,8 +10,9 @@ import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
+import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 
-type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
@@ -96,10 +97,12 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
 };
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const traceId = randomUUID();
+  const fallbackTraceId = randomUUID();
   const body = await request.json() as ChatRequest;
+  const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
   const identity = validateJoinRequest(body.groupId, body.phone);
   if (!identity.ok) return identity.response;
+  logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
   if (typeof body.message !== 'string' || body.message.trim().length === 0) return badRequest('message is required', traceId);
   const message = body.message.trim();
   const normalized = normalizeUserText(message);
@@ -114,7 +117,11 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   }
   const state = loaded.state;
   const allowed = findActivePersonByPhone(state, identity.phoneE164);
-  if (!allowed) return { status: 403, jsonBody: { error: 'not_allowed' } };
+  if (!allowed) {
+    logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
+    return { status: 403, jsonBody: { error: 'not_allowed' } };
+  }
+  logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
   session.activePersonId = allowed.personId;
 
   session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
