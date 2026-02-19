@@ -67,6 +67,13 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 - Button no longer spans full width
 - Improved error copy
 
+
+### Create Group UX (CODEX-005)
+- Create page moved to Form layout with header + guidance
+- Shows share link prominently after creation with Copy button
+- Displays group name + group ID with proper hierarchy
+- Added “Next steps” checklist + help footer
+
 ### UI Polish (CODEX-002)
 - Replaced default Vite favicon with minimal calendar SVG
 - Set browser title to “Family Scheduler”

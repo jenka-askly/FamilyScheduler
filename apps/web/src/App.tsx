@@ -71,6 +71,26 @@ function CreateGroupPage() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = useMemo(() => {
+    if (shareLink) return shareLink;
+    if (!createdGroupId) return '';
+    return `${window.location.origin}/#/g/${createdGroupId}`;
+  }, [createdGroupId, shareLink]);
+
+  const createdGroupName = groupName.trim() || 'Family Schedule';
+
+  const copyShareLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -88,17 +108,21 @@ function CreateGroupPage() {
       writeSession({ groupId: data.groupId, phone: creatorPhone, joinedAt: new Date().toISOString() });
       setCreatedGroupId(data.groupId);
       setShareLink(link);
+      setCopied(false);
     } finally {
       setIsCreating(false);
     }
   };
 
   return (
-    <main className="create-page">
-      <h1>Family Scheduler</h1>
-      <form onSubmit={submit} className="panel create-card">
-        <h2>Create Group</h2>
-        <div className="create-fields">
+    <Page variant="form">
+      <PageHeader
+        title="Create a Family Schedule"
+        description="Create a private shared schedule for coordinating appointments. You’ll get a link to share. Only phone numbers you add can access this group."
+      />
+
+      <form onSubmit={submit}>
+        <div className="join-form-wrap">
           <label>
             <span className="field-label">Group name</span>
             <input className="field-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} required maxLength={60} placeholder="Mom Knee Surgery" />
@@ -116,23 +140,49 @@ function CreateGroupPage() {
             <input className="field-input" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" />
             <span className="field-help">Use a number you will use to sign into this group.</span>
           </label>
+          <div className="join-actions">
+            <button className="fs-btnPrimary" type="submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create Group'}</button>
+          </div>
         </div>
-        <button type="submit" className="create-submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create group'}</button>
         {error ? <p className="form-error">{error}</p> : null}
 
-        {shareLink && createdGroupId ? (
+        {createdGroupId ? (
           <section className="share-link">
-            <p className="field-label">Share link</p>
-            <div className="share-row">
-              <input readOnly value={shareLink} className="field-input" />
-              <button type="button" onClick={() => void navigator.clipboard.writeText(shareLink)}>Copy</button>
+            <h2 style={{ marginTop: 24, marginBottom: 8, fontSize: 16, fontWeight: 600 }}>Your schedule is ready</h2>
+            <div style={{ marginBottom: 16 }}>
+              <div className="fs-groupName">{createdGroupName}</div>
+              <div className="fs-meta">Group ID: {createdGroupId}</div>
             </div>
-            <p className="field-help">Anyone opening this link must enter a phone number already in People.</p>
-            <button type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
+
+            <label>
+              <span className="field-label">Share link</span>
+            </label>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', maxWidth: 640 }}>
+              <input type="text" value={shareUrl} readOnly className="field-input" />
+              <button className="fs-btnSecondary" type="button" onClick={() => void copyShareLink()}>Copy</button>
+            </div>
+            {copied ? <p className="fs-meta">Copied to clipboard.</p> : null}
+
+            <p className="fs-desc" style={{ marginTop: 12 }}>
+              Share this link with family members. They must enter a phone number that you add to the group.
+            </p>
+
+            <div className="fs-alert" style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Next steps</div>
+              <ul style={{ margin: 0, paddingLeft: 18, color: '#64748b' }}>
+                <li>Add people who can access this schedule</li>
+                <li>Share the link</li>
+                <li>Add appointments</li>
+              </ul>
+            </div>
+            <div className="join-actions">
+              <button className="fs-btnPrimary" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
+            </div>
           </section>
         ) : null}
       </form>
-    </main>
+      <FooterHelp />
+    </Page>
   );
 }
 

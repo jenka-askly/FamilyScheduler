@@ -2216,3 +2216,36 @@ Upgrade the join gate route UX to use form layout primitives, show group metadat
 
 - Optional: if preferred, include a secondary cancel button in the join action row.
 - Optional: surface API trace IDs in join errors for deep support diagnostics.
+
+## 2026-02-19 22:53 UTC (CODEX-005 create group UX upgrade)
+
+### Objective
+
+Upgrade the Create Group page to use form layout primitives and present a polished post-create sharing experience.
+
+### Approach
+
+- Migrated `CreateGroupPage` in `apps/web/src/App.tsx` to the `Page` + `PageHeader` + `FooterHelp` form layout.
+- Replaced the old full-width create submit styling with `fs-btnPrimary` action-row controls.
+- Added post-create “Your schedule is ready” section with group name hierarchy, group ID metadata, read-only share link, copy-to-clipboard interaction, and compact next-steps checklist.
+- Added `fs-alert` styles to support the checklist callout.
+- Updated `PROJECT_STATUS.md` with a `Create Group UX (CODEX-005)` section.
+- Captured a UI screenshot with Playwright using a mocked `/api/group/create` response (API host unavailable in this container because `func` is missing).
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 5173` ✅ started for visual verification.
+- `pnpm --filter @familyscheduler/api dev` ⚠️ failed (`func: not found`) in this environment.
+- `mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact `create-group-ux-upgrade.png` with mocked create API.
+
+### Follow-ups
+
+- Install Azure Functions Core Tools (`func`) in local dev/runtime to run full-stack `pnpm dev` and verify create flow against real API.
