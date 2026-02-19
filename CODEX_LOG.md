@@ -2179,3 +2179,40 @@ Add reusable layout primitives (`Page`, `PageHeader`, `FooterHelp`) without migr
 ### Follow-ups
 
 - Migrate existing pages to the new layout primitives in a separate task.
+
+## 2026-02-19 22:43 UTC (CODEX-004 join gate UX upgrade)
+
+### Objective
+
+Upgrade the join gate route UX to use form layout primitives, show group metadata, improve error copy, and keep controls professionally sized.
+
+### Approach
+
+- Updated `JoinGroupPage` in `apps/web/src/App.tsx` to render with `Page`, `PageHeader`, and `FooterHelp`.
+- Added a new anonymous API endpoint `GET /api/group/meta?groupId=...` to fetch public group metadata (`groupName`, `groupId`) without requiring phone.
+- Added lightweight API tests for `groupMeta` success and missing-group behavior.
+- Added CSS for form-card layout and join action/button sizing so the primary button is no longer full width.
+- Updated continuity status in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `api/src/functions/groupMeta.ts`
+- `api/src/functions/groupMeta.test.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed (11/11 tests).
+- `pnpm --filter @familyscheduler/web build` ✅ passed (TypeScript + Vite build).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 5173` ✅ started local web server for visual verification.
+- Playwright screenshot capture ✅ created artifact at `browser:/tmp/codex_browser_invocations/fb78986d48e7e915/artifacts/artifacts/join-gate-ux.png`.
+
+### Follow-ups
+
+- Optional: if preferred, include a secondary cancel button in the join action row.
+- Optional: surface API trace IDs in join errors for deep support diagnostics.

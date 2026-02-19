@@ -1,5 +1,8 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { AppShell } from './AppShell';
+import { FooterHelp } from './components/layout/FooterHelp';
+import { Page } from './components/layout/Page';
+import { PageHeader } from './components/layout/PageHeader';
 
 type Session = { groupId: string; phone: string; joinedAt: string };
 type AuthStatus = 'checking' | 'allowed' | 'denied';
@@ -135,20 +138,55 @@ function CreateGroupPage() {
 
 function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
   const [phone, setPhone] = useState('');
-  const [error, setError] = useState<string | null>(routeError === 'not_allowed' ? 'Not authorized. Ask someone to add your phone.' : routeError === 'group_not_found' ? 'Group not found.' : routeError === 'group_mismatch' ? 'Session was for another group. Please join again.' : routeError === 'join_failed' ? 'Unable to verify access. Please try again.' : routeError === 'no_session' ? 'Please join the group to continue.' : null);
+  const [error, setError] = useState<string | null>(
+    routeError === 'not_allowed'
+      ? 'This phone number is not authorized for this group.'
+      : routeError === 'group_not_found'
+        ? 'This group could not be found.'
+        : routeError === 'join_failed'
+          ? 'Unable to verify access. Please try again.'
+          : routeError === 'group_mismatch' || routeError === 'no_session'
+            ? 'Please enter your phone number to continue.'
+            : null
+  );
+  const [groupName, setGroupName] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     authLog({ stage: 'join_page_loaded', groupId, err: routeError ?? null, traceId: traceId ?? null });
   }, [groupId, routeError, traceId]);
 
+  useEffect(() => {
+    let canceled = false;
+
+    const loadGroupMeta = async () => {
+      try {
+        const response = await fetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
+        if (!response.ok) return;
+        const data = await response.json() as { ok?: boolean; groupName?: string };
+        if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
+      } catch {
+        if (!canceled) setGroupName(undefined);
+      }
+    };
+
+    void loadGroupMeta();
+    return () => {
+      canceled = true;
+    };
+  }, [groupId]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    if (!phone.trim()) {
+      setError('Enter a valid phone number.');
+      return;
+    }
     const requestTraceId = createTraceId();
     const response = await fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
-      setError('Not authorized. Ask someone in the group to add your phone in People.');
+      setError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
       return;
     }
 
@@ -156,7 +194,30 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
     nav(`/g/${groupId}/app`);
   };
 
-  return <main className="app-shell"><form onSubmit={submit} className="panel"><h2>Join Group</h2><p>Group: {groupId}</p><label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} required /></label><button type="submit">Join</button>{error ? <p>{error}</p> : null}</form></main>;
+  return (
+    <Page variant="form">
+      <PageHeader
+        title={groupName ? `Join “${groupName}”` : 'Join Group'}
+        description="Enter your phone number to access this schedule. Your number must already be added to this group."
+        groupName={groupName}
+        groupId={groupId}
+      />
+
+      <form onSubmit={submit}>
+        <div className="join-form-wrap">
+          <label>
+            <span className="field-label">Phone number</span>
+            <input className="field-input" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="(425) 555-1234" />
+          </label>
+          <div className="join-actions">
+            <button className="fs-btnPrimary" type="submit">Join Group</button>
+          </div>
+        </div>
+        {error ? <p className="form-error">{error}</p> : null}
+      </form>
+      <FooterHelp />
+    </Page>
+  );
 }
 
 function GroupAuthGate({ groupId, children }: { groupId: string; children: (phone: string) => ReactNode }) {

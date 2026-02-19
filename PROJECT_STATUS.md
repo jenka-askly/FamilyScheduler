@@ -59,6 +59,14 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 - Added FooterHelp component
 - No page migrations yet
 
+
+### Join Gate UX (CODEX-004)
+- Join page moved to Form layout
+- Added PageHeader + FooterHelp
+- Shows group name (when available) and group ID as metadata
+- Button no longer spans full width
+- Improved error copy
+
 ### UI Polish (CODEX-002)
 - Replaced default Vite favicon with minimal calendar SVG
 - Set browser title to “Family Scheduler”
