@@ -102,3 +102,25 @@ test('G: add unavailable rule removes overlapping available rules', () => {
   assert.equal(result.nextState.rules[0].kind, 'unavailable');
   assert.equal(result.effectsTextLines.some((line) => line.includes('Remove conflicting AVAILABLE rule RULE-1')), true);
 });
+
+test('H: direct appointment inline actions update fields', () => {
+  const state = createEmptyAppState();
+  let result = executeActions(state, [{ type: 'create_blank_appointment' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  const code = result.nextState.appointments[0].code;
+  assert.equal(result.nextState.appointments[0].title, '');
+
+  result = executeActions(result.nextState, [{ type: 'set_appointment_date', code, date: '2026-05-01' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: '14:30' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = executeActions(result.nextState, [{ type: 'set_appointment_desc', code, desc: 'CT Scan' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  result = executeActions(result.nextState, [{ type: 'set_appointment_duration', code, durationMins: 90 }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+
+  const appt = result.nextState.appointments[0];
+  assert.equal(appt.date, '2026-05-01');
+  assert.equal(appt.startTime, '14:30');
+  assert.equal(appt.durationMins, 90);
+  assert.equal(appt.title, 'CT Scan');
+
+  result = executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: undefined }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  assert.equal(result.nextState.appointments[0].startTime, undefined);
+  assert.equal(result.nextState.appointments[0].durationMins, undefined);
+});

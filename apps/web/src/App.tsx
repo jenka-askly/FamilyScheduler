@@ -99,6 +99,7 @@ export function App() {
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
   const [ruleModal, setRuleModal] = useState<{ person: Snapshot['people'][0]; kind: 'available' | 'unavailable' } | null>(null);
@@ -145,6 +146,15 @@ export function App() {
     }
   };
 
+  const sendDirectAction = async (action: Record<string, unknown>) => {
+    const response = await fetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+    if (!response.ok) return;
+    const json = await response.json() as { ok: boolean; snapshot?: Snapshot };
+    if (json.snapshot) setSnapshot(json.snapshot);
+  };
+
+  const addAppointment = async () => { await sendDirectAction({ type: 'create_blank_appointment' }); };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!message.trim() || proposalText || pendingQuestion) return;
@@ -178,7 +188,7 @@ export function App() {
       <h1>Scheduler</h1>
       <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
 
-      {view === 'appointments' ? <section className="panel"><h2>Appointments</h2>{sortedAppointments.length === 0 ? <p>No appointments yet.</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Code</th><th>Date</th><th>Time</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th></tr></thead><tbody>{sortedAppointments.map((appointment) => <tr key={appointment.code}><td><code>{appointment.code}</code></td><td>{appointment.date || '—'}</td><td>{appointment.isAllDay ? 'All day' : `${appointment.startTime ?? '—'} (${appointment.durationMins ?? 60}m)`}</td><td className="multiline-cell">{appointment.desc}</td><td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td><td className="multiline-cell">{appointment.location || '—'}</td><td className="multiline-cell">{appointment.notes || '—'}</td></tr>)}</tbody></table></div>}</section> : null}
+      {view === 'appointments' ? <section className="panel"><div className="panel-header"><h2>Appointments</h2><button type="button" onClick={() => void addAppointment()}>Add</button></div>{sortedAppointments.length === 0 ? <p>No appointments yet.</p> : <div className="table-wrap"><table className="data-table"><thead><tr><th>Code</th><th>Date</th><th>Time</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{sortedAppointments.map((appointment) => <tr key={appointment.code}><td><code>{appointment.code}</code></td><td><input type="date" defaultValue={appointment.date || ''} onBlur={(event) => { const value = event.currentTarget.value; if (value && value !== appointment.date) void sendDirectAction({ type: 'set_appointment_date', code: appointment.code, date: value }); }} /></td><td><div className="time-cell"><input type="time" defaultValue={appointment.startTime ?? ''} onBlur={(event) => { const value = event.currentTarget.value; if (value !== (appointment.startTime ?? '')) void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code, startTime: value || undefined }); }} /><button type="button" onClick={() => void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code })}>Clear</button></div></td><td className="multiline-cell"><textarea rows={2} defaultValue={appointment.desc} onBlur={(event) => { if (event.currentTarget.value !== appointment.desc) void sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: event.currentTarget.value }); }} /></td><td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td><td className="multiline-cell"><textarea rows={2} defaultValue={appointment.location} title={appointment.location} onBlur={(event) => { if (event.currentTarget.value !== appointment.location) void sendDirectAction({ type: 'set_appointment_location', code: appointment.code, location: event.currentTarget.value }); }} /></td><td className="multiline-cell"><textarea rows={3} defaultValue={appointment.notes} title={appointment.notes} onBlur={(event) => { if (event.currentTarget.value !== appointment.notes) void sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: event.currentTarget.value }); }} /></td><td><button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button></td></tr>)}</tbody></table></div>}</section> : null}
 
       {view === 'people' ? (
         <section className="panel">
@@ -237,6 +247,9 @@ export function App() {
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
       {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
+
+
+      {appointmentToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete person?</h3><p>This will deactivate {personToDelete.name}. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Deactivate person personId=${personToDelete.personId}`); setPersonToDelete(null); }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 

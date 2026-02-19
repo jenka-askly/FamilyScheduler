@@ -106,3 +106,19 @@ test('validates appointment notes constraints', () => {
     actions: [{ type: 'set_appointment_notes', code: 'APPT-1', notes: 'x'.repeat(501) }]
   }));
 });
+
+test('parses direct appointment action payloads', () => {
+  const parsed = ParsedModelResponseSchema.parse({
+    kind: 'proposal',
+    message: 'direct edits',
+    actions: [
+      { type: 'create_blank_appointment' },
+      { type: 'set_appointment_date', code: 'APPT-1', date: '2026-05-01' },
+      { type: 'set_appointment_start_time', code: 'APPT-1', startTime: '09:15' },
+      { type: 'set_appointment_desc', code: 'APPT-1', desc: '  CT Scan  ' },
+      { type: 'set_appointment_duration', code: 'APPT-1', durationMins: 45 }
+    ]
+  });
+  assert.equal(parsed.actions?.length, 5);
+  assert.equal((parsed.actions?.[3] as any).desc, 'CT Scan');
+});

@@ -1644,3 +1644,45 @@ Change the Appointments pane `Description` column to render as multi-line wrappe
 - `pnpm --filter @familyscheduler/web build` ✅ passed.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (stopped with SIGINT after screenshot capture).
 - Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/46723266d1c1da17/artifacts/artifacts/appointments-description-multiline.png`.
+
+## 2026-02-19 06:15 UTC (appointments inline direct editing + add/delete)
+
+### Objective
+
+Implement deterministic inline appointment editing with direct API mutations, plus add-row and delete-row controls in the Appointments pane.
+
+### Approach
+
+- Added `/api/direct` Azure Function endpoint to execute a single deterministic action against storage and return updated snapshot (`{ ok, snapshot }`).
+- Extended action schema + executor for direct appointment actions (`create_blank_appointment`, field setters, delete reuse).
+- Updated Appointments table UX to include:
+  - `Add` button (creates blank appointment row directly)
+  - inline editable date/time/description/location/notes cells
+  - per-row delete icon with confirm modal
+- Kept AI chat pathway intact for complex operations; inline edits bypass `/api/chat`.
+
+### Files changed
+
+- `api/src/index.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/schema.test.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed (10 tests).
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot attempt.
+- Playwright screenshot attempt ⚠️ failed due browser container Chromium SIGSEGV on launch.
+
+### Follow-ups
+
+- Optional: switch appointments table to click-to-open popovers for date/time pickers and textarea editors if stricter interaction parity is required.

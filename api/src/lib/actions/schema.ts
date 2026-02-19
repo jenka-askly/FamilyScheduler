@@ -8,9 +8,14 @@ export type TimedActionFields = {
 };
 
 export type Action =
+  | { type: 'create_blank_appointment' }
   | ({ type: 'add_appointment'; desc: string; people?: string[]; location?: string } & TimedActionFields)
   | ({ type: 'reschedule_appointment'; code: string } & TimedActionFields)
   | { type: 'update_appointment_desc'; code: string; desc: string }
+  | { type: 'set_appointment_date'; code: string; date: string }
+  | { type: 'set_appointment_start_time'; code: string; startTime?: string }
+  | { type: 'set_appointment_desc'; code: string; desc: string }
+  | { type: 'set_appointment_duration'; code: string; durationMins?: number }
   | { type: 'delete_appointment'; code: string }
   | { type: 'add_people_to_appointment'; code: string; people: string[] }
   | { type: 'remove_people_from_appointment'; code: string; people: string[] }
@@ -63,9 +68,14 @@ const parseAction = (value: unknown): Action => {
   assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'name', 'month', 'start', 'end', 'location', 'notes', 'personId', 'cell', 'kind']);
   const type = assertString(value.type, 'type') as Action['type'];
 
+  if (type === 'create_blank_appointment') return { type };
   if (type === 'add_appointment') return { type, desc: assertString(value.desc, 'desc'), ...parseTimedFields(value), people: value.people === undefined ? undefined : assertPeopleArray(value.people, 'people', 1, 20), location: typeof value.location === 'string' ? normalizeText(value.location) : undefined };
   if (type === 'reschedule_appointment') return { type, code: assertString(value.code, 'code'), ...parseTimedFields(value) };
   if (type === 'update_appointment_desc') return { type, code: assertString(value.code, 'code'), desc: assertString(value.desc, 'desc') };
+  if (type === 'set_appointment_date') return { type, code: assertString(value.code, 'code'), date: assertDate(value.date) };
+  if (type === 'set_appointment_start_time') return { type, code: assertString(value.code, 'code'), startTime: parseOptionalStartTime(value.startTime) };
+  if (type === 'set_appointment_desc') return { type, code: assertString(value.code, 'code'), desc: typeof value.desc === 'string' ? value.desc.trim() : '' };
+  if (type === 'set_appointment_duration') return { type, code: assertString(value.code, 'code'), durationMins: parseOptionalDuration(value.durationMins) };
   if (type === 'delete_appointment') return { type, code: assertString(value.code, 'code') };
   if (type === 'add_people_to_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
   if (type === 'remove_people_from_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
