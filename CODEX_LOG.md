@@ -2713,3 +2713,37 @@ Fix stale frontend deployment risk by making SWA build the web app from source a
 
 - Merge and push to `main`.
 - Verify deployed web bundle references runtime `apiUrl(...)`-based API calls (not hardcoded `'/api/...'`).
+
+## 2026-02-20 07:41 UTC (CODEX step 7: attach SWA integrated API)
+
+### Objective
+
+Fix Create Group production failures by attaching `/api` to the deployed Static Web App and removing production dependence on `VITE_API_BASE_URL`.
+
+### Approach
+
+- Updated SWA deploy workflow to publish integrated Functions from repo `api/`.
+- Enabled API build during SWA deploy using existing package build script.
+- Removed production-only hard requirement for `VITE_API_BASE_URL` in web API URL helper; now defaults to same-origin when unset in both dev/prod.
+- Confirmed competing auto-generated SWA workflow remains manual-trigger only and unchanged.
+- Updated PROJECT_STATUS with root cause, fix summary, and deployment verification expectations.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' .github/workflows/swa-web.yml` ✅ inspected current SWA deploy settings before edit.
+- `sed -n '1,220p' apps/web/src/lib/apiUrl.ts` ✅ inspected current API base URL behavior before edit.
+- `rg -n "static-web-apps-deploy|api_location" .github/workflows` ✅ confirmed all SWA workflow API-location settings and competing workflow state.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `git diff -- .github/workflows/swa-web.yml apps/web/src/lib/apiUrl.ts PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted changes.
+
+### Follow-ups
+
+- Merge and deploy `swa-web.yml`, then verify browser POST to `https://<swa-domain>/api/group/create` is non-405 and reaches integrated Functions.
+- Validate Create Group end-to-end in production UI.
