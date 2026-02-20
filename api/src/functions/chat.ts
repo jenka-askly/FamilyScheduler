@@ -106,6 +106,7 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
 };
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
+  try {
   const fallbackTraceId = randomUUID();
   const body = await request.json() as ChatRequest;
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
@@ -166,39 +167,44 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 
   if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
-  try {
-    const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
-    const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
-    const codeError = validateReferencedCodes(state, normalizedActions);
-    if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
-    if (parsed.kind === 'question') {
-      const questionPayload: PendingQuestion = {
-        message: parsed.message,
-        options: parsed.options,
-        allowFreeText: parsed.allowFreeText ?? true
-      };
-      session.pendingQuestion = questionPayload;
-      return respond({ kind: 'question', ...questionPayload });
-    }
-    if (parsed.kind === 'proposal') {
-      const mutationActions = normalizedActions.filter(isMutationAction);
-      if (mutationActions.length === 0) return respond({ kind: 'question', message: 'Please clarify the change with a valid action and summary.', allowFreeText: true });
-      const previewExecution = await executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-      session.pendingProposal = toProposal(loaded.etag, mutationActions);
-      session.pendingQuestion = null;
-      return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
-    }
+  const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
+  const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
+  const codeError = validateReferencedCodes(state, normalizedActions);
+  if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
+  if (parsed.kind === 'question') {
+    const questionPayload: PendingQuestion = {
+      message: parsed.message,
+      options: parsed.options,
+      allowFreeText: parsed.allowFreeText ?? true
+    };
+    session.pendingQuestion = questionPayload;
+    return respond({ kind: 'question', ...questionPayload });
+  }
+  if (parsed.kind === 'proposal') {
+    const mutationActions = normalizedActions.filter(isMutationAction);
+    if (mutationActions.length === 0) return respond({ kind: 'question', message: 'Please clarify the change with a valid action and summary.', allowFreeText: true });
+    const previewExecution = await executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+    session.pendingProposal = toProposal(loaded.etag, mutationActions);
     session.pendingQuestion = null;
-    if (normalizedActions.length > 0) {
-      const execution = await executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
-    }
-    return respond({ kind: 'reply', assistantText: parsed.message });
-  } catch (error) {
-    const statusIfAny = error && typeof error === 'object' && 'status' in error ? (error as { status?: unknown }).status : undefined;
-    const errorName = error instanceof Error ? error.name : 'UnknownError';
-    const errorMessage = error instanceof Error ? error.message : 'unknown_error';
-    console.error(JSON.stringify({ traceId, stage: 'chat_openai_exception', errorName, errorMessage, statusIfAny }));
-    return respond({ kind: 'question', message: 'I could not safely parse that. Please provide explicit codes and dates.', allowFreeText: true });
+    return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
+  }
+  session.pendingQuestion = null;
+  if (normalizedActions.length > 0) {
+    const execution = await executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+    return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
+  }
+  return respond({ kind: 'reply', assistantText: parsed.message });
+  } catch (err) {
+    console.error('chat_handler_failed', {
+      message: err instanceof Error ? err.message : String(err)
+    });
+
+    return {
+      status: 502,
+      jsonBody: {
+        error: 'OPENAI_CALL_FAILED',
+        message: err instanceof Error ? err.message : 'Unknown error'
+      }
+    };
   }
 }

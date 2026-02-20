@@ -2987,3 +2987,39 @@ Ensure every `main` deployment produces a visible build/version stamp in the web
 ### Follow-ups
 
 - After merge to `main`, confirm production footer SHA prefix matches the commit shown in the successful `Deploy Web (SWA)` run.
+
+## 2026-02-20 10:13 UTC (OpenAI upstream failure handling hardening)
+
+### Objective
+
+Ensure `/api/chat` never returns `200` on OpenAI upstream failure and instead returns structured `502` with explicit logging.
+
+### Approach
+
+- Updated `parseToActions` to:
+  - log `openai_http_error` with non-2xx status and response body truncated to 500 chars,
+  - throw `Error("OpenAI HTTP <status>")` for non-OK responses,
+  - wrap the full call in `try/catch`, log `openai_call_failed`, and rethrow.
+- Updated top-level `chat` handler to wrap chat logic in `try/catch`, log `chat_handler_failed`, and return:
+  - `status: 502`
+  - `jsonBody: { error: "OPENAI_CALL_FAILED", message: ... }`.
+- Added tests validating both client-level logging/throw behavior and chat-level 502 structured error response.
+- Updated `PROJECT_STATUS.md` with production verification steps.
+
+### Files changed
+
+- `api/src/lib/openai/openaiClient.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/openaiClient.test.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `npm test` (in `api/`) ✅ built TypeScript and ran Node test suite; all tests passed, including new OpenAI failure-path checks.
+- `rg -n "chat_openai_exception|OPENAI_CALL_FAILED|chat_handler_failed|openai_http_error|openai_call_failed" api/src` ✅ confirmed legacy swallow-log path removed and required failure logs/error code present.
+
+### Follow-ups
+
+- Validate in production/staging telemetry by rotating to an invalid key briefly and confirming App Insights signals (`openai_http_error`/`openai_call_failed` + 502 response envelope).

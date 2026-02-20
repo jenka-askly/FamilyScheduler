@@ -513,3 +513,10 @@ traces
 2. Open the production web app and look at the footer build stamp (`Build: <sha7> <runId-runNumber>`).
 3. Compare `<sha7>` with the triggering commit SHA in GitHub Actions; they must match the same commit prefix.
 4. For a manual redeploy without code changes, push an empty commit and confirm the new SHA appears in the footer.
+
+## Recent update (2026-02-20 10:13 UTC)
+
+- `/api/chat` now returns HTTP `502` (never `200`) when upstream OpenAI calls fail, with structured error payload: `{ "error": "OPENAI_CALL_FAILED", "message": "..." }`.
+- OpenAI client now logs `openai_http_error` (status + response body truncated to 500 chars) for non-2xx responses, and logs `openai_call_failed` with sanitized error message before rethrowing.
+- Chat handler now logs `chat_handler_failed` and surfaces upstream failures as 502 while preserving successful response behavior unchanged.
+- Production verification: temporarily set an invalid `OPENAI_API_KEY`, invoke `POST /api/chat`, verify HTTP 502 and JSON payload above, and confirm App Insights includes either `openai_http_error` or `openai_call_failed` (and typically `chat_handler_failed`).

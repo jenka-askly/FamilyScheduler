@@ -48,6 +48,28 @@ test('OPENAI_LOG_ENABLED=true writes redacted request and response NDJSON lines'
   assert.equal(file.includes('sig=[REDACTED]'), true);
 });
 
+test('parseToActions logs and throws on non-200 OpenAI HTTP response', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test-secret';
+  const consoleErrorCalls: unknown[][] = [];
+  const originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => { consoleErrorCalls.push(args); };
+
+  globalThis.fetch = (async () => ({
+    ok: false,
+    status: 401,
+    text: async () => 'invalid key details that should be truncated'
+  })) as unknown as typeof fetch;
+
+  await assert.rejects(
+    parseToActions('help', createContext(), { traceId: 'trace-http-fail', sessionIdHash: 'sess-http-fail' }),
+    /OpenAI HTTP 401/
+  );
+
+  console.error = originalConsoleError;
+  const tags = consoleErrorCalls.map((args) => String(args[0]));
+  assert.equal(tags.includes('openai_http_error'), true);
+  assert.equal(tags.includes('openai_call_failed'), true);
+});
 
 
 test('diagnoseOpenAiConnectivity reports missing api key safely', async () => {
