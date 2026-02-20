@@ -424,3 +424,30 @@ traces
    - `chat_openai_before_fetch`
    - `chat_openai_after_fetch`
    - any error line includes `traceId`, `errorName`, `errorMessage`.
+
+## 9. Force deploy (SWA integrated web + API)
+
+Use this when you need a production redeploy on demand without waiting for another merge.
+
+### Trigger a manual deploy
+
+1. Open GitHub → **Actions**.
+2. Select **Deploy Web (SWA)** workflow.
+3. Click **Run workflow**.
+4. Choose branch `main` and run.
+
+This workflow deploys the web app and the integrated API together (`api_location: api`), so production requests stay same-origin at `/api/*` on the SWA hostname.
+
+### Verify in under 60 seconds
+
+1. Open the production site and hard-refresh.
+2. Check the footer stamp: `Build: <shortSha> • Run: <runNumber>`.
+3. Open DevTools → Network → reload the page → open `index.html`.
+4. Confirm the script points to a new hashed asset path like `/assets/index-*.js` compared to the previous deploy.
+
+### Caveats
+
+- Browser/CDN cache can delay visible updates; use hard refresh or an incognito window.
+- Make sure you validate the correct SWA environment/hostname before comparing stamps.
+- If `VITE_BUILD_*` vars are missing during local dev, UI intentionally shows `Build: dev`.
+

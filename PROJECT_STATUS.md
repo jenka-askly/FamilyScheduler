@@ -502,3 +502,24 @@ traces
 2. Confirm the SHA shown in UI matches the first 7 characters of the merge commit SHA from GitHub.
 3. Trigger the next deployment (new commit to `main`) and confirm the version label changes (SHA and/or build time token).
 4. Confirm only non-sensitive metadata is displayed (7-char SHA prefix + run token), with no secrets or full env dumps.
+
+## Recent update (2026-02-20 UTC, force redeploy + build stamp)
+
+- Added manual trigger support to the SWA deploy workflow via `workflow_dispatch` while keeping automatic deploys on `push` to `main`.
+- Build metadata now injects `VITE_BUILD_SHA`, `VITE_BUILD_RUN`, and `VITE_BUILD_TIME` from GitHub Actions context at job scope so Vite builds are stamped per deploy.
+- Web footer stamp now shows `Build: <shortSha> • Run: <runNumber>` and falls back to `Build: dev` when env metadata is unavailable.
+- Deploy path remains SWA-integrated and same-origin (`/api/*`) through `api_location: api` in `.github/workflows/swa-web.yml`.
+
+### Verify in < 60 seconds
+
+1. Run **Actions → Deploy Web (SWA) → Run workflow** on `main`.
+2. Open production page and hard-refresh.
+3. Confirm footer stamp changed to the new run/sha.
+4. In DevTools Network `index.html`, confirm referenced bundle hash changed (e.g. `/assets/index-*.js`).
+
+### Caveats
+
+- Browser/CDN cache can delay HTML/asset updates; use hard refresh or incognito.
+- Verify against the correct SWA hostname/environment.
+- The UI stamp is non-sensitive by design (short SHA + run number only).
+

@@ -2953,3 +2953,36 @@ Force a clean production redeploy and add a deterministic, user-visible build ve
 
 - After merge to `main`, confirm SWA production deploy job runs and version label matches commit SHA prefix.
 - Validate that a subsequent deploy updates the visible stamp.
+
+## 2026-02-20 09:55 UTC (force redeploy + UI build stamp refresh)
+
+### Objective
+
+Enable on-demand production redeploys and make each deploy visibly identifiable in the UI while keeping SWA same-origin `/api/*` integration.
+
+### Approach
+
+- Updated SWA workflow to support manual dispatch (`workflow_dispatch`) and preserved push-to-main trigger.
+- Promoted deploy build metadata env to job scope (`VITE_BUILD_SHA`, `VITE_BUILD_RUN`, `VITE_BUILD_TIME`) so Vite build always receives stamp values.
+- Updated web build stamp rendering to `Build: <shortSha> • Run: <runNumber>` with safe fallback `Build: dev`.
+- Added force-deploy runbook section with under-60-second verification steps including `index.html` asset hash checks.
+- Appended continuity notes in `PROJECT_STATUS.md` for what changed, fast verification path, and caveats.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `apps/web/src/buildInfo.ts`
+- `apps/web/src/AppShell.tsx`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed; emitted production assets with hashed bundle filenames.
+- `rg -n "BUILD_TIME|BUILD_SHA|BUILD_RUN|BUILD_STAMP|build-version" apps/web/src/AppShell.tsx apps/web/src/buildInfo.ts .github/workflows/swa-web.yml` ✅ verified workflow env wiring and UI usage.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured this log timestamp.
+
+### Follow-ups
+
+- Run GitHub Actions manual dispatch on `main` and verify footer stamp and `index.html` asset hash change in production.
