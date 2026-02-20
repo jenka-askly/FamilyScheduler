@@ -2846,3 +2846,37 @@ Fix SWA-integrated `POST /api/chat` returning `404 Function not found` by ensuri
 
 - Trigger a SWA deploy using the corrected workflow path and verify `POST https://<swa-domain>/api/chat` returns non-404.
 - In App Insights, run `requests` query for `/api/chat` and validate successful `resultCode == "200"` after deploy.
+
+## 2026-02-20 08:38 UTC (SWA API function indexing fix)
+
+### Objective
+
+Fix SWA-integrated `POST /api/chat` returning 404 by making Azure Functions routes discoverable in SWA deployment artifacts.
+
+### Approach
+
+- Inspected API build/deploy shape and confirmed the API compiled TS to `dist/**` but did not include per-function descriptors (`function.json`) under `api/`.
+- Added explicit Azure Functions folders and `function.json` descriptors for all HTTP functions (`chat`, `direct`, `groupCreate`, `groupJoin`, `groupMeta`) with routes/methods and `scriptFile` + `entryPoint` mapping to compiled handlers.
+- Kept SWA workflow model unchanged (`api_location: api`, `api_build_command: npm run build`) so SWA receives both metadata and compiled JS.
+- Rebuilt and reran API tests to validate no behavior regressions.
+
+### Files changed
+
+- `api/chat/function.json`
+- `api/direct/function.json`
+- `api/groupCreate/function.json`
+- `api/groupJoin/function.json`
+- `api/groupMeta/function.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed and generated `dist/functions/*.js`.
+- `pnpm --filter @familyscheduler/api test` ✅ passed (11/11).
+- `which func || true && func --version || true` ⚠️ `func` not installed in this environment, so local HTTP smoke test cannot be executed here.
+
+### Follow-ups
+
+- Trigger SWA deploy and verify `/api/chat` returns non-404 from the production SWA domain.
+- Validate function presence in SWA portal Functions blade (`chat`, `direct`, `groupCreate`, `groupJoin`, `groupMeta`).
