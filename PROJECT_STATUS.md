@@ -307,6 +307,13 @@ After every merged PR, update this file with:
 - Workspace pages now use centered wide container (max-width 1200px)
 - Added horizontal scroll wrapper for tables
 - Removed duplicate headings for cleaner hierarchy
+
+## Recent update (2026-02-20 00:44 UTC)
+
+- Added a deploy workflow guard step that explicitly sets `FUNCTIONS_WORKER_RUNTIME=node` on the production Function App before zip deploy.
+- This addresses host indexing cases where logs show `0 functions found (Custom)` due to missing/incorrect worker runtime app setting.
+- Deployment artifact and command remain unchanged.
+
 ## Recent update (2026-02-20 00:39 UTC)
 
 - Fixed cross-platform API packaging: `scripts/package-api-deploy.mjs` now uses PowerShell `Compress-Archive` on Windows and `zip -qr` on non-Windows, so `pnpm deploy:api:package` succeeds on Windows machines without a separate `zip` binary.

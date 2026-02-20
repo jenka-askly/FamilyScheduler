@@ -2411,3 +2411,35 @@ Fix `pnpm deploy:api:package` on Windows where `zip` is unavailable (`'zip' is n
 ### Follow-ups
 
 - Re-run your original Azure CLI deployment command on Windows; packaging should now complete without needing to install a separate `zip` executable.
+
+## 2026-02-20 00:44 UTC (prod deploy fix: worker runtime app setting)
+
+### Objective
+
+Fix Azure Functions production deployment indexing where host logs report `0 functions found (Custom)` after zip deploy.
+
+### Approach
+
+- Added a pre-deploy Azure CLI step in `.github/workflows/deploy.yml` to set `FUNCTIONS_WORKER_RUNTIME=node` on the Function App.
+- Kept packaging and zip deploy flow unchanged.
+- Updated continuity doc (`PROJECT_STATUS.md`) with this behavior change and rationale.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ❌ no AGENTS.md found via rg (exit 1 from no matches).
+- `find .. -maxdepth 3 -name AGENTS.md` ✅ confirmed no AGENTS.md files in scope.
+- `sed -n '1,220p' .github/workflows/deploy.yml` ✅ inspected existing deploy pipeline.
+- `git status --short` ✅ verified modified files before/after edits.
+- `git checkout -- pnpm-lock.yaml` ✅ reverted unrelated lockfile changes.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp.
+
+### Follow-ups
+
+- Re-run the deploy workflow and confirm Azure host logs now discover HTTP functions.
+- If functions are still not discovered, inspect Function App settings for `WEBSITE_RUN_FROM_PACKAGE`, `FUNCTIONS_EXTENSION_VERSION`, and Node runtime stack.
