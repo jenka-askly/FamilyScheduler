@@ -3023,3 +3023,33 @@ Ensure `/api/chat` never returns `200` on OpenAI upstream failure and instead re
 ### Follow-ups
 
 - Validate in production/staging telemetry by rotating to an invalid key briefly and confirming App Insights signals (`openai_http_error`/`openai_call_failed` + 502 response envelope).
+
+## 2026-02-20 10:43 UTC (multi-select availability pre-flight questionnaire)
+
+### Objective
+
+Produce a concrete pre-flight questionnaire response for multi-select availability/unavailability date ranges, grounded in the current codebase behavior.
+
+### Approach
+
+- Reviewed availability state schema, rule execution/conflict logic, status resolution, and People UI rule-entry flow.
+- Wrote a dedicated pre-flight doc with current behavior + recommended v1 decisions to minimize implementation risk.
+- Updated `PROJECT_STATUS.md` to reflect the new planning artifact.
+
+### Files changed
+
+- `docs/multi-select-date-range-preflight.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,320p' api/src/lib/state.ts` ✅ confirmed current `AvailabilityRule` schema.
+- `sed -n '1,260p' api/src/lib/availability/computeStatus.ts` ✅ confirmed precedence (`unavailable` over `available`).
+- `rg -n "add_rule|conflicts|overlap" api/src/lib/actions/executor.ts && sed -n '120,220p' api/src/lib/actions/executor.ts` ✅ confirmed opposite-kind overlap removal on write.
+- `sed -n '1,280p' apps/web/src/AppShell.tsx` ✅ confirmed current UI captures single-date rule input.
+
+### Follow-ups
+
+- Implement multi-range UX behind a feature flag while preserving current single-rule API contract via batched `add_rule` actions.
+- Add DST and overlap regression tests once implementation begins.
