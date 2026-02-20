@@ -32,9 +32,26 @@ rmSync(path.join(stagingRoot, 'README.md'), { force: true });
 rmSync(path.join(stagingRoot, 'local.settings.example.json'), { force: true });
 
 rmSync(zipPath, { force: true });
-execSync(`zip -qr ${JSON.stringify(zipPath)} .`, {
-  cwd: stagingRoot,
-  stdio: 'inherit'
-});
+
+if (process.platform === 'win32') {
+  const escapedZipPath = zipPath.replace(/'/g, "''");
+  const escapedStagingRoot = stagingRoot.replace(/'/g, "''");
+
+  execSync(
+    [
+      'powershell -NoProfile -NonInteractive -Command',
+      `"Compress-Archive -Path '${escapedStagingRoot}\\*' -DestinationPath '${escapedZipPath}' -CompressionLevel Optimal -Force"`
+    ].join(' '),
+    {
+      cwd: stagingRoot,
+      stdio: 'inherit'
+    }
+  );
+} else {
+  execSync(`zip -qr ${JSON.stringify(zipPath)} .`, {
+    cwd: stagingRoot,
+    stdio: 'inherit'
+  });
+}
 
 console.log(`Created ${zipPath}`);
