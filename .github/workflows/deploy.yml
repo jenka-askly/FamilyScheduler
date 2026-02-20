@@ -45,6 +45,11 @@ jobs:
           cp api/host.json api_deploy/host.json
           cp api/package.json api_deploy/package.json
           cp -R api/dist api_deploy/dist
+          for d in api/*/; do
+            if [ -f "${d}function.json" ]; then
+              cp -R "$d" "api_deploy/$(basename "$d")"
+            fi
+          done
 
           pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install
           cp -R api_deploy_install/node_modules api_deploy/node_modules
@@ -63,6 +68,13 @@ jobs:
           set -euo pipefail
           rm -f api.zip
           (cd api_deploy && zip -r ../api.zip .)
+
+      - name: Validate artifact has triggers
+        run: |
+          set -euo pipefail
+          test -f api_deploy/host.json
+          find api_deploy -mindepth 2 -maxdepth 2 -name function.json -print -quit | grep -q .
+          unzip -l api.zip | head -n 80
 
       - name: Azure login
         uses: azure/login@v2
