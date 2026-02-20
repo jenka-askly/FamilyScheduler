@@ -78,6 +78,7 @@ const Icon = ({ children }: { children: ReactNode }) => (
 const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" /></Icon>;
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
+const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
 const computePersonStatusForInterval = (personId: string, interval: { date: string; startTime?: string; durationMins?: number }, rules: Snapshot['rules']) => {
   const toMin = (time?: string) => (time ? (Number(time.split(':')[0]) * 60) + Number(time.split(':')[1]) : 0);
@@ -590,48 +591,52 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
                           </td>
                           <td><span className={`status-tag ${person.status === 'active' ? 'available' : 'unknown'}`}>{person.status}</span></td>
-                          <td>
+                          <td className="actions-cell">
                             <div className="action-icons"> 
-                              <button type="button" className="icon-button" aria-label={isEditingPerson ? 'Done editing person' : 'Edit person'} data-tooltip={isEditingPerson ? 'Done' : 'Edit'} onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}>{isEditingPerson ? <CheckCircle /> : <Pencil />}</button>
-                              <button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
-                              <button type="button" className="icon-button" aria-label="Rules" data-tooltip="Rules" onClick={() => openRulePromptModal(person)}><Pencil /></button>
+                              <button type="button" className="icon-button" aria-label="Rules" data-tooltip="Rules" onClick={() => openRulePromptModal(person)}><Clock3 /></button>
+                              <button type="button" className="icon-button" aria-label="Edit person" data-tooltip="Edit person" onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}><Pencil /></button>
+                              <button type="button" className="icon-button" aria-label="Delete person" data-tooltip="Delete person" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
                             </div>
                           </td>
                         </tr>
                         {personRules.length > 0 ? (
-                          <tr key={`${person.personId}-rules`}>
+                          <tr key={`${person.personId}-rules`} className="rules-row">
                             <td colSpan={4} className="rules-cell">
-                              <ul className="rules-list">
-                                {personRules.map((rule) => (
-                                  <li key={rule.code} className="rule-item">
-                                    <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
-                                    <span>{rule.date}</span>
-                                    <span>{formatRuleTime(rule)}</span>
-                                    <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
-                                    <button
-                                      type="button"
-                                      className="icon-button"
-                                      aria-label="Edit rule"
-                                      data-tooltip="Edit rule"
-                                      onClick={() => {
-                                        setRulePromptModal({ person });
-                                        setRulePromptText(rule.originalPrompt ?? '');
-                                        setRuleDraft(null);
-                                        if (rule.promptId && rule.originalPrompt) {
-                                          setEditingPromptId(rule.promptId);
-                                          setLegacyReplaceRuleCode(null);
-                                        } else {
-                                          setEditingPromptId(null);
-                                          setLegacyReplaceRuleCode(rule.code);
-                                        }
-                                      }}
-                                    >
-                                      <Pencil />
-                                    </button>
-                                    <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
-                                  </li>
-                                ))}
-                              </ul>
+                              <div className="rules-indent">
+                                <ul className="rules-list">
+                                  {personRules.map((rule) => (
+                                    <li key={rule.code} className="rule-item">
+                                      <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
+                                      <span>{rule.date}</span>
+                                      <span>{formatRuleTime(rule)}</span>
+                                      <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
+                                      <span className="rule-actions">
+                                        <button
+                                          type="button"
+                                          className="icon-button"
+                                          aria-label="Edit rule"
+                                          data-tooltip="Edit rule"
+                                          onClick={() => {
+                                            setRulePromptModal({ person });
+                                            setRulePromptText(rule.originalPrompt ?? '');
+                                            setRuleDraft(null);
+                                            if (rule.promptId && rule.originalPrompt) {
+                                              setEditingPromptId(rule.promptId);
+                                              setLegacyReplaceRuleCode(null);
+                                            } else {
+                                              setEditingPromptId(null);
+                                              setLegacyReplaceRuleCode(rule.code);
+                                            }
+                                          }}
+                                        >
+                                          <Pencil />
+                                        </button>
+                                        <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             </td>
                           </tr>
                         ) : null}
