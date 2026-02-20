@@ -3105,3 +3105,41 @@ Switch web/API topology to BYO-only API routing and migrate API state storage to
 
 - Run dependency install/build/tests in an environment with npm registry access to complete full compile/test validation.
 - Deploy and validate acceptance checklist A/B/D against live Azure resources and Function App configuration.
+
+## 2026-02-20 12:20 UTC (rule-v2 guardrails + idempotency addendum)
+
+### Objective
+
+Apply addendum updates for rule-v2 confirm idempotency/replace semantics, rule-cap guardrails, normalization, draft overlap warnings, timezone fallback assumptions, and legacy replacement wiring.
+
+### Approach
+
+- Extended `interval.ts` with `normalizeRulesV2` (group/sort/merge by person+status+promptId).
+- Added rule-v2 helper pipeline in executor (`prepareRuleDraftV2`, `confirmRuleDraftV2`) including timezone fallback assumptions, 14-day interval guardrail, draft overlap warnings, confirm idempotent replacement, and cap checks.
+- Extended state + chat/direct snapshots with optional v2 rule metadata (`promptId`, `originalPrompt`, `startUtc`, `endUtc`).
+- Added `/api/chat` request-body wiring for `ruleMode`, `replacePromptId`, `replaceRuleCode`, `rules`, and draft/confirm response shaping.
+- Updated AppShell rule modal flow to call draft/confirm API mode, show preview+warnings, keep confirm enabled, and include legacy replacement hint path.
+- Added/updated executor tests for draft warnings/fallback and confirm idempotency+cap behavior.
+
+### Files changed
+
+- `api/src/lib/availability/interval.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/lib/state.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter api test` ❌ failed build due missing Azure SDK modules in environment and a transient TS typing issue (fixed typing issue afterward).
+- `pnpm install` ⚠️ failed with `ERR_PNPM_FETCH_403` fetching npm package tarballs (registry/network auth limitation in environment).
+- `rg -n "ruleMode|replacePromptId|replaceRuleCode|normalizeRulesV2|RULE_LIMIT_PER_PERSON|MAX_INTERVAL_DAYS" api/src apps/web/src` ✅ confirmed key wiring points present.
+
+### Follow-ups
+
+- Re-run `pnpm install` + `pnpm --filter api test` in a network-enabled environment with npm registry access.
+- Run web/manual verification for draft warning rendering and legacy replace flow in browser.
