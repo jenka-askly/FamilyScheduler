@@ -129,10 +129,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
   const [rulePromptModal, setRulePromptModal] = useState<{ person: Snapshot['people'][0] } | null>(null);
-  const [rulePromptText, setRulePromptText] = useState('');
-  const [ruleDraft, setRuleDraft] = useState<{ preview: string[]; warnings: DraftWarning[]; assumptions: string[]; promptId: string; personId: string; replacePromptId?: string; replaceRuleCode?: string } | null>(null);
-  const [ruleDraftLoading, setRuleDraftLoading] = useState(false);
-  const [ruleConfirmLoading, setRuleConfirmLoading] = useState(false);
+  const [rulePrompt, setRulePrompt] = useState('');
+  const [ruleDraft, setRuleDraft] = useState<{ draftRules: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview: string[]; warnings: DraftWarning[]; assumptions: string[]; promptId: string } | null>(null);
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
@@ -143,7 +143,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
-    setRulePromptText('');
+    setRulePrompt('');
     setRuleDraft(null);
     setRuleDraftError(null);
     setRuleDraftTraceId(null);
@@ -264,7 +264,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   const openRulePromptModal = (person: Snapshot['people'][0]) => {
     setRulePromptModal({ person });
-    setRulePromptText('');
+    setRulePrompt('');
     setRuleDraft(null);
     setEditingPromptId(null);
     setLegacyReplaceRuleCode(null);
@@ -274,9 +274,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   const draftRulePrompt = async (inputText?: string, forcedTraceId?: string) => {
     if (!rulePromptModal) return;
-    const outgoing = (inputText ?? rulePromptText).trim();
+    const outgoing = (inputText ?? rulePrompt).trim();
     if (!outgoing) return;
-    setRuleDraftLoading(true);
+    setIsDrafting(true);
     setRuleDraft(null);
     setRuleDraftError(null);
     const traceId = forcedTraceId ?? ruleDraftTraceId ?? `rules-draft-${Date.now()}`;
@@ -296,31 +296,37 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       }
       setRuleDraftTraceId(null);
       const preview = Array.isArray(json.preview) ? json.preview.map((item) => String(item)) : null;
+      const draftRules = Array.isArray(json.draftRules) ? (json.draftRules as Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>) : null;
       const promptId = typeof json.promptId === 'string' ? json.promptId : null;
       const draftError = (typeof json.draftError === 'object' && json.draftError && typeof (json.draftError as { message?: unknown }).message === 'string') ? (json.draftError as { message: string }).message : null;
-      if (json.kind === 'question' || draftError || !preview || !promptId) {
+      if (json.kind === 'question') {
         setRuleDraft(null);
-        setRuleDraftError(draftError ?? 'Unable to draft rule.');
+        setRuleDraftError('Draft needs clarification. Please edit the prompt and click Draft again.');
+        return;
+      }
+      if (draftError || !preview || !promptId || !draftRules || draftRules.length === 0) {
+        setRuleDraft(null);
+        setRuleDraftError(draftError ?? 'Draft failed. Please rephrase.');
         return;
       }
       const warnings = Array.isArray(json.warnings) ? json.warnings as DraftWarning[] : [];
       const assumptions = Array.isArray(json.assumptions) ? json.assumptions.map((item) => String(item)) : [];
       setRuleDraftError(null);
-      setRuleDraft({ preview, warnings, assumptions, promptId, personId: rulePromptModal.person.personId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined });
+      setRuleDraft({ draftRules, preview, warnings, assumptions, promptId });
     } finally {
-      setRuleDraftLoading(false);
+      setIsDrafting(false);
     }
   };
 
   const confirmRulePrompt = async () => {
-    if (!rulePromptModal || !rulePromptText.trim() || !ruleDraft) return;
-    setRuleConfirmLoading(true);
+    if (!rulePromptModal || !rulePrompt.trim() || !ruleDraft?.draftRules?.length) return;
+    setIsConfirming(true);
     const traceId = `rules-confirm-${Date.now()}`;
     try {
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: rulePromptText.trim(), groupId, phone, ruleMode: 'confirm', personId: rulePromptModal.person.personId, promptId: ruleDraft.promptId, traceId })
+        body: JSON.stringify({ message: rulePrompt.trim(), groupId, phone, ruleMode: 'confirm', personId: rulePromptModal.person.personId, promptId: ruleDraft.promptId, traceId })
       });
       const json = (await response.json()) as { snapshot?: Snapshot; message?: string };
       if (!response.ok) {
@@ -329,14 +335,14 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       }
       if (json.snapshot) setSnapshot(json.snapshot);
       setRulePromptModal(null);
-      setRulePromptText('');
+      setRulePrompt('');
       setRuleDraft(null);
       setRuleDraftError(null);
       setRuleDraftTraceId(null);
       setEditingPromptId(null);
       setLegacyReplaceRuleCode(null);
     } finally {
-      setRuleConfirmLoading(false);
+      setIsConfirming(false);
     }
   };
 
@@ -618,7 +624,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                           data-tooltip="Edit rule"
                                           onClick={() => {
                                             setRulePromptModal({ person });
-                                            setRulePromptText(rule.originalPrompt ?? '');
+                                            setRulePrompt(rule.originalPrompt ?? '');
                                             setRuleDraft(null);
                                             if (rule.promptId && rule.originalPrompt) {
                                               setEditingPromptId(rule.promptId);
@@ -675,8 +681,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                 ref={rulePromptTextareaRef}
                 id="rule-prompt-input"
                 rows={4}
-                value={rulePromptText}
-                onChange={(event) => setRulePromptText(event.target.value)}
+                value={rulePrompt}
+                onChange={(event) => setRulePrompt(event.target.value)}
                 placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
               />
               <p className="rules-prompt-helper">Describe when you’re available or unavailable.</p>
@@ -708,8 +714,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             ) : null}
 
             <div className="modal-actions rules-actions-row">
-              <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePromptText.trim() || ruleDraftLoading || ruleConfirmLoading}>{ruleDraftLoading ? 'Drafting…' : 'Draft'}</button>
-              <button type="button" onClick={() => void confirmRulePrompt()} disabled={ruleConfirmLoading || ruleDraftLoading || !ruleDraft}>{ruleConfirmLoading ? 'Confirming…' : 'Confirm'}</button>
+              <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft'}</button>
+              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!ruleDraft || !ruleDraft.draftRules?.length || isConfirming}>{isConfirming ? 'Confirming…' : 'Confirm'}</button>
               <button type="button" onClick={closeRulePromptModal}>Cancel</button>
             </div>
           </div>

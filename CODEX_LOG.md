@@ -3332,3 +3332,34 @@ Apply a minimal UI patch to People/Rules table alignment: enforce person action 
 ### Follow-ups
 
 - Run local UI smoke in browser at desktop widths to validate non-wrapping behavior across target breakpoints.
+
+## 2026-02-20 20:54 UTC (ruleMode rules-only routing + rules modal gating fix)
+
+### Objective
+
+Enforce `ruleMode=draft|confirm` as a strict rules-only backend path and fix rules modal UI behavior to avoid question loops/double-calls while tightening Confirm enablement.
+
+### Approach
+
+- Updated API chat handler to hard-route ruleMode requests through rules-only parsing.
+- Added strict rule-only prompt builder usage and updated prompt content constraints.
+- Added backend guards to reject question/disallowed/appointment actions with deterministic draftError reply payload.
+- Updated rules modal state shape and handlers to use dedicated drafting/confirming booleans and valid-draft gating.
+- Ensured draft handler performs a single direct fetch without routing through generic chat follow-ups.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/prompts.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+
+- Run interactive browser validation for “I am busy tomorrow” to confirm one draft network request and no appointment mutations in snapshot before confirm.

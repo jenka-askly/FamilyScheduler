@@ -6,7 +6,7 @@ import { buildContext, type ChatHistoryEntry } from '../lib/openai/buildContext.
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { parseToActions } from '../lib/openai/openaiClient.js';
-import { buildRulesPrompt } from '../lib/openai/prompts.js';
+import { buildRulesOnlyPrompt } from '../lib/openai/prompts.js';
 import { type AppState } from '../lib/state.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -131,17 +131,16 @@ const parseRuleModeModelOutput = (value: unknown): { kind: 'proposal' | 'questio
 const getRuleDraftError = (): { message: string; hints: string[] } => ({
   message: "Couldn’t draft a rule from that.",
   hints: [
-    'Try: I am busy tomorrow.',
-    'Try: I am available weekdays after 6pm.',
-    'Try: I am going to Cancun March 16 until March 31.'
+    "Try: 'Unavailable tomorrow (all day)'",
+    "Try: 'Unavailable Mar 16–Mar 31 (all day)'"
   ]
 });
 
-const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; traceId: string; groupSnapshot: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[] }> => {
+const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; now: string; traceId: string; groupSnapshot: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[] }> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
   const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
-  const prompts = buildRulesPrompt({ mode: params.mode, personId: params.personId, timezone: params.timezone, message: params.message, groupSnapshot: params.groupSnapshot });
+  const prompts = buildRulesOnlyPrompt({ mode: params.mode, personId: params.personId, timezone: params.timezone, now: params.now, message: params.message, groupSnapshot: params.groupSnapshot });
   const startedAt = Date.now();
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_before_fetch', mode: params.mode, model }));
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -205,7 +204,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
     logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
     const message = typeof body.message === 'string' ? body.message.trim() : '';
-    if (!isRuleMode(body.ruleMode) && message.length === 0) return badRequest('message is required', traceId);
+    if (message.length === 0) return badRequest('message is required', traceId);
     const normalized = normalizeUserText(message);
 
     const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
@@ -239,19 +238,19 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         }
       };
     }
-    if (ruleMode) {
-      if (!requestedPersonId) return { status: 400, jsonBody: { kind: 'reply', error: 'personId_required', traceId } };
-      if (ruleMode === 'confirm' && typeof body.promptId !== 'string') return { status: 400, jsonBody: { kind: 'reply', error: 'promptId_required', traceId } };
+    if (ruleMode === 'draft' || ruleMode === 'confirm') {
+      if (!requestedPersonId) return { status: 400, jsonBody: { kind: 'error', error: 'personId_required', message: 'personId is required', traceId } };
       openAiCallInFlight = true;
-      const ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)) });
+      const ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', now: new Date().toISOString(), traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)) });
       openAiCallInFlight = false;
       const requiredType = ruleMode === 'draft' ? 'add_rule_v2_draft' : 'add_rule_v2_confirm';
       const parsedAction = (ruleParse.kind === 'proposal' && ruleParse.action?.type === requiredType) ? ruleParse.action : undefined;
       const hasDisallowedAction = ruleParse.actionTypes.some((type) => type !== requiredType);
+      const hasAppointmentAction = ruleParse.actionTypes.some((type) => type.includes('appointment') || type.startsWith('add_appointment') || type.startsWith('reschedule_appointment') || type.startsWith('delete_appointment'));
       const promptId = typeof body.promptId === 'string' ? body.promptId : undefined;
       const incomingRules = parsedAction?.rules?.map((rule) => ({ ...rule, personId: requestedPersonId, promptId: promptId ?? parsedAction.promptId })) ?? [];
       console.info('rule_mode_request', { traceId, ruleMode, personId: requestedPersonId, requiredType, parsedKind: ruleParse.kind, parsedActionType: ruleParse.action?.type, actionTypes: ruleParse.actionTypes, incomingIntervalsCount: incomingRules.length, promptId });
-      if (ruleParse.kind === 'question' || hasDisallowedAction || !parsedAction || incomingRules.length === 0) {
+      if (ruleParse.kind === 'question' || hasDisallowedAction || hasAppointmentAction || !parsedAction || incomingRules.length === 0) {
         return { status: 200, jsonBody: withSnapshot({ kind: 'reply', draftError: getRuleDraftError() }, state) };
       }
       try {
@@ -263,7 +262,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         const confirmed = confirmRuleDraftV2(state, incomingRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
         const written = await storage.save(identity.groupId, confirmed.nextState, loaded.etag);
         console.info('rule_mode_confirm_result', { traceId, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
-        return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
       } catch (error) {
         const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
         if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, error: 'rule_limit_exceeded', traceId } };
