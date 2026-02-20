@@ -55,8 +55,27 @@ jobs:
 
       - name: Verify deployed Function App responds (non-404)
         run: |
-          APP_HOST=$(az functionapp show --name familyscheduler-api-prod --resource-group familyscheduler-prod-rg --query defaultHostName -o tsv)
+          set -euo pipefail
+
+          echo "AZURE CONTEXT"
+          az account show -o table || true
+          echo "Listing function apps in RG..."
+          az functionapp list --resource-group familyscheduler-prod-rg -o table
+
+          APP_HOST=$(az functionapp show \
+            --name familyscheduler-api-prod \
+            --resource-group familyscheduler-prod-rg \
+            --query defaultHostName -o tsv)
+
+          if [ -z "$APP_HOST" ]; then
+            echo "ERROR: APP_HOST is empty. Check app name/resource group/azure login permissions."
+            echo "Debug: az functionapp show raw output:"
+            az functionapp show --name familyscheduler-api-prod --resource-group familyscheduler-prod-rg -o json || true
+            exit 1
+          fi
+
           FUNCTION_APP_URL="https://$APP_HOST"
+          echo "Using FUNCTION_APP_URL=$FUNCTION_APP_URL"
 
           ROOT_STATUS=$(curl -sS -o /tmp/function-root.out -w "%{http_code}" "$FUNCTION_APP_URL")
           echo "Function App root status: $ROOT_STATUS"
@@ -65,7 +84,7 @@ jobs:
           CHAT_STATUS=$(curl -sS -o /tmp/function-chat.out -w "%{http_code}" \
             -X POST "$FUNCTION_APP_URL/api/chat" \
             -H 'content-type: application/json' \
-            --data '{"message":"deployment-smoke"}')
+            --data '{"message":"deployment-smoke","groupId":"smoke","phone":"0000000000"}')
           echo "POST /api/chat status: $CHAT_STATUS"
           cat /tmp/function-chat.out
 
