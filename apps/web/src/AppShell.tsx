@@ -132,6 +132,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [ruleDraft, setRuleDraft] = useState<{ preview: string[]; warnings: DraftWarning[]; assumptions: string[]; promptId: string; personId: string; replacePromptId?: string; replaceRuleCode?: string } | null>(null);
   const [ruleDraftLoading, setRuleDraftLoading] = useState(false);
   const [ruleConfirmLoading, setRuleConfirmLoading] = useState(false);
+  const [ruleQuestion, setRuleQuestion] = useState<PendingQuestion | null>(null);
+  const [ruleQuestionInput, setRuleQuestionInput] = useState('');
+  const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
   const didInitialLoad = useRef(false);
@@ -254,21 +257,35 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setRuleDraft(null);
     setEditingPromptId(null);
     setLegacyReplaceRuleCode(null);
+    setRuleQuestion(null);
+    setRuleQuestionInput('');
+    setRuleDraftTraceId(null);
   };
 
-  const draftRulePrompt = async () => {
-    if (!rulePromptModal || !rulePromptText.trim()) return;
+  const draftRulePrompt = async (inputText?: string, forcedTraceId?: string) => {
+    if (!rulePromptModal) return;
+    const outgoing = (inputText ?? rulePromptText).trim();
+    if (!outgoing) return;
     setRuleDraftLoading(true);
-    const traceId = `rules-draft-${Date.now()}`;
+    const traceId = forcedTraceId ?? ruleDraftTraceId ?? `rules-draft-${Date.now()}`;
+    setRuleDraftTraceId(traceId);
     try {
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: rulePromptText.trim(), groupId, phone, ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
+        body: JSON.stringify({ message: outgoing, groupId, phone, ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
       });
       if (!response.ok) return;
       const json = (await response.json()) as ChatResponse;
       if (json.snapshot) setSnapshot(json.snapshot);
+      if (json.kind === 'question') {
+        setRuleQuestion({ message: json.message, options: json.options ?? [], allowFreeText: json.allowFreeText ?? true });
+        setRuleDraft(null);
+        return;
+      }
+      setRuleQuestion(null);
+      setRuleQuestionInput('');
+      setRuleDraftTraceId(null);
       if ('warnings' in json && typeof json.promptId === 'string') {
         setRuleDraft({ preview: json.preview ?? [], warnings: json.warnings ?? [], assumptions: json.assumptions ?? [], promptId: json.promptId, personId: rulePromptModal.person.personId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined });
       }
@@ -293,6 +310,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       setRulePromptModal(null);
       setRulePromptText('');
       setRuleDraft(null);
+      setRuleQuestion(null);
+      setRuleQuestionInput('');
+      setRuleDraftTraceId(null);
       setEditingPromptId(null);
       setLegacyReplaceRuleCode(null);
     } finally {
@@ -619,7 +639,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
       {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 
-      {rulePromptModal ? <div className="modal-backdrop"><div className="modal"><h3>Rules</h3><label htmlFor="rule-prompt-input">Tell Mae when you’re available or unavailable</label><textarea id="rule-prompt-input" rows={4} value={rulePromptText} onChange={(event) => setRulePromptText(event.target.value)} placeholder="Examples: &#10;Weekdays after 6pm I am available.&#10;I’m unavailable next Tuesday from 1-3pm." />{legacyReplaceRuleCode ? <p>Legacy rule: enter a prompt to replace this rule.</p> : null}{ruleDraft ? <div><p>Preview</p><ul>{ruleDraft.preview.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul>{ruleDraft.assumptions.length > 0 ? <><p>Assumptions</p><ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}{ruleDraft.warnings.length > 0 ? <><p>Warnings</p><ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul></> : null}</div> : null}<div className="modal-actions"><button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePromptText.trim() || ruleDraftLoading || ruleConfirmLoading}>{ruleDraftLoading ? 'Drafting…' : 'Draft'}</button>{ruleDraft ? <button type="button" onClick={() => void confirmRulePrompt()} disabled={ruleConfirmLoading || ruleDraftLoading}>{ruleConfirmLoading ? 'Confirming…' : 'Confirm'}</button> : null}<button type="button" onClick={() => { setRulePromptModal(null); setRulePromptText(''); setRuleDraft(null); setEditingPromptId(null); setLegacyReplaceRuleCode(null); }}>Cancel</button></div></div></div> : null}
+      {rulePromptModal ? <div className="modal-backdrop"><div className="modal"><h3>Rules</h3><label htmlFor="rule-prompt-input">Tell Mae when you’re available or unavailable</label><textarea id="rule-prompt-input" rows={4} value={rulePromptText} onChange={(event) => setRulePromptText(event.target.value)} placeholder="Examples: &#10;Weekdays after 6pm I am available.&#10;I’m unavailable next Tuesday from 1-3pm." />{legacyReplaceRuleCode ? <p>Legacy rule: enter a prompt to replace this rule.</p> : null}{ruleQuestion ? <div><p>{ruleQuestion.message}</p>{ruleQuestion.options.length > 0 ? <div className="question-options">{ruleQuestion.options.map((option, index) => <button key={`${option.label}-${index}`} type="button" className={`question-option ${option.style ?? 'secondary'}`} onClick={() => { setRuleQuestionInput(option.value); setRulePromptText(option.value); void draftRulePrompt(option.value); }}>{option.label}</button>)}</div> : null}{ruleQuestion.allowFreeText ? <form onSubmit={(event) => { event.preventDefault(); const answer = ruleQuestionInput.trim(); if (!answer) return; setRulePromptText(answer); void draftRulePrompt(answer); }}><label htmlFor="rule-question-input">Your response</label><div className="input-row"><input id="rule-question-input" value={ruleQuestionInput} onChange={(event) => setRuleQuestionInput(event.target.value)} autoComplete="off" /><button type="submit" disabled={!ruleQuestionInput.trim() || ruleDraftLoading}>Send</button></div></form> : null}</div> : null}{ruleDraft ? <div><p>Preview</p><ul>{ruleDraft.preview.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul>{ruleDraft.assumptions.length > 0 ? <><p>Assumptions</p><ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}{ruleDraft.warnings.length > 0 ? <><p>Warnings</p><ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul></> : null}</div> : null}<div className="modal-actions"><button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePromptText.trim() || ruleDraftLoading || ruleConfirmLoading}>{ruleDraftLoading ? 'Drafting…' : 'Draft'}</button>{ruleDraft ? <button type="button" onClick={() => void confirmRulePrompt()} disabled={ruleConfirmLoading || ruleDraftLoading}>{ruleConfirmLoading ? 'Confirming…' : 'Confirm'}</button> : null}<button type="button" onClick={() => { setRulePromptModal(null); setRulePromptText(''); setRuleDraft(null); setRuleQuestion(null); setRuleQuestionInput(''); setRuleDraftTraceId(null); setEditingPromptId(null); setLegacyReplaceRuleCode(null); }}>Cancel</button></div></div></div> : null}
 
       {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
         const status = computePersonStatusForInterval(person.personId, { date: selectedAppointment.date, startTime: selectedAppointment.startTime, durationMins: selectedAppointment.durationMins }, snapshot.rules);
