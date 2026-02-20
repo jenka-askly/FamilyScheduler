@@ -188,24 +188,22 @@ export const prepareRuleDraftV2 = (state: AppState, incomingRules: Array<Omit<Av
   return { draftRules, preview: draftRules.map((rule) => `${rule.status.toUpperCase()} ${rule.startUtc} → ${rule.endUtc}`), assumptions: [...new Set(assumptions)], warnings, promptId: incomingRules[0]?.promptId ?? `prompt-${Date.now()}`, timezoneFallbackUsed };
 };
 
-export const confirmRuleDraftV2 = (state: AppState, incomingRules: Array<Omit<AvailabilityRuleV2, 'code' | 'startUtc' | 'endUtc' | 'assumptions'>>, options: { replacePromptId?: string; replaceRuleCode?: string; context: ExecutionContext }): RuleConfirmResult => {
+export const confirmRuleDraftV2 = (state: AppState, incomingRules: Array<Omit<AvailabilityRuleV2, 'code' | 'startUtc' | 'endUtc' | 'assumptions'>>, options: { context: ExecutionContext }): RuleConfirmResult => {
   const draft = prepareRuleDraftV2(state, incomingRules, options.context);
   const nextState = normalizeAppState(structuredClone(state));
   const personIds = [...new Set(draft.draftRules.map((rule) => rule.personId))];
-  nextState.rules = nextState.rules.filter((rule) => {
-    if (!personIds.includes(rule.personId)) return true;
-    if (options.replaceRuleCode && normalizeCode(rule.code) === normalizeCode(options.replaceRuleCode)) return false;
-    const rulePromptId = (rule as AvailabilityRuleV2).promptId;
-    if (rulePromptId && rulePromptId === draft.promptId) return false;
-    if (options.replacePromptId && rulePromptId && rulePromptId === options.replacePromptId) return false;
-    return true;
-  });
+  const unchangedRules = nextState.rules.filter((rule) => !personIds.includes(rule.personId) || !(rule as AvailabilityRuleV2).startUtc || !(rule as AvailabilityRuleV2).endUtc);
+
+  const hasOverlapUtc = (a: AvailabilityRuleV2, b: AvailabilityRuleV2): boolean => new Date(a.startUtc).getTime() < new Date(b.endUtc).getTime() && new Date(a.endUtc).getTime() > new Date(b.startUtc).getTime();
 
   const capCheck = personIds.map((personId) => {
-    const existingCount = nextState.rules.filter((rule) => rule.personId === personId && (rule as AvailabilityRuleV2).startUtc).length;
-    const incomingCount = draft.draftRules.filter((rule) => rule.personId === personId).length;
-    return { personId, existingCount, incomingCount, total: existingCount + incomingCount };
+    const existingPersonRules = asRuleV2List(nextState).filter((rule) => rule.personId === personId);
+    const incomingPersonRules = draft.draftRules.filter((rule) => rule.personId === personId);
+    const nonOverlappingExisting = existingPersonRules.filter((existing) => !incomingPersonRules.some((incoming) => hasOverlapUtc(existing, incoming)));
+    const normalizedPerson = normalizeRulesV2([...nonOverlappingExisting, ...incomingPersonRules]);
+    return { personId, existingCount: existingPersonRules.length, incomingCount: incomingPersonRules.length, total: normalizedPerson.length };
   });
+
   const overLimit = capCheck.find((entry) => entry.total > RULE_LIMIT_PER_PERSON);
   if (overLimit) {
     const error = new Error('RULE_LIMIT_EXCEEDED');
@@ -213,10 +211,17 @@ export const confirmRuleDraftV2 = (state: AppState, incomingRules: Array<Omit<Av
     throw error;
   }
 
-  draft.draftRules.forEach((rule) => {
-    nextState.rules.push(toLegacyRule({ ...rule, code: getNextRuleCode(nextState) }));
-  });
+  for (const personId of personIds) {
+    const existingPersonRules = asRuleV2List(nextState).filter((rule) => rule.personId === personId);
+    const incomingPersonRules = draft.draftRules.filter((rule) => rule.personId === personId);
+    const nonOverlappingExisting = existingPersonRules.filter((existing) => !incomingPersonRules.some((incoming) => hasOverlapUtc(existing, incoming)));
+    const normalizedPerson = normalizeRulesV2([...nonOverlappingExisting, ...incomingPersonRules]);
+    normalizedPerson.forEach((rule) => {
+      unchangedRules.push(toLegacyRule({ ...rule, code: getNextRuleCode({ ...nextState, rules: unchangedRules }) }));
+    });
+  }
 
+  nextState.rules = unchangedRules;
   return { nextState, inserted: draft.draftRules.length, normalizedCount: draft.draftRules.length, assumptions: draft.assumptions, timezoneFallbackUsed: draft.timezoneFallbackUsed, capCheck };
 };
 

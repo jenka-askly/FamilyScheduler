@@ -3269,3 +3269,34 @@ Apply CODEX UI patch requirements for the Rules modal: remove Mae wording, align
 
 - If needed, provide a seeded local state with at least one person row so the Rules modal can be opened deterministically for an updated screenshot artifact.
 
+## 2026-02-20 UTC
+
+### Objective
+
+Implement rules-mode single-shot drafting/confirmation (no dynamic question UI), all-day default behavior, and conflict/cap handling updates.
+
+### Approach
+
+- Tightened rules-mode OpenAI prompt + parser guards to allow only rule draft/confirm proposal actions.
+- Updated `/api/chat` ruleMode flow to return `draftError` for invalid/question outputs and require `personId`/`promptId` contracts.
+- Simplified rules modal UX to prompt + Draft/Confirm/Cancel + proposal/error panels only.
+- Updated rule confirm executor to replace overlapping intervals and normalize same-status intervals before cap enforcement.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/lib/actions/executor.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter api test` ✅ pass.
+- `pnpm --filter web build` ✅ pass.
+- `pnpm --filter web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+
+### Follow-ups
+
+- Manually validate rule draft examples in a real authenticated group flow (`I am busy tomorrow`, Cancun date range) and confirm assignment status chips reflect applied rules.
