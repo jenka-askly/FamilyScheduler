@@ -2569,3 +2569,47 @@ Resolve CI install failure caused by `ERR_PNPM_OUTDATED_LOCKFILE` where `apps/we
 ### Follow-ups
 
 - Push this lockfile update so CI can install with default frozen-lockfile behavior.
+
+## 2026-02-20 05:46 UTC (api zip invariant + SWA workflow)
+
+### Objective
+
+Implement deterministic API deploy packaging that prevents `0 functions found (Custom)` regressions, add SWA deploy workflow for `apps/web`, and document post-deploy verification.
+
+### Approach
+
+- Replaced deploy zip creation with Node-only scripts:
+  - `scripts/package-api-deploy.mjs` now stages `host.json`, `package.json`, and `dist/`, pulls production deps via `pnpm --filter @familyscheduler/api deploy --legacy --prod`, creates zip, and runs required-entry self-test.
+  - `scripts/verify-api-deploy-zip.mjs` validates invariant entries (`host.json`, `package.json`, `dist/index.js`, `dist/functions/groupCreate.js`) plus `node_modules/**`.
+  - Added shared zip helpers in `scripts/zip-utils.mjs` for deterministic zip creation/listing without platform `zip` tooling.
+- Added `.github/workflows/swa-web.yml` to build with pnpm and upload prebuilt `apps/web/dist` via `Azure/static-web-apps-deploy@v1` (`skip_app_build: true`, `api_location: ''`).
+- Updated deploy workflow references from Python verifier to Node verifier.
+- Updated runbook/README/scripts docs and PROJECT_STATUS with packaging invariant, deploy command, SWA secret, and post-deploy verification commands.
+
+### Files changed
+
+- `scripts/package-api-deploy.mjs`
+- `scripts/verify-api-deploy-zip.mjs`
+- `scripts/zip-utils.mjs`
+- `scripts/verify-api-deploy-zip.py` (removed)
+- `scripts/README.md`
+- `package.json`
+- `.github/workflows/deploy.yml`
+- `.github/workflows/swa-web.yml`
+- `docs/runbook.md`
+- `README.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm install --frozen-lockfile` ✅ passed.
+- `pnpm deploy:api:package` ✅ passed (self-test passed).
+- `pnpm deploy:api:verifyzip` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ used to timestamp this entry.
+
+### Follow-ups
+
+- Set repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN` before enabling SWA deploys.
+- After first prod deploy with new artifact, run the runbook verification commands and confirm Azure lists all expected functions.

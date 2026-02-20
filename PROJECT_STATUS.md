@@ -318,8 +318,8 @@ After every merged PR, update this file with:
 ## Recent update (2026-02-20 01:20 UTC)
 
 - Root cause captured: Azure Flex deploy package created on Windows via `Compress-Archive` contained backslash zip entries (`dist\index.js`), which can prevent Linux worker indexing and surface as `0 functions found (Custom)`.
-- Permanent packaging fix: `scripts/package-api-deploy.mjs` now creates deploy zips with POSIX entry names using `tar -a -c -f` from the staged artifact root; if `tar` is unavailable, it falls back to Python `zipfile` path-normalized packaging.
-- Added deterministic artifact verifier (`pnpm deploy:api:verifyzip`) that requires `host.json`, `package.json`, `dist/index.js`, and rejects any zip entry containing backslashes.
+- Permanent packaging fix (superseded by latest update): switched from Windows `Compress-Archive` to deterministic scripted packaging and zip verification to guarantee `dist/index.js` and forward-slash entry paths.
+- Added deterministic artifact verifier (`pnpm deploy:api:verifyzip`) requiring `host.json`, `package.json`, and `dist/index.js` in the deploy archive.
 - Local ship script now runs zip verification before `az functionapp deployment source config-zip`.
 - Deploy workflow now includes both tooling and CI guard checks that fail if zip entries include `\` or if `dist/index.js` is missing.
 
@@ -376,3 +376,12 @@ After every merged PR, update this file with:
 - Synced `pnpm-lock.yaml` with `apps/web/package.json` after adding `@fontsource/inter@^5.2.6`, so frozen-lockfile installs now pass in CI.
 - Verified workspace install succeeds with `pnpm install --frozen-lockfile` across all 4 workspace projects.
 - No runtime behavior changes; this is dependency metadata alignment only.
+
+## Recent update (2026-02-20 06:15 UTC)
+
+- Replaced API deploy zip creation with Node-only tooling in `scripts/package-api-deploy.mjs` (shared utilities in `scripts/zip-utils.mjs`) to avoid platform-specific archive behavior and keep Windows + GitHub Actions packaging consistent.
+- Packaging flow now always stages `api/host.json`, `api/package.json`, and `api/dist` into `.artifacts/deploy/api-package`, then copies production `node_modules` from `pnpm --filter @familyscheduler/api deploy --prod`.
+- Added packaging invariant self-test + standalone verifier script requiring `host.json`, `package.json`, `dist/index.js`, and `dist/functions/groupCreate.js` in `.artifacts/deploy/familyscheduler-api.zip`.
+- Added `.github/workflows/swa-web.yml` for deterministic SWA deploys (build with pnpm first, then upload prebuilt `apps/web/dist` with `skip_app_build: true`).
+- Runbook now includes exact zip deploy command, post-deploy verification commands (`az functionapp function list`, `group/meta`, `group/create`), and a PowerShell 400 error-body snippet.
+
