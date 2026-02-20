@@ -2807,3 +2807,42 @@ Prevent SWA staging environment quota exhaustion from blocking production deploy
 
 - Merge to `main` and confirm SWA deploy runs for push events only.
 - If PR previews are needed later, add explicit SWA preview-environment cleanup automation/policy.
+
+## 2026-02-20 08:29 UTC (SWA /api/chat 404 fix)
+
+### Objective
+
+Fix SWA-integrated `POST /api/chat` returning `404 Function not found` by ensuring the API is deployed/indexed and by adding traceable logging around chat + OpenAI invocation.
+
+### Approach
+
+- Inspected API registration entrypoint and verified current route map in `api/src/index.ts`.
+- Identified deployment drift: legacy SWA workflow had `api_location: ""` and therefore could publish web-only artifacts without API functions.
+- Updated legacy workflow to include API deployment/build settings and fixed manual-dispatch condition.
+- Added minimal non-PII structured logs:
+  - chat handler invocation (`traceId`, route)
+  - OpenAI request lifecycle (`traceId`, status, latencyMs)
+- Rebuilt and ran API tests to confirm no regression.
+
+### Files changed
+
+- `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' api/src/index.ts && sed -n '1,260p' api/src/functions/chat.ts` ✅ confirmed route registration and chat handler export/signature.
+- `cat api/package.json && cat api/tsconfig.json && cat api/host.json` ✅ verified compile/package configuration.
+- `rg -n "registerHttp\(|app\.http\(|chat" api/src api -g '!node_modules'` ✅ confirmed `chat` route exists and is registered.
+- `sed -n '1,220p' .github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml` ✅ confirmed legacy workflow had `api_location: ""` before fix.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `rg -n "registerHttp\('chat'|export async function chat" api/dist -g '*.js'` ✅ confirmed compiled output includes chat registration + handler.
+- `pnpm --filter @familyscheduler/api test` ✅ passed.
+
+### Follow-ups
+
+- Trigger a SWA deploy using the corrected workflow path and verify `POST https://<swa-domain>/api/chat` returns non-404.
+- In App Insights, run `requests` query for `/api/chat` and validate successful `resultCode == "200"` after deploy.

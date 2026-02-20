@@ -100,6 +100,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   const fallbackTraceId = randomUUID();
   const body = await request.json() as ChatRequest;
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
+  console.info(JSON.stringify({ traceId, route: 'chat' }), 'chat invoked');
   const identity = validateJoinRequest(body.groupId, body.phone);
   if (!identity.ok) return identity.response;
   logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });

@@ -434,3 +434,34 @@ After every merged PR, update this file with:
 - Rationale: SWA preview/staging environment quota can block deploys when PR environments accumulate; push-only deploy keeps production deployment path reliable.
 - Operational note: if PR previews are re-enabled later, add an explicit cleanup process for stale SWA staging environments.
 
+
+## Recent update (2026-02-20 08:29 UTC)
+
+- Root cause for SWA `/api/chat` 404: the repository still contained a legacy SWA workflow (`.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`) that deployed with `api_location: ""`, so integrated Functions routes were not packaged from `api/` when that workflow was used.
+- Fix: updated the legacy SWA workflow to deploy the API (`api_location: "api"`, `api_build_command: "npm run build"`, `skip_api_build: false`) and made its job condition include `workflow_dispatch` so manual runs actually execute.
+- Verified API route registration source: `api/src/index.ts` registers `chat` as `route: "chat"` with method `POST` (SWA exposes as `/api/chat`).
+- Added non-PII invocation log in `chat` handler and OpenAI request lifecycle logs (traceId, status, latency only) for fast production diagnosis.
+
+### Verification notes
+
+- Build signal: `pnpm --filter @familyscheduler/api build` succeeds and emits `api/dist/index.js` with `registerHttp('chat', 'chat', ['POST'], chat)`.
+- Test signal: `pnpm --filter @familyscheduler/api test` passes existing API chat tests.
+- Post-deploy App Insights KQL (expect 200s for `/api/chat`):
+
+```kusto
+requests
+| where timestamp > ago(30m)
+| where url endswith "/api/chat"
+| project timestamp, resultCode, success, url, operation_Id
+| order by timestamp desc
+```
+
+- Optional failure drilldown by trace ID (from API logs):
+
+```kusto
+traces
+| where timestamp > ago(30m)
+| where message has "chat invoked" or message has "openai request"
+| project timestamp, message, customDimensions
+| order by timestamp desc
+```
