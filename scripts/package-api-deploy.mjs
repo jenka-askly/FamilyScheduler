@@ -1,95 +1,44 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
+import { createZipFromDirectory, listZipEntries } from './zip-utils.mjs';
 
 const repoRoot = process.cwd();
 const apiRoot = path.join(repoRoot, 'api');
 const distRoot = path.join(apiRoot, 'dist');
 const outRoot = path.join(repoRoot, '.artifacts', 'deploy');
 const stagingRoot = path.join(outRoot, 'api-package');
+const deployWorkspaceRoot = path.join(outRoot, 'api-deploy-install');
 const zipPath = path.join(outRoot, 'familyscheduler-api.zip');
+const requiredEntries = ['host.json', 'package.json', 'dist/index.js', 'dist/functions/groupCreate.js'];
 
-if (!existsSync(distRoot)) {
-  throw new Error('Missing api/dist. Run `pnpm --filter @familyscheduler/api build` first.');
-}
+if (!existsSync(distRoot)) throw new Error('Missing api/dist. Run `pnpm --filter @familyscheduler/api build` first.');
 
 rmSync(stagingRoot, { recursive: true, force: true });
-mkdirSync(outRoot, { recursive: true });
-
-execFileSync('pnpm', ['--filter', '@familyscheduler/api', 'deploy', '--legacy', '--prod', stagingRoot], {
-  cwd: repoRoot,
-  stdio: 'inherit'
-});
+rmSync(deployWorkspaceRoot, { recursive: true, force: true });
+rmSync(zipPath, { force: true });
+mkdirSync(stagingRoot, { recursive: true });
 
 cpSync(path.join(apiRoot, 'host.json'), path.join(stagingRoot, 'host.json'));
 cpSync(path.join(apiRoot, 'package.json'), path.join(stagingRoot, 'package.json'));
 cpSync(distRoot, path.join(stagingRoot, 'dist'), { recursive: true });
 
-rmSync(path.join(stagingRoot, 'src'), { recursive: true, force: true });
-rmSync(path.join(stagingRoot, 'tsconfig.json'), { force: true });
-rmSync(path.join(stagingRoot, 'README.md'), { force: true });
-rmSync(path.join(stagingRoot, 'local.settings.example.json'), { force: true });
+execFileSync('pnpm', ['--filter', '@familyscheduler/api', 'deploy', '--legacy', '--prod', deployWorkspaceRoot], {
+  cwd: repoRoot,
+  stdio: 'inherit'
+});
 
-rmSync(zipPath, { force: true });
+cpSync(path.join(deployWorkspaceRoot, 'node_modules'), path.join(stagingRoot, 'node_modules'), { recursive: true });
 
-const createZipWithTar = () => {
-  execFileSync('tar', ['-a', '-c', '-f', zipPath, '.'], {
-    cwd: stagingRoot,
-    stdio: 'inherit'
-  });
-};
+createZipFromDirectory(stagingRoot, zipPath);
 
-
-const isZipFile = (filePath) => {
-  if (!existsSync(filePath)) {
-    return false;
-  }
-
-  const signature = readFileSync(filePath, { encoding: null, flag: 'r' }).subarray(0, 2);
-  return signature.length === 2 && signature[0] === 0x50 && signature[1] === 0x4b;
-};
-
-const createZipWithPython = () => {
-  const script = [
-    'import pathlib, sys, zipfile',
-    'root = pathlib.Path(sys.argv[1]).resolve()',
-    'zip_path = pathlib.Path(sys.argv[2]).resolve()',
-    "with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:",
-    '    for path in sorted(root.rglob("*")):',
-    '        if path.is_file():',
-    '            arcname = path.relative_to(root).as_posix()',
-    '            zf.write(path, arcname)',
-    "print(f'Created {zip_path}')"
-  ].join('\n');
-
-  const candidates = process.platform === 'win32' ? ['py', 'python', 'python3'] : ['python3', 'python'];
-  let lastError;
-
-  for (const candidate of candidates) {
-    try {
-      execFileSync(candidate, ['-c', script, stagingRoot, zipPath], { stdio: 'inherit' });
-      return;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw new Error(`Unable to package zip: tar unavailable and no Python runtime found. Last error: ${lastError?.message ?? 'unknown'}`);
-};
-
-try {
-  createZipWithTar();
-
-  if (!isZipFile(zipPath)) {
-    throw new Error('tar output is not a zip archive on this platform');
-  }
-
-  console.log('Packaged deploy zip using tar -a (POSIX entry names).');
-} catch (error) {
-  console.warn('tar -a packaging unavailable; falling back to Python zipfile POSIX packaging.', error.message);
-  createZipWithPython();
-  console.log('Packaged deploy zip using Python zipfile fallback (POSIX entry names).');
+const entries = listZipEntries(zipPath);
+for (const required of requiredEntries) {
+  if (!entries.includes(required)) throw new Error(`Deploy zip missing required entry: ${required}`);
 }
+if (!entries.some((entry) => /^dist\/functions\/[^/]+\.js$/.test(entry))) throw new Error('Deploy zip missing dist/functions/*.js');
+if (!entries.some((entry) => entry.startsWith('node_modules/'))) throw new Error('Deploy zip missing node_modules/**');
 
 console.log(`Created ${zipPath}`);
+console.log(`Verified zip invariant entries (${requiredEntries.join(', ')})`);

@@ -203,31 +203,81 @@ This means the Functions host booted, but your Node entrypoint did not register 
    - package top-level listing from `unzip -l <artifact>.zip | head -n 40`
 
 
-### Linux/Flex deploy ZIP path separators (Windows packaging)
+### API deploy packaging invariant (Linux/Flex)
 
-For Linux Azure Functions artifacts, zip entry names must use forward slashes (`dist/index.js`).
-Do **not** use PowerShell `Compress-Archive` for deploy zips; it can produce backslash entries (`dist\index.js`) that break function indexing on Linux/Flex.
+Use Node-based packaging only:
 
-Use either:
-
-- `pnpm deploy:api:package` (uses `tar -a` with POSIX paths, and falls back to Python `zipfile` packaging that enforces `/` separators)
-- Manual PowerShell packaging from the staging directory:
-
-```powershell
-cd <staging-folder>
-tar -a -c -f ..\familyscheduler-api.zip *
+```bash
+pnpm deploy:api:package
+pnpm deploy:api:verifyzip
 ```
 
-Then deploy with:
+`pnpm deploy:api:package` now stages runtime files under `.artifacts/deploy/api-package`, installs production dependencies with `pnpm --filter @familyscheduler/api deploy --prod`, then writes `.artifacts/deploy/familyscheduler-api.zip` using an in-repo Node zip writer (`scripts/zip-utils.mjs`) to keep path separators deterministic across Windows/Linux.
+
+Required zip-root/runtime invariant (enforced by script self-test + verify command):
+
+- `host.json`
+- `package.json` (must include `"main": "dist/index.js"`)
+- `dist/index.js`
+- `dist/functions/*.js`
+- `node_modules/**` (production runtime dependencies)
+
+Deploy command:
 
 ```bash
 az functionapp deployment source config-zip \
-  --name <app-name> \
-  --resource-group <resource-group> \
+  --name familyscheduler-api-prod \
+  --resource-group familyscheduler-prod-rg \
   --src .artifacts/deploy/familyscheduler-api.zip
 ```
 
-If Azure still reports `0 functions found (Custom)`, download the deployed `released-package.zip` from the Flex app package container and inspect entries. If you see `dist\index.js` instead of `dist/index.js`, repackage with `tar -a` and redeploy.
+### Post-deploy verification (prod)
+
+1) Confirm functions were indexed:
+
+```bash
+az functionapp function list -g familyscheduler-prod-rg -n familyscheduler-api-prod -o table
+```
+
+2) Invoke `GET /api/group/meta` (contract: `groupId` required, no `phone` parameter required):
+
+```powershell
+$host = "https://familyscheduler-api-prod.azurewebsites.net"
+$hostKey = "<host-key>"
+$groupId = "<group-id>"
+
+Invoke-RestMethod -Method Get -Uri "$host/api/group/meta?groupId=$groupId&code=$hostKey"
+```
+
+3) Invoke `POST /api/group/create` (requires `groupName`, 6-digit `groupKey`, `creatorPhone`, `creatorName`):
+
+```powershell
+$host = "https://familyscheduler-api-prod.azurewebsites.net"
+$hostKey = "<host-key>"
+$body = @{
+  groupName = "Family HQ"
+  groupKey = "123456"
+  creatorPhone = "+1 206-555-0100"
+  creatorName = "Alex"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "$host/api/group/create?code=$hostKey" -ContentType "application/json" -Body $body
+```
+
+4) Print full error body for 400 responses (PowerShell):
+
+```powershell
+try {
+  Invoke-WebRequest -Method Post -Uri "$host/api/group/create?code=$hostKey" -ContentType "application/json" -Body '{"groupName":"","groupKey":"abc"}'
+} catch {
+  $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+  $reader.BaseStream.Position = 0
+  $reader.DiscardBufferedData()
+  $body = $reader.ReadToEnd()
+  Write-Host "Status:" $_.Exception.Response.StatusCode.value__
+  Write-Host "Body:" $body
+}
+```
 
 ### Azure mode troubleshooting
 

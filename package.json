@@ -7,7 +7,7 @@
     "dev": "pnpm --parallel --filter @familyscheduler/web --filter @familyscheduler/api dev",
     "dev:web": "pnpm --filter @familyscheduler/web dev",
     "dev:api": "pnpm --filter @familyscheduler/api dev",
-    "verify:tree": "node -e \"const fs=require('fs');['apps','api','packages','docs','scripts'].forEach(d=>console.log(`${fs.existsSync(d)?'✓':'✗'} ${d}`));\"",
+    "verify:tree": "node -e \"const fs=require('fs');['apps','api','packages','docs','scripts'].forEach(d=>console.log(`${fs.existsSync(d)?'\u2713':'\u2717'} ${d}`));\"",
     "verify:docs": "node -e \"const fs=require('fs');const required=['README.md','PROJECT_STATUS.md','CODEX_LOG.md','docs/architecture.md','docs/api.md'];const missing=required.filter(f=>!fs.existsSync(f));if(missing.length){console.error('Missing required docs:\n'+missing.join('\n'));process.exit(1);}console.log('Required docs present');\"",
     "test": "echo \"no tests yet\"",
     "lint": "echo \"no lint yet\"",
@@ -15,7 +15,7 @@
     "ci": "pnpm -r --if-present build && pnpm -r --if-present lint && pnpm -r --if-present typecheck && pnpm -r --if-present test",
     "deploy:api:package": "pnpm --filter @familyscheduler/api build && node scripts/package-api-deploy.mjs",
     "deploy:api:ship": "bash scripts/ship-api.sh",
-    "deploy:api:verifyzip": "python scripts/verify-api-deploy-zip.py"
+    "deploy:api:verifyzip": "node scripts/verify-api-deploy-zip.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

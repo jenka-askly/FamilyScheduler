@@ -38,3 +38,8 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 - Web auth trace logs: set `VITE_DEBUG_AUTH_LOGS=true` (default `false`).
 - API auth/join/gate trace logs: set `DEBUG_AUTH_LOGS=true` (default `false`).
 - Join and guarded-app flows propagate `traceId` so web and API logs can be correlated.
+
+## GitHub deployment secrets
+
+- `AZURE_STATIC_WEB_APPS_API_TOKEN`: required by `.github/workflows/swa-web.yml` for web deploys to Azure Static Web Apps.
+
