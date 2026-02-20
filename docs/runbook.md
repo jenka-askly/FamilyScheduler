@@ -164,6 +164,44 @@ High-level setup:
 3. Configure API environment variables.
 4. Start API and call `/api/chat`; first read initializes blob with default empty state if missing.
 
+
+### Azure host shows `0 functions found (Custom)`
+
+This means the Functions host booted, but your Node entrypoint did not register any HTTP handlers. Use the startup instrumentation added in `api/src/index.ts`.
+
+1. Enable startup debug logs in your Function App settings (or `api/local.settings.json`):
+
+```json
+{
+  "Values": {
+    "FUNCTIONS_STARTUP_DEBUG": "true"
+  }
+}
+```
+
+2. Redeploy/restart, then inspect `Log stream` for JSON lines from `component=api-startup`:
+   - `loading-functions-entrypoint`
+   - `registered-function` (one line per route)
+   - `startup-debug-enabled` (includes `modulePath`, `cwd`, and host/package existence checks)
+
+3. Expected signal: at least one `registered-function` log per endpoint (`chat`, `direct`, `group/create`, `group/join`, `group/meta`).
+
+4. If `registered-function` lines are missing:
+   - verify the deployed package root contains `host.json`, `package.json`, `dist/index.js`, and `dist/functions/*.js`
+   - verify `package.json` has `"main": "dist/index.js"`
+   - verify your build output is not nested under `dist/src/`
+
+5. Increase host log verbosity while debugging by setting:
+   - `AzureFunctionsJobHost__logging__logLevel__default=Debug`
+   - optional per-category: `AzureFunctionsJobHost__logging__logLevel__Host.Results=Trace`
+
+6. If the host still shows `0 functions found (Custom)`, capture and share:
+   - one `loading-functions-entrypoint` line
+   - one `registration-summary` line (must report `expectedCount: 5` and `registeredCount: 5`)
+   - any `startup-debug-enabled` line
+   - output of `az functionapp config appsettings list -g <rg> -n <app> --query "[?name=='FUNCTIONS_WORKER_RUNTIME'||name=='WEBSITE_RUN_FROM_PACKAGE'||name=='FUNCTIONS_EXTENSION_VERSION'||name=='WEBSITE_NODE_DEFAULT_VERSION'].{name:name,value:value}"`
+   - package top-level listing from `unzip -l <artifact>.zip | head -n 40`
+
 ### Azure mode troubleshooting
 
 - `403` from blob calls: SAS token invalid, missing permission, or expired.
