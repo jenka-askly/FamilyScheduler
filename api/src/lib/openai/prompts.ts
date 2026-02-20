@@ -45,17 +45,20 @@ export const buildParserSystemPrompt = (): string => [
 
 export const buildParserUserPrompt = (input: string, context: string): string => `User input:\n${input}\n\nContext envelope:\n${context}`;
 
-export const buildRulesPrompt = (params: { mode: 'draft' | 'confirm'; personId: string; timezone: string; userMessage: string }): { system: string; user: string } => {
+export const buildRulesPrompt = (params: { mode: 'draft' | 'confirm'; personId: string; timezone: string; message: string; groupSnapshot: string }): { system: string; user: string } => {
   const requiredActionType = params.mode === 'draft' ? 'add_rule_v2_draft' : 'add_rule_v2_confirm';
   return {
     system: [
-      'You are drafting AVAILABILITY RULES ONLY. Do not create appointments.',
-      `Output MUST be ${requiredActionType} action.`,
-      'If uncertain, ask clarification about start/end/timezone/status.',
+      'You are drafting AVAILABILITY RULES ONLY. Do not create/modify appointments or people.',
+      'Never ask follow-up questions. Never return kind="question".',
+      'If time is missing, assume ALL-DAY.',
+      'If a date range is specified, create ONE continuous interval that covers the full range with startUtc/endUtc.',
+      'Include assumptions/warnings when you infer missing details instead of asking questions.',
+      `Output MUST be kind="proposal" with one ${requiredActionType} action.`,
       'Respond with strict JSON only.',
-      `Schema: {"kind":"proposal|question","message":string,"actions":[{"type":"${requiredActionType}","personId":string,"rules":[{"status":"available|unavailable","date":"YYYY-MM-DD","startTime?":"HH:MM","durationMins?":number,"timezone?":string,"originalPrompt?":string}]}],"options?":[{"label":string,"value":string,"style?":"primary|secondary|danger"}],"allowFreeText?":boolean}`,
+      `Schema: {"kind":"proposal","message":string,"actions":[{"type":"${requiredActionType}","personId":string,"rules":[{"status":"available|unavailable","date":"YYYY-MM-DD","startTime?":"HH:MM","durationMins?":number,"timezone?":string,"originalPrompt?":string}]}]}`,
       'Never emit add_appointment, reschedule_appointment, delete_appointment, or any appointment action.'
     ].join('\n'),
-    user: `Person ID: ${params.personId}\nTimezone: ${params.timezone}\nUser input: ${params.userMessage}`
+    user: `Mode: ${params.mode}\nPerson ID: ${params.personId}\nTimezone: ${params.timezone}\nUser input: ${params.message}\nGroup snapshot: ${params.groupSnapshot}`
   };
 };
