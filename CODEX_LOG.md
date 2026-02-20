@@ -3569,3 +3569,36 @@ Fix deploy workflow verify-step host resolution for Flex Function App by queryin
 ### Follow-ups
 
 - Run `Deploy API (prod)` and confirm verify step logs show non-empty `APP_HOST` from primary or fallback query.
+
+## 2026-02-20 22:34 UTC (deploy fix: complete prod deps in zip)
+
+### Objective
+
+Fix prod Azure Functions deploy packaging so the deployed artifact includes complete production dependencies and avoids runtime `ERR_MODULE_NOT_FOUND` for `@azure/core-rest-pipeline`.
+
+### Approach
+
+- Updated deploy workflow to create a clean `api_deploy/` staging directory containing only runtime-required files (`host.json`, `package.json`, `dist/`).
+- Used `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` and copied staged `node_modules` into `api_deploy/` to avoid workspace-hoisted dependency gaps.
+- Added staged-runtime validation that imports `@azure/storage-blob` from `api_deploy/` before zipping.
+- Changed zip source root from `api/` to `api_deploy/` and updated post-deploy smoke check to call `POST /api/group/join` and fail on HTTP 500.
+- Updated continuity docs in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ build succeeded.
+- `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` ✅ produced standalone deploy install tree.
+- `(cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")` ✅ import succeeded in staging context.
+- `(cd api_deploy && zip -r ../api.zip .)` ✅ zip created with deploy root contents.
+- `unzip -l api.zip | rg "host.json|dist/index.js|node_modules/.pnpm/.+core-rest-pipeline" -n` ✅ verified key runtime entries in artifact.
+
+### Follow-ups
+
+- Run the updated deploy workflow in GitHub Actions and confirm `/api/group/join` is non-500 in prod.
+- Confirm App Insights no longer logs entry-point load failures for `@azure/core-rest-pipeline`.

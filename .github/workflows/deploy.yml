@@ -36,10 +36,33 @@ jobs:
       - name: Build API
         run: pnpm --filter @familyscheduler/api build
 
-      - name: Package API zip (api contents at zip root)
+      - name: Build clean deploy staging directory (api_deploy)
         run: |
+          set -euo pipefail
+          rm -rf api_deploy api_deploy_install api.zip
+          mkdir -p api_deploy
+
+          cp api/host.json api_deploy/host.json
+          cp api/package.json api_deploy/package.json
+          cp -R api/dist api_deploy/dist
+
+          pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install
+          cp -R api_deploy_install/node_modules api_deploy/node_modules
+
+      - name: Validate deploy staging directory
+        run: |
+          set -euo pipefail
+          test -f api_deploy/host.json
+          test -f api_deploy/package.json
+          test -f api_deploy/dist/index.js
+          test -d api_deploy/node_modules
+          (cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")
+
+      - name: Package API zip (api_deploy at zip root)
+        run: |
+          set -euo pipefail
           rm -f api.zip
-          (cd api && zip -r ../api.zip .)
+          (cd api_deploy && zip -r ../api.zip .)
 
       - name: Azure login
         uses: azure/login@v2
@@ -61,7 +84,7 @@ jobs:
             --resource-group familyscheduler-prod-rg \
             --src api.zip
 
-      - name: Verify deployed Function App responds (non-404)
+      - name: Verify deployed Function App responds (group join non-500)
         run: |
           set -euo pipefail
 
@@ -97,14 +120,14 @@ jobs:
           echo "Function App root status: $ROOT_STATUS"
           curl -i "$FUNCTION_APP_URL" || true
 
-          CHAT_STATUS=$(curl -sS -o /tmp/function-chat.out -w "%{http_code}" \
-            -X POST "$FUNCTION_APP_URL/api/chat" \
+          GROUP_JOIN_STATUS=$(curl -sS -o /tmp/function-group-join.out -w "%{http_code}" \
+            -X POST "$FUNCTION_APP_URL/api/group/join" \
             -H 'content-type: application/json' \
-            --data '{"message":"deployment-smoke","groupId":"smoke","phone":"0000000000"}')
-          echo "POST /api/chat status: $CHAT_STATUS"
-          cat /tmp/function-chat.out
+            --data '{"groupId":"deploy-smoke","phone":"0000000000"}')
+          echo "POST /api/group/join status: $GROUP_JOIN_STATUS"
+          cat /tmp/function-group-join.out
 
-          if [ "$CHAT_STATUS" = "404" ]; then
-            echo "Expected non-404 from /api/chat after deployment"
+          if [ "$GROUP_JOIN_STATUS" = "500" ]; then
+            echo "Expected non-500 from /api/group/join after deployment"
             exit 1
           fi
