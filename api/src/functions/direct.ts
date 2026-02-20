@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { executeActions } from '../lib/actions/executor.js';
 import type { Action } from '../lib/actions/schema.js';
+import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
+import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
+import type { StorageAdapter } from '../lib/storage/storage.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
@@ -31,7 +34,6 @@ type DirectAction =
   | { type: 'update_person'; personId: string; name?: string; phone?: string }
   | { type: 'delete_person'; personId: string };
 
-const storage = createStorageAdapter();
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
 
@@ -148,7 +150,12 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
   const body = await request.json() as DirectBody;
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
   const identity = validateJoinRequest(body.groupId, body.phone);
-  if (!identity.ok) return identity.response;
+  if (!identity.ok) {
+    return {
+      ...identity.response,
+      jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
+    };
+  }
   logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
 
   let directAction: DirectAction;
@@ -158,17 +165,31 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     return badRequest(error instanceof Error ? error.message : 'invalid action', traceId);
   }
 
+  let storage: StorageAdapter;
+  try {
+    storage = createStorageAdapter();
+  } catch (error) {
+    if (error instanceof MissingConfigError) {
+      logConfigMissing('direct', traceId, error.missing);
+      return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+    }
+    throw error;
+  }
   let loaded;
   try {
     loaded = await storage.load(identity.groupId);
   } catch (error) {
-    if (error instanceof GroupNotFoundError) return { status: 404, jsonBody: { ok: false, error: 'group_not_found' } };
+    if (error instanceof MissingConfigError) {
+      logConfigMissing('direct', traceId, error.missing);
+      return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+    }
+    if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
     throw error;
   }
   const allowed = findActivePersonByPhone(loaded.state, identity.phoneE164);
   if (!allowed) {
     logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-    return { status: 403, jsonBody: { error: 'not_allowed' } };
+    return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
   }
   logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
@@ -179,6 +200,10 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
       return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } };
     } catch (error) {
+      if (error instanceof MissingConfigError) {
+        logConfigMissing('direct', traceId, error.missing);
+        return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+      }
       if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
       throw error;
     }
@@ -204,6 +229,10 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
         const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
         return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
       } catch (error) {
+        if (error instanceof MissingConfigError) {
+          logConfigMissing('direct', traceId, error.missing);
+          return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+        }
         if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
         throw error;
       }
@@ -221,6 +250,10 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
       return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
     } catch (error) {
+      if (error instanceof MissingConfigError) {
+        logConfigMissing('direct', traceId, error.missing);
+        return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+      }
       if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
       throw error;
     }
@@ -232,6 +265,10 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     const written = await storage.save(identity.groupId, execution.nextState, loaded.etag);
     return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
   } catch (error) {
+    if (error instanceof MissingConfigError) {
+      logConfigMissing('direct', traceId, error.missing);
+      return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+    }
     if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
     throw error;
   }

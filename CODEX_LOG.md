@@ -3053,3 +3053,55 @@ Produce a concrete pre-flight questionnaire response for multi-select availabili
 
 - Implement multi-range UX behind a feature flag while preserving current single-rule API contract via batched `add_rule` actions.
 - Add DST and overlap regression tests once implementation begins.
+
+## 2026-02-20 11:35 UTC (BYO-only API + MI Blob-only storage)
+
+### Objective
+
+Switch web/API topology to BYO-only API routing and migrate API state storage to Managed Identity Blob-only mode with fail-fast config error handling.
+
+### Approach
+
+- Updated both SWA workflows to inject `VITE_API_BASE_URL`, added a pre-deploy guard step, and disabled SWA managed API packaging (`api_location: ""`, `skip_api_build: true`).
+- Replaced storage factory branching with Blob-only lazy creation requiring `STORAGE_ACCOUNT_URL` + `STATE_CONTAINER`, and introduced `MissingConfigError`.
+- Rewrote `AzureBlobStorage` from SAS/fetch to Azure SDK (`BlobServiceClient` + `DefaultAzureCredential`) while preserving group-path naming, ETag normalization, 404 -> GroupNotFound, and 409/412 -> Conflict semantics.
+- Added shared `errorResponse` helpers for trace-aware, consistent config/storage error envelopes and structured config-missing logs.
+- Moved storage adapter resolution to request-time in handlers; added config failure handling in `chat`, `direct`, `groupCreate`, `groupJoin`, and `groupMeta`.
+- Fixed `chat` catch behavior so only true OpenAI path failures return `OPENAI_CALL_FAILED`; config/storage errors now map to explicit non-200 envelopes with `traceId`.
+- Removed local storage implementation and updated tests to use `setStorageAdapterForTests(...)` adapter injection (no local mode reliance).
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`
+- `api/package.json`
+- `api/local.settings.example.json`
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/lib/storage/azureBlobStorage.test.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/storage/localFileStorage.ts` (deleted)
+- `api/src/lib/errors/configError.ts`
+- `api/src/lib/http/errorResponse.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/groupCreate.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/groupMeta.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/functions/direct.test.ts`
+- `api/src/functions/groupCreate.test.ts`
+- `api/src/functions/groupMeta.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm install --frozen-lockfile` ⚠️ failed as expected due lockfile drift after dependency additions.
+- `pnpm install --no-frozen-lockfile` ⚠️ failed with `ERR_PNPM_FETCH_403` fetching `@azure/storage-blob` from npm registry in this environment.
+- `pnpm --filter @familyscheduler/api run build` ⚠️ blocked by missing installed Azure SDK packages due registry fetch failure.
+- `rg -n "STORAGE_MODE|LOCAL_STATE_PREFIX|BLOB_SAS_URL|localFileStorage" api/src api/local.settings.example.json` ✅ confirmed runtime/template removal in edited codepaths.
+
+### Follow-ups
+
+- Run dependency install/build/tests in an environment with npm registry access to complete full compile/test validation.
+- Deploy and validate acceptance checklist A/B/D against live Azure resources and Function App configuration.

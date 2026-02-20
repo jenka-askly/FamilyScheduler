@@ -1,3 +1,5 @@
+import { DefaultAzureCredential } from '@azure/identity';
+import { BlobServiceClient } from '@azure/storage-blob';
 import { createEmptyAppState, normalizeAppState, type AppState } from '../state.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from './storage.js';
 
@@ -5,11 +7,13 @@ const JSON_CONTENT_TYPE = 'application/json; charset=utf-8';
 const DEFAULT_STATE_BLOB_PREFIX = 'familyscheduler/groups';
 
 const stableStringify = (value: AppState): string => `${JSON.stringify(value, null, 2)}\n`;
-const normalizeEtag = (value: string | null): string => (value ? value.trim().replace(/^W\//i, '').replace(/^"|"$/g, '') : '');
-const formatIfMatch = (etag: string): string => (etag === '*' ? '*' : `"${normalizeEtag(etag)}"`);
 
-const readErrorBody = async (response: Response): Promise<string> => {
-  try { return (await response.text()).trim(); } catch { return ''; }
+export const normalizeEtag = (value: string | null | undefined): string => (value ? value.trim().replace(/^W\//i, '').replace(/^"|"$/g, '') : '');
+export const formatIfMatch = (etag: string): string => {
+  if (etag === '*') return '*';
+  const normalized = normalizeEtag(etag);
+  if (!normalized) throw new Error('Azure blob writes require expectedEtag.');
+  return `"${normalized}"`;
 };
 
 const sanitizeGroupId = (groupId: string): string => {
@@ -19,70 +23,75 @@ const sanitizeGroupId = (groupId: string): string => {
   return trimmed;
 };
 
-const toBlobUrl = (sasUrl: string, blobName: string): string => {
-  const url = new URL(sasUrl);
-  const trimmedPath = url.pathname.replace(/\/+$/, '');
-  const encodedBlobName = blobName.split('/').map((segment) => encodeURIComponent(segment)).join('/');
-  url.pathname = `${trimmedPath}/${encodedBlobName}`;
-  return url.toString();
+const isHttpStatus = (error: unknown, statuses: number[]): boolean => {
+  const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
+    ? Number((error as { statusCode?: unknown }).statusCode)
+    : NaN;
+  return Number.isFinite(statusCode) && statuses.includes(statusCode);
+};
+
+const streamToText = async (readable: NodeJS.ReadableStream): Promise<string> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of readable) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf-8');
 };
 
 export class AzureBlobStorage implements StorageAdapter {
-  private readonly sasUrl: string;
+  private readonly containerClient;
   private readonly stateBlobPrefix: string;
 
-  constructor(options?: { sasUrl?: string; stateBlobPrefix?: string }) {
-    const sasUrl = options?.sasUrl ?? process.env.BLOB_SAS_URL;
-    if (!sasUrl) throw new Error('BLOB_SAS_URL is required when STORAGE_MODE=azure.');
-    this.sasUrl = sasUrl;
-    this.stateBlobPrefix = options?.stateBlobPrefix ?? process.env.STATE_BLOB_PREFIX ?? DEFAULT_STATE_BLOB_PREFIX;
+  constructor(options: { accountUrl: string; containerName: string; stateBlobPrefix?: string }) {
+    const credential = new DefaultAzureCredential();
+    const serviceClient = new BlobServiceClient(options.accountUrl, credential);
+    this.containerClient = serviceClient.getContainerClient(options.containerName);
+    this.stateBlobPrefix = options.stateBlobPrefix ?? DEFAULT_STATE_BLOB_PREFIX;
   }
 
-  private blobUrl(groupId: string): string {
-    return toBlobUrl(this.sasUrl, `${this.stateBlobPrefix}/${sanitizeGroupId(groupId)}/state.json`);
+  private blobName(groupId: string): string {
+    return `${this.stateBlobPrefix}/${sanitizeGroupId(groupId)}/state.json`;
   }
 
   async initIfMissing(groupId: string, initialState?: AppState): Promise<void> {
-    const response = await fetch(this.blobUrl(groupId), {
-      method: 'PUT',
-      headers: { 'Content-Type': JSON_CONTENT_TYPE, 'If-None-Match': '*', 'x-ms-blob-type': 'BlockBlob' },
-      body: stableStringify(normalizeAppState(initialState ?? createEmptyAppState(groupId)))
-    });
-
-    if (response.ok || response.status === 412 || response.status === 409) return;
-    const detail = await readErrorBody(response);
-    throw new Error(`Failed to initialize Azure blob state (${response.status}). ${detail}`.trim());
+    const blobClient = this.containerClient.getBlockBlobClient(this.blobName(groupId));
+    const body = stableStringify(normalizeAppState(initialState ?? createEmptyAppState(groupId)));
+    try {
+      await blobClient.upload(body, Buffer.byteLength(body), {
+        blobHTTPHeaders: { blobContentType: JSON_CONTENT_TYPE },
+        conditions: { ifNoneMatch: '*' }
+      });
+    } catch (error) {
+      if (isHttpStatus(error, [409, 412])) return;
+      throw error;
+    }
   }
 
   async load(groupId: string): Promise<{ state: AppState; etag: string }> {
-    const blobUrl = this.blobUrl(groupId);
-    const response = await fetch(blobUrl, { method: 'GET' });
-
-    if (response.status === 404) throw new GroupNotFoundError();
-
-    if (!response.ok) {
-      const detail = await readErrorBody(response);
-      throw new Error(`Failed to read Azure blob state (${response.status}). ${detail}`.trim());
+    const blobClient = this.containerClient.getBlockBlobClient(this.blobName(groupId));
+    try {
+      const response = await blobClient.download();
+      if (!response.readableStreamBody) throw new Error('Azure blob response missing body.');
+      const raw = await streamToText(response.readableStreamBody);
+      return { state: normalizeAppState(JSON.parse(raw) as AppState), etag: normalizeEtag(response.etag) };
+    } catch (error) {
+      if (isHttpStatus(error, [404])) throw new GroupNotFoundError();
+      throw error;
     }
-
-    return { state: normalizeAppState((await response.json()) as AppState), etag: normalizeEtag(response.headers.get('etag')) };
   }
 
   async save(groupId: string, nextState: AppState, expectedEtag: string): Promise<{ state: AppState; etag: string }> {
-    if (!expectedEtag || normalizeEtag(expectedEtag).length === 0) throw new Error('Azure blob writes require expectedEtag.');
     const normalized = normalizeAppState({ ...nextState, groupId, updatedAt: new Date().toISOString() });
-    const response = await fetch(this.blobUrl(groupId), {
-      method: 'PUT',
-      headers: { 'Content-Type': JSON_CONTENT_TYPE, 'If-Match': formatIfMatch(expectedEtag), 'x-ms-blob-type': 'BlockBlob' },
-      body: stableStringify(normalized)
-    });
+    const body = stableStringify(normalized);
+    const blobClient = this.containerClient.getBlockBlobClient(this.blobName(groupId));
 
-    if (response.status === 412 || response.status === 409) throw new ConflictError('State changed during update');
-    if (!response.ok) {
-      const detail = await readErrorBody(response);
-      throw new Error(`Failed to write Azure blob state (${response.status}). ${detail}`.trim());
+    try {
+      const response = await blobClient.upload(body, Buffer.byteLength(body), {
+        blobHTTPHeaders: { blobContentType: JSON_CONTENT_TYPE },
+        conditions: { ifMatch: formatIfMatch(expectedEtag) }
+      });
+      return { state: normalized, etag: normalizeEtag(response.etag) };
+    } catch (error) {
+      if (isHttpStatus(error, [409, 412])) throw new ConflictError('State changed during update');
+      throw error;
     }
-
-    return { state: normalized, etag: normalizeEtag(response.headers.get('etag')) };
   }
 }

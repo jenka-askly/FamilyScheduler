@@ -3,9 +3,8 @@
   "Values": {
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "STORAGE_MODE": "local",
-    "LOCAL_STATE_PREFIX": "./.localstate/familyscheduler/groups",
-    "BLOB_SAS_URL": "",
+    "STORAGE_ACCOUNT_URL": "https://familyschedulerprod2.blob.core.windows.net",
+    "STATE_CONTAINER": "familyscheduler",
     "STATE_BLOB_PREFIX": "familyscheduler/groups",
     "DEFAULT_COUNTRY": "US",
     "BLOB_KIND": "",
