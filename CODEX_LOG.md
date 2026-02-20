@@ -3481,3 +3481,33 @@ Fix production deploy smoke test hostname resolution by removing hardcoded Funct
 
 - Run `Deploy API (prod)` in GitHub Actions and verify no `curl: (6) Could not resolve host` errors.
 - Confirm `POST $FUNCTION_APP_URL/api/chat` returns non-404 in smoke step logs.
+
+## 2026-02-20 21:56 UTC (deploy verify robustness + APP_HOST guard)
+
+### Objective
+
+Make deploy verification in GitHub Actions robust when Function App hostname lookup returns empty and improve diagnosability.
+
+### Approach
+
+- Replaced verify step script in `.github/workflows/deploy.yml` with stricter shell settings and Azure context diagnostics.
+- Added `APP_HOST` empty guard with explicit failure message and raw `az functionapp show` debug output.
+- Logged resolved `FUNCTION_APP_URL` before curl checks.
+- Updated `/api/chat` smoke payload to include `groupId` and `phone` for stricter endpoint compatibility.
+- Updated continuity docs in `PROJECT_STATUS.md` to capture the previous failure mode and the guardrail change.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/deploy.yml` ✅ inspected existing verify step before patching.
+- `python - <<'PY' ...` ✅ inserted deploy verify robustness note into `PROJECT_STATUS.md`.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ confirmed minimal targeted diff.
+
+### Follow-ups
+
+- Trigger the deploy workflow in GitHub Actions to confirm verify diagnostics in a real Azure-authenticated run.
