@@ -14,6 +14,9 @@ importers:
 
   api:
     dependencies:
+      '@azure/core-rest-pipeline':
+        specifier: ^1.22.2
+        version: 1.22.2
       '@azure/functions':
         specifier: ^4.8.0
         version: 4.11.2
@@ -21,7 +24,7 @@ importers:
         specifier: ^4.6.0
         version: 4.13.0
       '@azure/storage-blob':
-        specifier: ^12.27.0
+        specifier: ^12.31.0
         version: 12.31.0
     devDependencies:
       '@types/node':
