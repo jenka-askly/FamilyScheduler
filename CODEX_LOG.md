@@ -3419,3 +3419,34 @@ Fix production deploy workflow failure on Flex Consumption by removing unsupport
 ### Follow-ups
 
 - Run the `Deploy API (prod)` workflow on `main` and verify zip deploy succeeds without appsettings validation errors.
+
+## 2026-02-20 21:45 UTC (Flex zip root packaging + post-deploy smoke check)
+
+### Objective
+
+Fix Function App deployment packaging so Azure Functions on Flex discovers functions (`chat`, `direct`, `groupCreate`, etc.) by ensuring `host.json` and function folders are at the zip root.
+
+### Approach
+
+- Updated `.github/workflows/deploy.yml` to package deploy artifact as `api.zip` from **contents** of `api/` (`(cd api && zip -r ../api.zip .)`).
+- Updated deploy command to use `--src api.zip`.
+- Added a post-deploy verification step that logs root status and performs `POST /api/chat`, failing only on `404` (non-discovery signal).
+- Updated `PROJECT_STATUS.md` with root cause and fix summary for Flex function discovery.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/deploy.yml` ✅ confirmed previous packaging/deploy source path.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `rm -f api.zip && (cd api && zip -r ../api.zip .)` ✅ produced deploy zip with `api/` contents at archive root.
+- `zipinfo -1 api.zip | rg -n '^(host.json|chat/|direct/|groupCreate/|groupJoin/|groupMeta/)'` ✅ verified required root entries are present.
+
+### Follow-ups
+
+- Run the `Deploy API (prod)` GitHub Action and confirm Azure Portal function list includes `chat`, `direct`, `groupCreate`, `groupJoin`, and `groupMeta`.
+- Confirm deployed `/api/chat` smoke-check step reports a non-404 status.
