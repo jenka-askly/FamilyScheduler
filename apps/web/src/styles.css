@@ -244,13 +244,6 @@ input {
   color: #94a3b8;
 }
 
-.notes-text {
-  display: inline-block;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: pre-line;
-}
 .toggle-row { display:flex; gap:.5rem; margin-bottom:.75rem; }
 .active-toggle { background:#1d4ed8; color:white; }
 .linkish { border:0; background:none; color:#1d4ed8; padding:0; cursor:pointer; }
@@ -297,10 +290,17 @@ input {
 .status-tag.unavailable { color:#991b1b; border-color:#fca5a5; }
 .status-tag.unknown { color:#334155; }
 
+.actions-cell {
+  white-space: nowrap;
+  width: 1%;
+}
+
 .action-icons {
-  display: flex;
+  display: inline-flex;
   justify-content: flex-end;
-  gap: 0.15rem;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
 .icon-button {
@@ -315,6 +315,7 @@ input {
   background: transparent;
   color: #334155;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .icon-button:hover {
@@ -364,9 +365,19 @@ input {
   flex: 0;
 }
 
+.rules-row {
+  background: #f8fafc;
+}
+
 .rules-cell {
   white-space: pre-line;
   background: #f8fafc;
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+
+.rules-indent {
+  padding-left: 28px;
 }
 
 .rules-list {
@@ -378,10 +389,26 @@ input {
 }
 
 .rule-item {
-  display: grid;
-  grid-template-columns: auto auto auto 1fr auto;
-  gap: var(--rule-gap);
+  display: flex;
   align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.rule-item > span {
+  white-space: nowrap;
+}
+
+.notes-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rule-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 

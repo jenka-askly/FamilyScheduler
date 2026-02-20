@@ -3300,3 +3300,35 @@ Implement rules-mode single-shot drafting/confirmation (no dynamic question UI),
 ### Follow-ups
 
 - Manually validate rule draft examples in a real authenticated group flow (`I am busy tomorrow`, Cancun date range) and confirm assignment status chips reflect applied rules.
+
+## 2026-02-20 20:42 UTC (people/rules table alignment + icon order + nowrap)
+
+### Objective
+
+Apply a minimal UI patch to People/Rules table alignment: enforce person action icon order/labels, prevent action wrapping, and compact+indent rule rows for clearer hierarchy.
+
+### Approach
+
+- Updated People action cell markup to enforce exactly three buttons in order: Rules, Edit person, Delete person.
+- Replaced duplicate Rules icon (Pencil) with a distinct clock icon component.
+- Added `actions-cell`, `rules-row`, `rules-indent`, and `rule-actions` structure/classes in `AppShell.tsx`.
+- Updated CSS for no-wrap icon rows and compact rule-row layout/alignment.
+- Updated `PROJECT_STATUS.md` with behavior changes and manual verification steps.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ checked for repository-scoped agent instructions (none found in repo tree).
+- `rg -n "Actions|rules-row|rule-item|action-icons|people" apps/web/src/AppShell.tsx` ✅ located relevant table/action/rules sections before editing.
+- `rg --files apps/web/src | rg -n "css$"` ✅ identified active stylesheet (`apps/web/src/styles.css`).
+- `rg -n "notes-text|actions-cell|rules-row|rules-indent|rule-actions|action-icons|rule-item" apps/web/src/styles.css apps/web/src/AppShell.tsx` ✅ verified class usage and no duplicate competing selectors after patch.
+
+### Follow-ups
+
+- Run local UI smoke in browser at desktop widths to validate non-wrapping behavior across target breakpoints.
