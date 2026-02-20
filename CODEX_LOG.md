@@ -2651,3 +2651,31 @@ Fix production 405 on Create Group by routing web API calls to the deployed Func
 
 - Set GitHub Actions secret `VITE_API_BASE_URL` to the prod Function App origin (for example `https://familyscheduler-api-prod.azurewebsites.net`).
 - Deploy web and validate in browser DevTools that Create Group requests target Function App host and no longer return 405.
+
+## 2026-02-20 07:05 UTC (disable competing SWA workflow triggers)
+
+### Objective
+
+Stop duplicate production SWA deploys on `main` by disabling automatic triggers on the auto-generated Azure Static Web Apps workflow while keeping `.github/workflows/swa-web.yml` as the primary deployment workflow.
+
+### Approach
+
+- Updated only the `on:` block in `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml` from `push`/`pull_request` triggers to `workflow_dispatch`.
+- Left all workflow jobs, steps, and secrets unchanged.
+- Added continuity note in `PROJECT_STATUS.md` explaining the conflict and manual-only status of the auto-generated workflow.
+
+### Files changed
+
+- `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' .github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml` ✅ reviewed existing triggers before edit.
+- `git diff -- .github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified minimal targeted diff.
+
+### Follow-ups
+
+- Merge and push to `main`, then verify only `Deploy Web (SWA)` runs on push.
+- If needed, manually dispatch the auto-generated workflow for one-off operations.
