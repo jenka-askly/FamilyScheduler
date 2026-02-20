@@ -46,13 +46,6 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Ensure Node Functions worker runtime setting
-        run: |
-          az functionapp config appsettings set \
-            --name familyscheduler-api-prod \
-            --resource-group familyscheduler-prod-rg \
-            --settings FUNCTIONS_WORKER_RUNTIME=node
-
       - name: Deploy zip to Function App (Flex)
         run: |
           az functionapp deployment source config-zip \
