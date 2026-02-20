@@ -26,6 +26,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build web app
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
         run: pnpm --filter @familyscheduler/web build
 
       - name: Deploy to Azure Static Web Apps
