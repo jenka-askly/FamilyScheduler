@@ -3171,3 +3171,36 @@ Run a focused discovery query to determine feasibility of adding photo-to-appoin
 
 - If implementing photo extraction, decide between extending `POST /api/chat` vs adding dedicated `POST /api/extract-appointment` for clearer contract and failure isolation.
 - Add explicit payload size/type limits and trace-aware rejection responses before enabling image ingestion.
+
+## 2026-02-20 19:25 UTC (TS2322 RuleRequestItem.status narrowing in chat)
+
+### Objective
+
+Fix TypeScript TS2322 in `api/src/functions/chat.ts` caused by `RuleRequestItem.status` being treated as `string` during rule parsing.
+
+### Approach
+
+- Added a dedicated type guard `isRuleStatus` to narrow `unknown` values to `'available' | 'unavailable'`.
+- Reworked `parseRuleItems` to return either parsed items or an `invalidStatus` marker.
+- In the chat handler, added a non-fallthrough HTTP 400 return when invalid status is found:
+  - `error: "invalid_rule_status"`
+  - `message: "status must be 'available' or 'unavailable'"`
+  - `got: <invalid value>`
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `nl -ba api/src/functions/chat.ts | sed -n '60,110p'` ✅ located failing region and existing parse path.
+- `rg -n "RuleRequestItem|status|available|unavailable" api/src/functions/chat.ts api/src -S` ✅ traced type usage and status literals.
+- `rg -n "type RuleRequestItem" api/src -S` ✅ found type definition in chat handler.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed due missing modules `@azure/identity` and `@azure/storage-blob` in this environment.
+- `pnpm deploy:api:package` ⚠️ failed for the same upstream build dependency reason.
+
+### Follow-ups
+
+- Re-run build/package commands in an environment with required Azure SDK dependencies installed.
