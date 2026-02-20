@@ -7,6 +7,7 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 ## What works now
 
 
+- Deploy staging now includes function folders for discovery + portable prod deps to avoid @azure module gaps.
 - API prod deploy now stages a clean `api_deploy/` package root (host.json + package.json + built `dist/`) and installs production dependencies via `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` before copying `node_modules` into the deploy root.
 - Deploy workflow now validates the staged runtime by importing `@azure/storage-blob` from `api_deploy/` so transitive packages such as `@azure/core-rest-pipeline` are present in the artifact.
 - Zip packaging now archives `api_deploy` (app root at zip root) and post-deploy smoke test now calls `POST /api/group/join` and fails only on HTTP 500, directly guarding against runtime module-load failures.

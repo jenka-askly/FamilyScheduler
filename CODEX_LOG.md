@@ -3633,3 +3633,42 @@ Fix Azure Functions trigger discovery regression by ensuring function folders ar
 
 - Run `Deploy API (prod)` and confirm Azure Portal `Functions` list is populated after deployment.
 - Verify `POST /api/group/join` returns non-404/non-500 from deployed host.
+
+## 2026-02-20 22:59 UTC (deploy packaging hardening for Azure module/runtime + trigger discovery)
+
+### Objective
+
+Fix Azure 500s caused by missing `@azure/*` runtime dependencies in deploy artifacts while preserving Azure Functions trigger discovery in the deployed zip.
+
+### Approach
+
+- Added `@azure/core-rest-pipeline` as a direct runtime dependency in `api/package.json` and updated `pnpm-lock.yaml` importer entries.
+- Kept `api_deploy/` as the deploy staging root and retained copying of all `api/*/` directories containing `function.json` so trigger folders are present for portal discovery.
+- Hardened deploy staging validation to require `api_deploy/groupJoin/function.json` in addition to `host.json`, `dist/index.js`, and runtime import validation of `@azure/storage-blob` from staged output.
+- Extended post-deploy smoke to also call `POST /api/chat` and fail on `404` to catch trigger discovery regressions.
+- Updated `PROJECT_STATUS.md` continuity note as requested.
+
+### Files changed
+
+- `api/package.json`
+- `pnpm-lock.yaml`
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api add @azure/storage-blob @azure/core-rest-pipeline` ⚠️ failed in this environment with npm registry 403; applied equivalent dependency update manually using locked versions already present in `pnpm-lock.yaml`.
+- `pnpm --filter @familyscheduler/api build` ✅ build succeeded.
+- `rm -rf api_deploy api_deploy_install api.zip && mkdir -p api_deploy` ✅ clean staging reset succeeded.
+- `cp api/host.json api_deploy/host.json && cp api/package.json api_deploy/package.json && cp -R api/dist api_deploy/dist` ✅ runtime files copied.
+- `for d in api/*/; do if [ -f "${d}function.json" ]; then cp -R "$d" "api_deploy/$(basename "$d")"; fi; done` ✅ function folders copied into staging.
+- `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` ✅ portable production install created.
+- `cp -R api_deploy_install/node_modules api_deploy/node_modules` ✅ portable node_modules copied to deploy root.
+- `test -f api_deploy/host.json && test -f api_deploy/groupJoin/function.json && test -f api_deploy/dist/index.js` ✅ staging assertions passed.
+- `(cd api_deploy && node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))")` ✅ runtime import succeeded.
+- `(cd api_deploy && zip -r ../api.zip .)` ✅ zip created from staging root.
+
+### Follow-ups
+
+- Run GitHub Actions `Deploy API (prod)` to execute Azure `config-zip` deploy and remote smoke calls with environment credentials.
