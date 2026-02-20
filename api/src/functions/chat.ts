@@ -80,21 +80,30 @@ const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppS
 
 type RuleRequestItem = { personId: string; status: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; promptId?: string; originalPrompt?: string };
 const isRuleMode = (value: unknown): value is 'draft' | 'confirm' => value === 'draft' || value === 'confirm';
-const parseRuleItems = (value: unknown): RuleRequestItem[] => {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
-    .map((item) => ({
-      personId: String(item.personId ?? '').trim(),
-      status: item.status === 'available' || item.status === 'unavailable' ? item.status : 'unavailable',
-      date: String(item.date ?? '').trim(),
-      startTime: typeof item.startTime === 'string' ? item.startTime.trim() : undefined,
-      durationMins: typeof item.durationMins === 'number' ? item.durationMins : undefined,
-      timezone: typeof item.timezone === 'string' ? item.timezone.trim() : undefined,
-      promptId: typeof item.promptId === 'string' ? item.promptId.trim() : undefined,
-      originalPrompt: typeof item.originalPrompt === 'string' ? item.originalPrompt : undefined
-    }))
-    .filter((item) => item.personId && item.date);
+const isRuleStatus = (v: unknown): v is 'available' | 'unavailable' => v === 'available' || v === 'unavailable';
+const parseRuleItems = (value: unknown): { items: RuleRequestItem[] } | { invalidStatus: unknown } => {
+  if (!Array.isArray(value)) return { items: [] };
+
+  const items: RuleRequestItem[] = [];
+  for (const rawItem of value) {
+    if (typeof rawItem !== 'object' || rawItem === null) continue;
+    const candidateStatus = rawItem.status;
+    if (!isRuleStatus(candidateStatus)) return { invalidStatus: candidateStatus };
+
+    const item = {
+      personId: String(rawItem.personId ?? '').trim(),
+      status: candidateStatus,
+      date: String(rawItem.date ?? '').trim(),
+      startTime: typeof rawItem.startTime === 'string' ? rawItem.startTime.trim() : undefined,
+      durationMins: typeof rawItem.durationMins === 'number' ? rawItem.durationMins : undefined,
+      timezone: typeof rawItem.timezone === 'string' ? rawItem.timezone.trim() : undefined,
+      promptId: typeof rawItem.promptId === 'string' ? rawItem.promptId.trim() : undefined,
+      originalPrompt: typeof rawItem.originalPrompt === 'string' ? rawItem.originalPrompt : undefined
+    };
+    if (item.personId && item.date) items.push(item);
+  }
+
+  return { items };
 };
 
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
@@ -167,7 +176,18 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     session.activePersonId = allowed.personId;
 
     const ruleMode = isRuleMode(body.ruleMode) ? body.ruleMode : undefined;
-    const incomingRules = parseRuleItems(body.rules);
+    const parsedRules = parseRuleItems(body.rules);
+    if ('invalidStatus' in parsedRules) {
+      return {
+        status: 400,
+        jsonBody: {
+          error: 'invalid_rule_status',
+          message: "status must be 'available' or 'unavailable'",
+          got: parsedRules.invalidStatus
+        }
+      };
+    }
+    const incomingRules = parsedRules.items;
     if (ruleMode) {
       console.info('rule_mode_request', { traceId, ruleMode, personIds: [...new Set(incomingRules.map((rule) => rule.personId))], promptId: typeof body.promptId === 'string' ? body.promptId : undefined, replacePromptId: typeof body.replacePromptId === 'string' ? body.replacePromptId : undefined, replaceRuleCode: typeof body.replaceRuleCode === 'string' ? body.replaceRuleCode : undefined, incomingIntervalsCount: incomingRules.length });
       if (incomingRules.length === 0) return badRequest('rules are required for ruleMode', traceId);
