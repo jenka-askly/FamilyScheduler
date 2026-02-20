@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { parseToActions } from './openaiClient.js';
+import { diagnoseOpenAiConnectivity, parseToActions } from './openaiClient.js';
 import { buildContext } from './buildContext.js';
 import { createEmptyAppState } from '../state.js';
 
@@ -16,6 +16,7 @@ test.afterEach(async () => {
   delete process.env.OPENAI_LOG_ENABLED;
   delete process.env.OPENAI_LOG_DIR;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_MODEL;
 });
 
 test('OPENAI_LOG_ENABLED=true writes redacted request and response NDJSON lines', async () => {
@@ -47,6 +48,27 @@ test('OPENAI_LOG_ENABLED=true writes redacted request and response NDJSON lines'
   assert.equal(file.includes('sig=[REDACTED]'), true);
 });
 
+
+
+test('diagnoseOpenAiConnectivity reports missing api key safely', async () => {
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_MODEL;
+  const result = await diagnoseOpenAiConnectivity(1000);
+  assert.equal(result.ok, false);
+  assert.equal(result.hasApiKey, false);
+  assert.equal(result.model, 'gpt-4.1-mini');
+  assert.match(result.lastError ?? '', /OPENAI_API_KEY/i);
+});
+
+test('diagnoseOpenAiConnectivity succeeds on model endpoint', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test-secret';
+  process.env.OPENAI_MODEL = 'gpt-4.1-mini';
+  globalThis.fetch = (async () => ({ ok: true, status: 200 })) as unknown as typeof fetch;
+  const result = await diagnoseOpenAiConnectivity(1000);
+  assert.equal(result.ok, true);
+  assert.equal(result.hasApiKey, true);
+  assert.equal(result.model, 'gpt-4.1-mini');
+});
 test('OPENAI_LOG_ENABLED=false does not write log file', async () => {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openai-logs-off-'));
   process.env.OPENAI_LOG_ENABLED = 'false';

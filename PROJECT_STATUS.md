@@ -479,3 +479,12 @@ traces
 - Test signal: `pnpm --filter @familyscheduler/api test` passes all API tests.
 - Route metadata signal: `api/chat/function.json` exists with route `chat` and entryPoint `chat`.
 - Environment limitation: Functions Core Tools are not installed in this environment (`func: command not found`), so local HTTP smoke (`POST http://localhost:7071/api/chat`) and SWA portal blade validation must be run in CI/Azure.
+
+## Recent update (2026-02-20 09:10 UTC)
+
+- Added `/api/diagnose/openai` HTTP endpoint (safe health probe) to verify OpenAI API key presence and model connectivity without logging secrets or raw model output.
+- Added structured `/api/chat` diagnostics logs with `traceId`, route, hashed phone, message length, OpenAI pre-fetch metadata (`model`, `contextLen`) and post-fetch metrics (`status`, `latencyMs`).
+- Added structured OpenAI exception logs from chat (`errorName`, `errorMessage`, `statusIfAny`) to improve prod triage in Application Insights.
+- Added OpenAI client helper for low-cost connectivity checks against OpenAI model metadata endpoint with timeout handling.
+- Updated runbook with SWA-integrated Functions configuration requirements for `OPENAI_API_KEY`, `OPENAI_MODEL`, and optional `LOCATION_AI_MODEL`, plus KQL snippets for `/api/chat`, OpenAI dependencies, and trace correlation.
+- Added production validation sequence for `/api/diagnose/openai` + `/api/chat` trace/dependency verification.

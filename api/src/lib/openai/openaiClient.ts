@@ -7,7 +7,12 @@ import { appendLine, ensureDirExists } from '../logging/ndjsonLogger.js';
 import { redactSecrets } from '../logging/redact.js';
 
 export type ParserContext = OpenAiContextEnvelope;
-type ParseOptions = { traceId: string; sessionIdHash: string };
+type ParseOptions = {
+  traceId: string;
+  sessionIdHash: string;
+  onHttpResult?: (result: { status: number; latencyMs: number }) => void;
+};
+export type OpenAiDiagnosticResult = { ok: boolean; model: string; hasApiKey: boolean; lastError?: string; latencyMs?: number };
 
 const truncate = (value: string, maxChars: number): string => value.length <= maxChars ? value : `${value.slice(0, maxChars)}...`;
 
@@ -50,7 +55,7 @@ export const parseToActions = async (input: string, context: ParserContext, opti
     }));
   }
 
-  console.info(JSON.stringify({ traceId: options.traceId }), 'openai request start');
+  console.info(JSON.stringify({ traceId: options.traceId, stage: 'openai_request_start' }));
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -65,7 +70,9 @@ export const parseToActions = async (input: string, context: ParserContext, opti
     })
   });
 
-  console.info(JSON.stringify({ traceId: options.traceId, status: response.status, latencyMs: Date.now() - startedAt }), 'openai request end');
+  const latencyMs = Date.now() - startedAt;
+  options.onHttpResult?.({ status: response.status, latencyMs });
+  console.info(JSON.stringify({ traceId: options.traceId, stage: 'openai_request_end', status: response.status, latencyMs }));
 
   if (!response.ok) {
     throw new Error(`OpenAI parse request failed with status ${response.status}`);
@@ -81,7 +88,6 @@ export const parseToActions = async (input: string, context: ParserContext, opti
   }
 
   const parsedJson = JSON.parse(rawContent) as unknown;
-  console.info(JSON.stringify({ traceId: options.traceId, stage: 'openai_raw_response', rawModelResponse: rawContent }));
   let parsed: ParsedModelResponse | undefined;
   let validationErrors: string[] | undefined;
   try {
@@ -108,4 +114,37 @@ export const parseToActions = async (input: string, context: ParserContext, opti
 
   if (!parsed) throw new Error('OpenAI parse response validation failed');
   return parsed;
+};
+
+const cleanErrorMessage = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'name' in error && (error as { name?: string }).name === 'AbortError') return 'timeout';
+  if (error instanceof Error) return error.message;
+  return 'unknown_error';
+};
+
+export const diagnoseOpenAiConnectivity = async (timeoutMs = 7000): Promise<OpenAiDiagnosticResult> => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+  if (!apiKey) return { ok: false, model, hasApiKey: false, lastError: 'OPENAI_API_KEY is not configured' };
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(model)}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    const latencyMs = Date.now() - startedAt;
+    if (!response.ok) {
+      return { ok: false, model, hasApiKey: true, latencyMs, lastError: `openai_http_${response.status}` };
+    }
+    return { ok: true, model, hasApiKey: true, latencyMs };
+  } catch (error) {
+    return {
+      ok: false,
+      model,
+      hasApiKey: true,
+      latencyMs: Date.now() - startedAt,
+      lastError: cleanErrorMessage(error)
+    };
+  }
 };

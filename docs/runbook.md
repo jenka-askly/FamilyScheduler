@@ -337,3 +337,90 @@ Local steps:
 2. Keep `STORAGE_MODE=local` during initial validation.
 3. Use natural language prompts (for example, "Who is available in March?").
 4. Confirm all mutation intents still return `kind: proposal` and require `confirm`.
+
+## 8. /api/chat OpenAI diagnostics in SWA production
+
+### Request path and runtime backend
+
+When deployed via Static Web Apps (`api_location: api` in `.github/workflows/swa-web.yml`), `/api/chat` is served by the SWA-integrated Functions runtime for that SWA resource. The handler registration comes from `api/src/index.ts` (`registerHttp('chat', 'chat', ['POST'], chat)`) and the route implementation is `api/src/functions/chat.ts`.
+
+In this repository, the web app can also be pointed to a separate Function App via `VITE_API_BASE_URL`; verify your production build value first to determine which backend receives `/api/chat`.
+
+### Required OpenAI settings (SWA-integrated Functions)
+
+For SWA-integrated Functions, set OpenAI settings in the **Static Web App Configuration > Application settings** (not only in a separate Function App):
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `LOCATION_AI_MODEL` (if location parsing AI override is used)
+
+Checklist:
+
+1. Open SWA resource in Azure Portal.
+2. Go to **Configuration**.
+3. Add/update the keys above.
+4. Save and wait for app restart/redeploy.
+5. Call `GET /api/diagnose/openai` on the same SWA hostname.
+
+### Safe OpenAI diagnostic endpoint
+
+Use:
+
+```bash
+curl -sS https://<swa-domain>/api/diagnose/openai
+```
+
+Expected JSON shape:
+
+```json
+{
+  "ok": true,
+  "model": "gpt-4.1-mini",
+  "hasApiKey": true,
+  "latencyMs": 123
+}
+```
+
+Failure returns `503` with `lastError` (safe text only, no secret values).
+
+### Application Insights verification (KQL)
+
+`/api/chat` requests:
+
+```kusto
+requests
+| where timestamp > ago(2h)
+| where url has "/api/chat"
+| project timestamp, operation_Id, resultCode, success, duration, cloud_RoleName
+| order by timestamp desc
+```
+
+OpenAI dependencies:
+
+```kusto
+dependencies
+| where timestamp > ago(2h)
+| where target has "api.openai.com" or name has "openai"
+| project timestamp, operation_Id, target, name, resultCode, success, duration
+| order by timestamp desc
+```
+
+Traces by traceId:
+
+```kusto
+traces
+| where timestamp > ago(2h)
+| where message has "<traceId>"
+| project timestamp, severityLevel, message, operation_Id
+| order by timestamp asc
+```
+
+### End-to-end prod validation sequence
+
+1. Call `GET /api/diagnose/openai`; confirm `ok=true` and `hasApiKey=true`.
+2. Send one `/api/chat` message with explicit date/time (for example: `Add dentist on 2026-03-03 at 14:00 for 60 minutes`).
+3. In Application Insights, locate the request in `requests` and correlate by `operation_Id`.
+4. Confirm matching OpenAI dependency appears for same operation/correlation and trace logs include:
+   - `chat_openai_before_fetch`
+   - `chat_openai_after_fetch`
+   - any error line includes `traceId`, `errorName`, `errorMessage`.

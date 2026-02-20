@@ -2880,3 +2880,42 @@ Fix SWA-integrated `POST /api/chat` returning 404 by making Azure Functions rout
 
 - Trigger SWA deploy and verify `/api/chat` returns non-404 from the production SWA domain.
 - Validate function presence in SWA portal Functions blade (`chat`, `direct`, `groupCreate`, `groupJoin`, `groupMeta`).
+
+## 2026-02-20 08:54 UTC (/api/chat OpenAI production diagnostics)
+
+### Objective
+
+Diagnose why SWA production `/api/chat` yields low-value outcomes by making OpenAI invocation and failures observable, and by adding a safe production OpenAI connectivity endpoint.
+
+### Approach
+
+- Traced `/api/chat` request flow and early-return branches in `api/src/functions/chat.ts` and OpenAI call stack in `api/src/lib/openai/openaiClient.ts`.
+- Added structured logs at chat entry (`traceId`, route, `groupId`, hashed phone, message length), immediately before OpenAI fetch (`model`, `contextLen`), after OpenAI fetch (`status`, `latencyMs`), and on exception (`errorName`, `errorMessage`, optional status).
+- Added `diagnoseOpenAiConnectivity` helper in OpenAI client with timeout and safe error normalization.
+- Added new `GET /api/diagnose/openai` function endpoint and registered route in API index.
+- Updated runbook + README with SWA-integrated environment configuration placement and App Insights KQL verification queries.
+- Added OpenAI diagnostics unit tests for missing-key and successful-connectivity cases.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `api/src/functions/diagnoseOpenAi.ts`
+- `api/src/index.ts`
+- `api/diagnoseOpenAi/function.json`
+- `api/src/lib/openai/openaiClient.test.ts`
+- `docs/runbook.md`
+- `README.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm --filter @familyscheduler/api test` ✅ passed.
+- `git diff -- api/src/functions/chat.ts api/src/lib/openai/openaiClient.ts api/src/functions/diagnoseOpenAi.ts api/src/index.ts docs/runbook.md README.md PROJECT_STATUS.md CODEX_LOG.md` ✅ reviewed targeted diagnostics changes.
+
+### Follow-ups
+
+- Deploy SWA and call `GET /api/diagnose/openai` on the production SWA hostname.
+- Send one explicit date/time chat message and correlate `requests`, `dependencies`, and `traces` in Application Insights by `operation_Id`/`traceId`.
