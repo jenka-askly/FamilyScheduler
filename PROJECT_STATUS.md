@@ -342,6 +342,12 @@ After every merged PR, update this file with:
 - Added horizontal scroll wrapper for tables
 - Removed duplicate headings for cleaner hierarchy
 
+## Recent update (2026-02-20 21:15 UTC)
+
+- Updated `.github/workflows/deploy.yml` Azure auth to use `azure/login@v2` with `creds: ${{ secrets.AZURE_CREDENTIALS }}`.
+- `deploy-api-prod` now expects repository secret `AZURE_CREDENTIALS` containing JSON fields: `clientId`, `clientSecret`, `tenantId`, `subscriptionId`.
+- Deploy job steps after login are unchanged (runtime setting + zip deploy mechanics remain the same).
+
 ## Recent update (2026-02-20 00:44 UTC)
 
 - Added a deploy workflow guard step that explicitly sets `FUNCTIONS_WORKER_RUNTIME=node` on the production Function App before zip deploy.

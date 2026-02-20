@@ -41,12 +41,10 @@ jobs:
       - name: Verify deploy zip layout (tooling)
         run: pnpm deploy:api:verifyzip
 
-      - name: Azure login (OIDC)
+      - name: Azure login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Ensure Node Functions worker runtime setting
         run: |
