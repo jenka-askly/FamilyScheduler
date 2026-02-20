@@ -50,6 +50,7 @@ export const parseToActions = async (input: string, context: ParserContext, opti
     }));
   }
 
+  console.info(JSON.stringify({ traceId: options.traceId }), 'openai request start');
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -63,6 +64,8 @@ export const parseToActions = async (input: string, context: ParserContext, opti
       messages
     })
   });
+
+  console.info(JSON.stringify({ traceId: options.traceId, status: response.status, latencyMs: Date.now() - startedAt }), 'openai request end');
 
   if (!response.ok) {
     throw new Error(`OpenAI parse request failed with status ${response.status}`);

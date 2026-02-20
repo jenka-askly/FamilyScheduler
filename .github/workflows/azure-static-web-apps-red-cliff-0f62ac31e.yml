@@ -5,7 +5,7 @@ on:
 
 jobs:
   build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
@@ -23,8 +23,10 @@ jobs:
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
           app_location: "apps/web" # App source code path
-          api_location: "" # Api source code path - optional
+          api_location: "api" # Api source code path - optional
           output_location: "dist" # Built app content directory - optional
+          api_build_command: "npm run build" # Build command for API
+          skip_api_build: false
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
