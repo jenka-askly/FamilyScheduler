@@ -3391,3 +3391,31 @@ Fix deploy workflow Azure authentication failures (`SERVICE_PRINCIPAL missing cl
 
 - Add/update repository secret `AZURE_CREDENTIALS` with valid service principal JSON before running `deploy-api-prod`.
 - Verify next GitHub Actions run shows successful `Azure login` step before app settings and zip deploy steps.
+
+## 2026-02-20 21:25 UTC (flex deploy appsettings fix)
+
+### Objective
+
+Fix production deploy workflow failure on Flex Consumption by removing unsupported `FUNCTIONS_WORKER_RUNTIME` app setting update.
+
+### Approach
+
+- Removed the `az functionapp config appsettings set --settings FUNCTIONS_WORKER_RUNTIME=node` step from `.github/workflows/deploy.yml`.
+- Kept all other deploy workflow settings and commands unchanged.
+- Updated `PROJECT_STATUS.md` to document Flex Consumption appsettings behavior and workflow update.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' .github/workflows/deploy.yml` ✅ located the appsettings set step.
+- `python - <<'PY' ...` ✅ inserted project status note for Flex Consumption appsettings rejection.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified minimal targeted diff.
+
+### Follow-ups
+
+- Run the `Deploy API (prod)` workflow on `main` and verify zip deploy succeeds without appsettings validation errors.
