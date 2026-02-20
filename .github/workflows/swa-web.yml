@@ -27,7 +27,7 @@ jobs:
         uses: Azure/static-web-apps-deploy@v1
         env:
           VITE_BUILD_SHA: ${{ github.sha }}
-          VITE_BUILD_TIME: ${{ github.run_number }}-${{ github.run_id }}
+          VITE_BUILD_TIME: ${{ github.run_id }}-${{ github.run_number }}
         with:
           action: upload
           app_location: apps/web

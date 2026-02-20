@@ -36,6 +36,17 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 - If `VITE_API_BASE_URL` is unset, production web calls stay relative (`/api/*`) and hit the Static Web App integrated Functions backend.
 - If `VITE_API_BASE_URL` is missing in production builds, the app throws a startup error with a clear configuration message.
 
+
+## Force a production redeploy
+
+If you need to redeploy `main` without source changes, push an empty commit:
+
+```bash
+git commit --allow-empty -m "chore: redeploy" && git push
+```
+
+This generates a new commit SHA. Since the web build injects `VITE_BUILD_SHA`, the UI build stamp changes on the next deploy, making the rollout visible immediately.
+
 ## Notes
 
 - People pane “Add person” is the invite mechanism: add sibling phone, then sibling can join by link + phone.

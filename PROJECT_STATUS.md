@@ -6,6 +6,9 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 
 ## What works now
 
+- Web deploy workflow now injects `VITE_BUILD_SHA=${{ github.sha }}` and `VITE_BUILD_TIME=${{ github.run_id }}-${{ github.run_number }}` into the SWA Oryx build step, so every main-branch run bakes unique build metadata into the Vite bundle.
+- Web UI now reads build metadata from `apps/web/src/lib/buildInfo.ts` and renders an always-visible footer stamp: `Build: <sha7> <time>`.
+- Production verification is now explicit: after a main merge, open the app footer and confirm the SHA prefix matches the commit that triggered the GitHub Actions `Deploy Web (SWA)` run.
 - SWA web deploy workflow now uses an Oryx-compatible API build override (`npm --prefix api run build`) while keeping `api_location: api` enabled.
 - SWA deploy trigger is now push-only on `main` (no `pull_request` trigger) to prevent automatic preview/staging environment creation and avoid SWA staging quota exhaustion blocking production deploys.
 - Hard route gate is now enforced for `/#/g/:groupId/app`: app UI only renders after a successful `/api/group/join`; denied sessions are redirected with `err` + `trace` query params to join.
@@ -502,3 +505,11 @@ traces
 2. Confirm the SHA shown in UI matches the first 7 characters of the merge commit SHA from GitHub.
 3. Trigger the next deployment (new commit to `main`) and confirm the version label changes (SHA and/or build time token).
 4. Confirm only non-sensitive metadata is displayed (7-char SHA prefix + run token), with no secrets or full env dumps.
+
+
+## Build stamp deployment verification
+
+1. Merge/push to `main` and wait for **Deploy Web (SWA)** workflow to finish successfully.
+2. Open the production web app and look at the footer build stamp (`Build: <sha7> <runId-runNumber>`).
+3. Compare `<sha7>` with the triggering commit SHA in GitHub Actions; they must match the same commit prefix.
+4. For a manual redeploy without code changes, push an empty commit and confirm the new SHA appears in the footer.
