@@ -73,7 +73,15 @@ jobs:
           APP_HOST=$(az functionapp show \
             --name familyscheduler-api-prod \
             --resource-group familyscheduler-prod-rg \
-            --query defaultHostName -o tsv)
+            --query "properties.defaultHostName" -o tsv)
+
+          if [ -z "$APP_HOST" ]; then
+            echo "APP_HOST empty from properties.defaultHostName; trying properties.hostNames[0] fallback..."
+            APP_HOST=$(az functionapp show \
+              --name familyscheduler-api-prod \
+              --resource-group familyscheduler-prod-rg \
+              --query "properties.hostNames[0]" -o tsv)
+          fi
 
           if [ -z "$APP_HOST" ]; then
             echo "ERROR: APP_HOST is empty. Check app name/resource group/azure login permissions."
@@ -82,7 +90,7 @@ jobs:
             exit 1
           fi
 
-          FUNCTION_APP_URL="https://$APP_HOST"
+          FUNCTION_APP_URL="https://${APP_HOST}"
           echo "Using FUNCTION_APP_URL=$FUNCTION_APP_URL"
 
           ROOT_STATUS=$(curl -sS -o /tmp/function-root.out -w "%{http_code}" "$FUNCTION_APP_URL")
