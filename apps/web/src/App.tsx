@@ -3,6 +3,7 @@ import { AppShell } from './AppShell';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
+import { apiUrl } from './lib/apiUrl';
 
 type Session = { groupId: string; phone: string; joinedAt: string };
 type AuthStatus = 'checking' | 'allowed' | 'denied';
@@ -97,7 +98,7 @@ function CreateGroupPage() {
     setError(null);
     setIsCreating(true);
     try {
-      const response = await fetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone, creatorName }) });
+      const response = await fetch(apiUrl('/api/group/create'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone, creatorName }) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.message ?? 'Failed to create group');
@@ -210,7 +211,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
     const loadGroupMeta = async () => {
       try {
-        const response = await fetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
+        const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string };
         if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
@@ -233,7 +234,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
       return;
     }
     const requestTraceId = createTraceId();
-    const response = await fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId: requestTraceId }) });
+    const response = await fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       setError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
@@ -301,7 +302,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (phon
 
     setPhone(session.phone);
     authLog({ stage: 'gate_join_request', groupId });
-    void fetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
+    void fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
       .then(async (response) => {
         const data = await response.json() as { ok?: boolean; error?: AuthError };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;

@@ -27,6 +27,14 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
   - `/#/g/:groupId` join with phone
   - `/#/g/:groupId/app` main scheduler app
 
+
+## Web/API endpoint configuration
+
+- The web app uses `VITE_API_BASE_URL` to decide where API calls go.
+- In local dev, if `VITE_API_BASE_URL` is unset, requests use relative `/api/*` and are proxied by Vite to `http://localhost:7071`.
+- In production, set `VITE_API_BASE_URL` to the deployed Function App host (for example `https://familyscheduler-api-prod.azurewebsites.net`).
+- If `VITE_API_BASE_URL` is missing in production builds, the app throws a startup error with a clear configuration message.
+
 ## Notes
 
 - People pane “Add person” is the invite mechanism: add sibling phone, then sibling can join by link + phone.

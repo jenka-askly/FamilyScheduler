@@ -2613,3 +2613,41 @@ Implement deterministic API deploy packaging that prevents `0 functions found (C
 
 - Set repository secret `AZURE_STATIC_WEB_APPS_API_TOKEN` before enabling SWA deploys.
 - After first prod deploy with new artifact, run the runbook verification commands and confirm Azure lists all expected functions.
+
+## 2026-02-20 06:41 UTC (prod 405 fix: route web to Function App)
+
+### Objective
+
+Fix production 405 on Create Group by routing web API calls to the deployed Function App instead of SWA `/api` (which is detached).
+
+### Approach
+
+- Added a centralized web API URL helper using `VITE_API_BASE_URL` with trailing-slash normalization and path validation.
+- Preserved local dev fallback (`/api/*` relative URLs) when env var is unset in dev.
+- Added production guard: app throws clear configuration error if `VITE_API_BASE_URL` is missing.
+- Updated web fetch calls (`group/create`, `group/join`, `group/meta`, `chat`, `direct`) to use the helper.
+- Wired SWA build step to inject `VITE_API_BASE_URL` from GitHub Actions secrets.
+- Updated docs and env example for local/prod configuration and rollout expectations.
+- Updated PROJECT_STATUS with root cause, chosen fix, and verification guidance.
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/.env.example`
+- `apps/web/README.md`
+- `README.md`
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "group/create|/api/|createGroup|groupCreate" apps/web/src apps/web/README.md README.md` ✅ located API call sites and docs references.
+- `pnpm --filter @familyscheduler/web build` ✅ web typecheck/build passed after changes.
+
+### Follow-ups
+
+- Set GitHub Actions secret `VITE_API_BASE_URL` to the prod Function App origin (for example `https://familyscheduler-api-prod.azurewebsites.net`).
+- Deploy web and validate in browser DevTools that Create Group requests target Function App host and no longer return 405.

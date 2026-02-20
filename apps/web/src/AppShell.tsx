@@ -2,6 +2,7 @@ import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useRef, useState } 
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
+import { apiUrl } from './lib/apiUrl';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -150,7 +151,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setTranscript((p) => [...p, { role: 'user', text: trimmed }]);
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone }) });
+      const response = await fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone }) });
       if (!response.ok) {
         setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]);
         return;
@@ -172,7 +173,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   };
 
   const sendDirectAction = async (action: Record<string, unknown>) => {
-    const response = await fetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, phone }) });
+    const response = await fetch(apiUrl('/api/direct'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, phone }) });
     const json = await response.json() as { ok?: boolean; snapshot?: Snapshot; message?: string; personId?: string };
     if (json.snapshot) setSnapshot(json.snapshot);
     if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
@@ -266,7 +267,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (didInitialLoad.current) return;
     didInitialLoad.current = true;
     authLog({ stage: 'initial_chat_triggered' });
-    fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
+    fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
       .then(async (response) => {
         if (!response.ok) return;
         const json = (await response.json()) as ChatResponse;
@@ -301,7 +302,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
     const loadGroupMeta = async () => {
       try {
-        const response = await fetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
+        const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string };
         if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
