@@ -2315,3 +2315,37 @@ Complete workspace UX and polish updates across Appointments and People views, i
 ### Follow-ups
 
 - Run full `pnpm dev` in an environment with Azure Functions Core Tools installed to validate end-to-end app routing and auth gate behavior with API online.
+
+## 2026-02-20 00:00 UTC (Flex deploy indexing fix: non-zero function discovery)
+
+### Objective
+
+Fix Azure Functions Flex deployment so Node v4 functions are discoverable (avoid `0 functions found (Custom)`) and provide deterministic CI/local deployment without requiring pnpm on Azure.
+
+### Approach
+
+- Confirmed API uses Node v4 programming model (`@azure/functions` + `app.http(...)` registrations in `api/src/index.ts`) and no `customHandler` block in `api/host.json`.
+- Identified deployment-shape risk: Function runtime files (`host.json`, `package.json`, `dist/**`, deps) must be at deployed root for Node worker indexing.
+- Added packaging script that creates a clean deploy root with required runtime files and production dependencies.
+- Replaced prior deploy workflow (Static Web Apps) with Azure Function App zip deployment for Flex from a runner-built artifact.
+- Added local ship script for repeatable manual deploys.
+- Updated continuity docs with Azure resource + env + verification guidance.
+
+### Files changed
+
+- `scripts/package-api-deploy.mjs`
+- `scripts/ship-api.sh`
+- `.github/workflows/deploy.yml`
+- `package.json`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node scripts/package-api-deploy.mjs` ✅ passed (produced `.artifacts/deploy/familyscheduler-api.zip`).
+- `unzip -l .artifacts/deploy/familyscheduler-api.zip | head -n 40` ✅ confirmed package contains `host.json`, `package.json`, `dist/index.js`, and runtime deps.
+
+### Follow-ups
+
+- Configure GitHub OIDC secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) for `prod` environment.
+- Run workflow and validate Azure Portal function list + host logs.

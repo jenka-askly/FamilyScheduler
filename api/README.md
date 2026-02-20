@@ -1,6 +1,6 @@
-# API (local stub)
+# API (Azure Functions Node v4)
 
-This package hosts the local Azure Functions API endpoint.
+This package hosts the Azure Functions API endpoint.
 
 ## Prerequisites
 
@@ -32,11 +32,26 @@ func start
 ```bash
 curl -s -X POST http://localhost:7071/api/chat \
   -H "content-type: application/json" \
-  -d '{"message":"hello"}'
+  -d '{"message":"hello","groupId":"demo","phone":"+12065550100"}'
 ```
 
-Expected response:
+## Production deploy artifact shape (Flex)
 
-```json
-{"kind":"reply","assistantText":"You asked: hello"}
+Azure Flex must receive a zip whose **root** contains:
+
+- `host.json`
+- `package.json` (`main` -> `dist/index.js`)
+- `dist/**`
+- `node_modules/**` (production dependencies)
+
+Build/package locally:
+
+```bash
+pnpm deploy:api:package
+```
+
+Ship to prod (requires Azure CLI auth):
+
+```bash
+pnpm deploy:api:ship
 ```
