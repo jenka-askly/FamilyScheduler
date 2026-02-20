@@ -1,41 +1,53 @@
-import { app } from '@azure/functions';
+import { app, type HttpHandler, type HttpMethod } from '@azure/functions';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { chat } from './functions/chat.js';
 import { direct } from './functions/direct.js';
 import { groupCreate } from './functions/groupCreate.js';
 import { groupJoin } from './functions/groupJoin.js';
 import { groupMeta } from './functions/groupMeta.js';
 
-app.http('groupCreate', {
-  methods: ['POST'],
-  authLevel: 'anonymous',
-  route: 'group/create',
-  handler: groupCreate
+const startupId = `startup-${Date.now().toString(36)}`;
+const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
+const modulePath = fileURLToPath(import.meta.url);
+const moduleDir = dirname(modulePath);
+
+const startupLog = (message: string, details?: Record<string, unknown>): void => {
+  const payload = { component: 'api-startup', startupId, message, ...(details ?? {}) };
+  console.log(JSON.stringify(payload));
+};
+
+const registerHttp = (name: string, route: string, methods: HttpMethod[], handler: HttpHandler): void => {
+  app.http(name, {
+    methods,
+    authLevel: 'anonymous',
+    route,
+    handler
+  });
+  startupLog('registered-function', { functionName: name, route, methods });
+};
+
+startupLog('loading-functions-entrypoint', {
+  modulePath,
+  nodeVersion: process.version
 });
 
-app.http('groupJoin', {
-  methods: ['POST'],
-  authLevel: 'anonymous',
-  route: 'group/join',
-  handler: groupJoin
-});
+if (startupDebugEnabled) {
+  startupLog('startup-debug-enabled', {
+    cwd: process.cwd(),
+    distIndexExists: existsSync(resolve(moduleDir, 'index.js')),
+    hostJsonExists: existsSync(resolve(moduleDir, '../host.json')),
+    packageJsonExists: existsSync(resolve(moduleDir, '../package.json'))
+  });
+}
 
-app.http('groupMeta', {
-  methods: ['GET'],
-  authLevel: 'anonymous',
-  route: 'group/meta',
-  handler: groupMeta
-});
+registerHttp('groupCreate', 'group/create', ['POST'], groupCreate);
 
-app.http('chat', {
-  methods: ['POST'],
-  authLevel: 'anonymous',
-  route: 'chat',
-  handler: chat
-});
+registerHttp('groupJoin', 'group/join', ['POST'], groupJoin);
 
-app.http('direct', {
-  methods: ['POST'],
-  authLevel: 'anonymous',
-  route: 'direct',
-  handler: direct
-});
+registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
+
+registerHttp('chat', 'chat', ['POST'], chat);
+
+registerHttp('direct', 'direct', ['POST'], direct);

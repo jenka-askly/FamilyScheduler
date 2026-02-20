@@ -2443,3 +2443,34 @@ Fix Azure Functions production deployment indexing where host logs report `0 fun
 
 - Re-run the deploy workflow and confirm Azure host logs now discover HTTP functions.
 - If functions are still not discovered, inspect Function App settings for `WEBSITE_RUN_FROM_PACKAGE`, `FUNCTIONS_EXTENSION_VERSION`, and Node runtime stack.
+
+## 2026-02-20 00:51 UTC (startup instrumentation for "0 functions found")
+
+### Objective
+
+Add actionable diagnostics for Azure Functions deployments that report `0 functions found (Custom)` even though the host is running.
+
+### Approach
+
+- Added structured startup logs in `api/src/index.ts` so each route registration emits a deterministic JSON line.
+- Added optional startup-deploy checks behind `FUNCTIONS_STARTUP_DEBUG=true` (module path, cwd, and artifact existence checks).
+- Updated runbook troubleshooting with concrete App Settings/logging guidance and expected signals.
+- Updated project continuity notes with the new debug switch and milestone update.
+
+### Files changed
+
+- `api/src/index.ts`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -C api run build` ❌ failed initially due to TypeScript type mismatches in the new helper signature.
+- `pnpm -C api run build` ✅ passed after tightening helper types to `HttpMethod[]` and `HttpHandler`.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp for continuity log.
+
+### Follow-ups
+
+- In Azure App Service/Function App settings, temporarily set `FUNCTIONS_STARTUP_DEBUG=true` and inspect `component=api-startup` logs after deploy.
+- Once root cause is resolved, set `FUNCTIONS_STARTUP_DEBUG=false` to reduce startup verbosity.
