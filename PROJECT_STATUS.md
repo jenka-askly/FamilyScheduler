@@ -488,3 +488,17 @@ traces
 - Added OpenAI client helper for low-cost connectivity checks against OpenAI model metadata endpoint with timeout handling.
 - Updated runbook with SWA-integrated Functions configuration requirements for `OPENAI_API_KEY`, `OPENAI_MODEL`, and optional `LOCATION_AI_MODEL`, plus KQL snippets for `/api/chat`, OpenAI dependencies, and trace correlation.
 - Added production validation sequence for `/api/diagnose/openai` + `/api/chat` trace/dependency verification.
+
+## Recent update (2026-02-20 UTC)
+
+- Deployment instrumentation: build version stamp added.
+- Web now exposes non-sensitive build metadata from Vite env (`VITE_BUILD_SHA`, `VITE_BUILD_TIME`) and renders `Version: <7-char SHA> · <build time token>` in a low-opacity bottom-right footer for production deploy verification.
+- SWA web workflow now injects build metadata from GitHub Actions context before app build (`github.sha`, `github.run_number-github.run_id`) so each deploy gets a deterministic visible stamp.
+- Root cause note (redeploy verification): prior production validation had no deterministic, user-visible build identifier, so deployments could complete without an easy way to confirm which commit was live.
+
+## Production redeploy verification (post-merge)
+
+1. Open the production site and look at the bottom-right version label.
+2. Confirm the SHA shown in UI matches the first 7 characters of the merge commit SHA from GitHub.
+3. Trigger the next deployment (new commit to `main`) and confirm the version label changes (SHA and/or build time token).
+4. Confirm only non-sensitive metadata is displayed (7-char SHA prefix + run token), with no secrets or full env dumps.

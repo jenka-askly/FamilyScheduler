@@ -2919,3 +2919,37 @@ Diagnose why SWA production `/api/chat` yields low-value outcomes by making Open
 
 - Deploy SWA and call `GET /api/diagnose/openai` on the production SWA hostname.
 - Send one explicit date/time chat message and correlate `requests`, `dependencies`, and `traces` in Application Insights by `operation_Id`/`traceId`.
+
+## 2026-02-20 UTC (production redeploy instrumentation)
+
+### Objective
+
+Force a clean production redeploy and add a deterministic, user-visible build version stamp tied to commit SHA + build run metadata.
+
+### Approach
+
+- Added web build metadata module (`BUILD_SHA`, `BUILD_TIME`) sourced from Vite env vars with safe `dev` fallbacks.
+- Added a minimal, low-opacity bottom-right version indicator to the app shell showing `Version: <7-char SHA> · <build token>`.
+- Updated SWA workflow to inject `VITE_BUILD_SHA` and `VITE_BUILD_TIME` from GitHub Actions context for each deployment.
+- Updated `PROJECT_STATUS.md` with deployment instrumentation notes, redeploy root-cause note, and post-merge verification steps.
+
+### Files changed
+
+- `apps/web/src/buildInfo.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web exec vite preview --host 0.0.0.0 --port 4173` ✅ preview server started.
+- `mcp__browser_tools__run_playwright_script` ⚠️ failed in this environment due to Chromium `SIGSEGV`, so screenshot capture could not be completed.
+
+### Follow-ups
+
+- After merge to `main`, confirm SWA production deploy job runs and version label matches commit SHA prefix.
+- Validate that a subsequent deploy updates the visible stamp.
