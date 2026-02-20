@@ -3130,6 +3130,23 @@ Apply addendum updates for rule-v2 confirm idempotency/replace semantics, rule-c
 - `api/src/functions/chat.ts`
 - `api/src/functions/direct.ts`
 - `apps/web/src/AppShell.tsx`
+## 2026-02-20 19:08 UTC (Photo -> Extract Appointment feasibility discovery)
+
+### Objective
+
+Run a focused discovery query to determine feasibility of adding photo-to-appointment extraction in the current Azure Static Web Apps deployment model.
+
+### Approach
+
+- Ran targeted repository search for OpenAI integrations and image/vision patterns.
+- Enumerated function/app host files to map API route surface.
+- Inspected SWA workflow wiring to determine whether API is SWA-managed or BYO.
+- Traced frontend API helper and request headers to establish current client auth/request model.
+- Captured findings in a standalone discovery document for implementation planning.
+
+### Files changed
+
+- `docs/discovery-photo-extract-appointment-feasibility.md`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -3143,3 +3160,14 @@ Apply addendum updates for rule-v2 confirm idempotency/replace semantics, rule-c
 
 - Re-run `pnpm install` + `pnpm --filter api test` in a network-enabled environment with npm registry access.
 - Run web/manual verification for draft warning rendering and legacy replace flow in browser.
+- `rg -n "OPENAI_API_KEY|openai|OpenAI|chat_handler_failed|responses|chat.completions|vision|image_url|data:image" .` ✅
+- `find . -maxdepth 5 -type f \( -name "function.json" -o -name "host.json" -o -name "*.ts" -o -name "*.js" -o -name "*.cs" \) | sort` ✅
+- `rg -n "api_location|app_location|output_location|Azure/static-web-apps-deploy@v1|staticwebapp.config.json" .github/workflows -S` ✅
+- `find . -maxdepth 4 -name "staticwebapp.config.json" -o -name "routes.json" -o -name "swa-cli.config.json"` ✅
+- `rg -n "fetch\(|/api/|Authorization|x-group|x-pass|groupId|passkey|headers" apps/web/src api/src -S` ✅
+- `rg -n "aiParseLocation|LOCATION_AI_FORMATTING|parseToActions|diagnoseOpenAiConnectivity" api/src -S` ✅
+
+### Follow-ups
+
+- If implementing photo extraction, decide between extending `POST /api/chat` vs adding dedicated `POST /api/extract-appointment` for clearer contract and failure isolation.
+- Add explicit payload size/type limits and trace-aware rejection responses before enabling image ingestion.
