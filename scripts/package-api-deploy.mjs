@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { execSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
@@ -17,7 +17,7 @@ if (!existsSync(distRoot)) {
 rmSync(stagingRoot, { recursive: true, force: true });
 mkdirSync(outRoot, { recursive: true });
 
-execSync(`pnpm --filter @familyscheduler/api deploy --legacy --prod ${JSON.stringify(stagingRoot)}`, {
+execFileSync('pnpm', ['--filter', '@familyscheduler/api', 'deploy', '--legacy', '--prod', stagingRoot], {
   cwd: repoRoot,
   stdio: 'inherit'
 });
@@ -33,25 +33,63 @@ rmSync(path.join(stagingRoot, 'local.settings.example.json'), { force: true });
 
 rmSync(zipPath, { force: true });
 
-if (process.platform === 'win32') {
-  const escapedZipPath = zipPath.replace(/'/g, "''");
-  const escapedStagingRoot = stagingRoot.replace(/'/g, "''");
-
-  execSync(
-    [
-      'powershell -NoProfile -NonInteractive -Command',
-      `"Compress-Archive -Path '${escapedStagingRoot}\\*' -DestinationPath '${escapedZipPath}' -CompressionLevel Optimal -Force"`
-    ].join(' '),
-    {
-      cwd: stagingRoot,
-      stdio: 'inherit'
-    }
-  );
-} else {
-  execSync(`zip -qr ${JSON.stringify(zipPath)} .`, {
+const createZipWithTar = () => {
+  execFileSync('tar', ['-a', '-c', '-f', zipPath, '.'], {
     cwd: stagingRoot,
     stdio: 'inherit'
   });
+};
+
+
+const isZipFile = (filePath) => {
+  if (!existsSync(filePath)) {
+    return false;
+  }
+
+  const signature = readFileSync(filePath, { encoding: null, flag: 'r' }).subarray(0, 2);
+  return signature.length === 2 && signature[0] === 0x50 && signature[1] === 0x4b;
+};
+
+const createZipWithPython = () => {
+  const script = [
+    'import pathlib, sys, zipfile',
+    'root = pathlib.Path(sys.argv[1]).resolve()',
+    'zip_path = pathlib.Path(sys.argv[2]).resolve()',
+    "with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:",
+    '    for path in sorted(root.rglob("*")):',
+    '        if path.is_file():',
+    '            arcname = path.relative_to(root).as_posix()',
+    '            zf.write(path, arcname)',
+    "print(f'Created {zip_path}')"
+  ].join('\n');
+
+  const candidates = process.platform === 'win32' ? ['py', 'python', 'python3'] : ['python3', 'python'];
+  let lastError;
+
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ['-c', script, stagingRoot, zipPath], { stdio: 'inherit' });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(`Unable to package zip: tar unavailable and no Python runtime found. Last error: ${lastError?.message ?? 'unknown'}`);
+};
+
+try {
+  createZipWithTar();
+
+  if (!isZipFile(zipPath)) {
+    throw new Error('tar output is not a zip archive on this platform');
+  }
+
+  console.log('Packaged deploy zip using tar -a (POSIX entry names).');
+} catch (error) {
+  console.warn('tar -a packaging unavailable; falling back to Python zipfile POSIX packaging.', error.message);
+  createZipWithPython();
+  console.log('Packaged deploy zip using Python zipfile fallback (POSIX entry names).');
 }
 
 console.log(`Created ${zipPath}`);

@@ -7,6 +7,7 @@ RESOURCE_GROUP="${RESOURCE_GROUP:-familyscheduler-prod-rg}"
 pnpm install --frozen-lockfile
 pnpm --filter @familyscheduler/api build
 node scripts/package-api-deploy.mjs
+pnpm deploy:api:verifyzip
 
 az functionapp deployment source config-zip \
   --name "$APP_NAME" \

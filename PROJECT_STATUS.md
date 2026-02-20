@@ -315,10 +315,13 @@ After every merged PR, update this file with:
 - This addresses host indexing cases where logs show `0 functions found (Custom)` due to missing/incorrect worker runtime app setting.
 - Deployment artifact and command remain unchanged.
 
-## Recent update (2026-02-20 00:39 UTC)
+## Recent update (2026-02-20 01:20 UTC)
 
-- Fixed cross-platform API packaging: `scripts/package-api-deploy.mjs` now uses PowerShell `Compress-Archive` on Windows and `zip -qr` on non-Windows, so `pnpm deploy:api:package` succeeds on Windows machines without a separate `zip` binary.
-- Deploy command and artifact path are unchanged (`.artifacts/deploy/familyscheduler-api.zip`).
+- Root cause captured: Azure Flex deploy package created on Windows via `Compress-Archive` contained backslash zip entries (`dist\index.js`), which can prevent Linux worker indexing and surface as `0 functions found (Custom)`.
+- Permanent packaging fix: `scripts/package-api-deploy.mjs` now creates deploy zips with POSIX entry names using `tar -a -c -f` from the staged artifact root; if `tar` is unavailable, it falls back to Python `zipfile` path-normalized packaging.
+- Added deterministic artifact verifier (`pnpm deploy:api:verifyzip`) that requires `host.json`, `package.json`, `dist/index.js`, and rejects any zip entry containing backslashes.
+- Local ship script now runs zip verification before `az functionapp deployment source config-zip`.
+- Deploy workflow now includes both tooling and CI guard checks that fail if zip entries include `\` or if `dist/index.js` is missing.
 
 ## Recent update (2026-02-20 00:00 UTC)
 

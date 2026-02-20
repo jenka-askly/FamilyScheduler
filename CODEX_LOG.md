@@ -2506,6 +2506,33 @@ Address feedback that diagnostics must reflect `0 functions` (not ambiguous coun
 - Redeploy API and check for `component=api-startup` / `registration-summary` in Azure log stream.
 - If host still reports `0 functions found (Custom)`, share the checklist payload from `docs/runbook.md` for next iteration.
 
+## 2026-02-20 04:49 UTC (fix deploy zip path separators permanently)
+
+### Objective
+
+Eliminate Azure Linux/Flex function indexing failures caused by Windows-generated deploy ZIP entries using backslashes (for example `dist\\index.js`).
+
+### Approach
+
+- Reworked `scripts/package-api-deploy.mjs` to package deploy artifacts with POSIX path separators by default:
+  - first attempt `tar -a -c -f` from staging root;
+  - validate ZIP signature;
+  - if tar does not produce a valid ZIP on the platform, fallback to Python `zipfile` that writes POSIX arcnames.
+- Removed all packaging reliance on PowerShell `Compress-Archive` and shell `zip`.
+- Added deterministic verification command `pnpm deploy:api:verifyzip` (`scripts/verify-api-deploy-zip.py`) to assert required files and reject backslash entry names.
+- Updated `scripts/ship-api.sh` to run zip verification before `az functionapp deployment source config-zip`.
+- Updated deploy workflow to run zip verification in two layers (tooling script + explicit Python CI guard).
+- Updated runbook, scripts docs, and project continuity notes with the root cause and permanent packaging guidance.
+
+### Files changed
+
+- `scripts/package-api-deploy.mjs`
+- `scripts/verify-api-deploy-zip.py`
+- `scripts/ship-api.sh`
+- `scripts/README.md`
+- `package.json`
+- `.github/workflows/deploy.yml`
+- `docs/runbook.md`
 ## 2026-02-20 04:55 UTC (lockfile sync for @fontsource/inter)
 
 ### Objective
@@ -2526,6 +2553,15 @@ Resolve CI install failure caused by `ERR_PNPM_OUTDATED_LOCKFILE` where `apps/we
 
 ### Commands run + outcomes
 
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm deploy:api:package` ✅ passed; tar output was non-zip on this host, Python fallback produced valid zip.
+- `pnpm deploy:api:verifyzip` ✅ passed.
+- `python - <<'PY' ...` (zip entry check for `dist/index.js` and no backslashes) ✅ passed.
+
+### Follow-ups
+
+- On Windows operator machines, run `pnpm deploy:api:package && pnpm deploy:api:verifyzip` before any manual deploy.
+- After next prod deploy, if host still reports `0 functions found (Custom)`, inspect `released-package.zip` entries for backslashes as documented in the runbook.
 - `git diff -- pnpm-lock.yaml` ✅ confirmed lockfile now includes `@fontsource/inter` importer, package, and snapshot entries.
 - `pnpm install --frozen-lockfile` ✅ passed for all 4 workspace projects.
 - `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
