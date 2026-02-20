@@ -2747,3 +2747,34 @@ Fix Create Group production failures by attaching `/api` to the deployed Static 
 
 - Merge and deploy `swa-web.yml`, then verify browser POST to `https://<swa-domain>/api/group/create` is non-405 and reaches integrated Functions.
 - Validate Create Group end-to-end in production UI.
+
+
+## 2026-02-20 07:46 UTC (SWA Oryx API build fix)
+
+### Objective
+
+Fix SWA integrated API build failure caused by `pnpm` not being available in Oryx.
+
+### Approach
+
+- Updated SWA workflow API build override to use npm with API prefix targeting.
+- Updated API `build` script to avoid `pnpm` usage so Oryx can execute the build with npm.
+- Kept `api_location: api` unchanged.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `api/package.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/swa-web.yml && sed -n '1,220p' api/package.json` ✅ verified current workflow and API scripts.
+- `npm --prefix api run build` ✅ succeeded; API build script runs under npm and completes.
+- `git diff -- .github/workflows/swa-web.yml api/package.json PROJECT_STATUS.md CODEX_LOG.md` ✅ verified minimal targeted changes.
+
+### Follow-ups
+
+- Re-run SWA deploy workflow to confirm Oryx API build succeeds with npm override.
+- Validate `/api/group/create` on the SWA domain after deployment completes.

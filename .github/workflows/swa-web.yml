@@ -33,7 +33,7 @@ jobs:
           output_location: dist
           skip_app_build: false
           api_location: api
-          api_build_command: pnpm --filter @familyscheduler/api build
+          api_build_command: npm --prefix api run build
           skip_api_build: false
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
