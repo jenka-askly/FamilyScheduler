@@ -2533,6 +2533,21 @@ Eliminate Azure Linux/Flex function indexing failures caused by Windows-generate
 - `package.json`
 - `.github/workflows/deploy.yml`
 - `docs/runbook.md`
+## 2026-02-20 04:55 UTC (lockfile sync for @fontsource/inter)
+
+### Objective
+
+Resolve CI install failure caused by `ERR_PNPM_OUTDATED_LOCKFILE` where `apps/web/package.json` declared `@fontsource/inter` but `pnpm-lock.yaml` was stale.
+
+### Approach
+
+- Reviewed the lockfile diff and confirmed the required `@fontsource/inter` entries were present for `apps/web`.
+- Validated deterministic install behavior using frozen lockfile mode to match CI.
+- Updated continuity docs with this change and verification result.
+
+### Files changed
+
+- `pnpm-lock.yaml`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -2547,3 +2562,10 @@ Eliminate Azure Linux/Flex function indexing failures caused by Windows-generate
 
 - On Windows operator machines, run `pnpm deploy:api:package && pnpm deploy:api:verifyzip` before any manual deploy.
 - After next prod deploy, if host still reports `0 functions found (Custom)`, inspect `released-package.zip` entries for backslashes as documented in the runbook.
+- `git diff -- pnpm-lock.yaml` ✅ confirmed lockfile now includes `@fontsource/inter` importer, package, and snapshot entries.
+- `pnpm install --frozen-lockfile` ✅ passed for all 4 workspace projects.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Push this lockfile update so CI can install with default frozen-lockfile behavior.

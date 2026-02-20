@@ -370,3 +370,9 @@ After every merged PR, update this file with:
 
 - Clarified startup diagnostics to avoid false expectations: the API should register exactly 5 functions (`groupCreate`, `groupJoin`, `groupMeta`, `chat`, `direct`) and now emits a `registration-summary` startup log with expected vs actual count.
 - Expanded the runbook with an explicit “what to share” checklist when Azure still reports `0 functions found (Custom)`.
+
+## Recent update (2026-02-20 04:55 UTC)
+
+- Synced `pnpm-lock.yaml` with `apps/web/package.json` after adding `@fontsource/inter@^5.2.6`, so frozen-lockfile installs now pass in CI.
+- Verified workspace install succeeds with `pnpm install --frozen-lockfile` across all 4 workspace projects.
+- No runtime behavior changes; this is dependency metadata alignment only.
