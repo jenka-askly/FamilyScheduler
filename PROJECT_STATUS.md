@@ -6,6 +6,7 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 
 ## What works now
 
+- SWA web deploy workflow now uses an Oryx-compatible API build override (`npm --prefix api run build`) while keeping `api_location: api` enabled.
 - Hard route gate is now enforced for `/#/g/:groupId/app`: app UI only renders after a successful `/api/group/join`; denied sessions are redirected with `err` + `trace` query params to join.
 - Debug auth logging is available behind `VITE_DEBUG_AUTH_LOGS` (web) and `DEBUG_AUTH_LOGS` (api), including join and gate decision stages.
 - Create group now initializes creator as the first active person in `people[]` with normalized phone values and creation metadata.
