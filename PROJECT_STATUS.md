@@ -7,6 +7,7 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 ## What works now
 
 - SWA web deploy workflow now uses an Oryx-compatible API build override (`npm --prefix api run build`) while keeping `api_location: api` enabled.
+- SWA deploy trigger is now push-only on `main` (no `pull_request` trigger) to prevent automatic preview/staging environment creation and avoid SWA staging quota exhaustion blocking production deploys.
 - Hard route gate is now enforced for `/#/g/:groupId/app`: app UI only renders after a successful `/api/group/join`; denied sessions are redirected with `err` + `trace` query params to join.
 - Debug auth logging is available behind `VITE_DEBUG_AUTH_LOGS` (web) and `DEBUG_AUTH_LOGS` (api), including join and gate decision stages.
 - Create group now initializes creator as the first active person in `people[]` with normalized phone values and creation metadata.
@@ -425,3 +426,11 @@ After every merged PR, update this file with:
 
 - Expected production network call after deploy: `POST https://<swa-domain>/api/group/create` (same-origin), not external Function App hostname.
 - Expected response signal: non-405 status (e.g., 200/4xx/5xx based on payload), and no `Allow: GET, HEAD, OPTIONS` placeholder signature.
+
+
+## Recent update (2026-02-20 08:00 UTC)
+
+- Updated `.github/workflows/swa-web.yml` triggers to remove `pull_request` runs; workflow now deploys only on `push` to `main`.
+- Rationale: SWA preview/staging environment quota can block deploys when PR environments accumulate; push-only deploy keeps production deployment path reliable.
+- Operational note: if PR previews are re-enabled later, add an explicit cleanup process for stale SWA staging environments.
+
