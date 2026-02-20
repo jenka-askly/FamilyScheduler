@@ -400,3 +400,8 @@ After every merged PR, update this file with:
 - Local build succeeds for web after URL-routing changes.
 - Expected prod signal after deploy: browser network request for Create Group should be `POST https://familyscheduler-api-prod.azurewebsites.net/api/group/create` (or configured Function App host), no longer `POST https://<swa-domain>/api/group/create`.
 - Expected outcome: request no longer returns `405`, and group creation response includes expected fields (`groupId`, etc.).
+
+## Recent update (2026-02-20 07:05 UTC)
+
+- Disabled auto-generated SWA workflow `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml` triggers (manual `workflow_dispatch` only) because it conflicted with `.github/workflows/swa-web.yml` and caused canceled deployments.
+
