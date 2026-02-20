@@ -3602,3 +3602,34 @@ Fix prod Azure Functions deploy packaging so the deployed artifact includes comp
 
 - Run the updated deploy workflow in GitHub Actions and confirm `/api/group/join` is non-500 in prod.
 - Confirm App Insights no longer logs entry-point load failures for `@azure/core-rest-pipeline`.
+
+## 2026-02-20 22:43 UTC (deploy packaging: restore function discovery from api_deploy)
+
+### Objective
+
+Fix Azure Functions trigger discovery regression by ensuring function folders are present in `api_deploy/` and `api.zip` is built from `api_deploy` only.
+
+### Approach
+
+- Updated `.github/workflows/deploy.yml` staging to copy all `api/*/` directories that contain `function.json` into `api_deploy/` (e.g., `chat/`, `groupJoin/`, `direct/`).
+- Kept the existing clean production dependency staging path (`pnpm deploy --legacy --prod` + `@azure/storage-blob` import validation) unchanged to preserve the prior module-resolution fix.
+- Added a pre-deploy artifact validation step to require `api_deploy/host.json`, ensure at least one staged `function.json` exists, and print top-level zip listing for diagnostics.
+- Confirmed packaging remains single-root from `api_deploy` only.
+- Updated `PROJECT_STATUS.md` continuity notes with root cause + fix.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files api | rg 'function\\.json$'` ✅ confirmed function trigger folders present in source.
+- `for d in api/*/; do if [ -f "${d}function.json" ]; then echo "will-copy $(basename "$d")"; fi; done` ✅ confirmed staging loop will copy expected trigger folders.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified minimal targeted patch.
+
+### Follow-ups
+
+- Run `Deploy API (prod)` and confirm Azure Portal `Functions` list is populated after deployment.
+- Verify `POST /api/group/join` returns non-404/non-500 from deployed host.
