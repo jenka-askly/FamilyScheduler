@@ -7,6 +7,9 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 ## What works now
 
 
+- API prod deploy now stages a clean `api_deploy/` package root (host.json + package.json + built `dist/`) and installs production dependencies via `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` before copying `node_modules` into the deploy root.
+- Deploy workflow now validates the staged runtime by importing `@azure/storage-blob` from `api_deploy/` so transitive packages such as `@azure/core-rest-pipeline` are present in the artifact.
+- Zip packaging now archives `api_deploy` (app root at zip root) and post-deploy smoke test now calls `POST /api/group/join` and fails only on HTTP 500, directly guarding against runtime module-load failures.
 - Flex Consumption API deploy no longer sets `FUNCTIONS_WORKER_RUNTIME`; workflow now relies on platform-managed runtime settings to avoid appsettings rejection during deploy.
 - Root cause (Flex function discovery): deploy archive was packaged with the wrong zip root, so `host.json` and function folders (`chat/`, `direct/`, `groupCreate/`, etc.) were not positioned at the archive root for indexing.
 - Fix applied: deploy workflow now builds the API then zips the **contents** of `api/` (`(cd api && zip -r ../api.zip .)`), deploys `api.zip` directly, and runs a post-deploy non-404 smoke check against `/api/chat`.
