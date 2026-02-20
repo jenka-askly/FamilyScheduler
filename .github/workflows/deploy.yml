@@ -6,8 +6,6 @@ on:
     branches: [main]
     paths:
       - 'api/**'
-      - 'scripts/package-api-deploy.mjs'
-      - 'scripts/verify-api-deploy-zip.mjs'
       - '.github/workflows/deploy.yml'
       - 'pnpm-lock.yaml'
       - 'package.json'
@@ -35,11 +33,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and package API artifact
-        run: pnpm deploy:api:package
+      - name: Build API
+        run: pnpm --filter @familyscheduler/api build
 
-      - name: Verify deploy zip layout (tooling)
-        run: pnpm deploy:api:verifyzip
+      - name: Package API zip (api contents at zip root)
+        run: |
+          rm -f api.zip
+          (cd api && zip -r ../api.zip .)
 
       - name: Azure login
         uses: azure/login@v2
@@ -51,4 +51,24 @@ jobs:
           az functionapp deployment source config-zip \
             --name familyscheduler-api-prod \
             --resource-group familyscheduler-prod-rg \
-            --src .artifacts/deploy/familyscheduler-api.zip
+            --src api.zip
+
+      - name: Verify deployed Function App responds (non-404)
+        env:
+          FUNCTION_APP_URL: https://familyscheduler-api-prod.azurewebsites.net
+        run: |
+          ROOT_STATUS=$(curl -sS -o /tmp/function-root.out -w "%{http_code}" "$FUNCTION_APP_URL")
+          echo "Function App root status: $ROOT_STATUS"
+          curl -i "$FUNCTION_APP_URL" || true
+
+          CHAT_STATUS=$(curl -sS -o /tmp/function-chat.out -w "%{http_code}" \
+            -X POST "$FUNCTION_APP_URL/api/chat" \
+            -H 'content-type: application/json' \
+            --data '{"message":"deployment-smoke"}')
+          echo "POST /api/chat status: $CHAT_STATUS"
+          cat /tmp/function-chat.out
+
+          if [ "$CHAT_STATUS" = "404" ]; then
+            echo "Expected non-404 from /api/chat after deployment"
+            exit 1
+          fi
