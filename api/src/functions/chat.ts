@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { type Action, ParsedModelResponseSchema } from '../lib/actions/schema.js';
-import { executeActions } from '../lib/actions/executor.js';
+import { confirmRuleDraftV2, executeActions, prepareRuleDraftV2, type AvailabilityRuleV2 } from '../lib/actions/executor.js';
 import { buildContext, type ChatHistoryEntry } from '../lib/openai/buildContext.js';
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
@@ -14,7 +14,7 @@ import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 
-type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
@@ -22,7 +22,7 @@ type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQue
 type ResponseSnapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
-  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
+  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
 
@@ -72,11 +72,31 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
     };
   }),
   people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status === 'active' ? 'active' : 'removed', timezone: person.timezone, notes: person.notes ?? '' })),
-  rules: state.rules.map((rule) => ({ code: rule.code, personId: rule.personId, kind: rule.kind, date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc })),
+  rules: state.rules.map((rule) => ({ code: rule.code, personId: rule.personId, kind: rule.kind, date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
 
 const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState): T & { snapshot: ResponseSnapshot } => ({ ...payload, snapshot: toResponseSnapshot(state) });
+
+type RuleRequestItem = { personId: string; status: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; promptId?: string; originalPrompt?: string };
+const isRuleMode = (value: unknown): value is 'draft' | 'confirm' => value === 'draft' || value === 'confirm';
+const parseRuleItems = (value: unknown): RuleRequestItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      personId: String(item.personId ?? '').trim(),
+      status: item.status === 'available' || item.status === 'unavailable' ? item.status : 'unavailable',
+      date: String(item.date ?? '').trim(),
+      startTime: typeof item.startTime === 'string' ? item.startTime.trim() : undefined,
+      durationMins: typeof item.durationMins === 'number' ? item.durationMins : undefined,
+      timezone: typeof item.timezone === 'string' ? item.timezone.trim() : undefined,
+      promptId: typeof item.promptId === 'string' ? item.promptId.trim() : undefined,
+      originalPrompt: typeof item.originalPrompt === 'string' ? item.originalPrompt : undefined
+    }))
+    .filter((item) => item.personId && item.date);
+};
+
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), expectedEtag, actions });
 const isMutationAction = (action: Action): boolean => !['list_appointments', 'show_appointment', 'list_people', 'show_person', 'list_rules', 'show_rule', 'help'].includes(action.type);
@@ -124,8 +144,8 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       };
     }
     logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
-    if (typeof body.message !== 'string' || body.message.trim().length === 0) return badRequest('message is required', traceId);
-    const message = body.message.trim();
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    if (!isRuleMode(body.ruleMode) && message.length === 0) return badRequest('message is required', traceId);
     const normalized = normalizeUserText(message);
 
     const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
@@ -145,6 +165,29 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
     logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
     session.activePersonId = allowed.personId;
+
+    const ruleMode = isRuleMode(body.ruleMode) ? body.ruleMode : undefined;
+    const incomingRules = parseRuleItems(body.rules);
+    if (ruleMode) {
+      console.info('rule_mode_request', { traceId, ruleMode, personIds: [...new Set(incomingRules.map((rule) => rule.personId))], promptId: typeof body.promptId === 'string' ? body.promptId : undefined, replacePromptId: typeof body.replacePromptId === 'string' ? body.replacePromptId : undefined, replaceRuleCode: typeof body.replaceRuleCode === 'string' ? body.replaceRuleCode : undefined, incomingIntervalsCount: incomingRules.length });
+      if (incomingRules.length === 0) return badRequest('rules are required for ruleMode', traceId);
+      try {
+        if (ruleMode === 'draft') {
+          const draft = prepareRuleDraftV2(state, incomingRules.map((rule) => ({ ...rule, promptId: rule.promptId ?? (typeof body.promptId === 'string' ? body.promptId : undefined) })), { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+          console.info('rule_mode_draft_result', { traceId, normalizedIntervalsCount: draft.draftRules.length, warningsCount: draft.warnings.length, timezoneFallbackUsed: draft.timezoneFallbackUsed });
+          return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
+        }
+        const confirmed = confirmRuleDraftV2(state, incomingRules.map((rule) => ({ ...rule, promptId: rule.promptId ?? (typeof body.promptId === 'string' ? body.promptId : undefined) })), { replacePromptId: typeof body.replacePromptId === 'string' ? body.replacePromptId : undefined, replaceRuleCode: typeof body.replaceRuleCode === 'string' ? body.replaceRuleCode : undefined, context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
+        const written = await storage.save(identity.groupId, confirmed.nextState, loaded.etag);
+        console.info('rule_mode_confirm_result', { traceId, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
+        return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+      } catch (error) {
+        const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
+        if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, traceId } };
+        if (payload?.error === 'INTERVAL_TOO_LARGE') return { status: 400, jsonBody: { ...payload, traceId } };
+        throw error;
+      }
+    }
 
     session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
     trimHistory(session);

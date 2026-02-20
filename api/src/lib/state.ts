@@ -43,6 +43,12 @@ export type AvailabilityRule = {
   durationMins?: number;
   timezone?: string;
   desc?: string;
+  status?: 'available' | 'unavailable';
+  startUtc?: string;
+  endUtc?: string;
+  promptId?: string;
+  originalPrompt?: string;
+  assumptions?: string[];
 };
 
 export type AppState = {
@@ -145,7 +151,13 @@ const normalizeRulesCollection = (stateLike: Record<string, unknown>, people: Pe
     const durationMins = typeof raw.durationMins === 'number' && Number.isInteger(raw.durationMins) && raw.durationMins > 0 ? raw.durationMins : undefined;
     const timezone = typeof raw.timezone === 'string' && raw.timezone.trim() ? raw.timezone.trim() : DEFAULT_TZ;
     const desc = typeof raw.desc === 'string' ? raw.desc.trim() : typeof raw.reason === 'string' ? raw.reason.trim() : '';
-    rules.push({ code, personId, kind, date, startTime, durationMins: startTime ? durationMins : undefined, timezone, desc });
+    const status = raw.status === 'available' || raw.status === 'unavailable' ? raw.status : undefined;
+    const startUtc = typeof raw.startUtc === 'string' && raw.startUtc.trim() ? raw.startUtc.trim() : undefined;
+    const endUtc = typeof raw.endUtc === 'string' && raw.endUtc.trim() ? raw.endUtc.trim() : undefined;
+    const promptId = typeof raw.promptId === 'string' && raw.promptId.trim() ? raw.promptId.trim() : undefined;
+    const originalPrompt = typeof raw.originalPrompt === 'string' ? raw.originalPrompt.trim() : undefined;
+    const assumptions = Array.isArray(raw.assumptions) ? raw.assumptions.filter((item): item is string => typeof item === 'string') : undefined;
+    rules.push({ code, personId, kind, date, startTime, durationMins: startTime ? durationMins : undefined, timezone, desc, status, startUtc, endUtc, promptId, originalPrompt, assumptions });
   });
 
   return rules;

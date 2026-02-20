@@ -9,14 +9,15 @@ type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
   appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
-  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string }>;
+  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
 
+type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
-  | { kind: 'reply'; assistantText: string; snapshot?: Snapshot }
+  | { kind: 'reply'; assistantText: string; snapshot?: Snapshot; draftRules?: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview?: string[]; assumptions?: string[]; warnings?: DraftWarning[]; promptId?: string }
   | { kind: 'proposal'; proposalId: string; assistantText: string; snapshot?: Snapshot }
-  | { kind: 'applied'; assistantText: string; snapshot?: Snapshot }
+  | { kind: 'applied'; assistantText: string; snapshot?: Snapshot; assumptions?: string[] }
   | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText?: boolean; snapshot?: Snapshot };
 
 type PendingQuestion = { message: string; options: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
@@ -133,6 +134,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [ruleStartTime, setRuleStartTime] = useState('09:00');
   const [ruleDurationMins, setRuleDurationMins] = useState('60');
   const [ruleDesc, setRuleDesc] = useState('');
+  const [ruleDraft, setRuleDraft] = useState<{ preview: string[]; warnings: DraftWarning[]; assumptions: string[]; promptId: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; replaceRuleCode?: string } | null>(null);
   const didInitialLoad = useRef(false);
   const appointmentDescRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -146,19 +148,22 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     });
   };
 
-  const sendMessage = async (outgoingMessage: string) => {
+  const sendMessage = async (outgoingMessage: string, extraBody: Record<string, unknown> = {}) => {
     const trimmed = outgoingMessage.trim();
     if (!trimmed) return;
     setTranscript((p) => [...p, { role: 'user', text: trimmed }]);
     setIsSubmitting(true);
     try {
-      const response = await fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone }) });
+      const response = await fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone, ...extraBody }) });
       if (!response.ok) {
         setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]);
         return;
       }
       const json = (await response.json()) as ChatResponse;
       if (json.snapshot) setSnapshot(json.snapshot);
+      if ('warnings' in json && Array.isArray(json.warnings) && typeof json.promptId === 'string' && ruleModal) {
+        setRuleDraft((prev) => ({ preview: json.preview ?? [], warnings: (json.warnings as DraftWarning[]) ?? [], assumptions: json.assumptions ?? [], promptId: json.promptId as string, personId: ruleModal.person.personId, kind: ruleModal.kind, date: ruleDate, startTime: ruleAllDay ? undefined : ruleStartTime, durationMins: ruleAllDay ? undefined : Number(ruleDurationMins), replaceRuleCode: prev?.replaceRuleCode }));
+      }
       const text = json.kind === 'question' ? json.message : json.assistantText;
       setTranscript((p) => [...p, { role: 'assistant', text }]);
       setProposalText(json.kind === 'proposal' ? json.assistantText : null);
@@ -258,9 +263,24 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   const submitRuleProposal = async () => {
     if (!ruleModal || !ruleDate) return;
-    const sentence = `Add ${ruleModal.kind} rule for personId=${ruleModal.person.personId} on ${ruleDate}${ruleAllDay ? ' allDay=true' : ` startTime=${ruleStartTime} durationMins=${ruleDurationMins}`}${ruleDesc ? ` desc='${ruleDesc.replace(/'/g, '’')}'` : ''}.`;
+    const sentence = `Draft ${ruleModal.kind} rule`;
+    await sendMessage(sentence, {
+      ruleMode: 'draft',
+      promptId: `prompt-${Date.now()}`,
+      rules: [{ personId: ruleModal.person.personId, status: ruleModal.kind, date: ruleDate, startTime: ruleAllDay ? undefined : ruleStartTime, durationMins: ruleAllDay ? undefined : Number(ruleDurationMins), timezone: ruleModal.person.timezone, originalPrompt: ruleDesc || undefined }]
+    });
+  };
+
+  const confirmRuleDraft = async () => {
+    if (!ruleDraft || !ruleModal) return;
+    await sendMessage('Confirm drafted rule', {
+      ruleMode: 'confirm',
+      promptId: ruleDraft.promptId,
+      rules: [{ personId: ruleDraft.personId, status: ruleDraft.kind, date: ruleDraft.date, startTime: ruleDraft.startTime, durationMins: ruleDraft.durationMins, timezone: ruleModal.person.timezone, promptId: ruleDraft.promptId, originalPrompt: ruleDesc || undefined }],
+      replaceRuleCode: ruleDraft.replaceRuleCode
+    });
+    setRuleDraft(null);
     setRuleModal(null);
-    await sendMessage(sentence);
   };
 
 
@@ -533,7 +553,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                     <span>{rule.date}</span>
                                     <span>{formatRuleTime(rule)}</span>
                                     <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
-                                    <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
+                                    {!rule.promptId ? <button type="button" className="icon-button" aria-label="Legacy replace" data-tooltip="Legacy replace" onClick={() => { setRuleModal({ person, kind: rule.kind }); setRuleDesc(''); setRuleDraft({ preview: [], warnings: [], assumptions: [], promptId: `prompt-${Date.now()}`, personId: person.personId, kind: rule.kind, date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, replaceRuleCode: rule.code }); }}><Pencil /></button> : null}<button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
                                   </li>
                                 ))}
                               </ul>
@@ -563,7 +583,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
       {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 
-      {ruleModal ? <div className="modal-backdrop"><div className="modal"><h3>{ruleModal.kind === 'available' ? 'Add Available' : 'Add Unavailable'} Rule</h3><div className="field-grid"><label>Date<input type="date" value={ruleDate} onChange={(event) => setRuleDate(event.target.value)} /></label><label className="switch-row">All-day<input type="checkbox" checked={ruleAllDay} onChange={(event) => setRuleAllDay(event.target.checked)} /></label>{!ruleAllDay ? <><label>Start time<input type="time" value={ruleStartTime} onChange={(event) => setRuleStartTime(event.target.value)} /></label><label>Duration<select value={ruleDurationMins} onChange={(event) => setRuleDurationMins(event.target.value)}><option value="30">30 mins</option><option value="60">60 mins</option><option value="90">90 mins</option><option value="120">120 mins</option><option value="180">180 mins</option><option value="240">240 mins</option></select></label></> : null}<label>Notes/reason<input type="text" placeholder="Optional" value={ruleDesc} onChange={(event) => setRuleDesc(event.target.value)} /></label></div><div className="modal-actions"><button type="button" onClick={() => void submitRuleProposal()} disabled={!ruleDate}>Propose</button><button type="button" onClick={() => setRuleModal(null)}>Cancel</button></div></div></div> : null}
+      {ruleModal ? <div className="modal-backdrop"><div className="modal"><h3>{ruleModal.kind === 'available' ? 'Add Available' : 'Add Unavailable'} Rule</h3><div className="field-grid"><label>Date<input type="date" value={ruleDate} onChange={(event) => setRuleDate(event.target.value)} /></label><label className="switch-row">All-day<input type="checkbox" checked={ruleAllDay} onChange={(event) => setRuleAllDay(event.target.checked)} /></label>{!ruleAllDay ? <><label>Start time<input type="time" value={ruleStartTime} onChange={(event) => setRuleStartTime(event.target.value)} /></label><label>Duration<select value={ruleDurationMins} onChange={(event) => setRuleDurationMins(event.target.value)}><option value="30">30 mins</option><option value="60">60 mins</option><option value="90">90 mins</option><option value="120">120 mins</option><option value="180">180 mins</option><option value="240">240 mins</option></select></label></> : null}<label>Notes/reason<input type="text" placeholder="Optional" value={ruleDesc} onChange={(event) => setRuleDesc(event.target.value)} /></label>{ruleDraft && ruleDraft.preview.length === 0 ? <p>Legacy rule: enter a prompt to replace this rule.</p> : null}{ruleDraft ? <div><p>Preview</p><ul>{ruleDraft.preview.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul>{ruleDraft.warnings.length > 0 ? <ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul> : null}</div> : null}</div><div className="modal-actions"><button type="button" onClick={() => void submitRuleProposal()} disabled={!ruleDate}>Propose</button>{ruleDraft ? <button type="button" onClick={() => void confirmRuleDraft()}>Confirm</button> : null}<button type="button" onClick={() => { setRuleModal(null); setRuleDraft(null); }}>Cancel</button></div></div></div> : null}
 
       {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
         const status = computePersonStatusForInterval(person.personId, { date: selectedAppointment.date, startTime: selectedAppointment.startTime, durationMins: selectedAppointment.durationMins }, snapshot.rules);

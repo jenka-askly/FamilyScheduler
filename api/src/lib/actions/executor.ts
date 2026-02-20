@@ -1,6 +1,6 @@
 import { createEmptyAppState, type AppState, type Appointment, type AvailabilityRule, type Person, normalizeAppState } from '../state.js';
 import { computePersonStatusForInterval } from '../availability/computeStatus.js';
-import { intervalBounds, overlaps } from '../availability/interval.js';
+import { intervalBounds, normalizeRulesV2, overlaps } from '../availability/interval.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../validation/phone.js';
 import type { Action } from './schema.js';
 import { normalizeLocation } from '../location/normalize.js';
@@ -81,6 +81,145 @@ const resolvePeopleRefs = (state: AppState, refs: string[]): { ids: string[]; un
 
 const ensureNameUnique = (state: AppState, name: string, excludePersonId?: string): boolean => !state.people.some((person) => person.status === 'active' && person.personId !== excludePersonId && normalizeName(person.name) === normalizeName(name));
 const ensureCellUnique = (state: AppState, e164: string, excludePersonId?: string): boolean => !state.people.some((person) => person.status === 'active' && person.personId !== excludePersonId && person.cellE164 === e164);
+export const RULE_LIMIT_PER_PERSON = 20;
+export const MAX_INTERVAL_DAYS = 14;
+
+export type AvailabilityRuleV2 = {
+  code: string;
+  personId: string;
+  status: 'available' | 'unavailable';
+  startUtc: string;
+  endUtc: string;
+  timezone?: string;
+  assumptions?: string[];
+  promptId?: string;
+  originalPrompt?: string;
+};
+
+export type RuleDraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
+export type RuleDraftResult = { draftRules: AvailabilityRuleV2[]; preview: string[]; assumptions: string[]; warnings: RuleDraftWarning[]; promptId: string; timezoneFallbackUsed: boolean };
+export type RuleConfirmResult = { nextState: AppState; inserted: number; normalizedCount: number; assumptions: string[]; timezoneFallbackUsed: boolean; capCheck: { personId: string; existingCount: number; incomingCount: number; total: number }[] };
+
+const isValidTimezone = (value?: string): value is string => {
+  if (!value?.trim()) return false;
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const resolveRuleTimezone = (timezone: string | undefined, personTimezone: string | undefined, contextTimezone: string): { timezone: string; fallbackUsed: boolean; assumption?: string } => {
+  if (isValidTimezone(timezone)) return { timezone, fallbackUsed: false };
+  const fallback = (isValidTimezone(personTimezone) && personTimezone) || (isValidTimezone(process.env.TZ) && process.env.TZ) || 'America/Los_Angeles';
+  return { timezone: fallback, fallbackUsed: true, assumption: `Timezone not specified/invalid; assumed ${fallback}.` };
+};
+
+const toUtcFromLocal = (date: string, startTime: string | undefined, durationMins: number | undefined, timezone: string): { startUtc: string; endUtc: string } => {
+  const start = startTime ?? '00:00';
+  const startIso = buildIsoAtZone(date, start, timezone);
+  const intervalMins = startTime ? (durationMins ?? 60) : (24 * 60);
+  return { startUtc: new Date(startIso).toISOString(), endUtc: new Date(new Date(startIso).getTime() + intervalMins * 60_000).toISOString() };
+};
+
+const assertMaxInterval = (startUtc: string, endUtc: string, personId: string): void => {
+  const span = new Date(endUtc).getTime() - new Date(startUtc).getTime();
+  if (span > (MAX_INTERVAL_DAYS * 24 * 60 * 60 * 1000)) {
+    const error = new Error('INTERVAL_TOO_LARGE');
+    (error as Error & { payload?: Record<string, unknown> }).payload = { error: 'INTERVAL_TOO_LARGE', message: 'Interval exceeds 14 days; please specify an end date/time.', personId };
+    throw error;
+  }
+};
+
+const asRuleV2List = (state: AppState): AvailabilityRuleV2[] => state.rules
+  .filter((rule) => typeof (rule as AvailabilityRuleV2 & { startUtc?: string }).startUtc === 'string' && typeof (rule as AvailabilityRuleV2 & { endUtc?: string }).endUtc === 'string')
+  .map((rule) => ({
+    code: rule.code,
+    personId: rule.personId,
+    status: (rule as AvailabilityRule & { status?: 'available' | 'unavailable' }).status ?? (rule.kind === 'available' ? 'available' : 'unavailable'),
+    startUtc: (rule as AvailabilityRuleV2 & { startUtc: string }).startUtc,
+    endUtc: (rule as AvailabilityRuleV2 & { endUtc: string }).endUtc,
+    timezone: rule.timezone,
+    assumptions: (rule as AvailabilityRuleV2).assumptions ?? [],
+    promptId: (rule as AvailabilityRuleV2).promptId,
+    originalPrompt: (rule as AvailabilityRuleV2).originalPrompt
+  }));
+
+const toLegacyRule = (rule: AvailabilityRuleV2): AvailabilityRule => ({
+  code: rule.code,
+  personId: rule.personId,
+  kind: rule.status,
+  timezone: rule.timezone,
+  desc: rule.originalPrompt,
+  date: rule.startUtc.slice(0, 10),
+  startTime: rule.startUtc.slice(11, 16),
+  durationMins: Math.max(1, Math.round((new Date(rule.endUtc).getTime() - new Date(rule.startUtc).getTime()) / 60000)),
+  ...(rule as unknown as Record<string, unknown>)
+}) as AvailabilityRule;
+
+export const prepareRuleDraftV2 = (state: AppState, incomingRules: Array<Omit<AvailabilityRuleV2, 'code' | 'startUtc' | 'endUtc' | 'assumptions'>>, context: ExecutionContext): RuleDraftResult => {
+  const assumptions: string[] = [];
+  let timezoneFallbackUsed = false;
+  const converted = incomingRules.map((rule, index) => {
+    const person = findPersonById(state, rule.personId);
+    const resolvedTimezone = resolveRuleTimezone(rule.timezone, person?.timezone, context.timezoneName);
+    timezoneFallbackUsed ||= resolvedTimezone.fallbackUsed;
+    if (resolvedTimezone.assumption) assumptions.push(resolvedTimezone.assumption);
+    const interval = toUtcFromLocal((rule as AvailabilityRule & { date: string }).date, (rule as AvailabilityRule).startTime, (rule as AvailabilityRule).durationMins, resolvedTimezone.timezone);
+    assertMaxInterval(interval.startUtc, interval.endUtc, rule.personId);
+    return { ...rule, code: `DRAFT-${index + 1}`, startUtc: interval.startUtc, endUtc: interval.endUtc, timezone: resolvedTimezone.timezone, assumptions: resolvedTimezone.assumption ? [resolvedTimezone.assumption] : [] };
+  });
+
+  const draftRules = normalizeRulesV2(converted);
+  const existing = asRuleV2List(state);
+  const warnings: RuleDraftWarning[] = [];
+  for (const draftRule of draftRules) {
+    const overlapsExisting = existing.filter((rule) => rule.personId === draftRule.personId)
+      .filter((rule) => new Date(draftRule.startUtc).getTime() < new Date(rule.endUtc).getTime() && new Date(draftRule.endUtc).getTime() > new Date(rule.startUtc).getTime());
+    overlapsExisting.forEach((conflict) => warnings.push({
+      code: conflict.code,
+      status: conflict.status,
+      interval: `${conflict.startUtc} → ${conflict.endUtc}`,
+      message: `Overlaps an existing ${conflict.status.toUpperCase()} rule; UNAVAILABLE will take precedence in status computation.`
+    }));
+  }
+
+  return { draftRules, preview: draftRules.map((rule) => `${rule.status.toUpperCase()} ${rule.startUtc} → ${rule.endUtc}`), assumptions: [...new Set(assumptions)], warnings, promptId: incomingRules[0]?.promptId ?? `prompt-${Date.now()}`, timezoneFallbackUsed };
+};
+
+export const confirmRuleDraftV2 = (state: AppState, incomingRules: Array<Omit<AvailabilityRuleV2, 'code' | 'startUtc' | 'endUtc' | 'assumptions'>>, options: { replacePromptId?: string; replaceRuleCode?: string; context: ExecutionContext }): RuleConfirmResult => {
+  const draft = prepareRuleDraftV2(state, incomingRules, options.context);
+  const nextState = normalizeAppState(structuredClone(state));
+  const personIds = [...new Set(draft.draftRules.map((rule) => rule.personId))];
+  nextState.rules = nextState.rules.filter((rule) => {
+    if (!personIds.includes(rule.personId)) return true;
+    if (options.replaceRuleCode && normalizeCode(rule.code) === normalizeCode(options.replaceRuleCode)) return false;
+    const rulePromptId = (rule as AvailabilityRuleV2).promptId;
+    if (rulePromptId && rulePromptId === draft.promptId) return false;
+    if (options.replacePromptId && rulePromptId && rulePromptId === options.replacePromptId) return false;
+    return true;
+  });
+
+  const capCheck = personIds.map((personId) => {
+    const existingCount = nextState.rules.filter((rule) => rule.personId === personId && (rule as AvailabilityRuleV2).startUtc).length;
+    const incomingCount = draft.draftRules.filter((rule) => rule.personId === personId).length;
+    return { personId, existingCount, incomingCount, total: existingCount + incomingCount };
+  });
+  const overLimit = capCheck.find((entry) => entry.total > RULE_LIMIT_PER_PERSON);
+  if (overLimit) {
+    const error = new Error('RULE_LIMIT_EXCEEDED');
+    (error as Error & { payload?: Record<string, unknown> }).payload = { error: 'RULE_LIMIT_EXCEEDED', message: 'Max 20 rules per person. Please delete or consolidate rules.', personId: overLimit.personId, limit: RULE_LIMIT_PER_PERSON };
+    throw error;
+  }
+
+  draft.draftRules.forEach((rule) => {
+    nextState.rules.push(toLegacyRule({ ...rule, code: getNextRuleCode(nextState) }));
+  });
+
+  return { nextState, inserted: draft.draftRules.length, normalizedCount: draft.draftRules.length, assumptions: draft.assumptions, timezoneFallbackUsed: draft.timezoneFallbackUsed, capCheck };
+};
+
 
 export const executeActions = async (state: AppState, actions: Action[], context: ExecutionContext): Promise<ExecuteActionsResult> => {
   const nextState = normalizeAppState(structuredClone(state));
