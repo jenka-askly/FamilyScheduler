@@ -2679,3 +2679,37 @@ Stop duplicate production SWA deploys on `main` by disabling automatic triggers 
 
 - Merge and push to `main`, then verify only `Deploy Web (SWA)` runs on push.
 - If needed, manually dispatch the auto-generated workflow for one-off operations.
+
+
+## 2026-02-20 07:34 UTC (SWA source-build for stale dist fix)
+
+### Objective
+
+Fix stale frontend deployment risk by making SWA build the web app from source at deploy time instead of uploading a potentially stale prebuilt `dist` folder.
+
+### Approach
+
+- Removed the `Build web app` step from `.github/workflows/swa-web.yml`.
+- Updated SWA deploy action inputs:
+  - `app_location: apps/web/dist` → `app_location: apps/web`
+  - `output_location: ''` → `output_location: dist`
+  - `skip_app_build: true` → `skip_app_build: false`
+- Kept triggers and deploy tokens unchanged.
+- Adjusted the VITE env assertion step to validate configuration only (no pre-build `dist` scan).
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' .github/workflows/swa-web.yml` ✅ verified workflow now builds from `apps/web` source.
+- `git diff -- .github/workflows/swa-web.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal changes.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Merge and push to `main`.
+- Verify deployed web bundle references runtime `apiUrl(...)`-based API calls (not hardcoded `'/api/...'`).
