@@ -27,3 +27,4 @@ backups/
 
 # azure local settings
 api/local.settings.json
+/.localstate/familyscheduler/groups
