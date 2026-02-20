@@ -12,6 +12,8 @@ const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct'];
+let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
   const payload = { component: 'api-startup', startupId, message, ...(details ?? {}) };
@@ -25,6 +27,7 @@ const registerHttp = (name: string, route: string, methods: HttpMethod[], handle
     route,
     handler
   });
+  registeredFunctionCount += 1;
   startupLog('registered-function', { functionName: name, route, methods });
 };
 
@@ -36,6 +39,8 @@ startupLog('loading-functions-entrypoint', {
 if (startupDebugEnabled) {
   startupLog('startup-debug-enabled', {
     cwd: process.cwd(),
+    functionsWorkerRuntime: process.env.FUNCTIONS_WORKER_RUNTIME,
+    nodeProcessCommandLine: process.execPath,
     distIndexExists: existsSync(resolve(moduleDir, 'index.js')),
     hostJsonExists: existsSync(resolve(moduleDir, '../host.json')),
     packageJsonExists: existsSync(resolve(moduleDir, '../package.json'))
@@ -51,3 +56,9 @@ registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
 registerHttp('chat', 'chat', ['POST'], chat);
 
 registerHttp('direct', 'direct', ['POST'], direct);
+
+startupLog('registration-summary', {
+  expectedFunctions,
+  expectedCount: expectedFunctions.length,
+  registeredCount: registeredFunctionCount
+});

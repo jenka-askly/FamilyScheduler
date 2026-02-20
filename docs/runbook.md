@@ -195,6 +195,13 @@ This means the Functions host booted, but your Node entrypoint did not register 
    - `AzureFunctionsJobHost__logging__logLevel__default=Debug`
    - optional per-category: `AzureFunctionsJobHost__logging__logLevel__Host.Results=Trace`
 
+6. If the host still shows `0 functions found (Custom)`, capture and share:
+   - one `loading-functions-entrypoint` line
+   - one `registration-summary` line (must report `expectedCount: 5` and `registeredCount: 5`)
+   - any `startup-debug-enabled` line
+   - output of `az functionapp config appsettings list -g <rg> -n <app> --query "[?name=='FUNCTIONS_WORKER_RUNTIME'||name=='WEBSITE_RUN_FROM_PACKAGE'||name=='FUNCTIONS_EXTENSION_VERSION'||name=='WEBSITE_NODE_DEFAULT_VERSION'].{name:name,value:value}"`
+   - package top-level listing from `unzip -l <artifact>.zip | head -n 40`
+
 ### Azure mode troubleshooting
 
 - `403` from blob calls: SAS token invalid, missing permission, or expired.

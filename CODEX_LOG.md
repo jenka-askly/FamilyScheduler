@@ -2474,3 +2474,34 @@ Add actionable diagnostics for Azure Functions deployments that report `0 functi
 
 - In Azure App Service/Function App settings, temporarily set `FUNCTIONS_STARTUP_DEBUG=true` and inspect `component=api-startup` logs after deploy.
 - Once root cause is resolved, set `FUNCTIONS_STARTUP_DEBUG=false` to reduce startup verbosity.
+
+## 2026-02-20 00:57 UTC (clarify expected function count and debug payload)
+
+### Objective
+
+Address feedback that diagnostics must reflect `0 functions` (not ambiguous counts) and tighten what to collect when prod still reports `0 functions found (Custom)`.
+
+### Approach
+
+- Extended startup instrumentation in `api/src/index.ts` with a deterministic `registration-summary` log that reports both expected and actual registration counts.
+- Added debug fields (`FUNCTIONS_WORKER_RUNTIME`, process executable path) to improve environment verification from log stream alone.
+- Updated runbook troubleshooting with a concrete “what to share” checklist (startup log lines, app settings query output, artifact top-level listing).
+- Updated `PROJECT_STATUS.md` continuity section for this behavior clarification.
+
+### Files changed
+
+- `api/src/index.ts`
+- `docs/runbook.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git checkout -- pnpm-lock.yaml` ✅ reverted unrelated lockfile drift.
+- `pnpm -C api run build` ✅ passed.
+- `pnpm -C api run test` ✅ passed (11 tests, 0 failures).
+
+### Follow-ups
+
+- Redeploy API and check for `component=api-startup` / `registration-summary` in Azure log stream.
+- If host still reports `0 functions found (Custom)`, share the checklist payload from `docs/runbook.md` for next iteration.

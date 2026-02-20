@@ -362,3 +362,8 @@ After every merged PR, update this file with:
 - Added Azure Functions startup instrumentation in `api/src/index.ts` with structured JSON logs (`component=api-startup`) for entrypoint load + per-route registration.
 - Added optional startup diagnostics behind `FUNCTIONS_STARTUP_DEBUG=true` to log module path, cwd, and deploy artifact existence checks (`dist/index.js`, `host.json`, `package.json`).
 - Updated runbook troubleshooting for `0 functions found (Custom)` with concrete App Settings and expected log signals.
+
+## Recent update (2026-02-20 00:57 UTC)
+
+- Clarified startup diagnostics to avoid false expectations: the API should register exactly 5 functions (`groupCreate`, `groupJoin`, `groupMeta`, `chat`, `direct`) and now emits a `registration-summary` startup log with expected vs actual count.
+- Expanded the runbook with an explicit “what to share” checklist when Azure still reports `0 functions found (Custom)`.
