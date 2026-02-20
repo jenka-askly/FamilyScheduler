@@ -2778,3 +2778,32 @@ Fix SWA integrated API build failure caused by `pnpm` not being available in Ory
 
 - Re-run SWA deploy workflow to confirm Oryx API build succeeds with npm override.
 - Validate `/api/group/create` on the SWA domain after deployment completes.
+
+## 2026-02-20 07:58 UTC (CODEX step 10: prevent SWA staging quota deploy blocks)
+
+### Objective
+
+Prevent SWA staging environment quota exhaustion from blocking production deploys by ensuring the SWA workflow deploys only on push to `main`.
+
+### Approach
+
+- Removed the `pull_request` trigger block from `.github/workflows/swa-web.yml`.
+- Kept the existing `push` to `main` trigger unchanged.
+- Updated `PROJECT_STATUS.md` to document quota-driven rationale and cleanup guidance if PR previews are reintroduced.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,120p' .github/workflows/swa-web.yml` ✅ verified trigger now contains only `push` to `main`.
+- `git diff -- .github/workflows/swa-web.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified minimal targeted diff.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Merge to `main` and confirm SWA deploy runs for push events only.
+- If PR previews are needed later, add explicit SWA preview-environment cleanup automation/policy.
