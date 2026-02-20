@@ -209,6 +209,7 @@ After every merged PR, update this file with:
 
 ## Debug switches and artifacts
 
+- Function startup instrumentation is available in `api/src/index.ts`; set `FUNCTIONS_STARTUP_DEBUG=true` to emit `component=api-startup` JSON logs for entrypoint load and route registration diagnostics.
 - OpenAI logging is off by default. Enable with `OPENAI_LOG_ENABLED=true`.
 - Default log path: `api/.local/logs/openai.ndjson` (gitignored via repo `.gitignore` rule for `.local/`).
 - Rotation: when file size exceeds `OPENAI_LOG_MAX_BYTES` (default `5242880`), current file is renamed with a timestamp suffix and a fresh file is used.
@@ -354,3 +355,10 @@ After every merged PR, update this file with:
 - Verify first post-fix deploy in Azure Portal: Functions list should show `chat`, `direct`, `groupCreate`, `groupJoin`, `groupMeta`.
 - Confirm host logs no longer report `0 functions found (Custom)`.
 - Add a dedicated post-deploy smoke-test job (curl against `/api/group/meta`) after prod credentials/policies are finalized.
+
+
+## Recent update (2026-02-20 00:58 UTC)
+
+- Added Azure Functions startup instrumentation in `api/src/index.ts` with structured JSON logs (`component=api-startup`) for entrypoint load + per-route registration.
+- Added optional startup diagnostics behind `FUNCTIONS_STARTUP_DEBUG=true` to log module path, cwd, and deploy artifact existence checks (`dist/index.js`, `host.json`, `package.json`).
+- Updated runbook troubleshooting for `0 functions found (Custom)` with concrete App Settings and expected log signals.
