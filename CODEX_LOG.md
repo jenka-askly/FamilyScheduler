@@ -2282,3 +2282,36 @@ Upgrade the appointments workspace UX with page layout primitives, empty-state C
 ### Follow-ups
 
 - Optional: convert more row-edit textareas (location/notes) to auto-grow for full consistency.
+
+## 2026-02-19 23:06 UTC (CODEX-006/007/008 workspace pages + multiline + polish)
+
+### Objective
+
+Complete workspace UX and polish updates across Appointments and People views, including empty states, access clarity copy, multiline auto-grow editing, and button/style consistency.
+
+### Approach
+
+- Updated `AppShell` header content to reflect active tab (`Appointments` vs `People`) while preserving shared workspace layout + footer.
+- Added People access clarity copy under the page header.
+- Added People empty state panel with “Add Person” CTA using existing add-person handler.
+- Ensured “Add Person” uses `fs-btnPrimary` styling and non-full-width behavior.
+- Rendered read-only phone values in monospace (`var(--font-mono)`) without changing validation/edit flows.
+- Kept Appointments empty state + “Add Appointment” label and enabled auto-grow behavior for notes textarea during edit mode.
+- Updated `PROJECT_STATUS.md` with CODEX-006/007/008 status bullets.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Add blank row"` ✅ confirmed legacy copy no longer present.
+- `pnpm -r --if-present build` ✅ workspace build succeeded for `api`, `apps/web`, and `packages/shared`.
+- `pnpm dev` ⚠️ failed because Azure Functions Core Tools (`func`) is not installed in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched web UI for visual check/screenshot capture.
+
+### Follow-ups
+
+- Run full `pnpm dev` in an environment with Azure Functions Core Tools installed to validate end-to-end app routing and auth gate behavior with API online.
