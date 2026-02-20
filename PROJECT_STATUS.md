@@ -307,3 +307,38 @@ After every merged PR, update this file with:
 - Workspace pages now use centered wide container (max-width 1200px)
 - Added horizontal scroll wrapper for tables
 - Removed duplicate headings for cleaner hierarchy
+## Recent update (2026-02-20 00:00 UTC)
+
+- Fixed Azure Flex deployment packaging path: deploy artifact root is now the `api/` runtime shape (`host.json`, `package.json`, `dist/**`, runtime `node_modules/**`) so host indexing can load Node v4 registrations from `dist/index.js`.
+- Added deterministic packaging script: `node scripts/package-api-deploy.mjs` (invoked by `pnpm deploy:api:package`).
+- Added one-step ship script: `bash scripts/ship-api.sh` to install, build, package, and zip-deploy to `familyscheduler-api-prod` in `familyscheduler-prod-rg`.
+- Replaced previous Static Web Apps deploy workflow with Functions Flex deploy workflow (`.github/workflows/deploy.yml`) that builds on GitHub runner (pnpm), installs production deps in the artifact via npm, then deploys zip with Azure CLI (no remote pnpm requirement).
+
+### Azure resources (prod)
+
+- Resource group: `familyscheduler-prod-rg`
+- Function App: `familyscheduler-api-prod`
+- Plan: Flex Consumption (Linux)
+- Runtime: Node.js 22
+
+### Deployment method (chosen)
+
+- Preferred: GitHub Actions workflow `.github/workflows/deploy.yml` (environment: `prod`)
+- Local/manual fallback: `pnpm deploy:api:ship`
+
+### Required environment variables (Function App)
+
+- `STORAGE_MODE=azure`
+- `BLOB_SAS_URL=<secret>`
+- `STATE_BLOB_PREFIX=familyscheduler/groups` (default if omitted)
+- `FAMILY_PASSKEY=<secret>`
+- `TOKEN_SECRET=<secret>`
+- `OPENAI_API_KEY=<secret>`
+- `OPENAI_MODEL=<model-name>`
+- Optional: `DEFAULT_COUNTRY=US`, `OPENAI_PARSER_ENABLED`, `LOCATION_AI_FORMATTING`
+
+### Known issues / next steps
+
+- Verify first post-fix deploy in Azure Portal: Functions list should show `chat`, `direct`, `groupCreate`, `groupJoin`, `groupMeta`.
+- Confirm host logs no longer report `0 functions found (Custom)`.
+- Add a dedicated post-deploy smoke-test job (curl against `/api/group/meta`) after prod credentials/policies are finalized.
