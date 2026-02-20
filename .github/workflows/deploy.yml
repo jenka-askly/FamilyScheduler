@@ -46,6 +46,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Azure context (debug) + select subscription
+        run: |
+          set -euo pipefail
+          az account show --query "{name:name,id:id,tenantId:tenantId,user:user}" -o jsonc
+          az account list --query "[].{name:name,id:id,isDefault:isDefault}" -o table
+          az account set --subscription 99690a90-d117-4c79-bf85-bd491615b10d
+          az account show --query "{name:name,id:id,tenantId:tenantId}" -o jsonc
+
       - name: Deploy zip to Function App (Flex)
         run: |
           az functionapp deployment source config-zip \
