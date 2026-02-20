@@ -3204,3 +3204,36 @@ Fix TypeScript TS2322 in `api/src/functions/chat.ts` caused by `RuleRequestItem.
 ### Follow-ups
 
 - Re-run build/package commands in an environment with required Azure SDK dependencies installed.
+
+
+## 2026-02-20 20:00 UTC (ruleMode rules-only drafting + modal clarification handling)
+
+### Objective
+
+Make `/api/chat` honor `ruleMode` for rules drafting/confirm with rules-only OpenAI prompting (no appointment actions), and update Rules modal UX to support server-returned clarification questions.
+
+### Approach
+
+- Added a dedicated rule-mode OpenAI prompt builder (`buildRulesPrompt`) with explicit rule-only constraints and required `add_rule_v2_draft` / `add_rule_v2_confirm` action expectations.
+- Updated `/api/chat` ruleMode path to require `personId`, call OpenAI using the rules-only prompt, validate required action type, and return deterministic rule clarification question when output is missing/invalid.
+- Kept existing rule draft/confirm execution pipeline (`prepareRuleDraftV2` + `confirmRuleDraftV2`) once valid rules are parsed from model output.
+- Updated Rules modal to render `kind:"question"` content (message/options/free-text) and re-call `/api/chat` in `ruleMode:"draft"` with the same trace ID until draft preview is available.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/lib/openai/prompts.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter api build` ⚠️ failed due missing local Azure SDK deps (`@azure/identity`, `@azure/storage-blob`) in this environment.
+- `pnpm --filter web build` ✅ passed (TypeScript + Vite production build).
+- `pnpm --filter web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture (terminated with SIGINT after capture).
+- Playwright screenshot capture ✅ artifact created at `browser:/tmp/codex_browser_invocations/7f3e4bb745e39e74/artifacts/artifacts/rules-modal-change.png`.
+
+### Follow-ups
+
+- Run end-to-end rule drafting flow against configured OpenAI credentials and seeded group/person data to confirm expected draft-vs-question behavior for travel-style prompts.

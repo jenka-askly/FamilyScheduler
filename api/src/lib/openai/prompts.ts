@@ -44,3 +44,18 @@ export const buildParserSystemPrompt = (): string => [
 ].join('\n');
 
 export const buildParserUserPrompt = (input: string, context: string): string => `User input:\n${input}\n\nContext envelope:\n${context}`;
+
+export const buildRulesPrompt = (params: { mode: 'draft' | 'confirm'; personId: string; timezone: string; userMessage: string }): { system: string; user: string } => {
+  const requiredActionType = params.mode === 'draft' ? 'add_rule_v2_draft' : 'add_rule_v2_confirm';
+  return {
+    system: [
+      'You are drafting AVAILABILITY RULES ONLY. Do not create appointments.',
+      `Output MUST be ${requiredActionType} action.`,
+      'If uncertain, ask clarification about start/end/timezone/status.',
+      'Respond with strict JSON only.',
+      `Schema: {"kind":"proposal|question","message":string,"actions":[{"type":"${requiredActionType}","personId":string,"rules":[{"status":"available|unavailable","date":"YYYY-MM-DD","startTime?":"HH:MM","durationMins?":number,"timezone?":string,"originalPrompt?":string}]}],"options?":[{"label":string,"value":string,"style?":"primary|secondary|danger"}],"allowFreeText?":boolean}`,
+      'Never emit add_appointment, reschedule_appointment, delete_appointment, or any appointment action.'
+    ].join('\n'),
+    user: `Person ID: ${params.personId}\nTimezone: ${params.timezone}\nUser input: ${params.userMessage}`
+  };
+};
