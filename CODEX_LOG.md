@@ -3363,3 +3363,31 @@ Enforce `ruleMode=draft|confirm` as a strict rules-only backend path and fix rul
 ### Follow-ups
 
 - Run interactive browser validation for “I am busy tomorrow” to confirm one draft network request and no appointment mutations in snapshot before confirm.
+
+## 2026-02-20 21:15 UTC (API deploy Azure creds login fix)
+
+### Objective
+
+Fix deploy workflow Azure authentication failures (`SERVICE_PRINCIPAL missing client-id/tenant-id`) by switching to JSON-credentials login.
+
+### Approach
+
+- Replaced the Azure login step in `.github/workflows/deploy.yml` with `azure/login@v2` using `creds: ${{ secrets.AZURE_CREDENTIALS }}`.
+- Removed step-level SP field inputs (`client-id`, `tenant-id`, `subscription-id`) in favor of unified credentials JSON secret.
+- Updated `PROJECT_STATUS.md` to document required repository secret format and that deploy mechanics after login are unchanged.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ updated deploy workflow login block and project status note.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified minimal targeted changes.
+
+### Follow-ups
+
+- Add/update repository secret `AZURE_CREDENTIALS` with valid service principal JSON before running `deploy-api-prod`.
+- Verify next GitHub Actions run shows successful `Azure login` step before app settings and zip deploy steps.
