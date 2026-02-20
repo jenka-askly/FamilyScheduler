@@ -2953,3 +2953,37 @@ Force a clean production redeploy and add a deterministic, user-visible build ve
 
 - After merge to `main`, confirm SWA production deploy job runs and version label matches commit SHA prefix.
 - Validate that a subsequent deploy updates the visible stamp.
+
+## 2026-02-20 09:41 UTC (web build stamp wiring + visibility)
+
+### Objective
+
+Ensure every `main` deployment produces a visible build/version stamp in the web UI tied to the triggering commit.
+
+### Approach
+
+- Updated SWA deploy workflow env so Oryx build receives `VITE_BUILD_SHA` and `VITE_BUILD_TIME`.
+- Added canonical web build metadata helper in `apps/web/src/lib/buildInfo.ts`.
+- Updated app shell footer to always show `Build: <sha7> <time>`.
+- Documented force-redeploy via empty commit in `README.md`.
+- Updated `PROJECT_STATUS.md` with production verification steps for build stamps.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `apps/web/src/lib/buildInfo.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/buildInfo.ts` (removed)
+- `README.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ confirmed no additional AGENTS.md files in repo scope.
+- `VITE_BUILD_SHA=abc1234 VITE_BUILD_TIME=test-run pnpm --filter @familyscheduler/web build` ✅ web build succeeded with injected env values.
+- `rg -n "abc1234|test-run" apps/web/dist` ✅ verified build artifact contains injected build stamp values.
+
+### Follow-ups
+
+- After merge to `main`, confirm production footer SHA prefix matches the commit shown in the successful `Deploy Web (SWA)` run.

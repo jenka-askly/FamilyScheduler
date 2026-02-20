@@ -3,7 +3,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
-import { BUILD_SHA, BUILD_TIME } from './buildInfo';
+import { buildInfo } from './lib/buildInfo';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -574,7 +574,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
       <FooterHelp />
-      <div className="build-version">Version: {BUILD_SHA.slice(0, 7)} · {BUILD_TIME}</div>
+      <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time}</div>
     </Page>
   );
 }
