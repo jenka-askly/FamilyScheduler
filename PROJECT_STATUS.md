@@ -302,3 +302,8 @@ After every merged PR, update this file with:
 - Added empty state panel with Add Appointment CTA.
 - Prompt/notes field uses multiline textarea in edit mode with auto-grow.
 - Buttons no longer span full width.
+
+### Workspace Layout Normalization (CODEX-009)
+- Workspace pages now use centered wide container (max-width 1200px)
+- Added horizontal scroll wrapper for tables
+- Removed duplicate headings for cleaner hierarchy

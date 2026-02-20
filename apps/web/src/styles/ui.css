@@ -111,3 +111,16 @@ th {
   font-weight: 600;
   border-top: 0;
 }
+
+.fs-workspaceWrap {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.fs-tableScroll {
+  overflow-x: auto;
+}
+
+.fs-tableScroll table {
+  min-width: 900px;
+}

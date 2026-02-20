@@ -20,7 +20,9 @@ export function Page({ children, variant = "workspace" }: PageProps) {
 
   return (
     <div className="fs-page">
-      {children}
+      <div className="fs-workspaceWrap">
+        {children}
+      </div>
     </div>
   );
 }
