@@ -2316,6 +2316,38 @@ Complete workspace UX and polish updates across Appointments and People views, i
 
 - Run full `pnpm dev` in an environment with Azure Functions Core Tools installed to validate end-to-end app routing and auth gate behavior with API online.
 
+## 2026-02-20 00:31 UTC (CODEX-009 workspace layout normalization)
+
+### Objective
+
+Normalize workspace pages to a centered wide column, add horizontal overflow behavior for wide tables, and remove duplicate Appointments/People headings.
+
+### Approach
+
+- Added `fs-workspaceWrap` and `fs-tableScroll` helpers in `apps/web/src/styles/ui.css`.
+- Updated workspace variant in `Page` to wrap children in `fs-workspaceWrap`; kept form variant unchanged.
+- Updated `AppShell` table wrappers for both Appointments and People to include `fs-tableScroll` and removed duplicated in-panel `h2` titles.
+- Updated `PROJECT_STATUS.md` with CODEX-009 status.
+
+### Files changed
+
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/components/layout/Page.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm dev` ⚠️ failed because Azure Functions Core Tools (`func`) is not installed in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for browser screenshot.
+- `mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact.
+
+### Follow-ups
+
+- Run full-stack `pnpm dev` in an environment with Azure Functions Core Tools installed.
 ## 2026-02-20 00:00 UTC (Flex deploy indexing fix: non-zero function discovery)
 
 ### Objective

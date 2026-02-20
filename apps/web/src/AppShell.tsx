@@ -391,7 +391,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {view === 'appointments' ? (
         <section className="panel">
           <div className="panel-header">
-            <h2>Appointments</h2>
             <button className="fs-btnPrimary" type="button" onClick={() => void addAppointment()}>Add Appointment</button>
           </div>
           {sortedAppointments.length === 0 ? (
@@ -407,7 +406,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               </div>
             </div>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap fs-tableScroll">
               <table className="data-table">
                 <thead>
                   <tr><th>Code</th><th>Date</th><th>Time</th><th>Duration</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
@@ -480,7 +479,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {view === 'people' ? (
         <section className="panel"> 
           <div className="panel-header"> 
-            <h2>People</h2>
             <button className="fs-btnPrimary" type="button" onClick={() => void addPerson()}>Add Person</button>
           </div>
           {peopleInView.length === 0 ? (
@@ -496,7 +494,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               </div>
             </div>
           ) : (
-            <div className="table-wrap">
+            <div className="table-wrap fs-tableScroll">
               <table className="data-table">
                 <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>

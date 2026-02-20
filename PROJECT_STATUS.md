@@ -303,6 +303,10 @@ After every merged PR, update this file with:
 - Prompt/notes field uses multiline textarea in edit mode with auto-grow.
 - Buttons no longer span full width.
 
+### Workspace Layout Normalization (CODEX-009)
+- Workspace pages now use centered wide container (max-width 1200px)
+- Added horizontal scroll wrapper for tables
+- Removed duplicate headings for cleaner hierarchy
 ## Recent update (2026-02-20 00:00 UTC)
 
 - Fixed Azure Flex deployment packaging path: deploy artifact root is now the `api/` runtime shape (`host.json`, `package.json`, `dist/**`, runtime `node_modules/**`) so host indexing can load Node v4 registrations from `dist/index.js`.
