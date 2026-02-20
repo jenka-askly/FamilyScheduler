@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmptyAppState } from '../state.js';
-import { executeActions, resolveAppointmentTimes } from './executor.js';
+import { confirmRuleDraftV2, executeActions, prepareRuleDraftV2, resolveAppointmentTimes } from './executor.js';
 
 test('A: add appointment date+desc only creates all-day', async () => {
   const result = await executeActions(createEmptyAppState(), [{ type: 'add_appointment', date: '2026-03-03', desc: 'Dentist' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
@@ -132,4 +132,30 @@ test('H: direct appointment inline actions update fields', async () => {
   result = await executeActions(result.nextState, [{ type: 'set_appointment_start_time', code, startTime: undefined }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
   assert.equal(result.nextState.appointments[0].startTime, undefined);
   assert.equal(result.nextState.appointments[0].durationMins, undefined);
+});
+
+
+test('I: draft v2 emits overlap warnings and timezone fallback assumption', () => {
+  const state = createEmptyAppState();
+  state.people.push({ personId: 'P-1', name: 'Jay', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
+  state.rules.push({ code: 'RULE-9', personId: 'P-1', kind: 'available', date: '2026-02-19', startUtc: '2026-02-19T17:00:00.000Z', endUtc: '2026-02-19T18:00:00.000Z', status: 'available' });
+  const draft = prepareRuleDraftV2(state, [{ personId: 'P-1', status: 'unavailable', date: '2026-02-19', startTime: '09:00', durationMins: 60, timezone: 'Invalid/Zone', promptId: 'prompt-1' } as any], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  assert.equal(draft.warnings.length, 1);
+  assert.equal(draft.assumptions.some((item) => item.includes('Timezone not specified/invalid')), true);
+});
+
+test('J: confirm v2 is idempotent by prompt and enforces cap', () => {
+  const state = createEmptyAppState();
+  state.people.push({ personId: 'P-1', name: 'Jay', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
+  for (let i = 0; i < 20; i += 1) {
+    state.rules.push({ code: `RULE-${i + 1}`, personId: 'P-1', kind: 'available', date: '2026-02-19', startUtc: `2026-02-${String(1 + i).padStart(2, '0')}T00:00:00.000Z`, endUtc: `2026-02-${String(1 + i).padStart(2, '0')}T01:00:00.000Z`, status: 'available', promptId: `prompt-${i}` });
+  }
+  assert.throws(() => confirmRuleDraftV2(state, [{ personId: 'P-1', status: 'available', date: '2026-02-20', startTime: '09:00', durationMins: 60, promptId: 'new-prompt' } as any], { context: { activePersonId: null, timezoneName: 'America/Los_Angeles' } }));
+
+  const reduced = createEmptyAppState();
+  reduced.people.push({ personId: 'P-1', name: 'Jay', cellE164: '+15555550123', cellDisplay: '+1 555 555 0123', status: 'active', timezone: 'America/Los_Angeles', notes: '' });
+  reduced.rules.push({ code: 'RULE-1', personId: 'P-1', kind: 'available', date: '2026-02-20', startUtc: '2026-02-20T17:00:00.000Z', endUtc: '2026-02-20T18:00:00.000Z', status: 'available', promptId: 'same-prompt' });
+  const first = confirmRuleDraftV2(reduced, [{ personId: 'P-1', status: 'available', date: '2026-02-20', startTime: '09:00', durationMins: 60, promptId: 'same-prompt' } as any], { context: { activePersonId: null, timezoneName: 'America/Los_Angeles' } });
+  const count = first.nextState.rules.filter((rule: any) => rule.promptId === 'same-prompt').length;
+  assert.equal(count, 1);
 });
