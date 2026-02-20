@@ -3237,3 +3237,35 @@ Make `/api/chat` honor `ruleMode` for rules drafting/confirm with rules-only Ope
 ### Follow-ups
 
 - Run end-to-end rule drafting flow against configured OpenAI credentials and seeded group/person data to confirm expected draft-vs-question behavior for travel-style prompts.
+
+## 2026-02-20 20:17 UTC (rules modal copy + layout cleanup)
+
+### Objective
+
+Apply CODEX UI patch requirements for the Rules modal: remove Mae wording, align modal layout/sections, and tighten edit semantics with no extra API behavior.
+
+### Approach
+
+- Reworked Rules modal JSX into explicit sections (header, prompt, optional question, optional draft output, actions).
+- Updated prompt copy to `Availability rule` plus helper text and retained existing draft/confirm flow.
+- Added modal-specific CSS for width/padding, full-width textarea sizing, right-aligned action row, and bordered draft output.
+- Verified TypeScript for the web package and attempted browser screenshot capture of the updated UI.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ (no additional AGENTS.md files found under repo path).
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; later stopped with SIGINT intentionally.
+- `run_playwright_script` ⚠️ first attempt timed out; second attempt succeeded but only captured a fallback page screenshot artifact because the Rules modal trigger could not be reached in this environment state.
+
+### Follow-ups
+
+- If needed, provide a seeded local state with at least one person row so the Rules modal can be opened deterministically for an updated screenshot artifact.
+

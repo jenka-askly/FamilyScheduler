@@ -178,6 +178,44 @@ input {
   gap: 0.5rem;
 }
 
+
+.rules-modal {
+  width: 640px;
+  max-width: calc(100vw - 48px);
+  padding: 20px;
+}
+
+.rules-modal-section {
+  margin-bottom: 12px;
+}
+
+.rules-modal-header {
+  margin-bottom: 8px;
+}
+
+.rules-prompt-section textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+}
+
+.rules-prompt-helper {
+  margin-top: 6px;
+}
+
+.rules-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rule-draft-output {
+  margin-top: 12px;
+  border: 1px solid var(--border, var(--ui-border, #d1d5db));
+  border-radius: 8px;
+  padding: 12px;
+}
+
 .question-options {
   display: flex;
   flex-wrap: wrap;

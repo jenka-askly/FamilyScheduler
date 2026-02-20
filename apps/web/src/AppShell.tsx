@@ -139,6 +139,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
   const didInitialLoad = useRef(false);
   const appointmentDescRef = useRef<HTMLTextAreaElement | null>(null);
+  const rulePromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const closeRulePromptModal = () => {
+    setRulePromptModal(null);
+    setRulePromptText('');
+    setRuleDraft(null);
+    setRuleQuestion(null);
+    setRuleQuestionInput('');
+    setRuleDraftTraceId(null);
+    setEditingPromptId(null);
+    setLegacyReplaceRuleCode(null);
+  };
 
   const toggleAppointmentPerson = (appointment: Snapshot['appointments'][0], personId: string) => {
     const selected = new Set(appointment.people);
@@ -639,7 +651,99 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
       {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 
-      {rulePromptModal ? <div className="modal-backdrop"><div className="modal"><h3>Rules</h3><label htmlFor="rule-prompt-input">Tell Mae when you’re available or unavailable</label><textarea id="rule-prompt-input" rows={4} value={rulePromptText} onChange={(event) => setRulePromptText(event.target.value)} placeholder="Examples: &#10;Weekdays after 6pm I am available.&#10;I’m unavailable next Tuesday from 1-3pm." />{legacyReplaceRuleCode ? <p>Legacy rule: enter a prompt to replace this rule.</p> : null}{ruleQuestion ? <div><p>{ruleQuestion.message}</p>{ruleQuestion.options.length > 0 ? <div className="question-options">{ruleQuestion.options.map((option, index) => <button key={`${option.label}-${index}`} type="button" className={`question-option ${option.style ?? 'secondary'}`} onClick={() => { setRuleQuestionInput(option.value); setRulePromptText(option.value); void draftRulePrompt(option.value); }}>{option.label}</button>)}</div> : null}{ruleQuestion.allowFreeText ? <form onSubmit={(event) => { event.preventDefault(); const answer = ruleQuestionInput.trim(); if (!answer) return; setRulePromptText(answer); void draftRulePrompt(answer); }}><label htmlFor="rule-question-input">Your response</label><div className="input-row"><input id="rule-question-input" value={ruleQuestionInput} onChange={(event) => setRuleQuestionInput(event.target.value)} autoComplete="off" /><button type="submit" disabled={!ruleQuestionInput.trim() || ruleDraftLoading}>Send</button></div></form> : null}</div> : null}{ruleDraft ? <div><p>Preview</p><ul>{ruleDraft.preview.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul>{ruleDraft.assumptions.length > 0 ? <><p>Assumptions</p><ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}{ruleDraft.warnings.length > 0 ? <><p>Warnings</p><ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul></> : null}</div> : null}<div className="modal-actions"><button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePromptText.trim() || ruleDraftLoading || ruleConfirmLoading}>{ruleDraftLoading ? 'Drafting…' : 'Draft'}</button>{ruleDraft ? <button type="button" onClick={() => void confirmRulePrompt()} disabled={ruleConfirmLoading || ruleDraftLoading}>{ruleConfirmLoading ? 'Confirming…' : 'Confirm'}</button> : null}<button type="button" onClick={() => { setRulePromptModal(null); setRulePromptText(''); setRuleDraft(null); setRuleQuestion(null); setRuleQuestionInput(''); setRuleDraftTraceId(null); setEditingPromptId(null); setLegacyReplaceRuleCode(null); }}>Cancel</button></div></div></div> : null}
+      {rulePromptModal ? (
+        <div className="modal-backdrop">
+          <div className="modal rules-modal">
+            <div className="rules-modal-section rules-modal-header">
+              <h3>Rules</h3>
+            </div>
+            <div className="rules-modal-section rules-prompt-section">
+              <label htmlFor="rule-prompt-input">Availability rule</label>
+              <textarea
+                ref={rulePromptTextareaRef}
+                id="rule-prompt-input"
+                rows={4}
+                value={rulePromptText}
+                onChange={(event) => setRulePromptText(event.target.value)}
+                placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
+              />
+              <p className="rules-prompt-helper">Describe when you’re available or unavailable.</p>
+              {legacyReplaceRuleCode ? <p>Legacy rule: enter a prompt to replace this rule.</p> : null}
+            </div>
+
+            {ruleQuestion ? (
+              <div className="rules-modal-section">
+                <p>{ruleQuestion.message}</p>
+                {ruleQuestion.options.length > 0 ? (
+                  <div className="question-options">
+                    {ruleQuestion.options.map((option, index) => (
+                      <button
+                        key={`${option.label}-${index}`}
+                        type="button"
+                        className={`question-option ${option.style ?? 'secondary'}`}
+                        onClick={() => {
+                          setRuleQuestionInput(option.value);
+                          setRulePromptText(option.value);
+                          void draftRulePrompt(option.value);
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {ruleQuestion.allowFreeText ? (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const answer = ruleQuestionInput.trim();
+                      if (!answer) return;
+                      setRulePromptText(answer);
+                      void draftRulePrompt(answer);
+                    }}
+                  >
+                    <label htmlFor="rule-question-input">Your response</label>
+                    <div className="input-row">
+                      <input
+                        id="rule-question-input"
+                        value={ruleQuestionInput}
+                        onChange={(event) => setRuleQuestionInput(event.target.value)}
+                        autoComplete="off"
+                      />
+                      <button type="submit" disabled={!ruleQuestionInput.trim() || ruleDraftLoading}>Send</button>
+                    </div>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
+
+            {ruleDraft ? (
+              <div className="rules-modal-section rule-draft-output">
+                <p>Preview</p>
+                <ul>{ruleDraft.preview.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul>
+                {ruleDraft.assumptions.length > 0 ? (
+                  <>
+                    <p>Assumptions</p>
+                    <ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul>
+                  </>
+                ) : null}
+                {ruleDraft.warnings.length > 0 ? (
+                  <>
+                    <p>Warnings</p>
+                    <ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="modal-actions rules-actions-row">
+              <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePromptText.trim() || ruleDraftLoading || ruleConfirmLoading}>{ruleDraftLoading ? 'Drafting…' : 'Draft'}</button>
+              {ruleDraft ? <button type="button" onClick={() => void confirmRulePrompt()} disabled={ruleConfirmLoading || ruleDraftLoading}>{ruleConfirmLoading ? 'Confirming…' : 'Confirm'}</button> : null}
+              <button type="button" onClick={closeRulePromptModal}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
         const status = computePersonStatusForInterval(person.personId, { date: selectedAppointment.date, startTime: selectedAppointment.startTime, durationMins: selectedAppointment.durationMins }, snapshot.rules);
