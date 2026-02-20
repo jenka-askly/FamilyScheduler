@@ -3,6 +3,8 @@ import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functio
 import { type Action, ParsedModelResponseSchema } from '../lib/actions/schema.js';
 import { executeActions } from '../lib/actions/executor.js';
 import { buildContext, type ChatHistoryEntry } from '../lib/openai/buildContext.js';
+import { MissingConfigError } from '../lib/errors/configError.js';
+import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { parseToActions } from '../lib/openai/openaiClient.js';
 import { type AppState } from '../lib/state.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
@@ -24,7 +26,6 @@ type ResponseSnapshot = {
   historyCount?: number;
 };
 
-const storage = createStorageAdapter();
 const sessionState = new Map<string, SessionRuntimeState>();
 const confirmSynonyms = new Set(['confirm', 'yes', 'y', 'ok']);
 const cancelSynonyms = new Set(['cancel', 'no', 'n']);
@@ -106,105 +107,134 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
 };
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  try {
   const fallbackTraceId = randomUUID();
-  const body = await request.json() as ChatRequest;
-  const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
-  const identity = validateJoinRequest(body.groupId, body.phone);
-  const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
-  console.info(JSON.stringify({ traceId, route: '/api/chat', groupId: identity.ok ? identity.groupId : null, phoneHash: identity.ok ? hashPhone(identity.phoneE164) : null, messageLen }));
-  if (!identity.ok) return identity.response;
-  logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
-  if (typeof body.message !== 'string' || body.message.trim().length === 0) return badRequest('message is required', traceId);
-  const message = body.message.trim();
-  const normalized = normalizeUserText(message);
+  let traceId: string = fallbackTraceId;
+  let openAiCallInFlight = false;
 
-  const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
-  let loaded;
   try {
-    loaded = await storage.load(identity.groupId);
-  } catch (error) {
-    if (error instanceof GroupNotFoundError) return { status: 404, jsonBody: { ok: false, error: 'group_not_found' } };
-    throw error;
-  }
-  const state = loaded.state;
-  const allowed = findActivePersonByPhone(state, identity.phoneE164);
-  if (!allowed) {
-    logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-    return { status: 403, jsonBody: { error: 'not_allowed' } };
-  }
-  logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
-  session.activePersonId = allowed.personId;
-
-  session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
-  trimHistory(session);
-
-  const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }, currentState: AppState = state): HttpResponseInit => {
-    session.chatHistory.push({ role: 'assistant', text: payload.kind === 'question' ? payload.message : payload.assistantText, ts: new Date().toISOString() });
-    trimHistory(session);
-    return { status: 200, jsonBody: withSnapshot(payload, currentState) };
-  };
-
-  if (session.pendingProposal) {
-    if (confirmSynonyms.has(normalized)) {
-      try {
-        const execution = await executeActions(state, session.pendingProposal.actions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-        const written = await storage.save(identity.groupId, execution.nextState, session.pendingProposal.expectedEtag);
-        session.activePersonId = execution.nextActivePersonId;
-        session.pendingProposal = null;
-        return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
-      } catch (error) {
-        if (error instanceof ConflictError) return { status: 409, jsonBody: { kind: 'error', message: 'State changed. Retry.', traceId } };
-        throw error;
-      }
+    const body = await request.json() as ChatRequest;
+    traceId = ensureTraceId(body.traceId) || fallbackTraceId;
+    const identity = validateJoinRequest(body.groupId, body.phone);
+    const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
+    console.info(JSON.stringify({ traceId, route: '/api/chat', groupId: identity.ok ? identity.groupId : null, phoneHash: identity.ok ? hashPhone(identity.phoneE164) : null, messageLen }));
+    if (!identity.ok) {
+      return {
+        ...identity.response,
+        jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
+      };
     }
-    if (cancelSynonyms.has(normalized)) { session.pendingProposal = null; session.pendingQuestion = null; return respond({ kind: 'reply', assistantText: 'Cancelled.' }); }
-    return respond({ kind: 'question', message: 'Please confirm or cancel.', options: [{ label: 'Confirm', value: 'confirm', style: 'primary' }, { label: 'Cancel', value: 'cancel', style: 'secondary' }], allowFreeText: true });
-  }
+    logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
+    if (typeof body.message !== 'string' || body.message.trim().length === 0) return badRequest('message is required', traceId);
+    const message = body.message.trim();
+    const normalized = normalizeUserText(message);
 
-  if (confirmSynonyms.has(normalized)) return respond({ kind: 'question', message: 'What should I confirm?', allowFreeText: true });
-  if (cancelSynonyms.has(normalized)) return respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
+    const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
+    const storage = createStorageAdapter();
+    let loaded;
+    try {
+      loaded = await storage.load(identity.groupId);
+    } catch (error) {
+      if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+      throw error;
+    }
+    const state = loaded.state;
+    const allowed = findActivePersonByPhone(state, identity.phoneE164);
+    if (!allowed) {
+      logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
+      return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
+    }
+    logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
+    session.activePersonId = allowed.personId;
 
-  if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
+    session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
+    trimHistory(session);
 
-  const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
-  const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
-  const codeError = validateReferencedCodes(state, normalizedActions);
-  if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
-  if (parsed.kind === 'question') {
-    const questionPayload: PendingQuestion = {
-      message: parsed.message,
-      options: parsed.options,
-      allowFreeText: parsed.allowFreeText ?? true
+    const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }, currentState: AppState = state): HttpResponseInit => {
+      session.chatHistory.push({ role: 'assistant', text: payload.kind === 'question' ? payload.message : payload.assistantText, ts: new Date().toISOString() });
+      trimHistory(session);
+      return { status: 200, jsonBody: withSnapshot(payload, currentState) };
     };
-    session.pendingQuestion = questionPayload;
-    return respond({ kind: 'question', ...questionPayload });
-  }
-  if (parsed.kind === 'proposal') {
-    const mutationActions = normalizedActions.filter(isMutationAction);
-    if (mutationActions.length === 0) return respond({ kind: 'question', message: 'Please clarify the change with a valid action and summary.', allowFreeText: true });
-    const previewExecution = await executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-    session.pendingProposal = toProposal(loaded.etag, mutationActions);
+
+    if (session.pendingProposal) {
+      if (confirmSynonyms.has(normalized)) {
+        try {
+          const execution = await executeActions(state, session.pendingProposal.actions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+          const written = await storage.save(identity.groupId, execution.nextState, session.pendingProposal.expectedEtag);
+          session.activePersonId = execution.nextActivePersonId;
+          session.pendingProposal = null;
+          return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
+        } catch (error) {
+          if (error instanceof ConflictError) return { status: 409, jsonBody: { kind: 'error', message: 'State changed. Retry.', traceId } };
+          throw error;
+        }
+      }
+      if (cancelSynonyms.has(normalized)) { session.pendingProposal = null; session.pendingQuestion = null; return respond({ kind: 'reply', assistantText: 'Cancelled.' }); }
+      return respond({ kind: 'question', message: 'Please confirm or cancel.', options: [{ label: 'Confirm', value: 'confirm', style: 'primary' }, { label: 'Cancel', value: 'cancel', style: 'secondary' }], allowFreeText: true });
+    }
+
+    if (confirmSynonyms.has(normalized)) return respond({ kind: 'question', message: 'What should I confirm?', allowFreeText: true });
+    if (cancelSynonyms.has(normalized)) return respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
+
+    if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
+
+    openAiCallInFlight = true;
+    const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
+    openAiCallInFlight = false;
+    const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
+    const codeError = validateReferencedCodes(state, normalizedActions);
+    if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
+    if (parsed.kind === 'question') {
+      const questionPayload: PendingQuestion = {
+        message: parsed.message,
+        options: parsed.options,
+        allowFreeText: parsed.allowFreeText ?? true
+      };
+      session.pendingQuestion = questionPayload;
+      return respond({ kind: 'question', ...questionPayload });
+    }
+    if (parsed.kind === 'proposal') {
+      const mutationActions = normalizedActions.filter(isMutationAction);
+      if (mutationActions.length === 0) return respond({ kind: 'question', message: 'Please clarify the change with a valid action and summary.', allowFreeText: true });
+      const previewExecution = await executeActions(state, mutationActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      session.pendingProposal = toProposal(loaded.etag, mutationActions);
+      session.pendingQuestion = null;
+      return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
+    }
     session.pendingQuestion = null;
-    return respond({ kind: 'proposal', proposalId: session.pendingProposal.id, assistantText: previewExecution.effectsTextLines.join('\n') || parsed.message });
-  }
-  session.pendingQuestion = null;
-  if (normalizedActions.length > 0) {
-    const execution = await executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-    return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
-  }
-  return respond({ kind: 'reply', assistantText: parsed.message });
+    if (normalizedActions.length > 0) {
+      const execution = await executeActions(state, normalizedActions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+      return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
+    }
+    return respond({ kind: 'reply', assistantText: parsed.message });
   } catch (err) {
+    if (err instanceof MissingConfigError) {
+      logConfigMissing('chat', traceId, err.missing);
+      return errorResponse(500, 'CONFIG_MISSING', err.message, traceId, { missing: err.missing });
+    }
+    if (err instanceof GroupNotFoundError) {
+      return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+    }
+    if (err instanceof ConflictError) {
+      return errorResponse(409, 'state_changed', 'State changed. Retry.', traceId);
+    }
+
     console.error('chat_handler_failed', {
+      traceId,
       message: err instanceof Error ? err.message : String(err)
     });
 
-    return {
-      status: 502,
-      jsonBody: {
-        error: 'OPENAI_CALL_FAILED',
-        message: err instanceof Error ? err.message : 'Unknown error'
-      }
-    };
+    if (openAiCallInFlight) {
+      return {
+        status: 502,
+        jsonBody: {
+          ok: false,
+          error: 'OPENAI_CALL_FAILED',
+          message: err instanceof Error ? err.message : 'Unknown error',
+          traceId
+        }
+      };
+    }
+
+    return errorResponse(500, 'INTERNAL_ERROR', err instanceof Error ? err.message : 'Unknown error', traceId);
   }
 }

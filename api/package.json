@@ -12,7 +12,9 @@
     "test": "pnpm run build && node --test dist/**/*.test.js"
   },
   "dependencies": {
-    "@azure/functions": "^4.8.0"
+    "@azure/functions": "^4.8.0",
+    "@azure/identity": "^4.6.0",
+    "@azure/storage-blob": "^12.27.0"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
