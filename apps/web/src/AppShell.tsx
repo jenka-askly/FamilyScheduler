@@ -240,6 +240,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => a.date.localeCompare(b.date)), [snapshot.appointments]);
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
+  const headerTitle = view === 'appointments' ? 'Appointments' : 'People';
+  const headerDescription = view === 'appointments'
+    ? 'Add, edit, and track upcoming appointments for this group.'
+    : 'Manage who can access this schedule.';
 
   const openRuleModal = (person: Snapshot['people'][0], kind: 'available' | 'unavailable') => {
     setRuleModal({ person, kind });
@@ -370,11 +374,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   return (
     <Page variant="workspace">
       <PageHeader
-        title="Appointments"
-        description="Add, edit, and track upcoming appointments for this group."
+        title={headerTitle}
+        description={headerDescription}
         groupName={groupName}
         groupId={groupId}
       />
+      {view === 'people' ? (
+        <div style={{ marginTop: -8, marginBottom: 16, color: 'var(--muted)' }}>
+          Only listed phone numbers can access this group.
+        </div>
+      ) : null}
       <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
 
       {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
@@ -447,7 +456,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                         </td>
                         <td className="multiline-cell">
                           {isEditing ? (
-                            <textarea rows={3} defaultValue={appointment.notes} title={appointment.notes} onBlur={(event) => { if (event.currentTarget.value !== appointment.notes) void sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: event.currentTarget.value }); }} />
+                            <textarea rows={3} defaultValue={appointment.notes} title={appointment.notes} onInput={(event) => autoGrowTextarea(event.currentTarget)} onBlur={(event) => { if (event.currentTarget.value !== appointment.notes) void sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: event.currentTarget.value }); }} />
                           ) : (
                             <span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span>
                           )}
@@ -472,58 +481,72 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         <section className="panel"> 
           <div className="panel-header"> 
             <h2>People</h2>
-            <button type="button" onClick={() => void addPerson()}>Add Person</button>
+            <button className="fs-btnPrimary" type="button" onClick={() => void addPerson()}>Add Person</button>
           </div>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>
-                {peopleInView.map((person) => {
-                  const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
-                  const isEditingPerson = editingPersonId === person.personId;
-                  return (
-                    <Fragment key={person.personId}>
-                      <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
-                        <td>
-                          {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
-                        </td>
-                        <td>
-                          {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} placeholder="(425) 555-1234" /> : <span>{person.cellDisplay || '—'}</span>}
-                          {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
-                        </td>
-                        <td><span className={`status-tag ${person.status === 'active' ? 'available' : 'unknown'}`}>{person.status}</span></td>
-                        <td>
-                          <div className="action-icons"> 
-                            <button type="button" className="icon-button" aria-label={isEditingPerson ? 'Done editing person' : 'Edit person'} data-tooltip={isEditingPerson ? 'Done' : 'Edit'} onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}>{isEditingPerson ? <CheckCircle /> : <Pencil />}</button>
-                            <button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
-                            <button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button>
-                            <button type="button" className="icon-button" aria-label="Add unavailable" data-tooltip="Add Unavailable" onClick={() => openRuleModal(person, 'unavailable')}><Ban /></button>
-                          </div>
-                        </td>
-                      </tr>
-                      {personRules.length > 0 ? (
-                        <tr key={`${person.personId}-rules`}>
-                          <td colSpan={4} className="rules-cell">
-                            <ul className="rules-list">
-                              {personRules.map((rule) => (
-                                <li key={rule.code} className="rule-item">
-                                  <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
-                                  <span>{rule.date}</span>
-                                  <span>{formatRuleTime(rule)}</span>
-                                  <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
-                                  <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
-                                </li>
-                              ))}
-                            </ul>
+          {peopleInView.length === 0 ? (
+            <div className="fs-alert" style={{ maxWidth: 760 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>No people added yet</div>
+              <div style={{ color: 'var(--muted)' }}>
+                Add at least one person to allow them to access this group.
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <button className="fs-btnPrimary" type="button" onClick={() => void addPerson()}>
+                  Add Person
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {peopleInView.map((person) => {
+                    const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
+                    const isEditingPerson = editingPersonId === person.personId;
+                    return (
+                      <Fragment key={person.personId}>
+                        <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
+                          <td>
+                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
+                          </td>
+                          <td>
+                            {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} placeholder="(425) 555-1234" /> : <span style={{ fontFamily: 'var(--font-mono)' }}>{person.cellDisplay || '—'}</span>}
+                            {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
+                          </td>
+                          <td><span className={`status-tag ${person.status === 'active' ? 'available' : 'unknown'}`}>{person.status}</span></td>
+                          <td>
+                            <div className="action-icons"> 
+                              <button type="button" className="icon-button" aria-label={isEditingPerson ? 'Done editing person' : 'Edit person'} data-tooltip={isEditingPerson ? 'Done' : 'Edit'} onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}>{isEditingPerson ? <CheckCircle /> : <Pencil />}</button>
+                              <button type="button" className="icon-button" aria-label="Delete" data-tooltip="Delete" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
+                              <button type="button" className="icon-button" aria-label="Add available" data-tooltip="Add Available" onClick={() => openRuleModal(person, 'available')}><CheckCircle /></button>
+                              <button type="button" className="icon-button" aria-label="Add unavailable" data-tooltip="Add Unavailable" onClick={() => openRuleModal(person, 'unavailable')}><Ban /></button>
+                            </div>
                           </td>
                         </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {personRules.length > 0 ? (
+                          <tr key={`${person.personId}-rules`}>
+                            <td colSpan={4} className="rules-cell">
+                              <ul className="rules-list">
+                                {personRules.map((rule) => (
+                                  <li key={rule.code} className="rule-item">
+                                    <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
+                                    <span>{rule.date}</span>
+                                    <span>{formatRuleTime(rule)}</span>
+                                    <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
+                                    <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       ) : null}
 

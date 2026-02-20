@@ -74,6 +74,14 @@ Local runnable baseline with persistent API state in local JSON and Azure Blob (
 - Displays group name + group ID with proper hierarchy
 - Added “Next steps” checklist + help footer
 
+
+### Workspace UX + Polish (CODEX-006/007/008)
+- Appointments page migrated to workspace layout with header/footer and empty state
+- Prompt/notes uses multiline textarea in edit mode with auto-grow
+- People page migrated to workspace layout with access clarity, empty state, and monospace phone display
+- Replaced “Add blank row” with “Add Appointment” / “Add Person”
+- Standardized button labeling and avoided full-width buttons
+
 ### UI Polish (CODEX-002)
 - Replaced default Vite favicon with minimal calendar SVG
 - Set browser title to “Family Scheduler”
