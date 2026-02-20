@@ -2381,3 +2381,33 @@ Fix Azure Functions Flex deployment so Node v4 functions are discoverable (avoid
 
 - Configure GitHub OIDC secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) for `prod` environment.
 - Run workflow and validate Azure Portal function list + host logs.
+
+
+## 2026-02-20 00:39 UTC (Windows deploy packaging fallback for zip)
+
+### Objective
+
+Fix `pnpm deploy:api:package` on Windows where `zip` is unavailable (`'zip' is not recognized`) while preserving existing Linux/macOS packaging behavior and artifact path.
+
+### Approach
+
+- Updated `scripts/package-api-deploy.mjs` to select archiver by platform:
+  - Windows: use PowerShell `Compress-Archive` with `-Force`.
+  - non-Windows: keep existing `zip -qr` behavior.
+- Kept output filename unchanged: `.artifacts/deploy/familyscheduler-api.zip`.
+- Updated `PROJECT_STATUS.md` to document behavior change and continuity.
+
+### Files changed
+
+- `scripts/package-api-deploy.mjs`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `node --check scripts/package-api-deploy.mjs` ✅ passed syntax check.
+- `pnpm deploy:api:package` ✅ passed and produced `.artifacts/deploy/familyscheduler-api.zip`.
+
+### Follow-ups
+
+- Re-run your original Azure CLI deployment command on Windows; packaging should now complete without needing to install a separate `zip` executable.

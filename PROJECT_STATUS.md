@@ -307,6 +307,11 @@ After every merged PR, update this file with:
 - Workspace pages now use centered wide container (max-width 1200px)
 - Added horizontal scroll wrapper for tables
 - Removed duplicate headings for cleaner hierarchy
+## Recent update (2026-02-20 00:39 UTC)
+
+- Fixed cross-platform API packaging: `scripts/package-api-deploy.mjs` now uses PowerShell `Compress-Archive` on Windows and `zip -qr` on non-Windows, so `pnpm deploy:api:package` succeeds on Windows machines without a separate `zip` binary.
+- Deploy command and artifact path are unchanged (`.artifacts/deploy/familyscheduler-api.zip`).
+
 ## Recent update (2026-02-20 00:00 UTC)
 
 - Fixed Azure Flex deployment packaging path: deploy artifact root is now the `api/` runtime shape (`host.json`, `package.json`, `dist/**`, runtime `node_modules/**`) so host indexing can load Node v4 registrations from `dist/index.js`.
