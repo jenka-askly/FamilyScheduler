@@ -29,6 +29,7 @@ const sessionState = new Map<string, SessionRuntimeState>();
 const confirmSynonyms = new Set(['confirm', 'yes', 'y', 'ok']);
 const cancelSynonyms = new Set(['cancel', 'no', 'n']);
 
+const hashPhone = (phoneE164: string): string => createHash('sha256').update(phoneE164).digest('hex').slice(0, 12);
 const getSessionId = (request: HttpRequest, groupId: string, phoneE164: string): string => `${groupId}:${phoneE164}:${((request as { headers?: { get?: (name: string) => string | null } }).headers?.get?.('x-session-id')?.trim() || 'default')}`;
 const getSessionState = (sessionId: string): SessionRuntimeState => {
   const existing = sessionState.get(sessionId);
@@ -92,7 +93,15 @@ const getIdentityName = (state: AppState, activePersonId: string | null): string
 
 const parseWithOpenAi = async (params: { message: string; state: AppState; session: SessionRuntimeState; sessionId: string; traceId: string; }) => {
   const contextEnvelope = buildContext({ state: params.state, identityName: getIdentityName(params.state, params.session.activePersonId), pendingProposal: params.session.pendingProposal ? { summary: 'Pending proposal', actions: params.session.pendingProposal.actions } : null, pendingClarification: params.session.pendingQuestion ? { question: params.session.pendingQuestion.message, partialAction: { type: 'help' }, missing: ['action'] } : null, history: params.session.chatHistory });
-  const rawModel = await parseToActions(params.message, contextEnvelope, { traceId: params.traceId, sessionIdHash: createHash('sha256').update(params.sessionId).digest('hex').slice(0, 16) });
+  const contextLen = JSON.stringify(contextEnvelope).length;
+  console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_openai_before_fetch', model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', messageLen: params.message.length, contextLen }));
+  const rawModel = await parseToActions(params.message, contextEnvelope, {
+    traceId: params.traceId,
+    sessionIdHash: createHash('sha256').update(params.sessionId).digest('hex').slice(0, 16),
+    onHttpResult: ({ status, latencyMs }) => {
+      console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_openai_after_fetch', status, latencyMs }));
+    }
+  });
   return ParsedModelResponseSchema.parse(rawModel);
 };
 
@@ -100,8 +109,9 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   const fallbackTraceId = randomUUID();
   const body = await request.json() as ChatRequest;
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
-  console.info(JSON.stringify({ traceId, route: 'chat' }), 'chat invoked');
   const identity = validateJoinRequest(body.groupId, body.phone);
+  const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
+  console.info(JSON.stringify({ traceId, route: '/api/chat', groupId: identity.ok ? identity.groupId : null, phoneHash: identity.ok ? hashPhone(identity.phoneE164) : null, messageLen }));
   if (!identity.ok) return identity.response;
   logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
   if (typeof body.message !== 'string' || body.message.trim().length === 0) return badRequest('message is required', traceId);
@@ -151,7 +161,6 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     return respond({ kind: 'question', message: 'Please confirm or cancel.', options: [{ label: 'Confirm', value: 'confirm', style: 'primary' }, { label: 'Cancel', value: 'cancel', style: 'secondary' }], allowFreeText: true });
   }
 
-
   if (confirmSynonyms.has(normalized)) return respond({ kind: 'question', message: 'What should I confirm?', allowFreeText: true });
   if (cancelSynonyms.has(normalized)) return respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
 
@@ -185,7 +194,11 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       return respond({ kind: 'reply', assistantText: execution.effectsTextLines.join('\n') || parsed.message });
     }
     return respond({ kind: 'reply', assistantText: parsed.message });
-  } catch {
+  } catch (error) {
+    const statusIfAny = error && typeof error === 'object' && 'status' in error ? (error as { status?: unknown }).status : undefined;
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    const errorMessage = error instanceof Error ? error.message : 'unknown_error';
+    console.error(JSON.stringify({ traceId, stage: 'chat_openai_exception', errorName, errorMessage, statusIfAny }));
     return respond({ kind: 'question', message: 'I could not safely parse that. Please provide explicit codes and dates.', allowFreeText: true });
   }
 }

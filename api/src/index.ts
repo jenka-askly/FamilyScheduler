@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { chat } from './functions/chat.js';
 import { direct } from './functions/direct.js';
+import { diagnoseOpenAi } from './functions/diagnoseOpenAi.js';
 import { groupCreate } from './functions/groupCreate.js';
 import { groupJoin } from './functions/groupJoin.js';
 import { groupMeta } from './functions/groupMeta.js';
@@ -12,7 +13,7 @@ const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct', 'diagnoseOpenAi'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -56,6 +57,8 @@ registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
 registerHttp('chat', 'chat', ['POST'], chat);
 
 registerHttp('direct', 'direct', ['POST'], direct);
+
+registerHttp('diagnoseOpenAi', 'diagnose/openai', ['GET'], diagnoseOpenAi);
 
 startupLog('registration-summary', {
   expectedFunctions,

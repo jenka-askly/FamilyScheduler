@@ -33,6 +33,7 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 - The web app uses `VITE_API_BASE_URL` to decide where API calls go.
 - In local dev, if `VITE_API_BASE_URL` is unset, requests use relative `/api/*` and are proxied by Vite to `http://localhost:7071`.
 - In production, set `VITE_API_BASE_URL` to the deployed Function App host (for example `https://familyscheduler-api-prod.azurewebsites.net`).
+- If `VITE_API_BASE_URL` is unset, production web calls stay relative (`/api/*`) and hit the Static Web App integrated Functions backend.
 - If `VITE_API_BASE_URL` is missing in production builds, the app throws a startup error with a clear configuration message.
 
 ## Notes
@@ -51,3 +52,10 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 
 - `AZURE_STATIC_WEB_APPS_API_TOKEN`: required by `.github/workflows/swa-web.yml` for web deploys to Azure Static Web Apps.
 
+
+
+## OpenAI production diagnostics
+
+- Chat logs are structured JSON and include a `traceId` plus OpenAI request lifecycle markers (`chat_openai_before_fetch`, `chat_openai_after_fetch`, `chat_openai_exception`).
+- Safe connectivity check: `GET /api/diagnose/openai` (returns `ok`, `model`, `hasApiKey`, optional `lastError` and `latencyMs`; no secrets or raw model output).
+- For SWA-integrated Functions, set `OPENAI_API_KEY`, `OPENAI_MODEL`, and `LOCATION_AI_MODEL` in the **Static Web App configuration** for the deployed SWA resource.
