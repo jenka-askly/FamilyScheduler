@@ -7,6 +7,7 @@ on:
     paths:
       - 'api/**'
       - 'scripts/package-api-deploy.mjs'
+      - 'scripts/verify-api-deploy-zip.py'
       - '.github/workflows/deploy.yml'
       - 'pnpm-lock.yaml'
       - 'package.json'
@@ -36,6 +37,31 @@ jobs:
 
       - name: Build and package API artifact
         run: pnpm deploy:api:package
+
+      - name: Verify deploy zip layout (tooling)
+        run: pnpm deploy:api:verifyzip
+
+      - name: Verify deploy zip layout (CI guard)
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          zip_path = Path('.artifacts/deploy/familyscheduler-api.zip')
+          if not zip_path.exists():
+              raise SystemExit(f'missing artifact: {zip_path}')
+
+          with zipfile.ZipFile(zip_path, 'r') as zf:
+              names = zf.namelist()
+
+          if any('\\' in name for name in names):
+              raise SystemExit('zip contains backslash path separators')
+
+          if 'dist/index.js' not in names:
+              raise SystemExit('zip missing dist/index.js')
+
+          print(f'zip verified ({len(names)} entries)')
+          PY
 
       - name: Azure login (OIDC)
         uses: azure/login@v2

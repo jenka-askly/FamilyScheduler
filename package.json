@@ -14,7 +14,8 @@
     "typecheck": "echo \"no typecheck yet\"",
     "ci": "pnpm -r --if-present build && pnpm -r --if-present lint && pnpm -r --if-present typecheck && pnpm -r --if-present test",
     "deploy:api:package": "pnpm --filter @familyscheduler/api build && node scripts/package-api-deploy.mjs",
-    "deploy:api:ship": "bash scripts/ship-api.sh"
+    "deploy:api:ship": "bash scripts/ship-api.sh",
+    "deploy:api:verifyzip": "python scripts/verify-api-deploy-zip.py"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

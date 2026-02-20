@@ -202,6 +202,33 @@ This means the Functions host booted, but your Node entrypoint did not register 
    - output of `az functionapp config appsettings list -g <rg> -n <app> --query "[?name=='FUNCTIONS_WORKER_RUNTIME'||name=='WEBSITE_RUN_FROM_PACKAGE'||name=='FUNCTIONS_EXTENSION_VERSION'||name=='WEBSITE_NODE_DEFAULT_VERSION'].{name:name,value:value}"`
    - package top-level listing from `unzip -l <artifact>.zip | head -n 40`
 
+
+### Linux/Flex deploy ZIP path separators (Windows packaging)
+
+For Linux Azure Functions artifacts, zip entry names must use forward slashes (`dist/index.js`).
+Do **not** use PowerShell `Compress-Archive` for deploy zips; it can produce backslash entries (`dist\index.js`) that break function indexing on Linux/Flex.
+
+Use either:
+
+- `pnpm deploy:api:package` (uses `tar -a` with POSIX paths, and falls back to Python `zipfile` packaging that enforces `/` separators)
+- Manual PowerShell packaging from the staging directory:
+
+```powershell
+cd <staging-folder>
+tar -a -c -f ..\familyscheduler-api.zip *
+```
+
+Then deploy with:
+
+```bash
+az functionapp deployment source config-zip \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --src .artifacts/deploy/familyscheduler-api.zip
+```
+
+If Azure still reports `0 functions found (Custom)`, download the deployed `released-package.zip` from the Flex app package container and inspect entries. If you see `dist\index.js` instead of `dist/index.js`, repackage with `tar -a` and redeploy.
+
 ### Azure mode troubleshooting
 
 - `403` from blob calls: SAS token invalid, missing permission, or expired.
