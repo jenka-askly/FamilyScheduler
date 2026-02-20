@@ -61,6 +61,22 @@ test('chat returns group_not_found when group is missing', async () => {
   assert.equal((response.jsonBody as any).error, 'group_not_found');
 });
 
+
+test('chat returns 502 with structured error when OpenAI call fails', async () => {
+  process.env.OPENAI_API_KEY = 'sk-invalid';
+  globalThis.fetch = (async () => ({
+    ok: false,
+    status: 401,
+    text: async () => 'invalid api key'
+  })) as any;
+  const chat = await loadChat('openai-fail');
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'list people' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 502);
+  assert.equal((response.jsonBody as any).error, 'OPENAI_CALL_FAILED');
+  assert.match((response.jsonBody as any).message, /OpenAI HTTP 401/);
+});
+
+
 test('chat works for allowed phone', async () => {
   installFetchStub();
   const chat = await loadChat('allowed');
