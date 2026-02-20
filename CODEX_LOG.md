@@ -3540,3 +3540,32 @@ Stabilize deploy workflow verification by eliminating Azure CLI subscription/con
 ### Follow-ups
 
 - Re-run the deploy workflow in GitHub Actions and confirm verify step resolves `APP_HOST` without context-related failures.
+
+## 2026-02-20 22:11 UTC (deploy verify APP_HOST query fix for Flex)
+
+### Objective
+
+Fix deploy workflow verify-step host resolution for Flex Function App by querying the correct Azure property shape and adding a fallback host lookup.
+
+### Approach
+
+- Updated `.github/workflows/deploy.yml` verify step to query `properties.defaultHostName` instead of top-level `defaultHostName`.
+- Added fallback query to `properties.hostNames[0]` when `APP_HOST` is empty.
+- Kept URL composition dynamic and explicit as `FUNCTION_APP_URL="https://${APP_HOST}"`.
+- Updated `PROJECT_STATUS.md` continuity notes with the Flex host-resolution fix.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/deploy.yml` ✅ inspected current verify step before edit.
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` with the requested host-resolution note.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ confirmed focused diffs.
+
+### Follow-ups
+
+- Run `Deploy API (prod)` and confirm verify step logs show non-empty `APP_HOST` from primary or fallback query.
