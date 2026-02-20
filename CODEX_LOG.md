@@ -3511,3 +3511,32 @@ Make deploy verification in GitHub Actions robust when Function App hostname loo
 ### Follow-ups
 
 - Trigger the deploy workflow in GitHub Actions to confirm verify diagnostics in a real Azure-authenticated run.
+
+## 2026-02-20 22:03 UTC (deploy verify azure subscription context stabilization)
+
+### Objective
+
+Stabilize deploy workflow verification by eliminating Azure CLI subscription/context drift after login.
+
+### Approach
+
+- Added a dedicated workflow step immediately after `azure/login@v2` to print Azure account debug context.
+- Forced Azure CLI subscription selection to `99690a90-d117-4c79-bf85-bd491615b10d` before deploy/verify operations.
+- Kept verify-step `APP_HOST` empty guard and explicit `az functionapp list --resource-group familyscheduler-prod-rg -o table` output for diagnosability.
+- Updated continuity status in `PROJECT_STATUS.md` with the Azure context mismatch fix details.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/deploy.yml` ✅ inspected current deploy workflow before change.
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` with Azure context/subscription mismatch resolution note.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diff for requested patch.
+
+### Follow-ups
+
+- Re-run the deploy workflow in GitHub Actions and confirm verify step resolves `APP_HOST` without context-related failures.
