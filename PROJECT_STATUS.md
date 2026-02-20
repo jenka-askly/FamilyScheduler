@@ -405,3 +405,10 @@ After every merged PR, update this file with:
 
 - Disabled auto-generated SWA workflow `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml` triggers (manual `workflow_dispatch` only) because it conflicted with `.github/workflows/swa-web.yml` and caused canceled deployments.
 
+
+
+## Recent update (2026-02-20 07:34 UTC)
+
+- Updated `.github/workflows/swa-web.yml` so Azure Static Web Apps builds from `apps/web` source (`app_location: apps/web`, `output_location: dist`, `skip_app_build: false`) instead of uploading prebuilt `apps/web/dist` artifacts.
+- Removed the explicit web build step from the workflow to prevent stale `dist` deployments.
+- Kept workflow triggers/tokens unchanged and retained `VITE_API_BASE_URL` configuration assertion.
