@@ -3450,3 +3450,34 @@ Fix Function App deployment packaging so Azure Functions on Flex discovers funct
 
 - Run the `Deploy API (prod)` GitHub Action and confirm Azure Portal function list includes `chat`, `direct`, `groupCreate`, `groupJoin`, and `groupMeta`.
 - Confirm deployed `/api/chat` smoke-check step reports a non-404 status.
+
+## 2026-02-20 21:49 UTC (deploy smoke hostname lookup fix)
+
+### Objective
+
+Fix production deploy smoke test hostname resolution by removing hardcoded Function App host and resolving the active `defaultHostName` from Azure at runtime.
+
+### Approach
+
+- Updated `.github/workflows/deploy.yml` verification step to derive `FUNCTION_APP_URL` dynamically:
+  - `APP_HOST=$(az functionapp show --name familyscheduler-api-prod --resource-group familyscheduler-prod-rg --query defaultHostName -o tsv)`
+  - `FUNCTION_APP_URL="https://$APP_HOST"`
+- Kept existing smoke-check semantics and curl usage, now targeting the dynamically resolved host for both root and `POST /api/chat` checks.
+- Updated `PROJECT_STATUS.md` to document the root cause (non-existent hardcoded hostname) and the Azure API-based fix.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ verified smoke test step location and current curl usage.
+- `rg -n "FUNCTION_APP_URL|defaultHostName|Verify deployed Function App responds" .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified dynamic hostname wiring and continuity docs.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ confirmed minimal targeted diff.
+
+### Follow-ups
+
+- Run `Deploy API (prod)` in GitHub Actions and verify no `curl: (6) Could not resolve host` errors.
+- Confirm `POST $FUNCTION_APP_URL/api/chat` returns non-404 in smoke step logs.
