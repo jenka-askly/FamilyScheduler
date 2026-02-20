@@ -12,6 +12,7 @@
     "test": "pnpm run build && node --test dist/**/*.test.js"
   },
   "dependencies": {
+    "@azure/core-rest-pipeline": "^1.22.2",
     "@azure/functions": "^4.8.0",
     "@azure/identity": "^4.6.0",
     "@azure/storage-blob": "^12.27.0"

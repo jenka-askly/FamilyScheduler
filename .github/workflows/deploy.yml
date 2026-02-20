@@ -61,6 +61,7 @@ jobs:
           test -f api_deploy/package.json
           test -f api_deploy/dist/index.js
           test -d api_deploy/node_modules
+          test -f api_deploy/groupJoin/function.json
           (cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")
 
       - name: Package API zip (api_deploy at zip root)
@@ -141,5 +142,15 @@ jobs:
 
           if [ "$GROUP_JOIN_STATUS" = "500" ]; then
             echo "Expected non-500 from /api/group/join after deployment"
+            exit 1
+          fi
+
+          CHAT_STATUS=$(curl -sS -o /tmp/function-chat.out -w "%{http_code}" \
+            -X POST "$FUNCTION_APP_URL/api/chat" \
+            -H 'content-type: application/json' \
+            --data '{"phone":"0000000000","text":"deploy smoke"}')
+          echo "POST /api/chat status: $CHAT_STATUS"
+          if [ "$CHAT_STATUS" = "404" ]; then
+            echo "Expected /api/chat to be discoverable (non-404)"
             exit 1
           fi
