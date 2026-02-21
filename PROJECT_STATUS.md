@@ -682,3 +682,9 @@ traces
 - Updated action execution paths to write `schemaVersion: 2` + `time` on touched appointments/rules, allow unresolved appointments, and block unresolved rules with explicit confirm error.
 - Updated appointment list rendering/sorting to prioritize unresolved items and show unresolved badge + unreconcilable availability labels.
 - Updated TIME_DATE_SPEC to v1.1 to document removal of implicit duration defaults.
+
+
+## Recent update (2026-02-21 20:04 UTC)
+
+- Fixed deploy artifact path assumptions: CI and packaging validations now assert compiled API entrypoints at `dist/api/src/index.js` and `dist/api/src/functions/*.js` instead of legacy `dist/index.js`/`dist/functions/*`.
+- Packaging/build output format was left unchanged; only invariant checks were aligned to the actual TypeScript emit layout so deploy validation matches runtime artifacts.
