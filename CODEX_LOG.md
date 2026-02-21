@@ -4115,3 +4115,36 @@ Rename Rules modal action button labels for clearer intent without changing beha
 ### Follow-ups
 
 - Human verify in UI that the Rules dialog shows “Draft Rule” and “Add Rule”.
+
+
+## 2026-02-21 03:22 UTC (header/meta consistency + availability overlap + rule range formatting)
+
+### Objective
+
+Unify People/Appointments header metadata UI, remove duplicated access copy, fix assignment status for multi-day rules, and improve People rule date-range readability.
+
+### Approach
+
+- Updated `PageHeader` hierarchy to make group name primary, pane title secondary, and moved group metadata to a share-link + copy row with helper/access text.
+- Removed the People-only duplicated access text block from `AppShell` so header metadata is the single source.
+- Replaced person assignment status matching with UTC interval overlap against all person rules (prefers `startUtc`/`endUtc`, falls back to derived date/time + duration interval).
+- Replaced People rule display formatter to human-readable ranges (all-day/date-range or timed span) without raw minute suffixes.
+- Captured a UI screenshot of the updated header from local web app.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed (`tsc` + `vite build`).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local Vite server for visual validation.
+- Playwright screenshot script via `browser_tools.run_playwright_script` ✅ captured `artifacts/header-updates.png`.
+- Sent `Ctrl+C` to dev server session ⚠️ expected SIGINT shutdown after screenshot capture.
+
+### Follow-ups
+
+- Optional future polish: replace unicode copy glyph in header with shared icon component if a global icon library is adopted.
