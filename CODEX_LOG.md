@@ -4338,3 +4338,34 @@ Tighten spacing/typography of the two helper lines beneath "What would you like 
 ### Follow-ups
 
 - If requested, capture a UI screenshot in a running local web session to visually confirm helper spacing in-context.
+
+## 2026-02-21 04:02 UTC (Schedule/People segmented control styling pass)
+
+### Objective
+
+Polish the Schedule/People tab switcher so it reads as one intentional segmented control with consistent button geometry and clearer active/inactive states.
+
+### Approach
+
+- Added shared `tabBase`, `tabActive`, and `tabInactive` style objects in `AppShell` so both tabs use one consistent baseline.
+- Updated the segmented wrapper to include centered alignment and explicit top/bottom spacing (`marginTop: 8`, `marginBottom: 12`) directly above pane content.
+- Removed ad-hoc per-button sizing styles in favor of shared 32px-height tabs with aligned icon/text treatment.
+- Recorded this UI polish in `PROJECT_STATUS.md` continuity notes.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Schedule\b|Appointments\b|People\b" apps/web/src/AppShell.tsx apps/web/src/components --glob='*.tsx'` ✅ located tab switcher references.
+- `sed -n '560,700p' apps/web/src/AppShell.tsx` ✅ inspected segmented control render block before editing.
+- `pnpm -C apps/web build` ✅ web build succeeded after style updates.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched local web app for screenshot capture (stopped after capture).
+- Playwright screenshot capture via browser tool ✅ produced `browser:/tmp/codex_browser_invocations/24412a19f1571fb4/artifacts/artifacts/segmented-tabs.png`.
+
+### Follow-ups
+
+- If a shared design token system is introduced later, migrate inline segmented-control styles to a reusable component/class.
