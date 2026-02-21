@@ -48,8 +48,6 @@ jobs:
           cp api/package.json api_deploy/package.json
           cp pnpm-lock.yaml api_deploy/pnpm-lock.yaml
           cp -R api/dist api_deploy/dist
-          # Shim entrypoint expected by api/package.json ("main": "dist/index.js")
-          printf "import './api/src/index.js';\n" > api_deploy/dist/index.js
 
           for d in api/*/; do
             if [ -f "${d}function.json" ]; then
@@ -95,7 +93,6 @@ jobs:
           echo "CHECK host.json" ; test -f api_deploy/host.json
           echo "CHECK package.json" ; test -f api_deploy/package.json
           echo "CHECK pnpm-lock.yaml" ; test -f api_deploy/pnpm-lock.yaml
-          echo "CHECK dist/index.js" ; test -f api_deploy/dist/index.js
           echo "CHECK dist/api/src/index.js" ; test -f api_deploy/dist/api/src/index.js
 
           echo "CHECK node_modules exists" ; test -d api_deploy/node_modules

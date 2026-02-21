@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { createZipFromDirectory, listZipEntries } from './zip-utils.mjs';
 
@@ -11,7 +11,7 @@ const outRoot = path.join(repoRoot, '.artifacts', 'deploy');
 const stagingRoot = path.join(outRoot, 'api-package');
 const deployWorkspaceRoot = path.join(outRoot, 'api-deploy-install');
 const zipPath = path.join(outRoot, 'familyscheduler-api.zip');
-const requiredEntries = ['host.json', 'package.json', 'dist/index.js', 'dist/api/src/index.js', 'dist/api/src/functions/groupCreate.js'];
+const requiredEntries = ['host.json', 'package.json', 'dist/api/src/index.js', 'dist/api/src/functions/groupCreate.js'];
 
 if (!existsSync(distRoot)) throw new Error('Missing api/dist. Run `pnpm --filter @familyscheduler/api build` first.');
 
@@ -23,9 +23,6 @@ mkdirSync(stagingRoot, { recursive: true });
 cpSync(path.join(apiRoot, 'host.json'), path.join(stagingRoot, 'host.json'));
 cpSync(path.join(apiRoot, 'package.json'), path.join(stagingRoot, 'package.json'));
 cpSync(distRoot, path.join(stagingRoot, 'dist'), { recursive: true });
-// Ensure Azure Functions can load the configured entrypoint (package.json main = dist/index.js)
-const shimPath = path.join(stagingRoot, 'dist', 'index.js');
-writeFileSync(shimPath, "import './api/src/index.js';\n", 'utf8');
 
 execFileSync('pnpm', ['--filter', '@familyscheduler/api', 'deploy', '--legacy', '--prod', deployWorkspaceRoot], {
   cwd: repoRoot,
