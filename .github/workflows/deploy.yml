@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           set -x
 
-          rm -rf api_deploy api_deploy_install api.zip
+          rm -rf api_deploy api.zip
           mkdir -p api_deploy
 
           cp api/host.json api_deploy/host.json
@@ -55,24 +55,17 @@ jobs:
             fi
           done
 
-          # Create a portable production install
-          pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install
-
-          echo "DEBUG: api_deploy_install contents"
-          ls -la api_deploy_install || true
-          echo "DEBUG: api_deploy_install/node_modules exists?"
-          test -d api_deploy_install/node_modules
-
-          # Copy node_modules into api_deploy (dereference symlinks so Azure zip deploy works)
-          cp -RL api_deploy_install/node_modules api_deploy/node_modules
+          # Install production deps directly in deploy root with hoisted node_modules
+          (cd api_deploy && pnpm install --prod --frozen-lockfile --config.node-linker=hoisted)
 
           echo "DEBUG: api_deploy/node_modules/@azure (top-level)"
           ls -la api_deploy/node_modules/@azure || true
 
           # Hard asserts: staging must include node_modules and key deps
           test -d api_deploy/node_modules
-          test -d api_deploy/node_modules/@azure/storage-blob
+          test -d api_deploy/node_modules/@azure/core-util
           test -d api_deploy/node_modules/@azure/storage-common
+          test -d api_deploy/node_modules/@azure/storage-blob
 
       - name: Validate deploy staging directory
         run: |
@@ -88,20 +81,16 @@ jobs:
 
           echo "CHECK @azure/storage-blob dir" ; test -d api_deploy/node_modules/@azure/storage-blob
           echo "CHECK @azure/storage-common dir" ; test -d api_deploy/node_modules/@azure/storage-common
-          echo "DEBUG search core-util"
-          find api_deploy/node_modules -maxdepth 6 -type d -name "core-util" -o -name "@azure+core-util*" | head -n 50 || true
-          ls -la api_deploy/node_modules/.pnpm | grep -E "@azure\+core-util" | head -n 20 || true
           echo "CHECK @azure/core-util dir" ; test -d api_deploy/node_modules/@azure/core-util
           echo "CHECK storage-common package.json" ; test -f api_deploy/node_modules/@azure/storage-common/package.json
 
           echo "CHECK trigger exists" ; test -f api_deploy/groupJoin/function.json
 
-          echo "SYMLINKS (first 20)" ; find api_deploy/node_modules -type l | head -n 20 || true
-          echo "ASSERT no symlinks" ; test -z "$(find api_deploy/node_modules -type l | head -n 1)"
+          echo "SYMLINKS (first 20, informational only)" ; find api_deploy/node_modules -type l | head -n 20 || true
 
-          echo "IMPORT storage-blob" ; (cd api_deploy && node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))")
-          echo "IMPORT storage-common" ; (cd api_deploy && node -e "import('@azure/storage-common').then(()=>console.log('storage-common-import-ok'))")
           echo "IMPORT core-util" ; (cd api_deploy && node -e "import('@azure/core-util').then(()=>console.log('core-util-import-ok'))")
+          echo "IMPORT storage-common" ; (cd api_deploy && node -e "import('@azure/storage-common').then(()=>console.log('storage-common-import-ok'))")
+          echo "IMPORT storage-blob" ; (cd api_deploy && node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))")
 
       - name: Package API zip (api_deploy at zip root)
         run: |

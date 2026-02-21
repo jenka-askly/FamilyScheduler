@@ -3833,3 +3833,50 @@ Diagnose whether `@azure/core-util` is present only under pnpm store layout (`.p
 - Decision rule:
   - If only `.pnpm` entries appear: adjust copy/materialization so `api_deploy/node_modules/@azure/core-util` exists.
   - If no entries appear at all: add `@azure/core-util` to `api/package.json` dependencies and refresh lockfile.
+
+## 2026-02-21 01:11 UTC (deploy artifact fix: hoisted api_deploy install)
+
+### Objective
+
+Fix production deploy packaging so Azure Functions resolves `@azure/*` modules from top-level `node_modules` instead of pnpm store-only layout.
+
+### Approach
+
+- Updated deploy workflow to stop copying `node_modules` from `api_deploy_install`.
+- Kept clean `api_deploy/` assembly (host.json, api package.json, root pnpm-lock.yaml, dist/, function folders).
+- Added production dependency install directly inside `api_deploy/` using hoisted linker:
+  - `(cd api_deploy && pnpm install --prod --frozen-lockfile --config.node-linker=hoisted)`
+- Tightened functional staging assertions for:
+  - `api_deploy/node_modules/@azure/core-util`
+  - `api_deploy/node_modules/@azure/storage-common`
+  - `api_deploy/node_modules/@azure/storage-blob`
+- Relaxed strict symlink prohibition to informational output, while keeping module existence + import checks as deploy gate.
+
+### Root cause and fix summary
+
+- Root cause: previous artifact could preserve pnpm store-oriented layout where `@azure/core-util` was nested under `.pnpm/...` but missing from top-level `node_modules/@azure/core-util`; Azure runtime then failed module resolution with `ERR_MODULE_NOT_FOUND`.
+- Fix: perform production install in `api_deploy` with `node-linker=hoisted` before zipping so top-level `@azure/*` package paths exist and are importable at runtime.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ reviewed existing deploy assembly/install/validation flow.
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` with outage cause + packaging fix + guardrails.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diffs.
+
+### Expected deploy log signals
+
+- `core-util-import-ok`
+- `storage-common-import-ok`
+- `storage-blob-import-ok`
+
+### Follow-ups
+
+- Re-run **Deploy API (prod)** and confirm import-ok signals appear in the validation step.
+- Confirm post-deploy `POST /api/group/join` and `POST /api/group/meta` no longer return 500.
+- Confirm App Insights exceptions no longer include `ERR_MODULE_NOT_FOUND` for `@azure/core-util`.
