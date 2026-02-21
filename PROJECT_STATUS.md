@@ -6,6 +6,10 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 ## What works now
 
+
+- People table now shows explicit **Accept** and **Cancel** buttons in the Actions column when editing a newly-added blank person row (`pendingBlankPersonId`), hiding rules/edit/delete icons for that new-row state only.
+- New-person inline inputs now support keyboard submit/cancel: **Enter** triggers the same save handler as Accept, and **Escape** triggers cancel for the new-row editing state.
+- Person rule detail lines are now right-aligned and reordered to show date/time, description, then status tag (`Available`/`Unavailable`) at the far right with description truncation to keep layout stable.
 - Rules confirm API now accepts `draftedIntervals` from the web draft preview and persists those intervals directly when present (no OpenAI call on this path); logs include `source:"draftedIntervals"` and `persistedIntervalsCount` for traceability.
 - Confirm fallback remains intact: when `draftedIntervals` is absent, confirm still uses the model path and now logs `code:"ZERO_INTERVALS_FROM_MODEL"` when confirm parsing yields zero intervals.
 - Rules modal confirm request now sends the exact drafted interval payload and keeps Confirm disabled until at least one drafted interval exists, so People pane updates immediately from the returned snapshot after confirm.

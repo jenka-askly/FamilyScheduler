@@ -348,6 +348,13 @@ input {
   flex-wrap: nowrap;
 }
 
+.action-buttons {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .icon-button {
   position: relative;
   display: inline-flex;
@@ -423,6 +430,8 @@ input {
 
 .rules-indent {
   padding-left: 28px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .rules-list {
@@ -436,6 +445,7 @@ input {
 .rule-item {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: nowrap;
 }
@@ -444,9 +454,19 @@ input {
   white-space: nowrap;
 }
 
+.rule-date-time {
+  white-space: nowrap;
+  color: #334155;
+  font-size: 0.875rem;
+}
+
 .notes-text {
-  flex: 1 1 auto;
+  flex: 0 1 320px;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 
 .rule-actions {
