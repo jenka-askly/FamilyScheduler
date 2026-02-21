@@ -4637,3 +4637,31 @@ Resolve failing deploy check expecting `api_deploy/dist/index.js` by aligning ch
 
 ### Follow-ups
 - Re-run `pnpm deploy:api:package` and deploy workflow in CI with normal registry credentials/network to confirm end-to-end packaging succeeds.
+
+
+## 2026-02-21 20:12 UTC — Fix SWA deploy Docker build failures via prebuilt artifacts
+### Objective
+Stop `Azure/static-web-apps-deploy@v1` upload jobs from failing in internal Docker/Oryx build by prebuilding artifacts with pnpm and deploying prebuilt output.
+
+### Approach
+- Updated both SWA workflows that call `Azure/static-web-apps-deploy@v1` for upload.
+- Added explicit pnpm/node setup + `pnpm install --frozen-lockfile` + `pnpm --filter @familyscheduler/web build` before deploy.
+- Switched action inputs to prebuilt artifact mode (`skip_app_build: true`, `app_artifact_location: apps/web/dist`).
+- Added pre-deploy diagnostic runner steps (`docker --version || true`, `df -h`, `du -sh . || true`, `ls -la`).
+
+### Files changed
+- `.github/workflows/swa-web.yml`
+- `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "Azure/static-web-apps-deploy@v1" .github/workflows -S` ✅
+- `rg -n "static-web-apps-deploy" .github/workflows -S` ✅
+- `pnpm install` ✅
+- `pnpm -r build` ✅
+- `ls -la apps/web/dist` ✅
+- `find apps/web/dist -maxdepth 2 -type f | head -n 50` ✅
+
+### Follow-ups
+- Re-run both SWA workflows in GitHub Actions and verify deploy uses prebuilt artifact upload with no internal Docker build stage.
