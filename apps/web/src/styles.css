@@ -199,8 +199,22 @@ input {
   resize: vertical;
 }
 
-.rules-prompt-helper {
-  margin-top: 6px;
+.rules-composer {
+  border: 1px solid var(--border, var(--ui-border, #d1d5db));
+  border-radius: 8px;
+  padding: 10px;
+  background: #f8fafc;
+}
+
+.rules-composer label {
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.rules-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .rules-actions-row {
@@ -214,6 +228,37 @@ input {
   border: 1px solid var(--border, var(--ui-border, #d1d5db));
   border-radius: 8px;
   padding: 12px;
+  background: #f8fafc;
+}
+
+.rule-preview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-preview-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+}
+
+.rule-preview-item code {
+  font-family: var(--font-mono);
+  font-size: .85rem;
+}
+
+.rule-preview-all-day {
+  color: #475569;
+  font-size: .8rem;
 }
 
 .question-options {

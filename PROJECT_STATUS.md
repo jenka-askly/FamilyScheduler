@@ -626,3 +626,9 @@ traces
 - Added structured draft-failure log event `rule_mode_draft_fail` including `{ rulesDraftFail, traceId, code, incomingRulesCount, validRuleItemsCount, intervalsCount, modelKind, actionType }` for fast diagnosis.
 - Added optional env-flagged raw rules-model logging (`RULES_DRAFT_DEBUG_RAW=1`) tied to traceId for development debugging.
 - Rules modal now surfaces `draftError.code` and `draftError.traceId` under the draft error text when present.
+
+## Recent update (2026-02-21 UTC)
+
+- Rules modal UX update shipped in web app: prompt textarea and Draft button are now grouped in one composer card, redundant helper sentence removed, preview now renders styled rule chips (status + UTC range + optional all-day indicator), and Confirm stays disabled until a successful draft produces at least one proposed interval.
+- Confirm gating is defensive in both UI state and click handler (`hasProposedRules`), so draft errors never enable Confirm.
+- Cancel behavior and People/Appointments panes were intentionally left unchanged.

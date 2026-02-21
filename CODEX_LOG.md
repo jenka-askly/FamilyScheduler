@@ -3983,3 +3983,37 @@ Implement a minimal high-signal fix for rules draft mode by defaulting missing m
 
 - Human validation in running environment: verify prompt “I am not available March 3 2026.” now drafts without missing-`personId` failure.
 - If draft still fails for specific prompts, use `draftError.code/details/traceId` + `rule_mode_draft_fail` logs to identify exact failure mode.
+
+## 2026-02-21 02:24 UTC (rules modal UX improvements)
+
+### Objective
+
+Improve Rules modal UX: compose-area grouping, cleaner copy, richer preview styling, and Confirm gating until a valid draft exists.
+
+### Approach
+
+- Updated rules modal layout in `apps/web/src/AppShell.tsx` to visually group textarea + Draft in a composer block.
+- Removed redundant helper sentence under rule prompt.
+- Replaced plain preview bullets with styled proposal items driven by drafted intervals (`status-tag` + formatted UTC range + optional all-day marker), and added preview empty-state copy.
+- Added `hasProposedRules` gating for Confirm button state (`disabled` + `aria-disabled`) and a defensive early return in confirm handler.
+- Added scoped CSS in `apps/web/src/styles.css` for composer and preview chip/list styling.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Rules\\b|Availability rule|rulePrompt|Draft\\b|Confirm\\b|Preview\\b|draftError" apps/web/src/AppShell.tsx` ✅ located modal state/handlers/render.
+- `sed -n '200,820p' apps/web/src/AppShell.tsx` ✅ inspected modal implementation details.
+- `rg -n "Button\\b|className=.*btn|disabled\\s*=" apps/web/src --glob='*.tsx'` ✅ checked local button/disabled patterns.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passes after nullability-safe confirm promptId handling.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched local web app for screenshot capture (terminated with SIGINT after capture).
+
+### Follow-ups
+
+- Optional: perform an end-to-end manual check of Rules modal with running API to validate Draft→Confirm enablement transition in live flow.
