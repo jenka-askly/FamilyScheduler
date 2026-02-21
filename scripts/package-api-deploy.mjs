@@ -11,7 +11,7 @@ const outRoot = path.join(repoRoot, '.artifacts', 'deploy');
 const stagingRoot = path.join(outRoot, 'api-package');
 const deployWorkspaceRoot = path.join(outRoot, 'api-deploy-install');
 const zipPath = path.join(outRoot, 'familyscheduler-api.zip');
-const requiredEntries = ['host.json', 'package.json', 'dist/index.js', 'dist/functions/groupCreate.js'];
+const requiredEntries = ['host.json', 'package.json', 'dist/api/src/index.js', 'dist/api/src/functions/groupCreate.js'];
 
 if (!existsSync(distRoot)) throw new Error('Missing api/dist. Run `pnpm --filter @familyscheduler/api build` first.');
 
@@ -37,7 +37,7 @@ const entries = listZipEntries(zipPath);
 for (const required of requiredEntries) {
   if (!entries.includes(required)) throw new Error(`Deploy zip missing required entry: ${required}`);
 }
-if (!entries.some((entry) => /^dist\/functions\/[^/]+\.js$/.test(entry))) throw new Error('Deploy zip missing dist/functions/*.js');
+if (!entries.some((entry) => /^dist\/api\/src\/functions\/[^/]+\.js$/.test(entry))) throw new Error('Deploy zip missing dist/api/src/functions/*.js');
 if (!entries.some((entry) => entry.startsWith('node_modules/'))) throw new Error('Deploy zip missing node_modules/**');
 
 console.log(`Created ${zipPath}`);

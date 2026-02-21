@@ -4610,3 +4610,30 @@ Implement TimeSpec v2 behavior across API + UI in one pass, including unresolved
 
 ### Follow-ups
 - Tighten appointment inline time-edit UX to use a single free-text time input prefilled from `time.intent.originalText` for all edit entry points.
+
+
+## 2026-02-21 20:04 UTC — Deploy validation path fix for API package
+### Objective
+Resolve failing deploy check expecting `api_deploy/dist/index.js` by aligning checks with actual API build output layout.
+
+### Approach
+- Located failing check in GitHub workflow and packaging invariant script.
+- Reproduced local build output and confirmed TypeScript emits to `api/dist/api/src/...` (including `index.js` + function files).
+- Updated validations to assert `dist/api/src/index.js` and function entries under `dist/api/src/functions/*.js`.
+
+### Files changed
+- `.github/workflows/deploy.yml`
+- `scripts/package-api-deploy.mjs`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "CHECK host\.json|api_deploy/host\.json|api_deploy/dist/index\.js|CHECK dist/index\.js|test -f api_deploy/dist/index\.js" -S .github scripts api` ✅
+- `pnpm install` ✅
+- `pnpm deploy:api:package` ⚠️ (failed in this environment due npm registry 403 for `@azure/core-client` during `pnpm deploy --prod`)
+- `ls -la api/dist` ✅
+- `find api/dist -maxdepth 3 -type f | sort | sed -n '1,200p'` ✅
+- `pnpm -r build` ✅
+
+### Follow-ups
+- Re-run `pnpm deploy:api:package` and deploy workflow in CI with normal registry credentials/network to confirm end-to-end packaging succeeds.
