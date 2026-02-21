@@ -7,6 +7,11 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 ## What works now
 
 
+- Renamed the Appointments pane label to **Schedule** in the shared workspace header while keeping the internal `appointments` view key unchanged.
+- Replaced the Appointments/People toggle with a shared segmented tab control (🗓 Schedule / 👥 People) with active filled state and subtle inactive state.
+- Standardized primary action labels and sizing to **+ Add appointment** and **+ Add person** across populated and empty-state panes.
+- Tightened helper guidance under "What would you like to do?" into a single compact muted block with minimal internal spacing.
+
 - Page header group identity block is now tightly packed as a single vertical unit: group name has zero default heading margin, group link + copy icon remain center-aligned in one compact row, and the “save this link” explainer uses smaller muted styling with reduced top spacing to avoid large gaps.
 
 - Workspace header hierarchy updated for both Appointments and People panes: group name is now the primary heading, shareable group link (with copy button) sits immediately beneath it, pane title is secondary, and access guidance is grouped below the pane description.

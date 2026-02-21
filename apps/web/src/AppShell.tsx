@@ -364,7 +364,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => a.date.localeCompare(b.date)), [snapshot.appointments]);
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
-  const headerTitle = view === 'appointments' ? 'Appointments' : 'People';
+  const headerTitle = view === 'appointments' ? 'Schedule' : 'People';
   const headerDescription = view === 'appointments'
     ? 'Add, edit, and track upcoming appointments for this group.'
     : 'Manage who can access this schedule.';
@@ -591,24 +591,67 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupName={groupName}
         groupId={groupId}
       />
-      <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
+      <div
+        style={{
+          display: 'inline-flex',
+          gap: 0,
+          padding: 3,
+          background: 'var(--panel)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          marginBottom: 12
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setView('appointments')}
+          style={{
+            borderRadius: 8,
+            padding: '6px 10px',
+            fontWeight: 600,
+            fontSize: 13,
+            border: 'none',
+            minHeight: 34,
+            background: view === 'appointments' ? 'var(--primary)' : 'transparent',
+            color: view === 'appointments' ? '#fff' : 'var(--text)'
+          }}
+        >
+          🗓 Schedule
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('people')}
+          style={{
+            borderRadius: 8,
+            padding: '6px 10px',
+            fontWeight: 600,
+            fontSize: 13,
+            border: 'none',
+            minHeight: 34,
+            background: view === 'people' ? 'var(--primary)' : 'transparent',
+            color: view === 'people' ? '#fff' : 'var(--text)'
+          }}
+        >
+          👥 People
+        </button>
+      </div>
 
       {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
       {view === 'appointments' ? (
         <section className="panel">
           <div className="panel-header">
-            <button className="fs-btnPrimary" type="button" onClick={() => void addAppointment()}>Add Appointment</button>
+            <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addAppointment()}>+ Add appointment</button>
           </div>
           {sortedAppointments.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
               <div style={{ color: 'var(--muted)' }}>
-                Click “Add Appointment” to create the first entry.
+                Click “+ Add appointment” to create the first entry.
               </div>
               <div style={{ marginTop: 12 }}>
-                <button className="fs-btnPrimary" type="button" onClick={() => void addAppointment()}>
-                  Add Appointment
+                <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addAppointment()}>
+                  + Add appointment
                 </button>
               </div>
             </div>
@@ -686,7 +729,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {view === 'people' ? (
         <section className="panel"> 
           <div className="panel-header"> 
-            <button className="fs-btnPrimary" type="button" onClick={() => void addPerson()}>Add Person</button>
+            <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addPerson()}>+ Add person</button>
           </div>
           {peopleInView.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
@@ -695,8 +738,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                 Add at least one person to allow them to access this group.
               </div>
               <div style={{ marginTop: 12 }}>
-                <button className="fs-btnPrimary" type="button" onClick={() => void addPerson()}>
-                  Add Person
+                <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addPerson()}>
+                  + Add person
                 </button>
               </div>
             </div>
@@ -792,11 +835,13 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} />
             <button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button>
           </div>
-          <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 13 }}>
-            Add, edit, delete, rename, or assign appointments. You can also paste email text or a CSV with appointment details.
-          </div>
-          <div style={{ marginTop: 4, color: 'var(--muted)', fontSize: 12 }}>
-            Example: “Pre-op visit March 19 at 9:45 AM, Evergreen Health” or paste a confirmation email.
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--muted)' }}>
+            <div style={{ fontSize: 12 }}>
+              Add, edit, delete, rename, or assign appointments. You can also paste email text or a CSV with appointment details.
+            </div>
+            <div style={{ fontSize: 12 }}>
+              Example: “Pre-op visit March 19 at 9:45 AM, Evergreen Health” or paste a confirmation email.
+            </div>
           </div>
         </form>
       ) : null}
