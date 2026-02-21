@@ -10,6 +10,7 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 - Renamed the Appointments pane label to **Schedule** in the shared workspace header while keeping the internal `appointments` view key unchanged.
 - Reverted the Schedule/People segmented-tab experiment back to two standard side-by-side buttons for UI stability and readability, while keeping internal view keys unchanged (`appointments` / `people`).
 - Standardized primary action labels and sizing to **+ Add appointment** and **+ Add person** across populated and empty-state panes.
+- Removed Schedule/People header add buttons and introduced a compact bottom-of-table CTA row in both panes (`+ Add…` / `+ Add another…`) to avoid header CTA CSS conflicts and keep add actions consistently discoverable inside the table card.
 - Fixed circular **+** FAB styling regression caused by shared/global button CSS by introducing dedicated `fs-fabAdd` class with explicit background, border, text color, hover, and focus-ring styling.
 - Tightened helper guidance under "What would you like to do?" into a single compact muted block with minimal internal spacing.
 
@@ -666,3 +667,5 @@ traces
 - Updated `apps/web/src/styles/ui.css` workspace container sizing so `.fs-workspaceWrap` keeps centered `max-width: 1200px` and now uses wider horizontal page padding (`32px` desktop, `16px` on <=640px).
 - Replaced Schedule/People add CTAs in `apps/web/src/AppShell.tsx` with a reusable circular 40x40 `+` FAB component for both header actions and empty-state actions.
 - Tightened People rules spacing by reducing rules-row top/bottom spacing and compacting per-rule list/item spacing in `apps/web/src/styles.css`.
+
+- 2026-02-21: Replaced Schedule/People header Add FABs with table-footer style CTA rows (including empty-state wording updates) so add actions stay visible and avoid global button style collisions; added dedicated `.fs-tableCtaRow`/`.fs-tableCtaBtn` styles with hard fallback link color (`#2563eb`).

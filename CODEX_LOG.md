@@ -4506,3 +4506,38 @@ Fix circular Add FAB buttons rendering white-on-white due to shared/global butto
 ### Follow-ups
 
 - If future theme tokens rename `--primary`, keep `button.fs-fabAdd` mapped to the current primary-action token to preserve contrast and discoverability.
+
+## 2026-02-21 04:58 UTC (move add CTA into table bottom rows)
+
+### Objective
+
+Remove header-level Add CTAs and replace with compact bottom-of-table add rows in both Schedule and People panes to avoid CSS override issues while keeping add affordance visible.
+
+### Approach
+
+- Removed `AddFab` usage in Schedule/People pane headers and removed duplicate empty-state add buttons.
+- Kept existing add handlers (`addAppointment` / `addPerson`) and wired them to always-visible CTA rows appended to each table body.
+- Updated empty-state copy to point users at the table CTA row and ensured there is one primary add path when empty.
+- Added dedicated CTA row/button styles with hard fallback link color (`#2563eb`) to prevent white-on-white rendering.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "\+ Add appointment|\+ Add person|Add appointment|Add person|openAddAppointment|openAddPerson" apps/web/src/AppShell.tsx` ✅ located existing add CTA render points.
+- `nl -ba apps/web/src/AppShell.tsx | sed -n '560,700p'` ✅ inspected Schedule render block.
+- `nl -ba apps/web/src/AppShell.tsx | sed -n '708,850p'` ✅ inspected People render block.
+- `rg -n "data-table|fs-fabAdd|panel-header|table-wrap|fs-tableScroll" apps/web/src/styles.css apps/web/src/styles/ui.css` ✅ located table/card style ownership.
+- `pnpm -C apps/web build` ✅ verified web app compiles after CTA changes.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched local app for visual verification (stopped after screenshot capture).
+- Browser tool Playwright screenshot capture ✅ produced `browser:/tmp/codex_browser_invocations/ace76573706e3348/artifacts/artifacts/table-cta-row.png`.
+
+### Follow-ups
+
+- Validate in production theme that bottom CTA rows remain visible with custom token overrides and maintain compact height.
