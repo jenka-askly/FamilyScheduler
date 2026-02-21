@@ -4308,3 +4308,33 @@ Tighten header/rules spacing in the web UI and remove misleading time labels fro
 ### Follow-ups
 
 - Run local UI verification (`pnpm -C apps/web dev`) and visually confirm compact header/rules spacing and all-day range rendering across representative rules.
+
+## 2026-02-21 03:59 UTC (helper text spacing tighten under action prompt)
+
+### Objective
+
+Tighten spacing/typography of the two helper lines beneath "What would you like to do?" so they read as one compact block attached to the input row.
+
+### Approach
+
+- Updated helper text wrapper styles to a single compact container with muted color, shared 12px size, `lineHeight: 1.25`, `marginTop: 8`, and `gap: 2`.
+- Removed per-line typography-only styles and set each helper line to `<div style={{ margin: 0 }}>` to avoid paragraph-like default spacing.
+- Updated continuity docs to record the spacing change in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "What would you like to do\\?" apps/web/src/AppShell.tsx` ✅ located prompt section.
+- `rg -n "Add, edit, delete, rename|Example:" apps/web/src/AppShell.tsx` ✅ located helper lines.
+- `sed -n '520,760p' apps/web/src/AppShell.tsx` ✅ inspected nearby pane render context.
+- `sed -n '800,900p' apps/web/src/AppShell.tsx` ✅ inspected exact input/helper markup region.
+- `python - <<'PY' ...` ✅ inserted recent-change continuity note into `PROJECT_STATUS.md`.
+
+### Follow-ups
+
+- If requested, capture a UI screenshot in a running local web session to visually confirm helper spacing in-context.
