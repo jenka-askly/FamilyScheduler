@@ -3948,3 +3948,38 @@ Ensure deploy staging always contains `api_deploy/node_modules` with real `@azur
 - Re-run GitHub Actions workflow **Deploy API (prod)** and confirm logs print: `core-util-import-ok`, `storage-common-import-ok`, `storage-blob-import-ok`.
 - Confirm artifact listing includes `node_modules/@azure/core-util` in `api.zip` contents.
 
+
+## 2026-02-21 02:08 UTC (patch 1: draft personId default + draft diagnostics)
+
+### Objective
+
+Implement a minimal high-signal fix for rules draft mode by defaulting missing model `personId` from request context (draft only), and improve deterministic draft diagnostics end-to-end.
+
+### Approach
+
+- Added draft-only normalization step before `parseRuleItems(...)` in rule-mode model decoding.
+- Added deterministic draft error metadata (`code`, `traceId`, `details`) and centralized structured draft-failure logging.
+- Kept confirm mode strict (no draft normalization behavior).
+- Added dev-only raw model capture log gate via `RULES_DRAFT_DEBUG_RAW=1`.
+- Updated web Rules modal to render `draftError.code` and `draftError.traceId` when provided.
+- Added targeted API tests for draft personId defaulting and deterministic `MODEL_QUESTION` error metadata.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "ruleMode|parseRuleItems|draftError|add_rule_v2_draft|question|confirm" api/src/functions/chat.ts api/src/lib -S` ✅ located rule-mode parsing/validation flow.
+- `pnpm --filter @familyscheduler/api test` ✅ pass (includes new draft-mode tests).
+- `pnpm --filter @familyscheduler/web build` ✅ pass.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Human validation in running environment: verify prompt “I am not available March 3 2026.” now drafts without missing-`personId` failure.
+- If draft still fails for specific prompts, use `draftError.code/details/traceId` + `rule_mode_draft_fail` logs to identify exact failure mode.

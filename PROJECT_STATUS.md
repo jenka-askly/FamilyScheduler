@@ -618,3 +618,11 @@ traces
 - Fixed deploy staging install-path diagnostics in `.github/workflows/deploy.yml`: after `cd api_deploy` + `pnpm install --prod --frozen-lockfile --config.node-linker=hoisted`, debug logging now inspects `.`/`node_modules` and `../node_modules` (plus both `@azure` tops) using paths relative to the current working directory.
 - Replaced incorrect post-install assertions that referenced `api_deploy/node_modules` while already inside `api_deploy`; install-step assertion now correctly enforces `test -d node_modules` in the current folder.
 - Expected verification signal on next **Deploy API (prod)** run: logs will show whether dependencies were created under local `api_deploy/node_modules`, workspace root `../node_modules`, or both.
+
+## Recent update (2026-02-21 02:08 UTC)
+
+- Rule draft mode now normalizes missing model `personId` from request `personId` before rule-item parsing; confirm mode remains strict (no draft-style defaulting).
+- Draft-mode failures now return deterministic `draftError` metadata: `code`, `traceId`, and `details` (`MODEL_QUESTION`, `DISALLOWED_ACTION`, `ZERO_VALID_RULE_ITEMS`, `ZERO_INTERVALS`, `SCHEMA_VALIDATION_FAILED`).
+- Added structured draft-failure log event `rule_mode_draft_fail` including `{ rulesDraftFail, traceId, code, incomingRulesCount, validRuleItemsCount, intervalsCount, modelKind, actionType }` for fast diagnosis.
+- Added optional env-flagged raw rules-model logging (`RULES_DRAFT_DEBUG_RAW=1`) tied to traceId for development debugging.
+- Rules modal now surfaces `draftError.code` and `draftError.traceId` under the draft error text when present.

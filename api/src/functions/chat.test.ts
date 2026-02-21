@@ -39,6 +39,42 @@ test('chat returns 502 for OpenAI failures only', async () => {
   assert.equal((response.jsonBody as any).traceId, 't-openai');
 });
 
+
+test('rule draft defaults missing model personId from request personId', async () => {
+  setStorageAdapterForTests(okAdapter());
+  process.env.OPENAI_API_KEY = 'sk-test';
+  globalThis.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [{ message: { content: JSON.stringify({ kind: 'proposal', message: 'Drafting.', actions: [{ type: 'add_rule_v2_draft', rules: [{ status: 'unavailable', date: '2026-03-03' }] }] }) } }]
+    })
+  })) as any;
+
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'I am not available March 3 2026.', ruleMode: 'draft', personId: 'P-1', traceId: 't-draft-default-person' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).draftError, undefined);
+  assert.equal(Array.isArray((response.jsonBody as any).draftRules), true);
+  assert.equal((response.jsonBody as any).draftRules[0].personId, 'P-1');
+});
+
+test('rule draft question returns deterministic draftError metadata', async () => {
+  setStorageAdapterForTests(okAdapter());
+  process.env.OPENAI_API_KEY = 'sk-test';
+  globalThis.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [{ message: { content: JSON.stringify({ kind: 'question', message: 'What date?', actions: [] }) } }]
+    })
+  })) as any;
+
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'not available', ruleMode: 'draft', personId: 'P-1', traceId: 't-draft-question' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).draftError?.code, 'MODEL_QUESTION');
+  assert.equal((response.jsonBody as any).draftError?.traceId, 't-draft-question');
+});
+
 test('chat returns CONFIG_MISSING when storage env is missing', async () => {
   setStorageAdapterForTests(null);
   const prevUrl = process.env.STORAGE_ACCOUNT_URL;

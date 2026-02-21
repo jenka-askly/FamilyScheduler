@@ -15,7 +15,7 @@ type Snapshot = {
 
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
-  | { kind: 'reply'; assistantText?: string; snapshot?: Snapshot; draftRules?: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview?: string[]; assumptions?: string[]; warnings?: DraftWarning[]; promptId?: string; draftError?: { message: string; hints?: string[] }; error?: string }
+  | { kind: 'reply'; assistantText?: string; snapshot?: Snapshot; draftRules?: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview?: string[]; assumptions?: string[]; warnings?: DraftWarning[]; promptId?: string; draftError?: { message: string; hints?: string[]; code?: string; traceId?: string }; error?: string }
   | { kind: 'proposal'; proposalId: string; assistantText: string; snapshot?: Snapshot }
   | { kind: 'applied'; assistantText: string; snapshot?: Snapshot; assumptions?: string[] }
   | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText?: boolean; snapshot?: Snapshot };
@@ -134,6 +134,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [isDrafting, setIsDrafting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
+  const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
@@ -146,6 +147,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setRulePrompt('');
     setRuleDraft(null);
     setRuleDraftError(null);
+    setRuleDraftErrorMeta(null);
     setRuleDraftTraceId(null);
     setEditingPromptId(null);
     setLegacyReplaceRuleCode(null);
@@ -269,6 +271,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setEditingPromptId(null);
     setLegacyReplaceRuleCode(null);
     setRuleDraftError(null);
+    setRuleDraftErrorMeta(null);
     setRuleDraftTraceId(null);
   };
 
@@ -292,26 +295,33 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       if (!response.ok) {
         setRuleDraft(null);
         setRuleDraftError(json.message ?? 'Unable to draft rule.');
+        setRuleDraftErrorMeta({ traceId });
         return;
       }
       setRuleDraftTraceId(null);
       const preview = Array.isArray(json.preview) ? json.preview.map((item) => String(item)) : null;
       const draftRules = Array.isArray(json.draftRules) ? (json.draftRules as Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>) : null;
       const promptId = typeof json.promptId === 'string' ? json.promptId : null;
-      const draftError = (typeof json.draftError === 'object' && json.draftError && typeof (json.draftError as { message?: unknown }).message === 'string') ? (json.draftError as { message: string }).message : null;
+      const draftErrorPayload = (typeof json.draftError === 'object' && json.draftError) ? (json.draftError as { message?: unknown; code?: unknown; traceId?: unknown }) : null;
+      const draftError = (draftErrorPayload && typeof draftErrorPayload.message === 'string') ? draftErrorPayload.message : null;
+      const draftErrorCode = (draftErrorPayload && typeof draftErrorPayload.code === 'string') ? draftErrorPayload.code : undefined;
+      const draftErrorTraceId = (draftErrorPayload && typeof draftErrorPayload.traceId === 'string') ? draftErrorPayload.traceId : undefined;
       if (json.kind === 'question') {
         setRuleDraft(null);
         setRuleDraftError('Draft needs clarification. Please edit the prompt and click Draft again.');
+        setRuleDraftErrorMeta({ code: draftErrorCode, traceId: draftErrorTraceId ?? traceId });
         return;
       }
       if (draftError || !preview || !promptId || !draftRules || draftRules.length === 0) {
         setRuleDraft(null);
         setRuleDraftError(draftError ?? 'Draft failed. Please rephrase.');
+        setRuleDraftErrorMeta({ code: draftErrorCode, traceId: draftErrorTraceId ?? traceId });
         return;
       }
       const warnings = Array.isArray(json.warnings) ? json.warnings as DraftWarning[] : [];
       const assumptions = Array.isArray(json.assumptions) ? json.assumptions.map((item) => String(item)) : [];
       setRuleDraftError(null);
+      setRuleDraftErrorMeta(null);
       setRuleDraft({ draftRules, preview, warnings, assumptions, promptId });
     } finally {
       setIsDrafting(false);
@@ -331,6 +341,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       const json = (await response.json()) as { snapshot?: Snapshot; message?: string };
       if (!response.ok) {
         setRuleDraftError(json.message ?? 'Unable to confirm rule.');
+        setRuleDraftErrorMeta(null);
         return;
       }
       if (json.snapshot) setSnapshot(json.snapshot);
@@ -338,6 +349,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       setRulePrompt('');
       setRuleDraft(null);
       setRuleDraftError(null);
+      setRuleDraftErrorMeta(null);
       setRuleDraftTraceId(null);
       setEditingPromptId(null);
       setLegacyReplaceRuleCode(null);
@@ -691,6 +703,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             {ruleDraftError ? (
               <div className="rules-modal-section">
                 <p>{ruleDraftError}</p>
+                {ruleDraftErrorMeta?.code || ruleDraftErrorMeta?.traceId ? <p><small>{ruleDraftErrorMeta?.code ? `code=${ruleDraftErrorMeta.code} ` : ''}{ruleDraftErrorMeta?.traceId ? `traceId=${ruleDraftErrorMeta.traceId}` : ''}</small></p> : null}
               </div>
             ) : null}
 
