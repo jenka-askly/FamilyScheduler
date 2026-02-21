@@ -362,7 +362,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: rulePrompt.trim(), groupId, phone, ruleMode: 'confirm', personId: rulePromptModal.person.personId, promptId, traceId })
+        body: JSON.stringify({
+          message: rulePrompt.trim(),
+          groupId,
+          phone,
+          ruleMode: 'confirm',
+          personId: rulePromptModal.person.personId,
+          promptId,
+          traceId,
+          draftedIntervals: ruleDraft?.draftRules ?? []
+        })
       });
       const json = (await response.json()) as { snapshot?: Snapshot; message?: string };
       if (!response.ok) {

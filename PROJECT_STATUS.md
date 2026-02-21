@@ -6,6 +6,10 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 ## What works now
 
+- Rules confirm API now accepts `draftedIntervals` from the web draft preview and persists those intervals directly when present (no OpenAI call on this path); logs include `source:"draftedIntervals"` and `persistedIntervalsCount` for traceability.
+- Confirm fallback remains intact: when `draftedIntervals` is absent, confirm still uses the model path and now logs `code:"ZERO_INTERVALS_FROM_MODEL"` when confirm parsing yields zero intervals.
+- Rules modal confirm request now sends the exact drafted interval payload and keeps Confirm disabled until at least one drafted interval exists, so People pane updates immediately from the returned snapshot after confirm.
+
 
 - Production outage root cause documented: deploy zip contained pnpm store-style dependency layout where `@azure/core-util` existed only under `.pnpm/...` and not at `node_modules/@azure/core-util`, causing Azure runtime `ERR_MODULE_NOT_FOUND` during function execution.
 - Deploy packaging fix: workflow now installs production dependencies inside `api_deploy/`, then materializes workspace-hoisted deps via `cp -RL ../node_modules ./node_modules` so `api_deploy/node_modules/@azure/*` are real directories in the final zip artifact.
