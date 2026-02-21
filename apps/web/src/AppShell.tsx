@@ -80,18 +80,59 @@ const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
+const toUtcInterval = (entry: { date: string; startTime?: string; durationMins?: number; startUtc?: string; endUtc?: string }) => {
+  if (entry.startUtc && entry.endUtc) {
+    const start = new Date(entry.startUtc);
+    const end = new Date(entry.endUtc);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) return { startMs: start.getTime(), endMs: end.getTime() };
+  }
+  const baseStart = entry.startTime ? `${entry.date}T${entry.startTime}:00.000Z` : `${entry.date}T00:00:00.000Z`;
+  const start = new Date(baseStart);
+  if (Number.isNaN(start.getTime())) return null;
+  const durationMins = entry.startTime ? (entry.durationMins ?? 60) : (entry.durationMins ?? 1440);
+  return { startMs: start.getTime(), endMs: start.getTime() + (durationMins * 60_000) };
+};
+
+const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && a.endMs > b.startMs;
+
 const computePersonStatusForInterval = (personId: string, interval: { date: string; startTime?: string; durationMins?: number }, rules: Snapshot['rules']) => {
-  const toMin = (time?: string) => (time ? (Number(time.split(':')[0]) * 60) + Number(time.split(':')[1]) : 0);
-  const bounds = (startTime?: string, durationMins?: number) => (!startTime ? { s: 0, e: 1440 } : { s: toMin(startTime), e: Math.min(1440, toMin(startTime) + (durationMins ?? 60)) });
-  const appt = bounds(interval.startTime, interval.durationMins);
-  const overlaps = (a: { s: number; e: number }, b: { s: number; e: number }) => a.s < b.e && a.e > b.s;
-  const matching = rules.filter((rule) => rule.personId === personId && rule.date === interval.date).filter((rule) => overlaps(appt, bounds(rule.startTime, rule.durationMins)));
-  if (matching.some((rule) => rule.kind === 'unavailable')) return { status: 'unavailable' as const };
-  if (matching.some((rule) => rule.kind === 'available')) return { status: 'available' as const };
+  const appointment = toUtcInterval(interval);
+  if (!appointment) return { status: 'unknown' as const };
+  const overlappingRules = rules
+    .filter((rule) => rule.personId === personId)
+    .map((rule) => ({ rule, range: toUtcInterval(rule) }))
+    .filter((entry): entry is { rule: Snapshot['rules'][0]; range: { startMs: number; endMs: number } } => Boolean(entry.range))
+    .filter((entry) => rangesOverlap(appointment, entry.range))
+    .map((entry) => entry.rule);
+  if (overlappingRules.some((rule) => rule.kind === 'unavailable')) return { status: 'unavailable' as const };
+  if (overlappingRules.some((rule) => rule.kind === 'available')) return { status: 'available' as const };
   return { status: 'unknown' as const };
 };
 
-const formatRuleTime = (rule: Snapshot['rules'][0]) => (!rule.startTime ? 'All day' : `${rule.startTime} (${rule.durationMins ?? 60}m)`);
+const formatSavedRuleRange = (rule: Snapshot['rules'][0], timezone?: string) => {
+  const interval = toUtcInterval(rule);
+  if (!interval) return rule.date;
+  const start = new Date(interval.startMs);
+  const end = new Date(interval.endMs);
+  const tz = timezone;
+  const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: tz });
+  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
+  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
+
+  const isAllDay = !rule.startTime || (!rule.startTime && (rule.durationMins ?? 0) >= 1440);
+  if (isAllDay) {
+    const dayCount = Math.round((interval.endMs - interval.startMs) / 86400000);
+    if (dayCount > 1) {
+      const inclusiveEnd = new Date(interval.endMs - 86400000);
+      return `${dayFormatter.format(start)}–${dayFormatter.format(inclusiveEnd)} (all day)`;
+    }
+    return `${dayFormatter.format(start)} (all day)`;
+  }
+
+  const sameDay = start.toISOString().slice(0, 10) === end.toISOString().slice(0, 10);
+  if (sameDay) return `${dateTimeFormatter.format(start)}–${timeFormatter.format(end)}`;
+  return `${dateTimeFormatter.format(start)}–${dateTimeFormatter.format(end)}`;
+};
 
 const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
   const start = new Date(startUtc);
@@ -523,11 +564,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupName={groupName}
         groupId={groupId}
       />
-      {view === 'people' ? (
-        <div style={{ marginTop: -8, marginBottom: 16, color: 'var(--muted)' }}>
-          Only listed phone numbers can access this group.
-        </div>
-      ) : null}
       <div className="toggle-row"><button type="button" onClick={() => setView('appointments')} className={view === 'appointments' ? 'active-toggle' : ''}>Appointments</button><button type="button" onClick={() => setView('people')} className={view === 'people' ? 'active-toggle' : ''}>People</button></div>
 
       {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
@@ -679,7 +715,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 <ul className="rules-list">
                                   {personRules.map((rule) => (
                                     <li key={rule.code} className="rule-item">
-                                      <span className="rule-date-time">{rule.date} {formatRuleTime(rule)}</span>
+                                      <span className="rule-date-time">{formatSavedRuleRange(rule, person.timezone)}</span>
                                       <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
                                       <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
                                       <span className="rule-actions">
