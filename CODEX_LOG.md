@@ -4696,3 +4696,31 @@ Restore Azure Functions indexing in production deployments where zip deploy succ
 - Push branch and verify GitHub Actions logs include `CHECK dist/index.js` pass and show `api_deploy/dist/index.js` in staged artifact listing.
 - After deploy completes, confirm Azure Portal lists functions again for `familyscheduler-api-prod`.
 - If functions remain missing, inspect Function App logs for module-load errors from startup/indexing.
+
+## 2026-02-21 20:39 UTC (SWA output_location deploy fix)
+
+### Objective
+
+Fix SWA web deploy publishing source files instead of the Vite build artifact.
+
+### Approach
+
+- Updated `.github/workflows/swa-web.yml` deploy action input from `app_artifact_location: apps/web/dist` to `output_location: dist` while keeping `app_location: apps/web` and `skip_app_build: true`.
+- Recorded continuity note that this resolves source deployment (`/src/main.tsx`) and octet-stream module load failures.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` and appended this log entry.
+- `git diff -- .github/workflows/swa-web.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diff.
+
+### Follow-ups
+
+- After next SWA deployment, confirm Network loads `/assets/index-*.js`, browser console is free of octet-stream module errors, and app renders.
+- Rollback path: revert `.github/workflows/swa-web.yml` deploy input change.
