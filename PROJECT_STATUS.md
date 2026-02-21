@@ -669,3 +669,9 @@ traces
 - Tightened People rules spacing by reducing rules-row top/bottom spacing and compacting per-rule list/item spacing in `apps/web/src/styles.css`.
 
 - 2026-02-21: Replaced Schedule/People header Add FABs with table-footer style CTA rows (including empty-state wording updates) so add actions stay visible and avoid global button style collisions; added dedicated `.fs-tableCtaRow`/`.fs-tableCtaBtn` styles with hard fallback link color (`#2563eb`).
+
+## Recent update (2026-02-21 05:09 UTC)
+
+- Compacted `PageHeader` spacing so the group name, group link row, and “This link is required…” explainer render as one tight vertical unit.
+- Replaced ad-hoc inline spacing in `PageHeader` with dedicated CSS classes (`fs-groupBlock`, `fs-groupLinkRow`, `fs-groupExplain`, `fs-headerMeta`) to avoid default element margin drift.
+- Preserved readable micro-separation between lines (~2–4px) while keeping a slightly larger gap before Schedule/People controls.

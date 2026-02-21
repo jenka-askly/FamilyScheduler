@@ -37,15 +37,15 @@ export function PageHeader({
   };
 
   return (
-    <div style={{ marginBottom: "24px" }}>
+    <div className="fs-pageHeader">
       {groupName ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8, marginBottom: 16 }}>
-          <h1 className="fs-h1" style={{ margin: 0, lineHeight: 1.15 }}>{groupName}</h1>
+        <div className="fs-groupHeaderStack">
+          <h1 className="fs-h1">{groupName}</h1>
           {groupId ? (
-            <>
+            <div className="fs-groupBlock">
               {groupLink ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.1, flexWrap: 'wrap', margin: 0 }}>
-                  <a href={groupLink} style={{ margin: 0 }}>{groupLink}</a>
+                <div className="fs-groupLinkRow">
+                  <a href={groupLink}>{groupLink}</a>
                   <button
                     type="button"
                     className="icon-button"
@@ -55,13 +55,13 @@ export function PageHeader({
                   >
                     ⧉
                   </button>
-                  {copied ? <span style={{ margin: 0 }}>Copied</span> : null}
+                  {copied ? <span>Copied</span> : null}
                 </div>
               ) : null}
-              <div className="fs-meta" style={{ margin: 0, lineHeight: 1.2, fontSize: 12, color: 'var(--muted)' }}>
+              <div className="fs-groupExplain">
                 This link is required to return to this group—save it.
               </div>
-            </>
+            </div>
           ) : null}
         </div>
       ) : (
@@ -69,14 +69,14 @@ export function PageHeader({
       )}
 
       {groupName ? (
-        <p className="fs-groupName" style={{ margin: 0, fontWeight: 500 }}>
+        <p className="fs-groupName fs-pageTitle">
           {title}
         </p>
       ) : null}
 
-      <div className="fs-meta" style={{ marginTop: 0, display: 'grid', gap: '0.25rem' }}>
+      <div className="fs-meta fs-headerMeta">
         {description && (
-          <p className="fs-desc" style={{ margin: 0 }}>{description}</p>
+          <p className="fs-desc">{description}</p>
         )}
         {groupId ? (
             <div>Only listed phone numbers can access this group.</div>
