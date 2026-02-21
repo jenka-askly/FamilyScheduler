@@ -4369,3 +4369,38 @@ Polish the Schedule/People tab switcher so it reads as one intentional segmented
 ### Follow-ups
 
 - If a shared design token system is introduced later, migrate inline segmented-control styles to a reusable component/class.
+
+## 2026-02-21 04:07 UTC (revert segmented Schedule/People tabs to stable buttons)
+
+### Objective
+
+Undo the segmented Schedule/People tab UI experiment and restore two normal, always-clickable buttons with clear active/inactive styling.
+
+### Approach
+
+- Located segmented-control implementation in `apps/web/src/AppShell.tsx`.
+- Removed segmented wrapper styles and local tab style objects (`tabBase`, `tabActive`, `tabInactive`).
+- Replaced tab buttons with standard button classes (`fs-btnPrimary` / `fs-btnSecondary`) and preserved existing `view` state keys (`appointments`, `people`).
+- Removed emoji labels from pane selector and retained plain text labels: `Schedule`, `People`.
+- Searched for leftover segmented/opacity/pointer-events/disabled styling affecting pane selector and confirmed none remain.
+- Updated `PROJECT_STATUS.md` to record the stability revert.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "🗓|👥|tabBase|tabActive|segmented|Schedule\\b|People\\b" apps/web/src --glob='*.tsx'` ✅ located segmented tab implementation.
+- `sed -n '240,420p' apps/web/src/AppShell.tsx` ✅ inspected surrounding view/state logic.
+- `sed -n '80,170p' apps/web/src/AppShell.tsx` ✅ inspected local segmented style objects.
+- `sed -n '600,700p' apps/web/src/AppShell.tsx` ✅ inspected segmented JSX block.
+- `rg -n "fs-btnSecondary|btn-secondary|fs-btnPrimary" apps/web/src --glob='*.tsx' --glob='*.css'` ✅ confirmed reusable button styles exist.
+- `rg -n "🗓|👥|tabBase|tabActive|tabInactive|segmented" apps/web/src/AppShell.tsx apps/web/src --glob='*.tsx' --glob='*.css'` ✅ no leftovers found.
+- `rg -n "opacity:|pointer-events:|disabled" apps/web/src/AppShell.tsx apps/web/src --glob='*.css'` ✅ only unrelated/global usages remain; none tied to pane selector.
+
+### Follow-ups
+
+- Run the web app and manually verify selector behavior/visuals in browser across typical desktop width.

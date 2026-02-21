@@ -8,8 +8,7 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 
 - Renamed the Appointments pane label to **Schedule** in the shared workspace header while keeping the internal `appointments` view key unchanged.
-- Replaced the Appointments/People toggle with a shared segmented tab control (🗓 Schedule / 👥 People) with active filled state and subtle inactive state.
-- Refined the Schedule/People tabs into a deliberate segmented pill control with unified button sizing, shared tab base styles, clear active/inactive contrast, and tighter spacing above pane cards.
+- Reverted the Schedule/People segmented-tab experiment back to two standard side-by-side buttons for UI stability and readability, while keeping internal view keys unchanged (`appointments` / `people`).
 - Standardized primary action labels and sizing to **+ Add appointment** and **+ Add person** across populated and empty-state panes.
 - Tightened helper guidance under "What would you like to do?" into a single compact muted block with minimal internal spacing.
 

@@ -116,31 +116,6 @@ const isAllDayRule = (rule: Snapshot['rules'][0]) => (
   (rule as Snapshot['rules'][0] & { isAllDay?: boolean }).isAllDay === true || !rule.startTime || rule.durationMins === 1440
 );
 
-const tabBase = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '6px 10px',
-  height: 32,
-  border: 0,
-  borderRadius: 8,
-  background: 'transparent',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  lineHeight: '20px'
-} as const;
-
-const tabActive = {
-  background: 'var(--primary)',
-  color: '#fff'
-} as const;
-
-const tabInactive = {
-  color: 'var(--text)',
-  opacity: 0.85
-} as const;
-
 const formatRuleRangeForList = (rule: Snapshot['rules'][0], personTz?: string) => {
   const timezone = personTz;
   const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: timezone });
@@ -611,32 +586,20 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupName={groupName}
         groupId={groupId}
       />
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 0,
-          padding: 3,
-          background: 'var(--panel)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          marginTop: 8,
-          marginBottom: 12
-        }}
-      >
+      <div style={{ display: 'flex', gap: 8, marginTop: 8, marginBottom: 12 }}>
         <button
           type="button"
           onClick={() => setView('appointments')}
-          style={{ ...tabBase, ...(view === 'appointments' ? tabActive : tabInactive) }}
+          className={view === 'appointments' ? 'fs-btnPrimary' : 'fs-btnSecondary'}
         >
-          🗓 Schedule
+          Schedule
         </button>
         <button
           type="button"
           onClick={() => setView('people')}
-          style={{ ...tabBase, ...(view === 'people' ? tabActive : tabInactive) }}
+          className={view === 'people' ? 'fs-btnPrimary' : 'fs-btnSecondary'}
         >
-          👥 People
+          People
         </button>
       </div>
 
