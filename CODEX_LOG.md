@@ -4785,3 +4785,32 @@ Remove Docker/MCR dependency from the web deploy path so SWA deployment is no lo
 
 - Confirm next `Deploy Web (SWA)` run succeeds without MCR pulls and without 429 failures.
 - Verify production HTML source references bundled `/assets/index-*.js` scripts and page loads without module MIME errors.
+
+## 2026-02-21 21:09 UTC (SWA CLI production env deploy + production HTML guard)
+
+### Objective
+
+Ensure SWA CLI deploys to the actual production environment from the built artifact folder and fail the workflow if production still serves source HTML.
+
+### Approach
+
+- Replaced the SWA CLI deploy invocation with direct-folder deploy syntax targeting `apps/web/dist`.
+- Added `--env production` and `--verbose` to make the target environment explicit and improve diagnosability.
+- Added a hard failure verification step that curls production HTML and asserts built asset references are present while source entrypoint references are absent.
+- Updated `PROJECT_STATUS.md` with the behavior change.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ updated deploy + verification steps in `.github/workflows/swa-web.yml`.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured UTC timestamp for continuity log.
+- `git diff -- .github/workflows/swa-web.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted edits.
+
+### Follow-ups
+
+- Confirm on next `main` deploy run that the verify step passes and production HTML contains only built asset references.
