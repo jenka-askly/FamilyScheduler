@@ -38,31 +38,38 @@ export function PageHeader({
 
   return (
     <div style={{ marginBottom: "24px" }}>
-      {groupName ? <h1 className="fs-h1">{groupName}</h1> : <h1 className="fs-h1">{title}</h1>}
-
-      {groupId ? (
-        <div className="fs-meta" style={{ marginTop: '0.2rem', display: 'grid', gap: '0.3rem' }}>
-          {groupLink ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <a href={groupLink}>{groupLink}</a>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Copy group link"
-                data-tooltip="Copy link"
-                onClick={() => void copyGroupLink()}
-              >
-                ⧉
-              </button>
-              {copied ? <span>Copied</span> : null}
-            </div>
+      {groupName ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem' }}>
+          <h1 className="fs-h1" style={{ margin: 0, lineHeight: 1.15 }}>{groupName}</h1>
+          {groupId ? (
+            <>
+              {groupLink ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', lineHeight: 1.1, flexWrap: 'wrap' }}>
+                  <a href={groupLink}>{groupLink}</a>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Copy group link"
+                    data-tooltip="Copy link"
+                    onClick={() => void copyGroupLink()}
+                  >
+                    ⧉
+                  </button>
+                  {copied ? <span>Copied</span> : null}
+                </div>
+              ) : null}
+              <div className="fs-meta" style={{ marginTop: 0, lineHeight: 1.15, fontSize: '0.9em' }}>
+                This link is required to return to this group—save it.
+              </div>
+            </>
           ) : null}
-          <div>This link is required to return to this group—save it.</div>
         </div>
-      ) : null}
+      ) : (
+        <h1 className="fs-h1">{title}</h1>
+      )}
 
       {groupName ? (
-        <p className="fs-groupName" style={{ marginTop: '0.6rem', fontWeight: 500 }}>
+        <p className="fs-groupName" style={{ margin: 0, fontWeight: 500 }}>
           {title}
         </p>
       ) : null}
