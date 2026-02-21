@@ -39,11 +39,12 @@ jobs:
       - name: Build clean deploy staging directory (api_deploy)
         run: |
           set -euo pipefail
-          rm -rf api_deploy api_deploy_install api.zip
+          rm -rf api_deploy api.zip
           mkdir -p api_deploy
 
           cp api/host.json api_deploy/host.json
           cp api/package.json api_deploy/package.json
+          cp pnpm-lock.yaml api_deploy/pnpm-lock.yaml
           cp -R api/dist api_deploy/dist
           for d in api/*/; do
             if [ -f "${d}function.json" ]; then
@@ -51,23 +52,25 @@ jobs:
             fi
           done
 
-          pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install
-          cp -RL api_deploy_install/node_modules api_deploy/node_modules
+          (cd api_deploy && pnpm install --prod --frozen-lockfile)
 
       - name: Validate deploy staging directory
         run: |
           set -euo pipefail
           test -f api_deploy/host.json
           test -f api_deploy/package.json
+          test -f api_deploy/pnpm-lock.yaml
           test -f api_deploy/dist/index.js
           test -d api_deploy/node_modules
           test -d api_deploy/node_modules/@azure/storage-blob
           test -d api_deploy/node_modules/@azure/storage-common
+          test -d api_deploy/node_modules/@azure/core-util
           test -f api_deploy/node_modules/@azure/storage-common/package.json
           test -f api_deploy/groupJoin/function.json
           test -z "$(find api_deploy/node_modules -type l | head -n 1)"
-          (cd api_deploy && node -e "import('@azure/storage-common').then(() => console.log('storage-common-import-ok'))")
           (cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")
+          (cd api_deploy && node -e "import('@azure/storage-common').then(() => console.log('storage-common-import-ok'))")
+          (cd api_deploy && node -e "import('@azure/core-util').then(() => console.log('core-util-import-ok'))")
 
       - name: Package API zip (api_deploy at zip root)
         run: |

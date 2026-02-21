@@ -589,15 +589,16 @@ traces
 
 ## Recent update (2026-02-21 00:43 UTC)
 
-- Problem: API production deploy could return HTTP 500 with `ERR_MODULE_NOT_FOUND` for `@azure/storage-common` because pnpm-linked dependencies were copied as symlinks into zip deploy artifacts.
-- Fix: in `.github/workflows/deploy.yml`, changed API staging copy to `cp -RL api_deploy_install/node_modules api_deploy/node_modules` so pnpm symlinks are dereferenced into real files/dirs before zipping.
-- Hardening: added staging assertions for `api_deploy/node_modules/@azure/storage-blob`, `api_deploy/node_modules/@azure/storage-common`, and `api_deploy/node_modules/@azure/storage-common/package.json`; added runtime import checks for both packages and a no-symlink guard in staged `node_modules`.
+- Root cause: API deploy artifact had incomplete production `node_modules` (missing transitive Azure packages), which caused Azure Functions runtime `ERR_MODULE_NOT_FOUND` at startup (`@azure/storage-common`, then `@azure/core-util`) and surfaced as HTTP 500.
+- Fix: in `.github/workflows/deploy.yml`, removed portable deploy/copy flow (`pnpm deploy --legacy --prod ./api_deploy_install` + node_modules copy), copied `pnpm-lock.yaml` into `api_deploy/`, and now runs `pnpm install --prod --frozen-lockfile` *inside* `api_deploy` before zipping.
+- Guardrails: added hard directory assertions for `@azure/storage-blob`, `@azure/storage-common`, and `@azure/core-util` directly inside `api_deploy/node_modules`; added runtime ESM import checks for all three packages with explicit success markers.
 
-## Verification for Azure storage-common runtime fix
+## Verification for Azure transitive dependency runtime fix
 
 1. Run GitHub Actions workflow **Deploy API (prod)** from `main`.
-2. In workflow logs, confirm both lines appear during staging validation:
-   - `storage-common-import-ok`
+2. In workflow logs, confirm all lines appear during staging validation:
    - `storage-blob-import-ok`
+   - `storage-common-import-ok`
+   - `core-util-import-ok`
 3. After deployment, call `POST /api/group/join` and confirm response status is non-500.
-4. In Azure Portal/App Insights, confirm new exceptions no longer show `ERR_MODULE_NOT_FOUND` for `@azure/storage-common`.
+4. In Azure Portal/App Insights, confirm new exceptions no longer show `ERR_MODULE_NOT_FOUND` for `@azure/storage-common` or `@azure/core-util`.
