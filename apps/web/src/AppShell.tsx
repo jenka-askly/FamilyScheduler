@@ -116,6 +116,31 @@ const isAllDayRule = (rule: Snapshot['rules'][0]) => (
   (rule as Snapshot['rules'][0] & { isAllDay?: boolean }).isAllDay === true || !rule.startTime || rule.durationMins === 1440
 );
 
+const tabBase = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  height: 32,
+  border: 0,
+  borderRadius: 8,
+  background: 'transparent',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 600,
+  lineHeight: '20px'
+} as const;
+
+const tabActive = {
+  background: 'var(--primary)',
+  color: '#fff'
+} as const;
+
+const tabInactive = {
+  color: 'var(--text)',
+  opacity: 0.85
+} as const;
+
 const formatRuleRangeForList = (rule: Snapshot['rules'][0], personTz?: string) => {
   const timezone = personTz;
   const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: timezone });
@@ -589,43 +614,27 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       <div
         style={{
           display: 'inline-flex',
+          alignItems: 'center',
           gap: 0,
           padding: 3,
           background: 'var(--panel)',
           border: '1px solid var(--border)',
           borderRadius: 10,
+          marginTop: 8,
           marginBottom: 12
         }}
       >
         <button
           type="button"
           onClick={() => setView('appointments')}
-          style={{
-            borderRadius: 8,
-            padding: '6px 10px',
-            fontWeight: 600,
-            fontSize: 13,
-            border: 'none',
-            minHeight: 34,
-            background: view === 'appointments' ? 'var(--primary)' : 'transparent',
-            color: view === 'appointments' ? '#fff' : 'var(--text)'
-          }}
+          style={{ ...tabBase, ...(view === 'appointments' ? tabActive : tabInactive) }}
         >
           🗓 Schedule
         </button>
         <button
           type="button"
           onClick={() => setView('people')}
-          style={{
-            borderRadius: 8,
-            padding: '6px 10px',
-            fontWeight: 600,
-            fontSize: 13,
-            border: 'none',
-            minHeight: 34,
-            background: view === 'people' ? 'var(--primary)' : 'transparent',
-            color: view === 'people' ? '#fff' : 'var(--text)'
-          }}
+          style={{ ...tabBase, ...(view === 'people' ? tabActive : tabInactive) }}
         >
           👥 People
         </button>
