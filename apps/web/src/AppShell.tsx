@@ -80,58 +80,85 @@ const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
-const toUtcInterval = (entry: { date: string; startTime?: string; durationMins?: number; startUtc?: string; endUtc?: string }) => {
-  if (entry.startUtc && entry.endUtc) {
-    const start = new Date(entry.startUtc);
-    const end = new Date(entry.endUtc);
-    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) return { startMs: start.getTime(), endMs: end.getTime() };
+const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
+
+const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
+  if (rule.startUtc && rule.endUtc) {
+    const startMs = Date.parse(rule.startUtc);
+    const endMs = Date.parse(rule.endUtc);
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs)) return { startMs, endMs };
   }
-  const baseStart = entry.startTime ? `${entry.date}T${entry.startTime}:00.000Z` : `${entry.date}T00:00:00.000Z`;
-  const start = new Date(baseStart);
-  if (Number.isNaN(start.getTime())) return null;
-  const durationMins = entry.startTime ? (entry.durationMins ?? 60) : (entry.durationMins ?? 1440);
-  return { startMs: start.getTime(), endMs: start.getTime() + (durationMins * 60_000) };
+  const start = new Date(rule.startTime ? `${rule.date}T${rule.startTime}:00` : `${rule.date}T00:00:00`);
+  const startMs = start.getTime();
+  if (Number.isNaN(startMs)) return null;
+  const durationMins = rule.startTime ? (rule.durationMins ?? 60) : (rule.durationMins ?? 1440);
+  return { startMs, endMs: startMs + (durationMins * 60_000) };
 };
 
-const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && a.endMs > b.startMs;
+const getUtcBoundsForAppt = (appt: Snapshot['appointments'][0]) => {
+  if (appt.isAllDay) {
+    const dayStart = new Date(`${appt.date}T00:00:00`);
+    const startMs = dayStart.getTime();
+    if (Number.isNaN(startMs)) return null;
+    const nextDay = new Date(dayStart);
+    nextDay.setDate(nextDay.getDate() + 1);
+    return { startMs, endMs: nextDay.getTime() };
+  }
+  if (!appt.startTime) return null;
+  const start = new Date(`${appt.date}T${appt.startTime}:00`);
+  const startMs = start.getTime();
+  if (Number.isNaN(startMs)) return null;
+  const durationMins = appt.durationMins ?? 60;
+  return { startMs, endMs: startMs + (durationMins * 60_000) };
+};
 
-const computePersonStatusForInterval = (personId: string, interval: { date: string; startTime?: string; durationMins?: number }, rules: Snapshot['rules']) => {
-  const appointment = toUtcInterval(interval);
-  if (!appointment) return { status: 'unknown' as const };
+const formatRuleDisplay = (rule: Snapshot['rules'][0], personTz?: string) => {
+  const interval = getUtcBoundsForRule(rule);
+  if (!interval) return { rangeText: rule.date, isAllDay: false };
+  const start = new Date(interval.startMs);
+  const end = new Date(interval.endMs);
+  const timezone = personTz;
+  const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: timezone });
+  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
+  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
+
+  const rangeMs = interval.endMs - interval.startMs;
+  const isAllDay = Boolean(
+    rangeMs > 0
+    && rangeMs % 86400000 === 0
+    && start.getHours() === 0
+    && start.getMinutes() === 0
+    && end.getHours() === 0
+    && end.getMinutes() === 0
+  );
+
+  if (isAllDay) {
+    const dayCount = Math.round(rangeMs / 86400000);
+    if (dayCount > 1) {
+      const inclusiveEnd = new Date(interval.endMs - 86400000);
+      return { rangeText: `${dayFormatter.format(start)}–${dayFormatter.format(inclusiveEnd)} (all day)`, isAllDay: true };
+    }
+    return { rangeText: `${dayFormatter.format(start)} (all day)`, isAllDay: true };
+  }
+
+  const sameDay = start.toDateString() === end.toDateString();
+  if (sameDay) return { rangeText: `${dateTimeFormatter.format(start)}–${timeFormatter.format(end)}`, isAllDay: false };
+  return { rangeText: `${dateTimeFormatter.format(start)}–${dateTimeFormatter.format(end)}`, isAllDay: false };
+};
+
+const computePersonStatusForInterval = (personId: string, appointment: Snapshot['appointments'][0], rules: Snapshot['rules']) => {
+  const appointmentRange = getUtcBoundsForAppt(appointment);
+  if (!appointmentRange) return { status: 'unknown' as const };
   const overlappingRules = rules
     .filter((rule) => rule.personId === personId)
-    .map((rule) => ({ rule, range: toUtcInterval(rule) }))
+    .map((rule) => ({ rule, range: getUtcBoundsForRule(rule) }))
     .filter((entry): entry is { rule: Snapshot['rules'][0]; range: { startMs: number; endMs: number } } => Boolean(entry.range))
-    .filter((entry) => rangesOverlap(appointment, entry.range))
+    .filter((entry) => rangesOverlap(appointmentRange, entry.range))
     .map((entry) => entry.rule);
+
   if (overlappingRules.some((rule) => rule.kind === 'unavailable')) return { status: 'unavailable' as const };
   if (overlappingRules.some((rule) => rule.kind === 'available')) return { status: 'available' as const };
   return { status: 'unknown' as const };
-};
-
-const formatSavedRuleRange = (rule: Snapshot['rules'][0], timezone?: string) => {
-  const interval = toUtcInterval(rule);
-  if (!interval) return rule.date;
-  const start = new Date(interval.startMs);
-  const end = new Date(interval.endMs);
-  const tz = timezone;
-  const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: tz });
-  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
-  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: tz });
-
-  const isAllDay = !rule.startTime || (!rule.startTime && (rule.durationMins ?? 0) >= 1440);
-  if (isAllDay) {
-    const dayCount = Math.round((interval.endMs - interval.startMs) / 86400000);
-    if (dayCount > 1) {
-      const inclusiveEnd = new Date(interval.endMs - 86400000);
-      return `${dayFormatter.format(start)}–${dayFormatter.format(inclusiveEnd)} (all day)`;
-    }
-    return `${dayFormatter.format(start)} (all day)`;
-  }
-
-  const sameDay = start.toISOString().slice(0, 10) === end.toISOString().slice(0, 10);
-  if (sameDay) return `${dateTimeFormatter.format(start)}–${timeFormatter.format(end)}`;
-  return `${dateTimeFormatter.format(start)}–${dateTimeFormatter.format(end)}`;
 };
 
 const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
@@ -715,7 +742,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 <ul className="rules-list">
                                   {personRules.map((rule) => (
                                     <li key={rule.code} className="rule-item">
-                                      <span className="rule-date-time">{formatSavedRuleRange(rule, person.timezone)}</span>
+                                      <span className="rule-date-time">{formatRuleDisplay(rule, person.timezone).rangeText}</span>
                                       <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
                                       <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
                                       <span className="rule-actions">
@@ -857,7 +884,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
 
       {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
-        const status = computePersonStatusForInterval(person.personId, { date: selectedAppointment.date, startTime: selectedAppointment.startTime, durationMins: selectedAppointment.durationMins }, snapshot.rules);
+        const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
         const isSelected = selectedAppointment.people.includes(person.personId);
         return <div key={person.personId} className={`picker-row ${index < activePeople.length - 1 ? 'picker-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
           <div className="picker-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="picker-name">{person.name}</span></div>

@@ -4177,3 +4177,35 @@ Add muted helper guidance under the appointments prompt input to clarify support
 ### Follow-ups
 
 - Optional: if the team wants centralized styling instead of inline style props, migrate helper text to a small reusable class in a future cleanup PR.
+
+
+## 2026-02-21 03:36 UTC (header + rule range + assignment overlap fixes)
+
+### Objective
+
+Implement three UI/logic fixes: header link placement under group name, improved People rule range display (all-day + date ranges), and assignment modal availability overlap correctness.
+
+### Approach
+
+- Reordered `PageHeader` content hierarchy so group link/copy row appears directly under group name and moved access text next to pane description.
+- Replaced saved-rule row formatter in `AppShell` with `formatRuleDisplay(rule, personTz?)` that emits concise local/tz-friendly ranges with `(all day)` handling and no UTC/duration-minute suffixes.
+- Reworked assignment availability overlap logic to interval-based helpers (`getUtcBoundsForRule`, `getUtcBoundsForAppt`) and overlap precedence (`unavailable` > `available` > `unknown`) without date-equality filtering.
+- Captured a browser screenshot artifact for visual confirmation of header hierarchy updates.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ success.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ⚠️ starts, but API proxy requests fail in this environment (`ECONNREFUSED`) because local Functions API is not running.
+- Playwright screenshot capture via browser tool ✅ produced `browser:/tmp/codex_browser_invocations/5bbaaae54bfc0abe/artifacts/artifacts/header-fixes.png`.
+
+### Follow-ups
+
+- Run the full web+api stack locally and verify APPT-2 assignment modal status labels against real group data.
+

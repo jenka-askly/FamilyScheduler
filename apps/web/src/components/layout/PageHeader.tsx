@@ -40,39 +40,41 @@ export function PageHeader({
     <div style={{ marginBottom: "24px" }}>
       {groupName ? <h1 className="fs-h1">{groupName}</h1> : <h1 className="fs-h1">{title}</h1>}
 
+      {groupId ? (
+        <div className="fs-meta" style={{ marginTop: '0.2rem', display: 'grid', gap: '0.3rem' }}>
+          {groupLink ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <a href={groupLink}>{groupLink}</a>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Copy group link"
+                data-tooltip="Copy link"
+                onClick={() => void copyGroupLink()}
+              >
+                ⧉
+              </button>
+              {copied ? <span>Copied</span> : null}
+            </div>
+          ) : null}
+          <div>This link is required to return to this group—save it.</div>
+        </div>
+      ) : null}
+
       {groupName ? (
-        <p className="fs-groupName" style={{ marginTop: '0.35rem', fontWeight: 500 }}>
+        <p className="fs-groupName" style={{ marginTop: '0.6rem', fontWeight: 500 }}>
           {title}
         </p>
       ) : null}
 
-      {description && (
-        <p className="fs-desc">{description}</p>
-      )}
-
-      {groupId && (
-        <div>
-          <div className="fs-meta" style={{ display: 'grid', gap: '0.35rem' }}>
-            {groupLink ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <a href={groupLink}>{groupLink}</a>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Copy group link"
-                  data-tooltip="Copy link"
-                  onClick={() => void copyGroupLink()}
-                >
-                  ⧉
-                </button>
-                {copied ? <span>Copied</span> : null}
-              </div>
-            ) : null}
-            <div>This link is required to return to this group—save it.</div>
+      <div className="fs-meta" style={{ marginTop: '0.35rem', display: 'grid', gap: '0.25rem' }}>
+        {description && (
+          <p className="fs-desc" style={{ margin: 0 }}>{description}</p>
+        )}
+        {groupId ? (
             <div>Only listed phone numbers can access this group.</div>
-          </div>
-        </div>
-      )}
+        ) : null}
+      </div>
     </div>
   );
 }
