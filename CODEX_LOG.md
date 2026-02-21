@@ -4814,3 +4814,34 @@ Ensure SWA CLI deploys to the actual production environment from the built artif
 ### Follow-ups
 
 - Confirm on next `main` deploy run that the verify step passes and production HTML contains only built asset references.
+
+
+## 2026-02-21 UTC (api entrypoint shim removal)
+
+### Objective
+
+Eliminate deploy-time shim entrypoint usage so Azure Functions runtime loads the real emitted API entrypoint and avoids function indexing regressions.
+
+### Symptom + fix
+
+- Symptom: Functions disappeared because `main` pointed to `dist/index.js` and deploy paths created a shim file.
+- Fix: `api/package.json` now points `main` to `dist/api/src/index.js` and shim creation/validation references were removed from deploy workflow and packaging script.
+
+### Files changed
+
+- `api/package.json`
+- `.github/workflows/deploy.yml`
+- `scripts/package-api-deploy.mjs`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r build` ✅
+- `pnpm deploy:api:package` ⚠️ failed in this environment with `ERR_PNPM_FETCH_403` against npm registry while installing deploy dependencies.
+- `test -f api/dist/api/src/index.js` ✅
+- `rg -n "dist/index.js|dist/api/src/index.js" .github/workflows/deploy.yml scripts/package-api-deploy.mjs api/package.json` ✅ confirmed shim references removed and real entrypoint enforced.
+
+### Follow-ups
+
+- Trigger deploy to Azure and confirm Portal function list reflects expected functions in production environment.
