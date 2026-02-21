@@ -4435,3 +4435,40 @@ Tighten People table rules spacing so rule blocks visually belong to the person 
 ### Follow-ups
 
 - Validate visually in local browser that dense rules remain readable for long descriptions and multiple stacked rules.
+
+## 2026-02-21 04:36 UTC (circular add FABs + wider workspace padding + tighter People rules spacing)
+
+### Objective
+
+Implement runtime UI updates for: circular plus add buttons, wider centered page edges, and tighter People-rule spacing.
+
+### Approach
+
+- Located workspace wrapper source in `apps/web/src/styles/ui.css` and confirmed `.fs-workspaceWrap` owns max-width constraints.
+- Added reusable `AddFab` component in `AppShell` and replaced Schedule/People header and empty-state text add buttons with circular 40x40 `+` controls.
+- Tightened People rule spacing via compact `rules-cell`, `rules-list`, and `rule-item` CSS values.
+- Updated continuity docs to reflect behavioral/UI deltas.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "\.fs-page\b|\.fs-workspaceWrap\b|workspaceWrap|max-width|padding" apps/web/src --glob='*.css'` ✅ located workspace wrapper CSS definitions.
+- `nl -ba apps/web/src/styles/ui.css | sed -n '1,220p'` ✅ inspected `.fs-workspaceWrap` source context.
+- `nl -ba apps/web/src/styles.css | sed -n '560,740p'` ✅ inspected `.fs-page` region and adjacent styles.
+- `rg -n "Add appointment|Add person|personRules|rules|People|Schedule" apps/web/src/AppShell.tsx` ✅ located add button and People rules render points.
+- `pnpm -C apps/web build` ✅ confirmed web app compiles after UI/CSS updates.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched local app for visual capture (stopped after screenshot).
+- Browser tool Playwright screenshot capture ✅ produced `browser:/tmp/codex_browser_invocations/92117e977997de84/artifacts/artifacts/add-fab-spacing.png`.
+
+### Outcome summary
+
+- Schedule and People now use circular plus action buttons with unchanged click handlers.
+- Workspace content keeps `1200px` max-width but has increased horizontal breathing room.
+- People rules render denser and visually closer to person rows.

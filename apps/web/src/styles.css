@@ -424,8 +424,8 @@ input {
 .rules-cell {
   white-space: pre-line;
   background: #f8fafc;
-  padding-top: 2px;
-  padding-bottom: 4px;
+  padding-top: 0;
+  padding-bottom: 3px;
 }
 
 .rules-indent {
@@ -436,10 +436,10 @@ input {
 
 .rules-list {
   list-style: none;
-  margin: 0;
+  margin: 2px 0 0;
   padding: 0;
   display: grid;
-  gap: 0.1rem;
+  gap: 2px;
 }
 
 .rule-item {
@@ -448,7 +448,7 @@ input {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: nowrap;
-  padding: 4px 0;
+  padding: 3px 0;
   line-height: 1.22;
 }
 
