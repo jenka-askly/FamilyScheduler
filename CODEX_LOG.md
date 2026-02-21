@@ -4148,3 +4148,32 @@ Unify People/Appointments header metadata UI, remove duplicated access copy, fix
 ### Follow-ups
 
 - Optional future polish: replace unicode copy glyph in header with shared icon component if a global icon library is adopted.
+
+## 2026-02-21 03:25 UTC (appointments composer helper text)
+
+### Objective
+
+Add muted helper guidance under the appointments prompt input to clarify supported actions and examples, with minimal layout impact.
+
+### Approach
+
+- Located the appointments prompt section in `apps/web/src/AppShell.tsx`.
+- Expanded the one-line form JSX to multiline for a minimal, readable insertion point.
+- Added two muted helper text lines directly below the input row using existing `var(--muted)` token and small font sizes (13/12).
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "What would you like to do" apps/web/src/AppShell.tsx` ✅ located prompt input render site.
+- `sed -n '720,820p' apps/web/src/AppShell.tsx` ✅ inspected local section before edit.
+- `pnpm -C apps/web build` ✅ web app compiles successfully after UI copy update.
+
+### Follow-ups
+
+- Optional: if the team wants centralized styling instead of inline style props, migrate helper text to a small reusable class in a future cleanup PR.

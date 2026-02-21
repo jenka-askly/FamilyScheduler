@@ -758,7 +758,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </section>
       ) : null}
 
-      {view === 'appointments' ? <form onSubmit={onSubmit}><label htmlFor="prompt">What would you like to do?</label><div className="input-row"><input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} /><button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button></div></form> : null}
+      {view === 'appointments' ? (
+        <form onSubmit={onSubmit}>
+          <label htmlFor="prompt">What would you like to do?</label>
+          <div className="input-row">
+            <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} />
+            <button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button>
+          </div>
+          <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 13 }}>
+            Add, edit, delete, rename, or assign appointments. You can also paste email text or a CSV with appointment details.
+          </div>
+          <div style={{ marginTop: 4, color: 'var(--muted)', fontSize: 12 }}>
+            Example: “Pre-op visit March 19 at 9:45 AM, Evergreen Health” or paste a confirmation email.
+          </div>
+        </form>
+      ) : null}
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
