@@ -4637,3 +4637,35 @@ Resolve failing deploy check expecting `api_deploy/dist/index.js` by aligning ch
 
 ### Follow-ups
 - Re-run `pnpm deploy:api:package` and deploy workflow in CI with normal registry credentials/network to confirm end-to-end packaging succeeds.
+
+## 2026-02-21 20:20 UTC — Azure Functions entrypoint shim for deploy artifact
+
+### Objective
+
+Fix Azure Functions startup/indexing by ensuring deploy artifacts include `dist/index.js` that matches `api/package.json` `main` while keeping TS emit output unchanged under `dist/api/src/**`.
+
+### Approach
+
+- Updated deploy packaging script to write an ESM shim file at staging path `dist/index.js` with `import './api/src/index.js';` immediately after copying `api/dist`.
+- Expanded packaging zip invariants to require both shim and nested compiled entrypoint.
+- Added deploy workflow staging validation check for `api_deploy/dist/index.js` while retaining existing `dist/api/src/index.js` check.
+- Updated continuity docs with behavior change and guardrails.
+
+### Files changed
+
+- `scripts/package-api-deploy.mjs`
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r build` ✅
+- `node scripts/package-api-deploy.mjs` ⚠️ failed in this environment due npm registry 403 during `pnpm deploy --prod` (`@azure/core-client` fetch forbidden), after staging copy/shim step.
+- `test -f .artifacts/deploy/api-package/dist/index.js && sed -n '1,5p' .artifacts/deploy/api-package/dist/index.js` ✅ confirmed shim exists with expected import statement.
+- `test -f .artifacts/deploy/api-package/dist/api/src/index.js` ✅ confirmed nested compiled entry still exists.
+
+### Follow-ups
+
+- Re-run `pnpm deploy:api:package` in CI/network with registry access and confirm zip invariants pass end-to-end.
+- Deploy to Azure and verify Functions are indexed in portal (non-zero functions listed).
