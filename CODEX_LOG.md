@@ -3741,3 +3741,31 @@ Fix Azure Functions production 500 caused by incomplete deploy artifact dependen
 - Run GitHub Actions **Deploy API (prod)** and confirm all three markers are present in logs: `storage-blob-import-ok`, `storage-common-import-ok`, `core-util-import-ok`.
 - Confirm `/api/group/join` returns non-500 after deployment.
 - Confirm App Insights no longer reports `ERR_MODULE_NOT_FOUND` for `@azure/storage-common` or `@azure/core-util`.
+
+## 2026-02-21 00:55 UTC (deploy validation verbose markers)
+
+### Objective
+
+Make deploy staging validation logs deterministic so the failing assertion/import line is obvious in GitHub Actions output.
+
+### Approach
+
+- Updated only the `Validate deploy staging directory` step script in `.github/workflows/deploy.yml`.
+- Added `set -x` for command echo.
+- Added explicit `echo "CHECK ..."` markers before each file/dir/assert/import check.
+- Added symlink debug listing (`find ... -type l | head -n 20 || true`) immediately before strict no-symlink assertion.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `CODEX_LOG.md`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ inspected current validation step.
+- `git diff -- .github/workflows/deploy.yml` ✅ verified only validation script was changed as requested.
+
+### Follow-ups
+
+- Re-run GitHub Actions workflow **Deploy API (prod)** and use the last emitted `CHECK ...` / `IMPORT ...` marker to pinpoint first failure.

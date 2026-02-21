@@ -57,20 +57,28 @@ jobs:
       - name: Validate deploy staging directory
         run: |
           set -euo pipefail
-          test -f api_deploy/host.json
-          test -f api_deploy/package.json
-          test -f api_deploy/pnpm-lock.yaml
-          test -f api_deploy/dist/index.js
-          test -d api_deploy/node_modules
-          test -d api_deploy/node_modules/@azure/storage-blob
-          test -d api_deploy/node_modules/@azure/storage-common
-          test -d api_deploy/node_modules/@azure/core-util
-          test -f api_deploy/node_modules/@azure/storage-common/package.json
-          test -f api_deploy/groupJoin/function.json
-          test -z "$(find api_deploy/node_modules -type l | head -n 1)"
-          (cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")
-          (cd api_deploy && node -e "import('@azure/storage-common').then(() => console.log('storage-common-import-ok'))")
-          (cd api_deploy && node -e "import('@azure/core-util').then(() => console.log('core-util-import-ok'))")
+          set -x
+
+          echo "CHECK host.json" ; test -f api_deploy/host.json
+          echo "CHECK package.json" ; test -f api_deploy/package.json
+          echo "CHECK pnpm-lock.yaml" ; test -f api_deploy/pnpm-lock.yaml
+          echo "CHECK dist/index.js" ; test -f api_deploy/dist/index.js
+
+          echo "CHECK node_modules exists" ; test -d api_deploy/node_modules
+
+          echo "CHECK @azure/storage-blob dir" ; test -d api_deploy/node_modules/@azure/storage-blob
+          echo "CHECK @azure/storage-common dir" ; test -d api_deploy/node_modules/@azure/storage-common
+          echo "CHECK @azure/core-util dir" ; test -d api_deploy/node_modules/@azure/core-util
+          echo "CHECK storage-common package.json" ; test -f api_deploy/node_modules/@azure/storage-common/package.json
+
+          echo "CHECK trigger exists" ; test -f api_deploy/groupJoin/function.json
+
+          echo "SYMLINKS (first 20)" ; find api_deploy/node_modules -type l | head -n 20 || true
+          echo "ASSERT no symlinks" ; test -z "$(find api_deploy/node_modules -type l | head -n 1)"
+
+          echo "IMPORT storage-blob" ; (cd api_deploy && node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))")
+          echo "IMPORT storage-common" ; (cd api_deploy && node -e "import('@azure/storage-common').then(()=>console.log('storage-common-import-ok'))")
+          echo "IMPORT core-util" ; (cd api_deploy && node -e "import('@azure/core-util').then(()=>console.log('core-util-import-ok'))")
 
       - name: Package API zip (api_deploy at zip root)
         run: |
