@@ -3672,3 +3672,47 @@ Fix Azure 500s caused by missing `@azure/*` runtime dependencies in deploy artif
 ### Follow-ups
 
 - Run GitHub Actions `Deploy API (prod)` to execute Azure `config-zip` deploy and remote smoke calls with environment credentials.
+
+## 2026-02-21 00:45 UTC (azure functions runtime module resolution via hoisted pnpm staging)
+
+### Objective
+
+Fix Azure Functions `ERR_MODULE_NOT_FOUND: Cannot find package '@azure/storage-common'` caused by pnpm symlinked dependency layout not surviving zip deploy extraction.
+
+### Approach
+
+- Identified root cause as mismatch between pnpm `.pnpm`/symlinked node_modules produced by deploy staging and Azure zip deploy runtime module resolution expectations.
+- Updated `.github/workflows/deploy.yml` staging flow to install production dependencies directly in `api_deploy` using `pnpm install --prod --frozen-lockfile --config.node-linker=hoisted` so physical `node_modules/@azure/*` folders are present in the artifact.
+- Removed the prior `pnpm deploy --legacy` + `api_deploy_install/node_modules` copy path.
+- Added explicit guardrail checks for `api_deploy/node_modules/@azure/storage-common` and `api_deploy/node_modules/@azure/storage-blob` before packaging; also print those paths in logs so validation is visible in Actions output.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Validation steps
+
+- `pnpm install --prod --frozen-lockfile --config.node-linker=hoisted` (inside `api_deploy`) should materialize hoisted runtime dependencies.
+- `test -d api_deploy/node_modules/@azure/storage-common` and `test -d api_deploy/node_modules/@azure/storage-blob` now run in workflow and fail-fast if missing.
+- Actions logs now include printed dependency paths to confirm artifact contents.
+
+### App Insights error signature
+
+- Previous failure signature: `ERR_MODULE_NOT_FOUND: Cannot find package '@azure/storage-common'`.
+- Expected post-deploy signal: this signature no longer appears for runtime invocations such as `/api/group/join`.
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ reviewed current deploy workflow and identified legacy pnpm deploy/copy path.
+- `python - <<'PY' ...` ✅ replaced legacy staging dependency steps with hoisted production install + guardrails.
+- `sed -n '20,170p' .github/workflows/deploy.yml` ✅ verified workflow now includes hoisted install and pre-zip runtime dependency checks.
+
+### Follow-ups
+
+- Run GitHub Actions `Deploy API (prod)` and confirm logs show:
+  - `node_modules/@azure/storage-common`
+  - `node_modules/@azure/storage-blob`
+- Verify App Insights no longer reports `ERR_MODULE_NOT_FOUND: @azure/storage-common`.
+- Verify `POST /api/groupJoin` returns non-500 after deployment.

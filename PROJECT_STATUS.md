@@ -586,3 +586,8 @@ traces
 
 - 2026-02-20: Fixed TS2322 in `api/src/functions/chat.ts` where `RuleRequestItem.status` was inferred as `string`; replaced defaulting behavior with runtime validation + explicit type narrowing (`available`/`unavailable`) and a strict HTTP 400 `invalid_rule_status` response that returns early.
 - Verification command used: `pnpm --filter @familyscheduler/api build` (currently blocked in this environment by missing Azure SDK modules: `@azure/identity`, `@azure/storage-blob`).
+
+2026-02-21: Fixed Azure Functions runtime failure caused by pnpm symlinked
+node_modules not resolving in zip deploy. Switched deploy staging to
+`pnpm install --config.node-linker=hoisted` and added runtime dependency
+guardrail checks.
