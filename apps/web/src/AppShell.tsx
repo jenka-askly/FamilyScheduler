@@ -840,11 +840,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} />
             <button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button>
           </div>
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--muted)' }}>
-            <div style={{ fontSize: 12 }}>
+          <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 12, lineHeight: 1.25, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ margin: 0 }}>
               Add, edit, delete, rename, or assign appointments. You can also paste email text or a CSV with appointment details.
             </div>
-            <div style={{ fontSize: 12 }}>
+            <div style={{ margin: 0 }}>
               Example: “Pre-op visit March 19 at 9:45 AM, Evergreen Health” or paste a confirmation email.
             </div>
           </div>
