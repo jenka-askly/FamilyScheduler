@@ -3917,3 +3917,34 @@ Fix false-failing deploy validation caused by path checks that still prefixed `a
 - Capture from logs which node_modules path exists after install:
   - local: `api_deploy/node_modules` (from inside step shown as `node_modules`)
   - workspace root: `../node_modules`
+
+## 2026-02-21 UTC (deploy: materialize hoisted node_modules into api_deploy)
+
+### Objective
+
+Ensure deploy staging always contains `api_deploy/node_modules` with real `@azure/*` directories when pnpm hoisting installs into workspace root.
+
+### Approach
+
+- Updated deploy workflow staging step to copy workspace root dependencies into `api_deploy/node_modules` using `cp -RL` (dereference symlinks).
+- Replaced staging asserts with explicit checks for `node_modules` plus `@azure/core-util`, `@azure/storage-common`, and `@azure/storage-blob`.
+- Added import smoke checks from inside `api_deploy` for all three Azure packages to validate runtime resolution before zipping/deploying.
+- Updated continuity docs to capture pnpm workspace-root install behavior and the new materialization strategy.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ reviewed current deploy staging/validation logic before edits.
+- `python - <<'PY' ...` ✅ updated continuity docs in `PROJECT_STATUS.md` and appended this log entry.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified scoped changes for workflow + continuity docs.
+
+### Follow-ups
+
+- Re-run GitHub Actions workflow **Deploy API (prod)** and confirm logs print: `core-util-import-ok`, `storage-common-import-ok`, `storage-blob-import-ok`.
+- Confirm artifact listing includes `node_modules/@azure/core-util` in `api.zip` contents.
+

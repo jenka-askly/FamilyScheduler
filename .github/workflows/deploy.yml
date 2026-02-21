@@ -59,6 +59,10 @@ jobs:
           cd api_deploy
           pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
 
+          # Copy workspace root node_modules into api_deploy and dereference symlinks
+          rm -rf node_modules
+          cp -RL ../node_modules ./node_modules
+
           echo "DEBUG: PWD=$(pwd)"
           echo "DEBUG: list api_deploy dir"
           ls -la .
@@ -69,14 +73,15 @@ jobs:
           echo "DEBUG: does workspace root node_modules exist?"
           ls -la ../node_modules || true
 
-          echo "DEBUG: local @azure top-level"
-          ls -la node_modules/@azure || true
-
-          echo "DEBUG: root @azure top-level"
-          ls -la ../node_modules/@azure || true
-
-          # Assert we have node_modules in *this* folder (not the repo root)
+          # Assert we have local materialized dependencies
           test -d node_modules
+          test -d node_modules/@azure/core-util
+          test -d node_modules/@azure/storage-common
+          test -d node_modules/@azure/storage-blob
+
+          node -e "import('@azure/core-util').then(()=>console.log('core-util-import-ok'))"
+          node -e "import('@azure/storage-common').then(()=>console.log('storage-common-import-ok'))"
+          node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))"
 
           cd ..
 
