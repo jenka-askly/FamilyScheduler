@@ -51,5 +51,17 @@ jobs:
         run: |
           set -euo pipefail
           test -f apps/web/dist/index.html
-          # Deploy the already-built artifact
-          npx -y @azure/static-web-apps-cli@latest deploy apps/web/dist --deployment-token "$SWA_DEPLOYMENT_TOKEN"
+          npx -y @azure/static-web-apps-cli@latest deploy \
+            --app-location apps/web \
+            --output-location dist \
+            --env production \
+            --deployment-token "$SWA_DEPLOYMENT_TOKEN" \
+            --verbose
+
+      - name: Smoke test deployed HTML references built assets
+        run: |
+          set -euo pipefail
+          # Give SWA a moment to propagate, then verify script tag is NOT /src/main.tsx
+          html="$(curl -fsSL "https://red-cliff-0f62ac31e.4.azurestaticapps.net/?v=${GITHUB_SHA}")"
+          echo "$html" | grep -q "/assets/" || (echo "ERROR: expected /assets/ in HTML"; echo "$html"; exit 1)
+          echo "$html" | grep -q "/src/main.tsx" && (echo "ERROR: still serving /src/main.tsx"; exit 1) || true

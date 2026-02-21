@@ -4785,3 +4785,37 @@ Remove Docker/MCR dependency from the web deploy path so SWA deployment is no lo
 
 - Confirm next `Deploy Web (SWA)` run succeeds without MCR pulls and without 429 failures.
 - Verify production HTML source references bundled `/assets/index-*.js` scripts and page loads without module MIME errors.
+
+## 2026-02-21 21:05 UTC (SWA CLI production env + smoke test)
+
+### Objective
+
+Force SWA CLI deployment to target production explicitly and add an automated post-deploy smoke test that validates production HTML references built `/assets/*` artifacts rather than source `/src/main.tsx`.
+
+### Approach
+
+- Updated `.github/workflows/swa-web.yml` deploy command to use SWA CLI flags:
+  - `--app-location apps/web`
+  - `--output-location dist`
+  - `--env production`
+  - `--deployment-token ...`
+  - `--verbose`
+- Added a smoke-test step immediately after deploy that curls the production site with a cache-busting SHA query, verifies `/assets/` appears in HTML, and fails if `/src/main.tsx` is present.
+- Updated continuity docs in `PROJECT_STATUS.md` to reflect the production-env deploy hardening and new HTML asset reference validation.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,220p' .github/workflows/swa-web.yml` ✅ inspected current deploy workflow before edit.
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` with SWA production env + smoke test status bullets.
+- `git diff -- .github/workflows/swa-web.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diffs only.
+
+### Follow-ups
+
+- Validate on the next `main` deploy run that smoke test passes and production `view-source` uses `/assets/index-*.js`.
+- If smoke test flakes due to propagation delay, add a short bounded retry loop while keeping fast failure.
