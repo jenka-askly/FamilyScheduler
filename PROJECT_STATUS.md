@@ -702,3 +702,9 @@ traces
 - Fix: deploy packaging now writes a `dist/index.js` ESM shim (`import './api/src/index.js';`) into the staging artifact so Azure Functions can load `package.json#main` while preserving the existing TypeScript emit layout under `dist/api/src/**`.
 - Packaging invariant checks now require both `dist/index.js` (shim) and `dist/api/src/index.js` (actual compiled entry), plus existing function file checks, to prevent regressions.
 - Deploy workflow staging validation now checks `api_deploy/dist/index.js` in addition to `api_deploy/dist/api/src/index.js`.
+
+## Update: 2026-02-21 UTC (SWA production deploy target + post-deploy guard)
+
+- Updated `.github/workflows/swa-web.yml` SWA CLI deploy command to deploy the built folder directly (`apps/web/dist`) with `--env production --verbose` and no `--app-location/--output-location` flags.
+- Added a hard post-deploy verification step that fetches production HTML and fails if `/assets/` is missing or `/src/main.tsx` is still present.
+- Behavior change: the workflow now explicitly enforces that production serves built assets after deploy.
