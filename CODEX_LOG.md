@@ -4086,3 +4086,32 @@ Expose a clear inline accept path for new Person rows (button + Enter key) and a
 ### Follow-ups
 
 - Capture a fully in-flow People-pane screenshot in an environment with seeded group/app state so the inline Add Person row is visible without setup gates.
+
+## 2026-02-21 03:01 UTC (rules dialog button label clarity)
+
+### Objective
+
+Rename Rules modal action button labels for clearer intent without changing behavior.
+
+### Approach
+
+- Updated Rules composer Draft button text from `Draft` to `Draft Rule` in `AppShell`.
+- Updated Rules confirm button text from `Confirm` to `Add Rule` while preserving existing disabled/handler logic.
+- Updated continuity docs in `PROJECT_STATUS.md` to reflect the UI wording change.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "\bDraft\b" apps/web/src --glob='*.tsx'` ✅ located Draft usages and scoped edits to Rules modal.
+- `rg -n "\bConfirm\b" apps/web/src --glob='*.tsx'` ✅ located Confirm usages and scoped edits to Rules modal.
+- `sed -n '200,900p' apps/web/src/AppShell.tsx` ✅ verified exact modal section and button handlers.
+- `git diff -- apps/web/src/AppShell.tsx` ✅ confirmed only label text changes in Rules modal buttons.
+
+### Follow-ups
+
+- Human verify in UI that the Rules dialog shows “Draft Rule” and “Add Rule”.
