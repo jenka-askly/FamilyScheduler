@@ -1,5 +1,38 @@
 # CODEX_LOG
 
+## 2026-02-21 UTC (deploy staging node_modules guarantee + diagnostics)
+
+### Objective
+
+Fix deploy workflow failure at `Validate deploy staging directory` caused by missing `api_deploy/node_modules`, and add deterministic diagnostics to prove install/copy stages.
+
+### Approach
+
+- Replaced the deploy staging step script in `.github/workflows/deploy.yml` with a traced (`set -x`) flow that:
+  - rebuilds clean staging directories (`api_deploy`, `api_deploy_install`),
+  - runs `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install`,
+  - asserts `api_deploy_install/node_modules` exists,
+  - copies dependencies into staging via `cp -RL` to dereference symlinks,
+  - hard-asserts key Azure package directories under `api_deploy/node_modules`.
+- Kept the separate staging validation step for redundant guardrails.
+- Updated continuity docs to record root failure point and new staging diagnostics/guarantees.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/deploy.yml` ✅ verified staging script replacement and assertions.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diff and continuity updates.
+
+### Follow-ups
+
+- Re-run GitHub Actions workflow **Deploy API (prod)** and inspect new DEBUG markers if any failure remains.
+- If failure persists, compare whether `api_deploy_install/node_modules` assert or `cp -RL` post-copy asserts fail first.
+
 ## 2026-02-18 UTC
 
 ### Objective
