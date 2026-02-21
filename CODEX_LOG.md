@@ -4053,3 +4053,36 @@ Make rules Confirm persist the exact drafted intervals from the UI instead of re
 ### Follow-ups
 
 - Optional future hardening: factor drafted-interval parsing into shared validator utility if reused by additional endpoints.
+
+## 2026-02-21 02:49 UTC (people table inline accept + rule alignment)
+
+### Objective
+
+Expose a clear inline accept path for new Person rows (button + Enter key) and align rule display content on the right with status tag at the end.
+
+### Approach
+
+- Updated `AppShell` people-row rendering to detect `isNewRowEditing` using existing `editingPersonId` + `pendingBlankPersonId` state.
+- Swapped the Actions cell for the new-row editing state to `Accept`/`Cancel` buttons, while keeping existing icon actions for all other rows.
+- Added key handling on new-row name/phone inputs so Enter submits and Escape cancels without affecting normal rows.
+- Reworked rule display ordering in the person rules row and adjusted CSS for right alignment and truncation behavior.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Add Person|adding|newPerson|isAdding|tempPerson|People|Actions\b|edit|delete|trash|pencil|rule|setPeople|personId|cellDisplay" apps/web/src/AppShell.tsx apps/web/src --glob='*.tsx'` ✅ located People table and rule/action rendering.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (Vite production build).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual check; stopped with SIGINT after capture.
+- `mcp__browser_tools__run_playwright_script` ⚠️ first run failed due JS syntax in Python runner; follow-up run succeeded and produced screenshots.
+
+### Follow-ups
+
+- Capture a fully in-flow People-pane screenshot in an environment with seeded group/app state so the inline Add Person row is visible without setup gates.

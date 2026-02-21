@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
@@ -271,6 +271,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setPendingBlankPersonId(result.personId);
     setPersonDraft({ name: created?.name ?? '', phone: created?.cellDisplay ?? '' });
     setPersonEditError(null);
+  };
+
+  const onNewPersonRowKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>, isNewRowEditing: boolean) => {
+    if (!isNewRowEditing) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void submitPersonEdit();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      void cancelPersonEdit();
+    }
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -633,23 +645,31 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   {peopleInView.map((person) => {
                     const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                     const isEditingPerson = editingPersonId === person.personId;
+                    const isNewRowEditing = isEditingPerson && pendingBlankPersonId === person.personId;
                     return (
                       <Fragment key={person.personId}>
                         <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                           <td>
-                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
+                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
                           </td>
                           <td>
-                            {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} placeholder="(425) 555-1234" /> : <span style={{ fontFamily: 'var(--font-mono)' }}>{person.cellDisplay || '—'}</span>}
+                            {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} placeholder="(425) 555-1234" /> : <span style={{ fontFamily: 'var(--font-mono)' }}>{person.cellDisplay || '—'}</span>}
                             {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
                           </td>
                           <td><span className={`status-tag ${person.status === 'active' ? 'available' : 'unknown'}`}>{person.status}</span></td>
                           <td className="actions-cell">
-                            <div className="action-icons"> 
-                              <button type="button" className="icon-button" aria-label="Rules" data-tooltip="Rules" onClick={() => openRulePromptModal(person)}><Clock3 /></button>
-                              <button type="button" className="icon-button" aria-label="Edit person" data-tooltip="Edit person" onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}><Pencil /></button>
-                              <button type="button" className="icon-button" aria-label="Delete person" data-tooltip="Delete person" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
-                            </div>
+                            {isNewRowEditing ? (
+                              <div className="action-buttons">
+                                <button type="button" className="fs-btnPrimary" onClick={() => void submitPersonEdit()}>Accept</button>
+                                <button type="button" className="fs-btnSecondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
+                              </div>
+                            ) : (
+                              <div className="action-icons"> 
+                                <button type="button" className="icon-button" aria-label="Rules" data-tooltip="Rules" onClick={() => openRulePromptModal(person)}><Clock3 /></button>
+                                <button type="button" className="icon-button" aria-label="Edit person" data-tooltip="Edit person" onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}><Pencil /></button>
+                                <button type="button" className="icon-button" aria-label="Delete person" data-tooltip="Delete person" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                         {personRules.length > 0 ? (
@@ -659,10 +679,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 <ul className="rules-list">
                                   {personRules.map((rule) => (
                                     <li key={rule.code} className="rule-item">
-                                      <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
-                                      <span>{rule.date}</span>
-                                      <span>{formatRuleTime(rule)}</span>
+                                      <span className="rule-date-time">{rule.date} {formatRuleTime(rule)}</span>
                                       <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
+                                      <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
                                       <span className="rule-actions">
                                         <button
                                           type="button"
