@@ -4665,3 +4665,34 @@ Stop `Azure/static-web-apps-deploy@v1` upload jobs from failing in internal Dock
 
 ### Follow-ups
 - Re-run both SWA workflows in GitHub Actions and verify deploy uses prebuilt artifact upload with no internal Docker build stage.
+
+## 2026-02-21 20:25 UTC (Azure Functions indexing entrypoint shim)
+
+### Objective
+
+Restore Azure Functions indexing in production deployments where zip deploy succeeded but Azure Portal showed no functions due to missing configured entrypoint.
+
+### Approach
+
+- Added a deploy-staging shim file at `api_deploy/dist/index.js` immediately after copying build output so it matches `api/package.json` `main` (`dist/index.js`) and imports the actual compiled entrypoint at `dist/api/src/index.js`.
+- Kept existing `dist/api/src/index.js` validation and added/retained explicit `dist/index.js` staging validation so CI fails fast if the shim is missing.
+- Updated continuity docs to note the symptom addressed: deploy completes but functions are not indexed/listed in Portal.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ inserted `dist/index.js` shim creation in deploy staging step.
+- `python - <<'PY' ...` ✅ added PROJECT_STATUS note for Functions indexing fix.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+- `cat >> CODEX_LOG.md <<'EOF' ...` ✅ appended this continuity log entry.
+
+### Follow-ups
+
+- Push branch and verify GitHub Actions logs include `CHECK dist/index.js` pass and show `api_deploy/dist/index.js` in staged artifact listing.
+- After deploy completes, confirm Azure Portal lists functions again for `familyscheduler-api-prod`.
+- If functions remain missing, inspect Function App logs for module-load errors from startup/indexing.
