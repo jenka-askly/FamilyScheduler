@@ -4472,3 +4472,37 @@ Implement runtime UI updates for: circular plus add buttons, wider centered page
 - Schedule and People now use circular plus action buttons with unchanged click handlers.
 - Workspace content keeps `1200px` max-width but has increased horizontal breathing room.
 - People rules render denser and visually closer to person rows.
+
+## 2026-02-21 04:46 UTC (fix white-on-white Add FAB rendering)
+
+### Objective
+
+Fix circular Add FAB buttons rendering white-on-white due to shared/global button CSS collisions.
+
+### Approach
+
+- Located `AddFab` and confirmed it depended on inline styles without a dedicated class hook for CSS precedence guarantees.
+- Updated `AddFab` to use dedicated `className="fs-fabAdd"` and removed inline visual styling so one class controls the FAB appearance consistently.
+- Added `button.fs-fabAdd` styles with explicit `background`, `border`, `color`, hover, active, and keyboard `:focus-visible` ring to ensure the FAB wins over shared `button` resets/styles.
+- Captured updated UI screenshot after launching the local web dev server.
+- Updated continuity note in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "function AddFab|AddFab\b|aria-label=\"Add appointment\"|aria-label=\"Add person\"|>\+<" apps/web/src/AppShell.tsx` ✅ located Add FAB implementation and usages.
+- `sed -n '560,700p' apps/web/src/AppShell.tsx` ✅ inspected appointment/people pane FAB render points.
+- `rg -n "fs-fabAdd|button\s*\{|\.fs-btn|background:\s*transparent" apps/web/src/styles.css apps/web/src/styles/ui.css` ✅ inspected shared button style definitions and precedence context.
+- `pnpm -C apps/web build` ✅ build succeeded after FAB style/class changes.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched local web app for visual verification (stopped after screenshot).
+- Browser tool Playwright screenshot capture ✅ produced `browser:/tmp/codex_browser_invocations/cee0d15b00e7e06f/artifacts/artifacts/fab-add-visible.png`.
+
+### Follow-ups
+
+- If future theme tokens rename `--primary`, keep `button.fs-fabAdd` mapped to the current primary-action token to preserve contrast and discoverability.
