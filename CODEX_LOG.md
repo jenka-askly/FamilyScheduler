@@ -4240,3 +4240,36 @@ Implement three UI/logic fixes: header link placement under group name, improved
 
 - Run the full web+api stack locally and verify APPT-2 assignment modal status labels against real group data.
 
+## 2026-02-21 03:50 UTC (Schedule/People header consistency pass)
+
+### Objective
+
+Make Schedule and People panes visually consistent: rename Appointments UI label to Schedule, add modern segmented tabs, standardize + Add buttons, and tighten helper text grouping under the action prompt.
+
+### Approach
+
+- Updated shared `AppShell` header title mapping from Appointments -> Schedule (UI label only).
+- Replaced two standalone pane-toggle buttons with one segmented tab container in the shared header region.
+- Normalized both pane primary add actions to sentence-case labels with leading plus and matching dimensions.
+- Grouped action-prompt helper lines under one compact container with reduced spacing and muted text.
+- Captured a browser screenshot artifact to verify visual result.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Appointments\b|People\b|Add Appointment\b|Add Person\b|What would you like to do\?" apps/web/src --glob='*.tsx'` ✅ located UI strings and controls.
+- `sed -n '240,420p' apps/web/src/AppShell.tsx` ✅ inspected header/title logic region.
+- `sed -n '420,760p' apps/web/src/AppShell.tsx` ✅ inspected pane controls and add buttons region.
+- `sed -n '760,860p' apps/web/src/AppShell.tsx` ✅ inspected helper prompt text grouping region.
+- `rg -n "Appointments\b|Add Appointment\b|Add Person\b|\+ Add appointment|\+ Add person|🗓|What would you like to do\?" apps/web/src/AppShell.tsx apps/web/src/App.tsx apps/web/src/components/layout/PageHeader.tsx --glob='*.tsx'` ✅ confirmed post-change strings/locations.
+- `pnpm -C apps/web build` ✅ TypeScript + production build passed.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (then stopped with Ctrl+C).
+
+### Follow-ups
+
+- Optional: move segmented-tab inline styles into a shared class/tokenized style block if further header variants are added.
