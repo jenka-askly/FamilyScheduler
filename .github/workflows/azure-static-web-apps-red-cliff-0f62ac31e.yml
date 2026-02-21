@@ -13,6 +13,19 @@ jobs:
         with:
           submodules: true
           lfs: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Validate BYO API base URL
         env:
           VITE_API_BASE_URL: "https://familyscheduler-api-prod-c4cuakggcff8bvbh.westus-01.azurewebsites.net"
@@ -21,6 +34,25 @@ jobs:
             echo "VITE_API_BASE_URL must be set for BYO API routing"
             exit 1
           fi
+
+      - name: Prebuild web artifact
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_TIME: ${{ github.run_id }}-${{ github.run_number }}
+          VITE_API_BASE_URL: "https://familyscheduler-api-prod-c4cuakggcff8bvbh.westus-01.azurewebsites.net"
+        run: pnpm --filter @familyscheduler/web build
+
+      - name: Docker version (diagnostic)
+        run: docker --version || true
+
+      - name: Disk usage (diagnostic)
+        run: df -h
+
+      - name: Workspace size (diagnostic)
+        run: du -sh . || true
+
+      - name: Workspace listing (diagnostic)
+        run: ls -la
 
       - name: Build And Deploy
         id: builddeploy
@@ -36,9 +68,9 @@ jobs:
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
           app_location: "apps/web" # App source code path
-          app_build_command: "npm run build"
+          app_artifact_location: "apps/web/dist" # Prebuilt app artifact path
           api_location: "" # Api source code path - optional
-          output_location: "dist" # Built app content directory - optional
+          skip_app_build: true
           skip_api_build: true
           ###### End of Repository/Build Configurations ######
 

@@ -32,6 +32,25 @@ jobs:
             exit 1
           fi
 
+      - name: Prebuild web artifact
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_BUILD_TIME: ${{ github.run_id }}-${{ github.run_number }}
+          VITE_API_BASE_URL: "https://familyscheduler-api-prod-c4cuakggcff8bvbh.westus-01.azurewebsites.net"
+        run: pnpm --filter @familyscheduler/web build
+
+      - name: Docker version (diagnostic)
+        run: docker --version || true
+
+      - name: Disk usage (diagnostic)
+        run: df -h
+
+      - name: Workspace size (diagnostic)
+        run: du -sh . || true
+
+      - name: Workspace listing (diagnostic)
+        run: ls -la
+
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         env:
@@ -41,9 +60,8 @@ jobs:
         with:
           action: upload
           app_location: apps/web
-          app_build_command: npm run build
-          output_location: dist
-          skip_app_build: false
+          app_artifact_location: apps/web/dist
+          skip_app_build: true
           api_location: ""
           skip_api_build: true
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}

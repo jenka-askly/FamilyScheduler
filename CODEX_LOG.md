@@ -4638,34 +4638,30 @@ Resolve failing deploy check expecting `api_deploy/dist/index.js` by aligning ch
 ### Follow-ups
 - Re-run `pnpm deploy:api:package` and deploy workflow in CI with normal registry credentials/network to confirm end-to-end packaging succeeds.
 
-## 2026-02-21 20:20 UTC — Azure Functions entrypoint shim for deploy artifact
 
+## 2026-02-21 20:12 UTC — Fix SWA deploy Docker build failures via prebuilt artifacts
 ### Objective
-
-Fix Azure Functions startup/indexing by ensuring deploy artifacts include `dist/index.js` that matches `api/package.json` `main` while keeping TS emit output unchanged under `dist/api/src/**`.
+Stop `Azure/static-web-apps-deploy@v1` upload jobs from failing in internal Docker/Oryx build by prebuilding artifacts with pnpm and deploying prebuilt output.
 
 ### Approach
-
-- Updated deploy packaging script to write an ESM shim file at staging path `dist/index.js` with `import './api/src/index.js';` immediately after copying `api/dist`.
-- Expanded packaging zip invariants to require both shim and nested compiled entrypoint.
-- Added deploy workflow staging validation check for `api_deploy/dist/index.js` while retaining existing `dist/api/src/index.js` check.
-- Updated continuity docs with behavior change and guardrails.
+- Updated both SWA workflows that call `Azure/static-web-apps-deploy@v1` for upload.
+- Added explicit pnpm/node setup + `pnpm install --frozen-lockfile` + `pnpm --filter @familyscheduler/web build` before deploy.
+- Switched action inputs to prebuilt artifact mode (`skip_app_build: true`, `app_artifact_location: apps/web/dist`).
+- Added pre-deploy diagnostic runner steps (`docker --version || true`, `df -h`, `du -sh . || true`, `ls -la`).
 
 ### Files changed
-
-- `scripts/package-api-deploy.mjs`
-- `.github/workflows/deploy.yml`
+- `.github/workflows/swa-web.yml`
+- `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
-
+- `rg -n "Azure/static-web-apps-deploy@v1" .github/workflows -S` ✅
+- `rg -n "static-web-apps-deploy" .github/workflows -S` ✅
+- `pnpm install` ✅
 - `pnpm -r build` ✅
-- `node scripts/package-api-deploy.mjs` ⚠️ failed in this environment due npm registry 403 during `pnpm deploy --prod` (`@azure/core-client` fetch forbidden), after staging copy/shim step.
-- `test -f .artifacts/deploy/api-package/dist/index.js && sed -n '1,5p' .artifacts/deploy/api-package/dist/index.js` ✅ confirmed shim exists with expected import statement.
-- `test -f .artifacts/deploy/api-package/dist/api/src/index.js` ✅ confirmed nested compiled entry still exists.
+- `ls -la apps/web/dist` ✅
+- `find apps/web/dist -maxdepth 2 -type f | head -n 50` ✅
 
 ### Follow-ups
-
-- Re-run `pnpm deploy:api:package` in CI/network with registry access and confirm zip invariants pass end-to-end.
-- Deploy to Azure and verify Functions are indexed in portal (non-zero functions listed).
+- Re-run both SWA workflows in GitHub Actions and verify deploy uses prebuilt artifact upload with no internal Docker build stage.
