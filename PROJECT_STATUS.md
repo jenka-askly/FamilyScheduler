@@ -6,8 +6,10 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 ## What works now
 
+- SWA web deploy now publishes `apps/web/dist` using `output_location: dist` (replacing incorrect `app_artifact_location`), preventing source deployment (`/src/main.tsx` + octet-stream) and restoring rendered site output.
 
-- SWA workflows now prebuild `apps/web/dist` using pnpm before deploy and pass `skip_app_build: true` with `app_artifact_location: apps/web/dist`, preventing Azure/static-web-apps-deploy from invoking its internal Oryx/Docker build path.
+
+- SWA workflows now prebuild `apps/web/dist` using pnpm before deploy and pass `skip_app_build: true` with `output_location: dist`, preventing Azure/static-web-apps-deploy from invoking its internal Oryx/Docker build path.
 - Added lightweight pre-deploy diagnostics in SWA workflows (`docker --version || true`, `df -h`, `du -sh . || true`, `ls -la`) to aid future runner resource triage when deploy issues recur.
 
 - Renamed the Appointments pane label to **Schedule** in the shared workspace header while keeping the internal `appointments` view key unchanged.
