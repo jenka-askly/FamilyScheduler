@@ -52,7 +52,7 @@ jobs:
           done
 
           pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install
-          cp -R api_deploy_install/node_modules api_deploy/node_modules
+          cp -RL api_deploy_install/node_modules api_deploy/node_modules
 
       - name: Validate deploy staging directory
         run: |
@@ -61,7 +61,12 @@ jobs:
           test -f api_deploy/package.json
           test -f api_deploy/dist/index.js
           test -d api_deploy/node_modules
+          test -d api_deploy/node_modules/@azure/storage-blob
+          test -d api_deploy/node_modules/@azure/storage-common
+          test -f api_deploy/node_modules/@azure/storage-common/package.json
           test -f api_deploy/groupJoin/function.json
+          test -z "$(find api_deploy/node_modules -type l | head -n 1)"
+          (cd api_deploy && node -e "import('@azure/storage-common').then(() => console.log('storage-common-import-ok'))")
           (cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")
 
       - name: Package API zip (api_deploy at zip root)
