@@ -10,6 +10,8 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 - Deploy staging now includes function folders for discovery + portable prod deps to avoid @azure module gaps.
 - API prod deploy now stages a clean `api_deploy/` package root (host.json + package.json + built `dist/`) and installs production dependencies via `pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` before copying `node_modules` into the deploy root.
 - Deploy workflow now validates the staged runtime by importing `@azure/storage-blob` from `api_deploy/` so transitive packages such as `@azure/core-rest-pipeline` are present in the artifact.
+- Deploy workflow staging now hard-guarantees `api_deploy/node_modules` creation by asserting `api_deploy_install/node_modules` exists after `pnpm deploy` and copying with `cp -RL` into `api_deploy/` for symlink-safe zip deploys.
+- Deploy staging diagnostics now print deterministic install/copy evidence (`set -x`, `ls -la api_deploy_install`, top-level `api_deploy/node_modules/@azure`) so failures show exactly which stage regressed.
 - Zip packaging now archives `api_deploy` (app root at zip root) and post-deploy smoke test now calls `POST /api/group/join` and fails only on HTTP 500, directly guarding against runtime module-load failures.
 - Flex Consumption API deploy no longer sets `FUNCTIONS_WORKER_RUNTIME`; workflow now relies on platform-managed runtime settings to avoid appsettings rejection during deploy.
 - Root cause (Flex function discovery): deploy archive was packaged with the wrong zip root, so `host.json` and function folders (`chat/`, `direct/`, `groupCreate/`, etc.) were not positioned at the archive root for indexing.
