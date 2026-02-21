@@ -37,6 +37,17 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 - If `VITE_API_BASE_URL` is missing in production builds, the app throws a startup error with a clear configuration message.
 
 
+
+## Specifications
+
+- [Time & Date Specification](docs/TIME_DATE_SPEC.md)
+
+### Specification Governance
+
+- The specification document is authoritative for time parsing, conflict evaluation, and entry-versioning behavior.
+- Any behavioral change affecting time parsing, conflicts, or versioning must update the spec in the same PR.
+- Increment the spec version whenever behavior changes.
+
 ## Force a production redeploy
 
 If you need to redeploy `main` without source changes, push an empty commit:
