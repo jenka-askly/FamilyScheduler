@@ -1,6 +1,6 @@
 # Time & Date Specification
 
-- Spec Version: 1.0
+- Spec Version: 1.1
 - Last Updated: 2026-02-21
 - Scope: FamilyScheduler time parsing / storage / conflicts
 
@@ -94,6 +94,10 @@ Invariants:
 - this week / next week: Monday `00:00` -> following Monday `00:00`.
 - this weekend: Saturday `00:00` -> Monday `00:00`.
 - next month: first day `00:00` -> first day of following month `00:00`.
+
+### No silent default duration
+
+- Timed phrases without explicit end/duration remain unresolved; the system no longer assumes 60 minutes.
 
 ### Unsupported/open-ended phrases
 

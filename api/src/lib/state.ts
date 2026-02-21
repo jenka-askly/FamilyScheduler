@@ -1,3 +1,4 @@
+import type { TimeSpec } from '../../../packages/shared/src/types.js';
 import { normalizeLocation } from './location/normalize.js';
 
 export type Person = {
@@ -12,6 +13,9 @@ export type Person = {
 };
 
 export type Appointment = {
+  schemaVersion?: number;
+  updatedAt?: string;
+  time?: TimeSpec;
   id: string;
   code: string;
   title: string;
@@ -35,6 +39,8 @@ export type Appointment = {
 };
 
 export type AvailabilityRule = {
+  schemaVersion?: number;
+  time?: TimeSpec;
   code: string;
   personId: string;
   kind: 'available' | 'unavailable';
@@ -157,7 +163,9 @@ const normalizeRulesCollection = (stateLike: Record<string, unknown>, people: Pe
     const promptId = typeof raw.promptId === 'string' && raw.promptId.trim() ? raw.promptId.trim() : undefined;
     const originalPrompt = typeof raw.originalPrompt === 'string' ? raw.originalPrompt.trim() : undefined;
     const assumptions = Array.isArray(raw.assumptions) ? raw.assumptions.filter((item): item is string => typeof item === 'string') : undefined;
-    rules.push({ code, personId, kind, date, startTime, durationMins: startTime ? durationMins : undefined, timezone, desc, status, startUtc, endUtc, promptId, originalPrompt, assumptions });
+    const time = (raw.time && typeof raw.time === 'object') ? raw.time as TimeSpec : undefined;
+    const schemaVersion = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : undefined;
+    rules.push({ code, schemaVersion, time, personId, kind, date, startTime, durationMins: startTime ? durationMins : undefined, timezone, desc, status, startUtc, endUtc, promptId, originalPrompt, assumptions });
   });
 
   return rules;
@@ -188,6 +196,9 @@ export const normalizeAppState = (state: AppState): AppState => {
 
     return {
       id: typeof raw.id === 'string' ? raw.id : `appt-${idx + 1}`,
+      schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : undefined,
+      updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : undefined,
+      time: (raw.time && typeof raw.time === 'object') ? raw.time as TimeSpec : undefined,
       code: typeof raw.code === 'string' ? raw.code : `APPT-${idx + 1}`,
       title: typeof raw.title === 'string' ? normalizeText(raw.title) : '',
       start: typeof raw.start === 'string' ? raw.start : undefined,

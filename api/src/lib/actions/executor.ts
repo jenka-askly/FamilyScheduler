@@ -4,6 +4,7 @@ import { intervalBounds, normalizeRulesV2, overlaps } from '../availability/inte
 import { PhoneValidationError, validateAndNormalizePhone } from '../validation/phone.js';
 import type { Action } from './schema.js';
 import { normalizeLocation } from '../location/normalize.js';
+import { getTimeSpec, parseTimeSpec } from '../time/timeSpec.js';
 import { aiParseLocation } from '../location/aiParseLocation.js';
 
 export type ExecutionContext = { activePersonId: string | null; timezoneName: string; };
@@ -34,12 +35,22 @@ const getTimeZoneOffset = (date: Date, timeZone: string): string => {
 const buildIsoAtZone = (date: string, startTime: string, timezone: string): string => `${date}T${startTime}:00${getTimeZoneOffset(new Date(`${date}T${startTime}:00Z`), timezone)}`;
 export const resolveAppointmentTimes = (date: string, startTime?: string, durationMins?: number, timezone = 'America/Los_Angeles'): ResolvedAppointmentTimes => {
   if (!startTime) return { isAllDay: true };
+  if (!durationMins || durationMins < 1) return { isAllDay: false };
   const startIso = buildIsoAtZone(date, startTime, timezone);
-  const endIso = new Date(new Date(startIso).getTime() + (durationMins ?? 60) * 60_000).toISOString();
+  const endIso = new Date(new Date(startIso).getTime() + durationMins * 60_000).toISOString();
   return { startIso, endIso, isAllDay: false };
 };
 const describeTime = (date: string, startTime?: string, durationMins?: number): string => (!startTime ? `${date} (all day)` : `${date} ${startTime} (${durationMins ?? 60}m)`);
 const todayIsoDate = (): string => new Date().toISOString().slice(0, 10);
+
+const fromTimedFieldsToTimeSpec = (date: string, startTime: string | undefined, durationMins: number | undefined, timezone: string): ReturnType<typeof getTimeSpec> => {
+  if (!startTime) return parseTimeSpec({ originalText: date, timezone });
+  if (!durationMins) return { intent: { status: 'unresolved', originalText: `${date} ${startTime}`, missing: ['duration'] } };
+  const end = new Date(new Date(`${date}T${startTime}:00`).getTime() + durationMins * 60_000);
+  const h = String(end.getHours()).padStart(2, '0');
+  const m = String(end.getMinutes()).padStart(2, '0');
+  return parseTimeSpec({ originalText: `${date} ${startTime}-${h}:${m}`, timezone });
+};
 
 const isLocationAiFormattingEnabled = (): boolean => (process.env.LOCATION_AI_FORMATTING ?? 'false').toLowerCase() === 'true';
 
@@ -293,7 +304,8 @@ export const executeActions = async (state: AppState, actions: Action[], context
       const person = findPersonById(nextState, action.personId);
       if (!person) { effectsTextLines.push(`Not found: ${action.personId}`); appliedAll = false; continue; }
       const timezone = action.timezone ?? person.timezone ?? context.timezoneName;
-      const newRule = { personId: action.personId, kind: action.kind, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone, desc: (action.desc ?? '').trim() };
+      const newRule = { schemaVersion: 2, personId: action.personId, kind: action.kind, date: action.date, startTime: action.startTime, durationMins: action.startTime ? action.durationMins : undefined, timezone, desc: (action.desc ?? '').trim(), time: fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone) };
+      if (newRule.time.intent.status !== 'resolved' || !newRule.time.resolved) { effectsTextLines.push('Rule time must be fully resolved before confirm.'); appliedAll = false; continue; }
       const newBounds = intervalBounds({ date: newRule.date, startTime: newRule.startTime, durationMins: newRule.startTime ? newRule.durationMins : undefined });
       const conflicts = nextState.rules
         .filter((rule) => rule.personId === action.personId && rule.date === action.date)
@@ -325,7 +337,7 @@ export const executeActions = async (state: AppState, actions: Action[], context
     if (action.type === 'create_blank_appointment') {
       const code = getNextAppointmentCode(nextState);
       const date = todayIsoDate();
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: '', start: undefined, end: undefined, isAllDay: true, date, startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, schemaVersion: 2, updatedAt: new Date().toISOString(), code, title: '', time: { intent: { status: 'unresolved', originalText: '', missing: ['date'] } }, start: undefined, end: undefined, isAllDay: true, date, startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
       effectsTextLines.push(`Added ${code} — blank appointment on ${date} (all day)`);
       continue;
     }
@@ -333,7 +345,7 @@ export const executeActions = async (state: AppState, actions: Action[], context
     if (action.type === 'add_appointment') {
       const code = getNextAppointmentCode(nextState); const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
       const resolvedPeople = resolvePeopleRefs(nextState, action.people ?? []);
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, code, title: action.desc, start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? (action.durationMins ?? 60) : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, schemaVersion: 2, updatedAt: new Date().toISOString(), code, title: action.desc, time: fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone), start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? action.durationMins : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
       applyAppointmentLocation(nextState.appointments[nextState.appointments.length - 1], action.location ?? '');
       effectsTextLines.push(`Added ${code} — ${action.desc} on ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;
@@ -349,11 +361,11 @@ export const executeActions = async (state: AppState, actions: Action[], context
       const appointment = findAppointmentByCode(nextState, 'code' in action ? action.code : '');
       if (!appointment) { effectsTextLines.push(`Not found: ${'code' in action ? action.code : ''}`); appliedAll = false; continue; }
 
-      if (action.type === 'update_appointment_desc' || action.type === 'set_appointment_desc') { appointment.title = action.desc.trim(); effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`); continue; }
-      if (action.type === 'reschedule_appointment') { const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone); appointment.date = action.date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? (action.durationMins ?? 60) : undefined; appointment.timezone = timezone; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`); continue; }
-      if (action.type === 'set_appointment_date') { const resolved = resolveAppointmentTimes(action.date, appointment.startTime, appointment.durationMins, appointment.timezone ?? context.timezoneName); appointment.date = action.date; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set date for ${appointment.code} to ${action.date}.`); continue; }
-      if (action.type === 'set_appointment_start_time') { const resolved = resolveAppointmentTimes(appointment.date ?? todayIsoDate(), action.startTime, appointment.durationMins, appointment.timezone ?? context.timezoneName); appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? (appointment.durationMins ?? 60) : undefined; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set start time for ${appointment.code}.`); continue; }
-      if (action.type === 'set_appointment_duration') { const duration = appointment.startTime ? action.durationMins : undefined; const resolved = resolveAppointmentTimes(appointment.date ?? todayIsoDate(), appointment.startTime, duration, appointment.timezone ?? context.timezoneName); appointment.durationMins = duration; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Set duration for ${appointment.code}.`); continue; }
+      if (action.type === 'update_appointment_desc' || action.type === 'set_appointment_desc') { appointment.updatedAt = new Date().toISOString(); appointment.title = action.desc.trim(); effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`); continue; }
+      if (action.type === 'reschedule_appointment') { const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone); appointment.schemaVersion = 2; appointment.time = fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone); appointment.updatedAt = new Date().toISOString(); appointment.date = action.date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? action.durationMins : undefined; appointment.timezone = timezone; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`); continue; }
+      if (action.type === 'set_appointment_date') { const timezone = appointment.time?.resolved?.timezone ?? appointment.timezone ?? context.timezoneName; appointment.schemaVersion = 2; appointment.time = parseTimeSpec({ originalText: action.date, timezone }); appointment.updatedAt = new Date().toISOString(); appointment.date = action.date; appointment.startTime = undefined; appointment.durationMins = undefined; appointment.start = appointment.time.resolved?.startUtc; appointment.end = appointment.time.resolved?.endUtc; appointment.isAllDay = appointment.time.intent.status === 'resolved'; effectsTextLines.push(`Set date for ${appointment.code} to ${action.date}.`); continue; }
+      if (action.type === 'set_appointment_start_time') { const timezone = appointment.time?.resolved?.timezone ?? appointment.timezone ?? context.timezoneName; const date = (appointment.time?.resolved?.startUtc ?? appointment.start)?.slice(0, 10) ?? appointment.date ?? todayIsoDate(); const duration = appointment.durationMins; appointment.schemaVersion = 2; appointment.time = fromTimedFieldsToTimeSpec(date, action.startTime, duration, timezone); appointment.updatedAt = new Date().toISOString(); appointment.date = date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? duration : undefined; appointment.start = appointment.time.resolved?.startUtc; appointment.end = appointment.time.resolved?.endUtc; appointment.isAllDay = !action.startTime; effectsTextLines.push(`Set start time for ${appointment.code}.`); continue; }
+      if (action.type === 'set_appointment_duration') { const timezone = appointment.time?.resolved?.timezone ?? appointment.timezone ?? context.timezoneName; const date = (appointment.time?.resolved?.startUtc ?? appointment.start)?.slice(0, 10) ?? appointment.date ?? todayIsoDate(); const startTime = appointment.time?.resolved?.startUtc ? appointment.time.resolved.startUtc.slice(11,16) : appointment.startTime; appointment.schemaVersion = 2; appointment.time = fromTimedFieldsToTimeSpec(date, startTime, action.durationMins, timezone); appointment.updatedAt = new Date().toISOString(); appointment.date = date; appointment.startTime = startTime; appointment.durationMins = action.durationMins; appointment.start = appointment.time.resolved?.startUtc; appointment.end = appointment.time.resolved?.endUtc; appointment.isAllDay = !startTime; effectsTextLines.push(`Set duration for ${appointment.code}.`); continue; }
       if (action.type === 'set_appointment_location') { await applyAppointmentLocation(appointment, action.locationRaw ?? action.location ?? ''); effectsTextLines.push('Set location updated.'); continue; }
       if (action.type === 'set_appointment_notes') { appointment.notes = action.notes.trim(); effectsTextLines.push('Set notes updated.'); continue; }
 
@@ -365,7 +377,7 @@ export const executeActions = async (state: AppState, actions: Action[], context
       const resolvedPeople = resolvePeopleRefs(nextState, refs);
       if (action.type === 'replace_people_on_appointment') appointment.people = resolvedPeople.ids;
       if (action.type === 'add_people_to_appointment') appointment.people = [...new Set([...appointment.people, ...resolvedPeople.ids])];
-      if (action.type === 'remove_people_from_appointment') appointment.people = appointment.people.filter((id) => !resolvedPeople.ids.includes(id));
+      if (action.type === 'remove_people_from_appointment') appointment.people = appointment.people.filter((id) => !resolvedPeople.ids.some((candidate) => normalizeName(candidate) === normalizeName(id)));
       appointment.assigned = [...appointment.people];
 
       const warningPeople = appointment.people

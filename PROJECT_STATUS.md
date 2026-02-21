@@ -675,3 +675,10 @@ traces
 - Compacted `PageHeader` spacing so the group name, group link row, and “This link is required…” explainer render as one tight vertical unit.
 - Replaced ad-hoc inline spacing in `PageHeader` with dedicated CSS classes (`fs-groupBlock`, `fs-groupLinkRow`, `fs-groupExplain`, `fs-headerMeta`) to avoid default element margin drift.
 - Preserved readable micro-separation between lines (~2–4px) while keeping a slightly larger gap before Schedule/People controls.
+
+## 2026-02-21 — TimeSpec v2 end-to-end pass (API + UI)
+- Added shared `TimeSpec` / `TimeIntent` / `ResolvedInterval` definitions and wired API + web snapshots to use `time` as the canonical source.
+- Added deterministic server-side parsing/normalization utility for date-only/all-day, fuzzy windows, relative windows, unresolved handling, range normalization assumptions, and bounded evidence snippets.
+- Updated action execution paths to write `schemaVersion: 2` + `time` on touched appointments/rules, allow unresolved appointments, and block unresolved rules with explicit confirm error.
+- Updated appointment list rendering/sorting to prioritize unresolved items and show unresolved badge + unreconcilable availability labels.
+- Updated TIME_DATE_SPEC to v1.1 to document removal of implicit duration defaults.
