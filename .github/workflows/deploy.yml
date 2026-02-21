@@ -39,7 +39,7 @@ jobs:
       - name: Build clean deploy staging directory (api_deploy)
         run: |
           set -euo pipefail
-          rm -rf api_deploy api_deploy_install api.zip
+          rm -rf api_deploy api.zip
           mkdir -p api_deploy
 
           cp api/host.json api_deploy/host.json
@@ -51,8 +51,23 @@ jobs:
             fi
           done
 
-          pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install
-          cp -R api_deploy_install/node_modules api_deploy/node_modules
+
+      - name: Install production deps in staging (hoisted)
+        run: |
+          set -euo pipefail
+          cd api_deploy
+
+          # Install production dependencies with hoisted node_modules layout
+          pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
+
+          # Fail fast if required runtime deps are missing
+          test -d node_modules/@azure/storage-common
+          test -d node_modules/@azure/storage-blob
+
+          # Emit paths in logs for deploy validation
+          ls -d node_modules/@azure/storage-common node_modules/@azure/storage-blob
+
+          cd ..
 
       - name: Validate deploy staging directory
         run: |
@@ -63,6 +78,11 @@ jobs:
           test -d api_deploy/node_modules
           test -f api_deploy/groupJoin/function.json
           (cd api_deploy && node -e "import('@azure/storage-blob').then(() => console.log('storage-blob-import-ok'))")
+
+      - name: Verify runtime deps exist
+        run: |
+          test -d api_deploy/node_modules/@azure/storage-common
+          test -d api_deploy/node_modules/@azure/storage-blob
 
       - name: Package API zip (api_deploy at zip root)
         run: |
