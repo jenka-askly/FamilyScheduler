@@ -691,3 +691,9 @@ traces
 
 - Fixed deploy artifact path assumptions: CI and packaging validations now assert compiled API entrypoints at `dist/api/src/index.js` and `dist/api/src/functions/*.js` instead of legacy `dist/index.js`/`dist/functions/*`.
 - Packaging/build output format was left unchanged; only invariant checks were aligned to the actual TypeScript emit layout so deploy validation matches runtime artifacts.
+
+## Recent update (2026-02-21 20:20 UTC)
+
+- Fix: deploy packaging now writes a `dist/index.js` ESM shim (`import './api/src/index.js';`) into the staging artifact so Azure Functions can load `package.json#main` while preserving the existing TypeScript emit layout under `dist/api/src/**`.
+- Packaging invariant checks now require both `dist/index.js` (shim) and `dist/api/src/index.js` (actual compiled entry), plus existing function file checks, to prevent regressions.
+- Deploy workflow staging validation now checks `api_deploy/dist/index.js` in addition to `api_deploy/dist/api/src/index.js`.
