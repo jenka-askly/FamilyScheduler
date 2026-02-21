@@ -751,13 +751,13 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                               <div className="rules-indent">
                                 <ul className="rules-list">
                                   {personRules.map((rule) => (
-                                    <li key={rule.code} className="rule-item" style={{ padding: '6px 0' }}>
+                                    <li key={rule.code} className="rule-item">
                                       <div className="rule-row" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 760, width: '100%' }}>
-                                          <span className="rule-range" style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 760, width: '100%' }}>
+                                          <span className="rule-range" style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                                             {formatRuleRangeForList(rule, person.timezone)}
                                           </span>
-                                          <span className="rule-desc" style={{ fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.desc ?? ''}>
+                                          <span className="rule-desc" style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.desc ?? ''}>
                                             {rule.desc || '—'}
                                           </span>
                                           <span className={`status-tag ${rule.kind}`} style={{ whiteSpace: 'nowrap' }}>

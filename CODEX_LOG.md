@@ -4404,3 +4404,34 @@ Undo the segmented Schedule/People tab UI experiment and restore two normal, alw
 ### Follow-ups
 
 - Run the web app and manually verify selector behavior/visuals in browser across typical desktop width.
+
+## 2026-02-21 04:17 UTC (people rules spacing compaction)
+
+### Objective
+
+Tighten People table rules spacing so rule blocks visually belong to the person row and reduce excess whitespace between stacked rules.
+
+### Approach
+
+- Reduced rule-row vertical density in `AppShell` by removing per-item inline padding and tightening inline gap/font-size for range/description text.
+- Updated People rules CSS to pull the rules block closer to the person row and compact list spacing (`rules-cell`, `rules-list`, `rule-item`).
+- Recorded continuity update in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "personRules\\.map\\(|rule-item|rule-row|rules|Unavailable\\b|Available\\b" apps/web/src/AppShell.tsx` ✅ located People rules render path and labels.
+- `rg -n "rule-item|rule-row|rules\\b" apps/web/src --glob='*.css'` ✅ located CSS definitions controlling rules spacing.
+- `sed -n '620,740p' apps/web/src/AppShell.tsx` ✅ inspected People table section around row/rules rendering.
+- `sed -n '736,800p' apps/web/src/AppShell.tsx` ✅ verified updated rule list item markup after edits.
+- `sed -n '396,480p' apps/web/src/styles.css` ✅ verified updated compact spacing styles.
+
+### Follow-ups
+
+- Validate visually in local browser that dense rules remain readable for long descriptions and multiple stacked rules.
