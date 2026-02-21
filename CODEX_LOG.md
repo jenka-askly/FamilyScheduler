@@ -3802,3 +3802,34 @@ Make deploy staging validation logs deterministic so the failing assertion/impor
 ### Follow-ups
 
 - Re-run GitHub Actions workflow **Deploy API (prod)** and use the last emitted `CHECK ...` / `IMPORT ...` marker to pinpoint first failure.
+
+## 2026-02-21 01:06 UTC (deploy core-util diagnostics)
+
+### Objective
+
+Diagnose whether `@azure/core-util` is present only under pnpm store layout (`.pnpm`) or missing entirely in `api_deploy` staging.
+
+### Approach
+
+- Added targeted debug commands in `.github/workflows/deploy.yml` validation step immediately before the failing `test -d api_deploy/node_modules/@azure/core-util` assertion.
+- The diagnostics now:
+  - search `api_deploy/node_modules` for `core-util` directory names up to depth 6,
+  - list matching `@azure+core-util` entries under `api_deploy/node_modules/.pnpm`.
+- This output will disambiguate “present only in `.pnpm`” vs “not installed at all.”
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ confirmed diagnostic commands are placed directly before core-util assert.
+- `git diff -- .github/workflows/deploy.yml CODEX_LOG.md` ✅ verified minimal targeted change and continuity log update.
+
+### Follow-ups
+
+- Re-run GitHub Actions workflow **Deploy API (prod)** and inspect the new `DEBUG search core-util` output.
+- Decision rule:
+  - If only `.pnpm` entries appear: adjust copy/materialization so `api_deploy/node_modules/@azure/core-util` exists.
+  - If no entries appear at all: add `@azure/core-util` to `api/package.json` dependencies and refresh lockfile.
