@@ -48,6 +48,8 @@ jobs:
           cp api/package.json api_deploy/package.json
           cp pnpm-lock.yaml api_deploy/pnpm-lock.yaml
           cp -R api/dist api_deploy/dist
+          # Shim entrypoint expected by api/package.json ("main": "dist/index.js")
+          printf "import './api/src/index.js';\n" > api_deploy/dist/index.js
 
           for d in api/*/; do
             if [ -f "${d}function.json" ]; then
