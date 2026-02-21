@@ -15,7 +15,8 @@
     "@azure/core-rest-pipeline": "^1.22.2",
     "@azure/functions": "^4.8.0",
     "@azure/identity": "^4.6.0",
-    "@azure/storage-blob": "^12.31.0"
+    "@azure/storage-blob": "^12.31.0",
+    "@azure/storage-common": "^12.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
