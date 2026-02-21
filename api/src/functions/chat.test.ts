@@ -75,6 +75,65 @@ test('rule draft question returns deterministic draftError metadata', async () =
   assert.equal((response.jsonBody as any).draftError?.traceId, 't-draft-question');
 });
 
+test('rule confirm persists draftedIntervals without OpenAI call', async () => {
+  setStorageAdapterForTests(okAdapter());
+  let openAiCalled = false;
+  globalThis.fetch = (async () => {
+    openAiCalled = true;
+    throw new Error('OpenAI should not be called for draftedIntervals confirm');
+  }) as any;
+
+  const response = await chat({
+    json: async () => ({
+      groupId: GROUP_ID,
+      phone: PHONE,
+      message: 'confirm this',
+      ruleMode: 'confirm',
+      personId: 'P-1',
+      traceId: 't-confirm-drafted',
+      draftedIntervals: [{
+        personId: 'P-1',
+        status: 'unavailable',
+        startUtc: '2026-03-03T09:00:00-08:00',
+        endUtc: '2026-03-03T11:00:00-08:00',
+        promptId: 'prompt-1',
+        originalPrompt: 'I am busy tomorrow'
+      }]
+    }),
+    headers: { get: () => 's1' }
+  } as any, {} as any);
+
+  assert.equal(openAiCalled, false);
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).assistantText, 'Saved 1 rule(s).');
+  assert.equal(Array.isArray((response.jsonBody as any).snapshot?.rules), true);
+  assert.equal((response.jsonBody as any).snapshot?.rules.length, 1);
+});
+
+test('rule confirm rejects draftedIntervals with mismatched personId', async () => {
+  setStorageAdapterForTests(okAdapter());
+  const response = await chat({
+    json: async () => ({
+      groupId: GROUP_ID,
+      phone: PHONE,
+      message: 'confirm this',
+      ruleMode: 'confirm',
+      personId: 'P-1',
+      traceId: 't-confirm-mismatch-person',
+      draftedIntervals: [{
+        personId: 'P-2',
+        status: 'unavailable',
+        startUtc: '2026-03-03T09:00:00-08:00',
+        endUtc: '2026-03-03T11:00:00-08:00'
+      }]
+    }),
+    headers: { get: () => 's1' }
+  } as any, {} as any);
+
+  assert.equal(response.status, 400);
+  assert.equal((response.jsonBody as any).error, 'invalid_drafted_intervals_person');
+});
+
 test('chat returns CONFIG_MISSING when storage env is missing', async () => {
   setStorageAdapterForTests(null);
   const prevUrl = process.env.STORAGE_ACCOUNT_URL;

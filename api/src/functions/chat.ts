@@ -15,7 +15,7 @@ import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 
-type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
@@ -151,6 +151,46 @@ const getRuleDraftError = (params: { code: DraftErrorCode; traceId: string; deta
   ]
 });
 
+type DraftedInterval = {
+  personId: string;
+  status: 'available' | 'unavailable';
+  startUtc: string;
+  endUtc: string;
+  promptId?: string;
+  originalPrompt?: string;
+  timezone?: string;
+};
+
+const parseDraftedIntervals = (value: unknown): { ok: true; intervals: DraftedInterval[] } | { ok: false; message: string } => {
+  if (!Array.isArray(value)) return { ok: false, message: 'draftedIntervals must be an array' };
+  const intervals: DraftedInterval[] = [];
+  for (const rawInterval of value) {
+    if (typeof rawInterval !== 'object' || rawInterval === null) return { ok: false, message: 'draftedIntervals items must be objects' };
+    const interval = rawInterval as Record<string, unknown>;
+    const personId = typeof interval.personId === 'string' ? interval.personId.trim() : '';
+    const status = interval.status;
+    const startUtc = typeof interval.startUtc === 'string' ? interval.startUtc.trim() : '';
+    const endUtc = typeof interval.endUtc === 'string' ? interval.endUtc.trim() : '';
+    if (!personId) return { ok: false, message: 'draftedIntervals.personId is required' };
+    if (status !== 'available' && status !== 'unavailable') return { ok: false, message: "draftedIntervals.status must be 'available' or 'unavailable'" };
+    const startMs = Date.parse(startUtc);
+    const endMs = Date.parse(endUtc);
+    if (Number.isNaN(startMs)) return { ok: false, message: 'draftedIntervals.startUtc must be ISO datetime' };
+    if (Number.isNaN(endMs)) return { ok: false, message: 'draftedIntervals.endUtc must be ISO datetime' };
+    if (endMs <= startMs) return { ok: false, message: 'endUtc must be greater than startUtc' };
+    intervals.push({
+      personId,
+      status,
+      startUtc,
+      endUtc,
+      promptId: typeof interval.promptId === 'string' && interval.promptId.trim() ? interval.promptId.trim() : undefined,
+      originalPrompt: typeof interval.originalPrompt === 'string' ? interval.originalPrompt : undefined,
+      timezone: typeof interval.timezone === 'string' && interval.timezone.trim() ? interval.timezone.trim() : undefined
+    });
+  }
+  return { ok: true, intervals };
+};
+
 const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; now: string; traceId: string; groupSnapshot: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[] }> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
@@ -258,6 +298,57 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
     if (ruleMode === 'draft' || ruleMode === 'confirm') {
       if (!requestedPersonId) return { status: 400, jsonBody: { kind: 'error', error: 'personId_required', message: 'personId is required', traceId } };
+      if (ruleMode === 'confirm' && Array.isArray(body.draftedIntervals) && body.draftedIntervals.length > 0) {
+        const parsedDraftedIntervals = parseDraftedIntervals(body.draftedIntervals);
+        if (!parsedDraftedIntervals.ok) {
+          return {
+            status: 400,
+            jsonBody: {
+              kind: 'error',
+              error: 'invalid_drafted_intervals',
+              message: parsedDraftedIntervals.message,
+              traceId
+            }
+          };
+        }
+        if (parsedDraftedIntervals.intervals.some((interval) => interval.personId !== requestedPersonId)) {
+          return {
+            status: 400,
+            jsonBody: {
+              kind: 'error',
+              error: 'invalid_drafted_intervals_person',
+              message: 'draftedIntervals.personId must match request personId',
+              traceId
+            }
+          };
+        }
+        const draftedRules: Array<Omit<AvailabilityRuleV2, 'code' | 'startUtc' | 'endUtc' | 'assumptions'>> = parsedDraftedIntervals.intervals.map((interval) => {
+          const date = interval.startUtc.slice(0, 10);
+          const startTime = interval.startUtc.match(/T(\d{2}:\d{2})/)?.[1];
+          const durationMins = Math.max(1, Math.round((new Date(interval.endUtc).getTime() - new Date(interval.startUtc).getTime()) / 60000));
+          return {
+            personId: interval.personId,
+            status: interval.status,
+            date,
+            startTime,
+            durationMins,
+            timezone: interval.timezone,
+            promptId: interval.promptId ?? (typeof body.promptId === 'string' ? body.promptId : undefined),
+            originalPrompt: interval.originalPrompt
+          };
+        });
+        try {
+          const confirmed = confirmRuleDraftV2(state, draftedRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
+          const written = await storage.save(identity.groupId, confirmed.nextState, loaded.etag);
+          console.info('rule_mode_confirm_result', { traceId, mode: 'confirm', source: 'draftedIntervals', persistedIntervalsCount: draftedRules.length, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
+          return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+        } catch (error) {
+          const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
+          if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, error: 'rule_limit_exceeded', traceId } };
+          if (payload?.error === 'INTERVAL_TOO_LARGE') return { status: 400, jsonBody: { ...payload, traceId } };
+          throw error;
+        }
+      }
       const reportDraftFailure = (params: { code: DraftErrorCode; details: string; incomingRulesCount: number; validRuleItemsCount: number; intervalsCount: number; modelKind: 'proposal' | 'question'; actionType?: string }): HttpResponseInit => {
         console.info('rule_mode_draft_fail', {
           rulesDraftFail: true,
@@ -291,6 +382,9 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       const promptId = typeof body.promptId === 'string' ? body.promptId : undefined;
       const incomingRules = parsedAction?.rules?.map((rule) => ({ ...rule, personId: ruleMode === 'draft' ? (rule.personId || requestedPersonId) : rule.personId, promptId: promptId ?? parsedAction.promptId })) ?? [];
       console.info('rule_mode_request', { traceId, ruleMode, personId: requestedPersonId, requiredType, parsedKind: ruleParse.kind, parsedActionType: ruleParse.action?.type, actionTypes: ruleParse.actionTypes, incomingIntervalsCount: incomingRules.length, promptId });
+      if (ruleMode === 'confirm' && incomingRules.length === 0) {
+        console.info('rule_mode_confirm_zero_intervals', { traceId, mode: 'confirm', code: 'ZERO_INTERVALS_FROM_MODEL' });
+      }
       if (ruleMode === 'draft' && ruleParse.kind === 'question') {
         return reportDraftFailure({ code: 'MODEL_QUESTION', details: 'modelKind=question', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: ruleParse.action?.type });
       }

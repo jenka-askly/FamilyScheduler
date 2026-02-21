@@ -4017,3 +4017,39 @@ Improve Rules modal UX: compose-area grouping, cleaner copy, richer preview styl
 ### Follow-ups
 
 - Optional: perform an end-to-end manual check of Rules modal with running API to validate Draft→Confirm enablement transition in live flow.
+
+## 2026-02-21 02:33 UTC (confirm persists drafted intervals)
+
+### Objective
+
+Make rules Confirm persist the exact drafted intervals from the UI instead of re-parsing via model, while preserving confirm fallback behavior.
+
+### Approach
+
+- Updated web rules Confirm request payload to include `draftedIntervals` derived from the stored draft response.
+- Updated chat `ruleMode: "confirm"` flow to short-circuit OpenAI when `draftedIntervals` is present and non-empty, validate payload shape/person/date ordering, persist through existing rule confirm path, and return updated snapshot.
+- Added structured confirm logging for drafted source and zero-interval model fallback.
+- Added API tests for drafted-interval confirm success (without OpenAI) and personId mismatch validation.
+- Updated `PROJECT_STATUS.md` continuity notes to document behavior changes.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "ruleMode:\\s*['\" ]confirm['\"]|rules-confirm|Confirm\\b" apps/web/src/AppShell.tsx` ✅ located existing confirm flow in rules modal.
+- `rg -n "ruleMode:\\s*['\" ]draft['\"]|rules-draft|Draft\\b" apps/web/src/AppShell.tsx` ✅ located draft state and payload path.
+- `sed -n '200,820p' apps/web/src/AppShell.tsx` ✅ reviewed modal and handlers for minimal-diff implementation.
+- `rg -n "ruleMode.*confirm|add_rule_v2_confirm|incomingIntervalsCount|parseRuleItems" api/src/functions/chat.ts` ✅ located confirm/draft server branch.
+- `sed -n '1,560p' api/src/functions/chat.ts` ✅ inspected request parsing and persistence path.
+- `rg -n "saveRule|upsertRule|rules.*put|rules.*write|availability.*write|storage" api/src/lib api/src --glob='*.ts*'` ✅ confirmed existing storage save path usage via chat confirm flow.
+- `pnpm --filter @familyscheduler/api test` ✅ pass (build + node test suite; includes new confirm draftedIntervals tests).
+
+### Follow-ups
+
+- Optional future hardening: factor drafted-interval parsing into shared validator utility if reused by additional endpoints.
