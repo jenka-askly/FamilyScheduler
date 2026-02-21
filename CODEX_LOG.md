@@ -3703,3 +3703,41 @@ Fix Azure Functions production 500 (`ERR_MODULE_NOT_FOUND` for `@azure/storage-c
 - Run GitHub Actions **Deploy API (prod)** and confirm logs show both `storage-common-import-ok` and `storage-blob-import-ok`.
 - Confirm `/api/group/join` returns non-500 after deployment.
 - Confirm App Insights no longer reports `ERR_MODULE_NOT_FOUND` for `@azure/storage-common`.
+
+## 2026-02-21 01:05 UTC (deploy artifact: install prod deps inside staged zip root)
+
+### Objective
+
+Fix Azure Functions production 500 caused by incomplete deploy artifact dependencies (missing transitive `@azure/*` packages such as `@azure/core-util`) by installing production dependencies directly inside `api_deploy/` prior to zipping.
+
+### Approach
+
+- Removed portable install/copy flow from `.github/workflows/deploy.yml` (`pnpm --filter @familyscheduler/api deploy --legacy --prod ./api_deploy_install` and copying `api_deploy_install/node_modules`).
+- Copied `pnpm-lock.yaml` into `api_deploy/` and ran `pnpm install --prod --frozen-lockfile` from inside `api_deploy` so the exact zipped folder contains a complete production dependency tree, including transitives.
+- Extended staging validations with hard assertions for:
+  - `api_deploy/node_modules/@azure/storage-blob`
+  - `api_deploy/node_modules/@azure/storage-common`
+  - `api_deploy/node_modules/@azure/core-util`
+- Extended runtime import checks to print all required markers:
+  - `storage-blob-import-ok`
+  - `storage-common-import-ok`
+  - `core-util-import-ok`
+- Updated continuity docs in `PROJECT_STATUS.md` to document root cause, fix, and guardrails.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ inspected existing deploy workflow staging/install behavior.
+- `python - <<'PY' ...` ✅ updated `PROJECT_STATUS.md` continuity section for transitive dependency fix + verification signals.
+- `rg -n "pnpm --filter @familyscheduler/api deploy --legacy --prod|api_deploy_install|cp -RL api_deploy_install/node_modules|pnpm install --prod --frozen-lockfile|@azure/core-util|core-util-import-ok" .github/workflows/deploy.yml` ✅ confirmed old flow removal and new transitive guardrails/import check presence.
+
+### Follow-ups
+
+- Run GitHub Actions **Deploy API (prod)** and confirm all three markers are present in logs: `storage-blob-import-ok`, `storage-common-import-ok`, `core-util-import-ok`.
+- Confirm `/api/group/join` returns non-500 after deployment.
+- Confirm App Insights no longer reports `ERR_MODULE_NOT_FOUND` for `@azure/storage-common` or `@azure/core-util`.
