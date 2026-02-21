@@ -80,6 +80,36 @@ const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
+function AddFab({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      style={{
+        width: 40,
+        height: 40,
+        borderRadius: 999,
+        border: 'none',
+        background: 'var(--primary)',
+        color: '#fff',
+        fontSize: 22,
+        fontWeight: 700,
+        lineHeight: '40px',
+        padding: 0,
+        boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      +
+    </button>
+  );
+}
+
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
 const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
@@ -608,7 +638,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {view === 'appointments' ? (
         <section className="panel">
           <div className="panel-header">
-            <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addAppointment()}>+ Add appointment</button>
+            <AddFab label="Add appointment" onClick={() => void addAppointment()} />
           </div>
           {sortedAppointments.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
@@ -617,9 +647,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                 Click “+ Add appointment” to create the first entry.
               </div>
               <div style={{ marginTop: 12 }}>
-                <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addAppointment()}>
-                  + Add appointment
-                </button>
+                <AddFab label="Add appointment" onClick={() => void addAppointment()} />
               </div>
             </div>
           ) : (
@@ -696,7 +724,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {view === 'people' ? (
         <section className="panel"> 
           <div className="panel-header"> 
-            <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addPerson()}>+ Add person</button>
+            <AddFab label="Add person" onClick={() => void addPerson()} />
           </div>
           {peopleInView.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
@@ -705,9 +733,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                 Add at least one person to allow them to access this group.
               </div>
               <div style={{ marginTop: 12 }}>
-                <button className="fs-btnPrimary" style={{ minHeight: 38, padding: '0 14px', borderRadius: 10 }} type="button" onClick={() => void addPerson()}>
-                  + Add person
-                </button>
+                <AddFab label="Add person" onClick={() => void addPerson()} />
               </div>
             </div>
           ) : (

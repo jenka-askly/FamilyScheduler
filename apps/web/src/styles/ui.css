@@ -115,6 +115,13 @@ th {
 .fs-workspaceWrap {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 24px 32px;
+}
+
+@media (max-width: 640px) {
+  .fs-workspaceWrap {
+    padding: 16px;
+  }
 }
 
 .fs-tableScroll {
