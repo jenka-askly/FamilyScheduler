@@ -88,6 +88,9 @@ jobs:
 
           echo "CHECK @azure/storage-blob dir" ; test -d api_deploy/node_modules/@azure/storage-blob
           echo "CHECK @azure/storage-common dir" ; test -d api_deploy/node_modules/@azure/storage-common
+          echo "DEBUG search core-util"
+          find api_deploy/node_modules -maxdepth 6 -type d -name "core-util" -o -name "@azure+core-util*" | head -n 50 || true
+          ls -la api_deploy/node_modules/.pnpm | grep -E "@azure\+core-util" | head -n 20 || true
           echo "CHECK @azure/core-util dir" ; test -d api_deploy/node_modules/@azure/core-util
           echo "CHECK storage-common package.json" ; test -f api_deploy/node_modules/@azure/storage-common/package.json
 
