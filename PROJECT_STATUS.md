@@ -602,3 +602,9 @@ traces
    - `core-util-import-ok`
 3. After deployment, call `POST /api/group/join` and confirm response status is non-500.
 4. In Azure Portal/App Insights, confirm new exceptions no longer show `ERR_MODULE_NOT_FOUND` for `@azure/storage-common` or `@azure/core-util`.
+
+## Recent update (2026-02-21 00:55 UTC)
+
+- Deploy workflow staging validation now uses `set -x` plus explicit `CHECK ...` / `IMPORT ...` log markers in the `Validate deploy staging directory` step.
+- Validation now also prints the first 20 symlinks found in `api_deploy/node_modules` before enforcing the strict `no symlinks` assertion.
+- Operational impact: when Deploy API (prod) fails in staging validation, the final printed marker identifies the first failing check/import for faster diagnosis.
