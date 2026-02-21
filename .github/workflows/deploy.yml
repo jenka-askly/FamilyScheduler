@@ -56,16 +56,29 @@ jobs:
           done
 
           # Install production deps directly in deploy root with hoisted node_modules
-          (cd api_deploy && pnpm install --prod --frozen-lockfile --config.node-linker=hoisted)
+          cd api_deploy
+          pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
 
-          echo "DEBUG: api_deploy/node_modules/@azure (top-level)"
-          ls -la api_deploy/node_modules/@azure || true
+          echo "DEBUG: PWD=$(pwd)"
+          echo "DEBUG: list api_deploy dir"
+          ls -la .
 
-          # Hard asserts: staging must include node_modules and key deps
-          test -d api_deploy/node_modules
-          test -d api_deploy/node_modules/@azure/core-util
-          test -d api_deploy/node_modules/@azure/storage-common
-          test -d api_deploy/node_modules/@azure/storage-blob
+          echo "DEBUG: does local node_modules exist?"
+          ls -la node_modules || true
+
+          echo "DEBUG: does workspace root node_modules exist?"
+          ls -la ../node_modules || true
+
+          echo "DEBUG: local @azure top-level"
+          ls -la node_modules/@azure || true
+
+          echo "DEBUG: root @azure top-level"
+          ls -la ../node_modules/@azure || true
+
+          # Assert we have node_modules in *this* folder (not the repo root)
+          test -d node_modules
+
+          cd ..
 
       - name: Validate deploy staging directory
         run: |

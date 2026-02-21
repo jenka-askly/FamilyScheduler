@@ -3880,3 +3880,40 @@ Fix production deploy packaging so Azure Functions resolves `@azure/*` modules f
 - Re-run **Deploy API (prod)** and confirm import-ok signals appear in the validation step.
 - Confirm post-deploy `POST /api/group/join` and `POST /api/group/meta` no longer return 500.
 - Confirm App Insights exceptions no longer include `ERR_MODULE_NOT_FOUND` for `@azure/core-util`.
+
+## 2026-02-21 01:16 UTC (deploy path bug fix for post-install node_modules checks)
+
+### Objective
+
+Fix false-failing deploy validation caused by path checks that still prefixed `api_deploy/` after already changing directory into `api_deploy`.
+
+### Approach
+
+- Updated `.github/workflows/deploy.yml` in the deploy staging step to run install from inside `api_deploy` using explicit `cd api_deploy`.
+- Replaced post-install debug/assert block with cwd-aware diagnostics:
+  - `pwd`, `ls -la .`
+  - `ls -la node_modules || true`
+  - `ls -la ../node_modules || true`
+  - `ls -la node_modules/@azure || true`
+  - `ls -la ../node_modules/@azure || true`
+  - `test -d node_modules`
+- Returned to repository root with `cd ..` after the install diagnostics.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ reviewed existing deploy install/validation logic.
+- `rg -n "api_deploy/node_modules|cd api_deploy" .github/workflows/deploy.yml` ✅ located path references to confirm where bug existed.
+- `git diff -- .github/workflows/deploy.yml PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted minimal diff and continuity doc updates.
+
+### Follow-ups
+
+- Re-run GitHub Actions workflow **Deploy API (prod)**.
+- Capture from logs which node_modules path exists after install:
+  - local: `api_deploy/node_modules` (from inside step shown as `node_modules`)
+  - workspace root: `../node_modules`

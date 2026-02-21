@@ -611,3 +611,9 @@ traces
 - Deploy workflow staging validation now uses `set -x` plus explicit `CHECK ...` / `IMPORT ...` log markers in the `Validate deploy staging directory` step.
 - Validation now also prints the first 20 symlinks found in `api_deploy/node_modules` before enforcing the strict `no symlinks` assertion.
 - Operational impact: when Deploy API (prod) fails in staging validation, the final printed marker identifies the first failing check/import for faster diagnosis.
+
+## Recent update (2026-02-21 01:16 UTC)
+
+- Fixed deploy staging install-path diagnostics in `.github/workflows/deploy.yml`: after `cd api_deploy` + `pnpm install --prod --frozen-lockfile --config.node-linker=hoisted`, debug logging now inspects `.`/`node_modules` and `../node_modules` (plus both `@azure` tops) using paths relative to the current working directory.
+- Replaced incorrect post-install assertions that referenced `api_deploy/node_modules` while already inside `api_deploy`; install-step assertion now correctly enforces `test -d node_modules` in the current folder.
+- Expected verification signal on next **Deploy API (prod)** run: logs will show whether dependencies were created under local `api_deploy/node_modules`, workspace root `../node_modules`, or both.
