@@ -3672,3 +3672,34 @@ Fix Azure 500s caused by missing `@azure/*` runtime dependencies in deploy artif
 ### Follow-ups
 
 - Run GitHub Actions `Deploy API (prod)` to execute Azure `config-zip` deploy and remote smoke calls with environment credentials.
+
+## 2026-02-21 00:43 UTC (deploy artifact: dereference pnpm symlinks for Azure runtime)
+
+### Objective
+
+Fix Azure Functions production 500 (`ERR_MODULE_NOT_FOUND` for `@azure/storage-common`) caused by pnpm-linked `node_modules` in zip deployment artifacts.
+
+### Approach
+
+- Updated API deploy staging copy in `.github/workflows/deploy.yml` from `cp -R` to `cp -RL` so symlinked pnpm dependency entries are dereferenced into real directories/files inside `api_deploy/node_modules`.
+- Added explicit deploy-staging assertions for `@azure/storage-blob` and `@azure/storage-common` top-level runtime package directories and `package.json` presence.
+- Added a symlink absence check (`find ... -type l`) to fail early if any symlink remains in staged `node_modules`.
+- Added runtime ESM import check for `@azure/storage-common` and retained the existing `@azure/storage-blob` import check.
+
+### Files changed
+
+- `.github/workflows/deploy.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' .github/workflows/deploy.yml` ✅ inspected current staging/validation steps.
+- `apply_patch` on `.github/workflows/deploy.yml` ✅ updated copy behavior and validation/import assertions.
+- `git diff -- .github/workflows/deploy.yml` ✅ verified minimal targeted workflow diff.
+
+### Follow-ups
+
+- Run GitHub Actions **Deploy API (prod)** and confirm logs show both `storage-common-import-ok` and `storage-blob-import-ok`.
+- Confirm `/api/group/join` returns non-500 after deployment.
+- Confirm App Insights no longer reports `ERR_MODULE_NOT_FOUND` for `@azure/storage-common`.
