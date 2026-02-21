@@ -753,7 +753,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
                 />
                 <div className="rules-composer-actions">
-                  <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft'}</button>
+                  <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft Rule'}</button>
                 </div>
               </div>
             </div>
@@ -799,7 +799,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             </div>
 
             <div className="modal-actions rules-actions-row">
-              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming} aria-disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Confirm'}</button>
+              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming} aria-disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</button>
               <button type="button" onClick={closeRulePromptModal}>Cancel</button>
             </div>
           </div>
