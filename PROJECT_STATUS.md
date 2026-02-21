@@ -6,6 +6,9 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 ## What works now
 
+- Deploy Web (SWA) workflow now deploys `apps/web/dist` via `@azure/static-web-apps-cli` (`npx ... deploy`) instead of `Azure/static-web-apps-deploy@v1`, eliminating Docker/MCR pulls that were flaking with MCR anonymous token 429 rate limits.
+- Added a pre-deploy built-output diagnostic step (`ls -la apps/web/dist` + script-tag grep) immediately before SWA CLI deploy to make artifact correctness easier to triage in CI logs.
+
 - SWA deploy corrected to publish `apps/web/dist` as app root (`app_location: apps/web/dist` with no `output_location`); previous config published source, resulting in `/src/main.tsx` in production HTML and a blank page.
 
 - SWA workflows now prebuild `apps/web/dist` using pnpm before deploy and pass `skip_app_build: true` while publishing `app_location: apps/web/dist` (no `output_location`), preventing Azure/static-web-apps-deploy from invoking its internal Oryx/Docker build path and ensuring built assets are deployed as app root.

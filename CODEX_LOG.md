@@ -4754,3 +4754,34 @@ Force SWA to deploy the built `apps/web/dist` folder as the app root to stop pub
 
 - Trigger SWA deploy and confirm acceptance signals in production: view-source uses `/assets/index-*.js`, network serves JS content-type for `/assets/*`, and page renders.
 - Rollback path: revert `.github/workflows/swa-web.yml`.
+
+## 2026-02-21 20:58 UTC (SWA deploy flakiness fix: MCR 429 -> SWA CLI)
+
+### Objective
+
+Remove Docker/MCR dependency from the web deploy path so SWA deployment is no longer vulnerable to `mcr.microsoft.com` anonymous-token 429 rate limiting.
+
+### Approach
+
+- Updated `.github/workflows/swa-web.yml` to replace `Azure/static-web-apps-deploy@v1` with a direct SWA CLI deploy command.
+- Kept existing dependency install, BYO API URL validation, and prebuild steps unchanged.
+- Added a focused pre-deploy diagnostic (`Verify built output`) that lists `apps/web/dist` and prints script tags from `index.html`.
+- Updated continuity docs to record the deploy mechanism change and rationale.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `python - <<'PY' ...` ✅ rewrote the deploy section in `.github/workflows/swa-web.yml` to use SWA CLI.
+- `python - <<'PY' ...` ✅ inserted status bullets documenting the SWA CLI deploy migration.
+- `cat >> CODEX_LOG.md <<'EOF' ...` ✅ appended this log entry.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured UTC timestamp for this entry.
+
+### Follow-ups
+
+- Confirm next `Deploy Web (SWA)` run succeeds without MCR pulls and without 429 failures.
+- Verify production HTML source references bundled `/assets/index-*.js` scripts and page loads without module MIME errors.
