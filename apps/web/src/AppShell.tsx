@@ -93,6 +93,30 @@ const computePersonStatusForInterval = (personId: string, interval: { date: stri
 
 const formatRuleTime = (rule: Snapshot['rules'][0]) => (!rule.startTime ? 'All day' : `${rule.startTime} (${rule.durationMins ?? 60}m)`);
 
+const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
+  const start = new Date(startUtc);
+  const end = new Date(endUtc);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return `${startUtc} → ${endUtc}`;
+  const sameDay = start.toISOString().slice(0, 10) === end.toISOString().slice(0, 10);
+  const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+  if (sameDay) return `${dateFormatter.format(start)} ${timeFormatter.format(start)} → ${timeFormatter.format(end)} UTC`;
+  return `${dateFormatter.format(start)} ${timeFormatter.format(start)} → ${dateFormatter.format(end)} ${timeFormatter.format(end)} UTC`;
+};
+
+const isAllDayDraftRule = (startUtc: string, endUtc: string) => {
+  const start = new Date(startUtc);
+  const end = new Date(endUtc);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  return start.getUTCHours() === 0
+    && start.getUTCMinutes() === 0
+    && start.getUTCSeconds() === 0
+    && end.getUTCHours() === 0
+    && end.getUTCMinutes() === 0
+    && end.getUTCSeconds() === 0
+    && (end.getTime() - start.getTime()) % 86400000 === 0;
+};
+
 const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
   const byDate = a.date.localeCompare(b.date);
   if (byDate !== 0) return byDate;
@@ -141,6 +165,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const didInitialLoad = useRef(false);
   const appointmentDescRef = useRef<HTMLTextAreaElement | null>(null);
   const rulePromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasProposedRules = Boolean(ruleDraft?.draftRules?.length);
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -329,14 +354,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   };
 
   const confirmRulePrompt = async () => {
-    if (!rulePromptModal || !rulePrompt.trim() || !ruleDraft?.draftRules?.length) return;
+    const promptId = ruleDraft?.promptId;
+    if (!rulePromptModal || !rulePrompt.trim() || !hasProposedRules || !promptId) return;
     setIsConfirming(true);
     const traceId = `rules-confirm-${Date.now()}`;
     try {
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: rulePrompt.trim(), groupId, phone, ruleMode: 'confirm', personId: rulePromptModal.person.personId, promptId: ruleDraft.promptId, traceId })
+        body: JSON.stringify({ message: rulePrompt.trim(), groupId, phone, ruleMode: 'confirm', personId: rulePromptModal.person.personId, promptId, traceId })
       });
       const json = (await response.json()) as { snapshot?: Snapshot; message?: string };
       if (!response.ok) {
@@ -688,16 +714,20 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               <h3>Rules</h3>
             </div>
             <div className="rules-modal-section rules-prompt-section">
-              <label htmlFor="rule-prompt-input">Availability rule</label>
-              <textarea
-                ref={rulePromptTextareaRef}
-                id="rule-prompt-input"
-                rows={4}
-                value={rulePrompt}
-                onChange={(event) => setRulePrompt(event.target.value)}
-                placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
-              />
-              <p className="rules-prompt-helper">Describe when you’re available or unavailable.</p>
+              <div className="rules-composer">
+                <label htmlFor="rule-prompt-input">Availability rule</label>
+                <textarea
+                  ref={rulePromptTextareaRef}
+                  id="rule-prompt-input"
+                  rows={4}
+                  value={rulePrompt}
+                  onChange={(event) => setRulePrompt(event.target.value)}
+                  placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
+                />
+                <div className="rules-composer-actions">
+                  <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft'}</button>
+                </div>
+              </div>
             </div>
 
             {ruleDraftError ? (
@@ -707,10 +737,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               </div>
             ) : null}
 
-            {ruleDraft ? (
-              <div className="rules-modal-section rule-draft-output">
-                <p>Preview</p>
-                <ul>{ruleDraft.preview.map((item, i) => <li key={`${item}-${i}`}>{item}</li>)}</ul>
+            <div className="rules-modal-section rule-draft-output">
+              <p>Preview</p>
+              {hasProposedRules ? (
+                <ul className="rule-preview-list">
+                  {ruleDraft?.draftRules.map((rule, i) => (
+                    <li key={`${rule.status}-${rule.startUtc}-${rule.endUtc}-${i}`} className="rule-preview-item">
+                      <span className={`status-tag ${rule.status}`}>{rule.status === 'unavailable' ? 'UNAVAILABLE' : 'AVAILABLE'}</span>
+                      <code>{formatDraftRuleRange(rule.startUtc, rule.endUtc)}</code>
+                      {isAllDayDraftRule(rule.startUtc, rule.endUtc) ? <span className="rule-preview-all-day">All day</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted-empty">No proposed changes yet. Click Draft to preview.</p>
+              )}
+              {ruleDraft ? (
+                <>
                 {ruleDraft.assumptions.length > 0 ? (
                   <>
                     <p>Assumptions</p>
@@ -723,12 +766,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     <ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul>
                   </>
                 ) : null}
-              </div>
-            ) : null}
+                </>
+              ) : null}
+            </div>
 
             <div className="modal-actions rules-actions-row">
-              <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft'}</button>
-              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!ruleDraft || !ruleDraft.draftRules?.length || isConfirming}>{isConfirming ? 'Confirming…' : 'Confirm'}</button>
+              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming} aria-disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Confirm'}</button>
               <button type="button" onClick={closeRulePromptModal}>Cancel</button>
             </div>
           </div>
