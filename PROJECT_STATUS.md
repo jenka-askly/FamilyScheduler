@@ -8,8 +8,9 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 
 - Production outage root cause documented: deploy zip contained pnpm store-style dependency layout where `@azure/core-util` existed only under `.pnpm/...` and not at `node_modules/@azure/core-util`, causing Azure runtime `ERR_MODULE_NOT_FOUND` during function execution.
-- Deploy packaging fix: workflow now installs production dependencies directly inside `api_deploy/` with `pnpm install --prod --frozen-lockfile --config.node-linker=hoisted` so top-level `node_modules/@azure/*` directories are present in the final zip artifact.
+- Deploy packaging fix: workflow now installs production dependencies inside `api_deploy/`, then materializes workspace-hoisted deps via `cp -RL ../node_modules ./node_modules` so `api_deploy/node_modules/@azure/*` are real directories in the final zip artifact.
 - Deploy guardrails now prioritize functional checks over strict symlink bans: staged artifact must contain `@azure/core-util`, `@azure/storage-common`, `@azure/storage-blob`, and pass import smoke checks before zip/deploy.
+- Workspace pnpm behavior note: `pnpm install --prod --frozen-lockfile --config.node-linker=hoisted` in `api_deploy/` may populate workspace-root `node_modules`; deploy flow now explicitly copies from `../node_modules` and dereferences symlinks for Azure runtime compatibility.
 - Deploy staging now includes function folders for discovery + portable prod deps to avoid @azure module gaps.
 - API prod deploy now stages a clean `api_deploy/` package root (host.json + package.json + built `dist/`) and installs production dependencies in-place via `(cd api_deploy && pnpm install --prod --frozen-lockfile --config.node-linker=hoisted)` before zip packaging.
 - Deploy workflow now validates the staged runtime by importing `@azure/storage-blob` from `api_deploy/` so transitive packages such as `@azure/core-rest-pipeline` are present in the artifact.
