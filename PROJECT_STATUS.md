@@ -10,6 +10,7 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 - Renamed the Appointments pane label to **Schedule** in the shared workspace header while keeping the internal `appointments` view key unchanged.
 - Reverted the Schedule/People segmented-tab experiment back to two standard side-by-side buttons for UI stability and readability, while keeping internal view keys unchanged (`appointments` / `people`).
 - Standardized primary action labels and sizing to **+ Add appointment** and **+ Add person** across populated and empty-state panes.
+- Fixed circular **+** FAB styling regression caused by shared/global button CSS by introducing dedicated `fs-fabAdd` class with explicit background, border, text color, hover, and focus-ring styling.
 - Tightened helper guidance under "What would you like to do?" into a single compact muted block with minimal internal spacing.
 
 - Page header group identity block is now tightly packed as a single vertical unit: group name has zero default heading margin, group link + copy icon remain center-aligned in one compact row, and the “save this link” explainer uses smaller muted styling with reduced top spacing to avoid large gaps.

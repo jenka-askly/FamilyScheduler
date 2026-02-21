@@ -83,27 +83,11 @@ const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2"
 function AddFab({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
+      className="fs-fabAdd"
       type="button"
       onClick={onClick}
       aria-label={label}
       title={label}
-      style={{
-        width: 40,
-        height: 40,
-        borderRadius: 999,
-        border: 'none',
-        background: 'var(--primary)',
-        color: '#fff',
-        fontSize: 22,
-        fontWeight: 700,
-        lineHeight: '40px',
-        padding: 0,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-        cursor: 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
     >
       +
     </button>
