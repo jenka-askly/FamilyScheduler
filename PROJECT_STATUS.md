@@ -7,6 +7,8 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 ## What works now
 
 
+- Page header group identity block is now tightly packed as a single vertical unit: group name has zero default heading margin, group link + copy icon remain center-aligned in one compact row, and the “save this link” explainer uses smaller muted styling with reduced top spacing to avoid large gaps.
+
 - Workspace header hierarchy updated for both Appointments and People panes: group name is now the primary heading, shareable group link (with copy button) sits immediately beneath it, pane title is secondary, and access guidance is grouped below the pane description.
 - People rules list now renders human-readable ranges without minute-count suffixes, including explicit all-day labels for single-day and multi-day ranges (for example, `Mar 21–Mar 31 (all day)`).
 - Appointment “Assign people” availability badges now compute overlap by UTC interval intersection (including multi-day/all-day rules), so overlapping `unavailable` rules correctly surface as **Unavailable** instead of **Unknown**.

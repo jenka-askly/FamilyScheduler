@@ -1,5 +1,36 @@
 # CODEX_LOG
 
+## 2026-02-21 03:42 UTC (page header group block vertical packing)
+
+### Objective
+
+Tighten vertical spacing for the group name + share link + copy icon + explainer so the block reads as one unit in `PageHeader`.
+
+### Approach
+
+- Wrapped group name + link row + explainer into a single compact vertical container rendered only when `groupName` is present.
+- Removed default heading/paragraph margins in the group block (`h1` margin set to `0`, pane title paragraph margin set to `0`).
+- Kept link row as a wrapping flex line with centered item alignment and `0.5rem` gap so the copy icon stays aligned with the link at narrow widths.
+- Reduced explainer spacing and typography (`marginTop: 0`, tighter line height, slightly smaller font) to remove large vertical gaps.
+- Captured a browser screenshot using API route interception to validate visual spacing without requiring the API server.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,140p' apps/web/src/components/layout/PageHeader.tsx` ✅ inspected current structure before edit.
+- `pnpm --filter @familyscheduler/web build` ✅ TypeScript + Vite build passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local web app for visual verification (stopped after screenshot).
+- `run_playwright_script` (with `/api/group/meta` and `/api/group/join` route interception) ✅ captured `pageheader-group-tight-pack.png`.
+
+### Follow-ups
+
+- Validate on a real API-backed join route in local human-run environment to confirm identical spacing under live metadata responses.
+
 ## 2026-02-21 UTC (deploy staging node_modules guarantee + diagnostics)
 
 ### Objective
