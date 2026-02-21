@@ -4273,3 +4273,38 @@ Make Schedule and People panes visually consistent: rename Appointments UI label
 ### Follow-ups
 
 - Optional: move segmented-tab inline styles into a shared class/tokenized style block if further header variants are added.
+
+## 2026-02-21 03:55 UTC (header/rules density + all-day range clarity)
+
+### Objective
+
+Tighten header/rules spacing in the web UI and remove misleading time labels from all-day rule rows in the People pane.
+
+### Approach
+
+- Updated `PageHeader` group identity block to use a single compact vertical container with explicit internal spacing, zeroed child margins, and consistent spacing before tab/content sections.
+- Reworked People rule rows into a compact right-aligned cluster so range text, description, status badge, and actions stay visually grouped.
+- Added `isAllDayRule` + `formatRuleRangeForList` helpers to render all-day rule ranges as date-only `(all day)` text (including multi-day inclusive display).
+- Reduced rule-list vertical spacing in CSS so the rule block reads as one compact unit.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "fs-groupName|fs-meta|This link is required|clipboard|Group" apps/web/src/components/layout/PageHeader.tsx` ✅ located current header identity markup.
+- `rg -n "personRules\.map\(|rule-item|rule-date-time|status-tag|formatRuleTime|formatDraftRuleRange" apps/web/src/AppShell.tsx` ✅ located People rules rendering and format helpers.
+- `sed -n '1,180p' apps/web/src/components/layout/PageHeader.tsx` ✅ reviewed header component structure pre-edit.
+- `sed -n '60,170p' apps/web/src/AppShell.tsx` ✅ reviewed rule range helpers pre-edit.
+- `sed -n '760,840p' apps/web/src/AppShell.tsx` ✅ reviewed People row/rules JSX pre-edit.
+- `rg -n "rule-item|rules-list|rule-date-time|rules-cell|rules-indent" apps/web/src -g '*.css' -g '*.tsx'` ✅ located rule spacing CSS source.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured timestamp for continuity entry.
+
+### Follow-ups
+
+- Run local UI verification (`pnpm -C apps/web dev`) and visually confirm compact header/rules spacing and all-day range rendering across representative rules.

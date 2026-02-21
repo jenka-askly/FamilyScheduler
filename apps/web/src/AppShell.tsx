@@ -112,38 +112,33 @@ const getUtcBoundsForAppt = (appt: Snapshot['appointments'][0]) => {
   return { startMs, endMs: startMs + (durationMins * 60_000) };
 };
 
-const formatRuleDisplay = (rule: Snapshot['rules'][0], personTz?: string) => {
-  const interval = getUtcBoundsForRule(rule);
-  if (!interval) return { rangeText: rule.date, isAllDay: false };
-  const start = new Date(interval.startMs);
-  const end = new Date(interval.endMs);
+const isAllDayRule = (rule: Snapshot['rules'][0]) => (
+  (rule as Snapshot['rules'][0] & { isAllDay?: boolean }).isAllDay === true || !rule.startTime || rule.durationMins === 1440
+);
+
+const formatRuleRangeForList = (rule: Snapshot['rules'][0], personTz?: string) => {
   const timezone = personTz;
   const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: timezone });
   const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
   const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
 
-  const rangeMs = interval.endMs - interval.startMs;
-  const isAllDay = Boolean(
-    rangeMs > 0
-    && rangeMs % 86400000 === 0
-    && start.getHours() === 0
-    && start.getMinutes() === 0
-    && end.getHours() === 0
-    && end.getMinutes() === 0
-  );
+  const interval = getUtcBoundsForRule(rule);
+  if (!interval) return rule.date;
 
-  if (isAllDay) {
-    const dayCount = Math.round(rangeMs / 86400000);
-    if (dayCount > 1) {
-      const inclusiveEnd = new Date(interval.endMs - 86400000);
-      return { rangeText: `${dayFormatter.format(start)}–${dayFormatter.format(inclusiveEnd)} (all day)`, isAllDay: true };
-    }
-    return { rangeText: `${dayFormatter.format(start)} (all day)`, isAllDay: true };
+  const start = new Date(interval.startMs);
+  const end = new Date(interval.endMs);
+  const allDay = isAllDayRule(rule);
+
+  if (allDay) {
+    const inclusiveEnd = new Date(interval.endMs - 86400000);
+    const sameDay = start.toDateString() === inclusiveEnd.toDateString();
+    if (sameDay) return `${dayFormatter.format(start)} (all day)`;
+    return `${dayFormatter.format(start)}–${dayFormatter.format(inclusiveEnd)} (all day)`;
   }
 
   const sameDay = start.toDateString() === end.toDateString();
-  if (sameDay) return { rangeText: `${dateTimeFormatter.format(start)}–${timeFormatter.format(end)}`, isAllDay: false };
-  return { rangeText: `${dateTimeFormatter.format(start)}–${dateTimeFormatter.format(end)}`, isAllDay: false };
+  if (sameDay) return `${dateTimeFormatter.format(start)}–${timeFormatter.format(end)}`;
+  return `${dateTimeFormatter.format(start)}–${dateTimeFormatter.format(end)}`;
 };
 
 const computePersonStatusForInterval = (personId: string, appointment: Snapshot['appointments'][0], rules: Snapshot['rules']) => {
@@ -784,11 +779,19 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                               <div className="rules-indent">
                                 <ul className="rules-list">
                                   {personRules.map((rule) => (
-                                    <li key={rule.code} className="rule-item">
-                                      <span className="rule-date-time">{formatRuleDisplay(rule, person.timezone).rangeText}</span>
-                                      <span className="notes-text" title={rule.desc ?? ''}>{rule.desc || '—'}</span>
-                                      <span className={`status-tag ${rule.kind}`}>{rule.kind === 'available' ? 'Available' : 'Unavailable'}</span>
-                                      <span className="rule-actions">
+                                    <li key={rule.code} className="rule-item" style={{ padding: '6px 0' }}>
+                                      <div className="rule-row" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 760, width: '100%' }}>
+                                          <span className="rule-range" style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                                            {formatRuleRangeForList(rule, person.timezone)}
+                                          </span>
+                                          <span className="rule-desc" style={{ fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.desc ?? ''}>
+                                            {rule.desc || '—'}
+                                          </span>
+                                          <span className={`status-tag ${rule.kind}`} style={{ whiteSpace: 'nowrap' }}>
+                                            {rule.kind === 'available' ? 'Available' : 'Unavailable'}
+                                          </span>
+                                          <span className="rule-actions">
                                         <button
                                           type="button"
                                           className="icon-button"
@@ -810,7 +813,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                           <Pencil />
                                         </button>
                                         <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
-                                      </span>
+                                          </span>
+                                        </div>
+                                      </div>
                                     </li>
                                   ))}
                                 </ul>

@@ -39,13 +39,13 @@ export function PageHeader({
   return (
     <div style={{ marginBottom: "24px" }}>
       {groupName ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8, marginBottom: 16 }}>
           <h1 className="fs-h1" style={{ margin: 0, lineHeight: 1.15 }}>{groupName}</h1>
           {groupId ? (
             <>
               {groupLink ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', lineHeight: 1.1, flexWrap: 'wrap' }}>
-                  <a href={groupLink}>{groupLink}</a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.1, flexWrap: 'wrap', margin: 0 }}>
+                  <a href={groupLink} style={{ margin: 0 }}>{groupLink}</a>
                   <button
                     type="button"
                     className="icon-button"
@@ -55,10 +55,10 @@ export function PageHeader({
                   >
                     ⧉
                   </button>
-                  {copied ? <span>Copied</span> : null}
+                  {copied ? <span style={{ margin: 0 }}>Copied</span> : null}
                 </div>
               ) : null}
-              <div className="fs-meta" style={{ marginTop: 0, lineHeight: 1.15, fontSize: '0.9em' }}>
+              <div className="fs-meta" style={{ margin: 0, lineHeight: 1.2, fontSize: 12, color: 'var(--muted)' }}>
                 This link is required to return to this group—save it.
               </div>
             </>
@@ -74,7 +74,7 @@ export function PageHeader({
         </p>
       ) : null}
 
-      <div className="fs-meta" style={{ marginTop: '0.35rem', display: 'grid', gap: '0.25rem' }}>
+      <div className="fs-meta" style={{ marginTop: 0, display: 'grid', gap: '0.25rem' }}>
         {description && (
           <p className="fs-desc" style={{ margin: 0 }}>{description}</p>
         )}
