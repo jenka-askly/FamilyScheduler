@@ -51,6 +51,13 @@ jobs:
       - name: Workspace listing (diagnostic)
         run: ls -la
 
+      - name: Inspect built index.html (diagnostic)
+        run: |
+          set -euo pipefail
+          ls -la apps/web/dist
+          echo "---- index.html script tags ----"
+          grep -n "<script" apps/web/dist/index.html || true
+
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         env:
@@ -59,8 +66,7 @@ jobs:
           VITE_API_BASE_URL: "https://familyscheduler-api-prod-c4cuakggcff8bvbh.westus-01.azurewebsites.net"
         with:
           action: upload
-          app_location: apps/web
-          output_location: dist
+          app_location: apps/web/dist
           skip_app_build: true
           api_location: ""
           skip_api_build: true

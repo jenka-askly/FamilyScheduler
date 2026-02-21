@@ -4724,3 +4724,33 @@ Fix SWA web deploy publishing source files instead of the Vite build artifact.
 
 - After next SWA deployment, confirm Network loads `/assets/index-*.js`, browser console is free of octet-stream module errors, and app renders.
 - Rollback path: revert `.github/workflows/swa-web.yml` deploy input change.
+
+## 2026-02-21 20:46 UTC (SWA dist app root deploy fix)
+
+### Objective
+
+Force SWA to deploy the built `apps/web/dist` folder as the app root to stop publishing source HTML (`/src/main.tsx`) and blank-page production failures.
+
+### Approach
+
+- Updated `.github/workflows/swa-web.yml` deploy inputs to use `app_location: apps/web/dist`.
+- Removed `output_location` entirely while keeping `skip_app_build: true`, `api_location: ""`, and `skip_api_build: true`.
+- Added a pre-deploy diagnostic step to list `apps/web/dist` and print `<script` tags from `apps/web/dist/index.html` in CI.
+- Updated `PROJECT_STATUS.md` with a short continuity note documenting the corrected SWA publish root and prior failure mode.
+
+### Files changed
+
+- `.github/workflows/swa-web.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' .github/workflows/swa-web.yml` ✅ reviewed current SWA workflow before and after edit.
+- `python - <<'PY' ...` ✅ inserted continuity note into `PROJECT_STATUS.md`.
+- `date -u '+%Y-%m-%d %H:%M UTC'` ✅ captured log timestamp.
+
+### Follow-ups
+
+- Trigger SWA deploy and confirm acceptance signals in production: view-source uses `/assets/index-*.js`, network serves JS content-type for `/assets/*`, and page renders.
+- Rollback path: revert `.github/workflows/swa-web.yml`.
