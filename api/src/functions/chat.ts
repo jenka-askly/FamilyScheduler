@@ -80,6 +80,7 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
 const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState): T & { snapshot: ResponseSnapshot } => ({ ...payload, snapshot: toResponseSnapshot(state) });
 
 type RuleRequestItem = { personId: string; status: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; promptId?: string; originalPrompt?: string };
+type DraftErrorCode = 'MODEL_QUESTION' | 'DISALLOWED_ACTION' | 'ZERO_VALID_RULE_ITEMS' | 'ZERO_INTERVALS' | 'SCHEMA_VALIDATION_FAILED';
 const isRuleMode = (value: unknown): value is 'draft' | 'confirm' => value === 'draft' || value === 'confirm';
 const isRuleStatus = (v: unknown): v is 'available' | 'unavailable' => v === 'available' || v === 'unavailable';
 const parseRuleItems = (value: unknown): { items: RuleRequestItem[] } | { invalidStatus: unknown } => {
@@ -111,7 +112,17 @@ const parseRuleItems = (value: unknown): { items: RuleRequestItem[] } | { invali
 
 type RuleModeModelAction = { type: 'add_rule_v2_draft' | 'add_rule_v2_confirm'; personId?: string; promptId?: string; rules?: RuleRequestItem[] };
 
-const parseRuleModeModelOutput = (value: unknown): { kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[] } => {
+const normalizeDraftRules = (rules: unknown, requestPersonId: string): unknown => {
+  if (!Array.isArray(rules)) return rules;
+  return rules.map((rawRule) => {
+    if (typeof rawRule !== 'object' || rawRule === null) return rawRule;
+    const rule = rawRule as Record<string, unknown>;
+    if (rule.personId || !requestPersonId) return rawRule;
+    return { ...rule, personId: requestPersonId };
+  });
+};
+
+const parseRuleModeModelOutput = (value: unknown, options?: { mode: 'draft' | 'confirm'; requestPersonId: string }): { kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[] } => {
   if (typeof value !== 'object' || value === null) throw new Error('Rule mode response must be an object');
   const record = value as Record<string, unknown>;
   const kind = record.kind === 'proposal' || record.kind === 'question' ? record.kind : null;
@@ -123,13 +134,17 @@ const parseRuleModeModelOutput = (value: unknown): { kind: 'proposal' | 'questio
   if (!first) return { kind, message, actionTypes };
   const type = first.type;
   if (type !== 'add_rule_v2_draft' && type !== 'add_rule_v2_confirm') return { kind, message, actionTypes };
-  const parsedRules = parseRuleItems(first.rules);
+  const modelRules = options?.mode === 'draft' ? normalizeDraftRules(first.rules, options.requestPersonId) : first.rules;
+  const parsedRules = parseRuleItems(modelRules);
   if ('invalidStatus' in parsedRules) return { kind, message, actionTypes };
   return { kind, message, actionTypes, action: { type, personId: typeof first.personId === 'string' ? first.personId.trim() : undefined, promptId: typeof first.promptId === 'string' ? first.promptId.trim() : undefined, rules: parsedRules.items } };
 };
 
-const getRuleDraftError = (): { message: string; hints: string[] } => ({
+const getRuleDraftError = (params: { code: DraftErrorCode; traceId: string; details: string }): { message: string; hints: string[]; code: DraftErrorCode; traceId: string; details: string } => ({
   message: "Couldn’t draft a rule from that.",
+  code: params.code,
+  traceId: params.traceId,
+  details: params.details,
   hints: [
     "Try: 'Unavailable tomorrow (all day)'",
     "Try: 'Unavailable Mar 16–Mar 31 (all day)'"
@@ -153,7 +168,10 @@ const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | '
   const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI rule parse missing content');
-  return parseRuleModeModelOutput(JSON.parse(raw));
+  if (process.env.RULES_DRAFT_DEBUG_RAW === '1') {
+    console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_raw_response', mode: params.mode, raw }));
+  }
+  return parseRuleModeModelOutput(JSON.parse(raw), { mode: params.mode, requestPersonId: params.personId });
 };
 
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
@@ -240,22 +258,57 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
     if (ruleMode === 'draft' || ruleMode === 'confirm') {
       if (!requestedPersonId) return { status: 400, jsonBody: { kind: 'error', error: 'personId_required', message: 'personId is required', traceId } };
+      const reportDraftFailure = (params: { code: DraftErrorCode; details: string; incomingRulesCount: number; validRuleItemsCount: number; intervalsCount: number; modelKind: 'proposal' | 'question'; actionType?: string }): HttpResponseInit => {
+        console.info('rule_mode_draft_fail', {
+          rulesDraftFail: true,
+          traceId,
+          code: params.code,
+          incomingRulesCount: params.incomingRulesCount,
+          validRuleItemsCount: params.validRuleItemsCount,
+          intervalsCount: params.intervalsCount,
+          modelKind: params.modelKind,
+          actionType: params.actionType ?? null
+        });
+        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: params.code, traceId, details: params.details }) }, state) };
+      };
       openAiCallInFlight = true;
-      const ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', now: new Date().toISOString(), traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)) });
+      let ruleParse;
+      try {
+        ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', now: new Date().toISOString(), traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)) });
+      } catch (error) {
+        openAiCallInFlight = false;
+        const isSchemaIssue = error instanceof SyntaxError || (error instanceof Error && error.message.startsWith('Rule mode response'));
+        if (ruleMode === 'draft' && isSchemaIssue && error instanceof Error) {
+          return reportDraftFailure({ code: 'SCHEMA_VALIDATION_FAILED', details: error.message, incomingRulesCount: 0, validRuleItemsCount: 0, intervalsCount: 0, modelKind: 'proposal' });
+        }
+        throw error;
+      }
       openAiCallInFlight = false;
       const requiredType = ruleMode === 'draft' ? 'add_rule_v2_draft' : 'add_rule_v2_confirm';
       const parsedAction = (ruleParse.kind === 'proposal' && ruleParse.action?.type === requiredType) ? ruleParse.action : undefined;
       const hasDisallowedAction = ruleParse.actionTypes.some((type) => type !== requiredType);
       const hasAppointmentAction = ruleParse.actionTypes.some((type) => type.includes('appointment') || type.startsWith('add_appointment') || type.startsWith('reschedule_appointment') || type.startsWith('delete_appointment'));
       const promptId = typeof body.promptId === 'string' ? body.promptId : undefined;
-      const incomingRules = parsedAction?.rules?.map((rule) => ({ ...rule, personId: requestedPersonId, promptId: promptId ?? parsedAction.promptId })) ?? [];
+      const incomingRules = parsedAction?.rules?.map((rule) => ({ ...rule, personId: ruleMode === 'draft' ? (rule.personId || requestedPersonId) : rule.personId, promptId: promptId ?? parsedAction.promptId })) ?? [];
       console.info('rule_mode_request', { traceId, ruleMode, personId: requestedPersonId, requiredType, parsedKind: ruleParse.kind, parsedActionType: ruleParse.action?.type, actionTypes: ruleParse.actionTypes, incomingIntervalsCount: incomingRules.length, promptId });
-      if (ruleParse.kind === 'question' || hasDisallowedAction || hasAppointmentAction || !parsedAction || incomingRules.length === 0) {
-        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', draftError: getRuleDraftError() }, state) };
+      if (ruleMode === 'draft' && ruleParse.kind === 'question') {
+        return reportDraftFailure({ code: 'MODEL_QUESTION', details: 'modelKind=question', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: ruleParse.action?.type });
+      }
+      if (ruleMode === 'draft' && (hasDisallowedAction || hasAppointmentAction || !parsedAction)) {
+        return reportDraftFailure({ code: 'DISALLOWED_ACTION', details: 'action type not allowed in draft mode', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: ruleParse.action?.type });
+      }
+      if (ruleMode !== 'draft' && (ruleParse.kind === 'question' || hasDisallowedAction || hasAppointmentAction || !parsedAction || incomingRules.length === 0)) {
+        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: 'DISALLOWED_ACTION', traceId, details: 'confirm parse failed' }) }, state) };
+      }
+      if (ruleMode === 'draft' && incomingRules.length === 0) {
+        return reportDraftFailure({ code: 'ZERO_VALID_RULE_ITEMS', details: 'rules missing personId/date', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: parsedAction?.type });
       }
       try {
         if (ruleMode === 'draft') {
           const draft = prepareRuleDraftV2(state, incomingRules, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+          if (draft.draftRules.length === 0) {
+            return reportDraftFailure({ code: 'ZERO_INTERVALS', details: 'no intervals produced from valid rules', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: parsedAction?.type });
+          }
           console.info('rule_mode_draft_result', { traceId, normalizedIntervalsCount: draft.draftRules.length, warningsCount: draft.warnings.length, timezoneFallbackUsed: draft.timezoneFallbackUsed });
           return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
         }
