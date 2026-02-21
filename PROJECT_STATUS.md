@@ -15,6 +15,7 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 - Page header group identity block is now tightly packed as a single vertical unit: group name has zero default heading margin, group link + copy icon remain center-aligned in one compact row, and the “save this link” explainer uses smaller muted styling with reduced top spacing to avoid large gaps.
 - Header identity stack spacing was tightened further into one compact unit (`groupName` → link+copy row → explainer) with ~3px internal gaps and ~16px separation before pane tabs/content to reduce “floaty” whitespace.
 - People rules rows now render as a compact right-aligned cluster (`range`, truncated description, status tag, actions) with reduced per-row/panel spacing so each rule reads as one cohesive line.
+- Tightened people→rules spacing and compacted rule rows so rule lists hug the person row with reduced vertical whitespace while keeping badges/text readable.
 - People rules range formatting now suppresses misleading default times for all-day entries by showing date-only labels with `(all day)`, including multi-day inclusive ranges such as `Mar 21–Mar 31 (all day)`.
 
 - Workspace header hierarchy updated for both Appointments and People panes: group name is now the primary heading, shareable group link (with copy button) sits immediately beneath it, pane title is secondary, and access guidance is grouped below the pane description.
