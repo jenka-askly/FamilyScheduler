@@ -80,20 +80,6 @@ const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M
 const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
-function AddFab({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      className="fs-fabAdd"
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-    >
-      +
-    </button>
-  );
-}
-
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
 const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
@@ -621,30 +607,24 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
       {view === 'appointments' ? (
         <section className="panel">
-          <div className="panel-header">
-            <AddFab label="Add appointment" onClick={() => void addAppointment()} />
-          </div>
           {sortedAppointments.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
               <div style={{ color: 'var(--muted)' }}>
-                Click “+ Add appointment” to create the first entry.
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <AddFab label="Add appointment" onClick={() => void addAppointment()} />
+                Use the add row at the bottom of the table to create the first entry.
               </div>
             </div>
-          ) : (
-            <div className="table-wrap fs-tableScroll">
-              <table className="data-table">
-                <thead>
-                  <tr><th>Code</th><th>Date</th><th>Time</th><th>Duration</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {sortedAppointments.map((appointment) => {
-                    const isEditing = editingApptCode === appointment.code;
-                    return (
-                      <tr key={appointment.code} ref={isEditing ? editingAppointmentRowRef : undefined}>
+          ) : null}
+          <div className="table-wrap fs-tableScroll">
+            <table className="data-table">
+              <thead>
+                <tr><th>Code</th><th>Date</th><th>Time</th><th>Duration</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {sortedAppointments.map((appointment) => {
+                  const isEditing = editingApptCode === appointment.code;
+                  return (
+                    <tr key={appointment.code} ref={isEditing ? editingAppointmentRowRef : undefined}>
                         <td><code>{appointment.code}</code></td>
                         <td>
                           {isEditing ? (
@@ -695,43 +675,43 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
                           </div>
                         </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    </tr>
+                  );
+                })}
+                <tr className="fs-tableCtaRow">
+                  <td colSpan={9}>
+                    <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
+                      {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
 
       {view === 'people' ? (
         <section className="panel"> 
-          <div className="panel-header"> 
-            <AddFab label="Add person" onClick={() => void addPerson()} />
-          </div>
           {peopleInView.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>No people added yet</div>
               <div style={{ color: 'var(--muted)' }}>
                 Add at least one person to allow them to access this group.
               </div>
-              <div style={{ marginTop: 12 }}>
-                <AddFab label="Add person" onClick={() => void addPerson()} />
-              </div>
             </div>
-          ) : (
-            <div className="table-wrap fs-tableScroll">
-              <table className="data-table">
-                <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {peopleInView.map((person) => {
-                    const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
-                    const isEditingPerson = editingPersonId === person.personId;
-                    const isNewRowEditing = isEditingPerson && pendingBlankPersonId === person.personId;
-                    return (
-                      <Fragment key={person.personId}>
-                        <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
+          ) : null}
+          <div className="table-wrap fs-tableScroll">
+            <table className="data-table">
+              <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {peopleInView.map((person) => {
+                  const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
+                  const isEditingPerson = editingPersonId === person.personId;
+                  const isNewRowEditing = isEditingPerson && pendingBlankPersonId === person.personId;
+                  return (
+                    <Fragment key={person.personId}>
+                      <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                           <td>
                             {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
                           </td>
@@ -755,8 +735,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             )}
                           </td>
                         </tr>
-                        {personRules.length > 0 ? (
-                          <tr key={`${person.personId}-rules`} className="rules-row">
+                      {personRules.length > 0 ? (
+                        <tr key={`${person.personId}-rules`} className="rules-row">
                             <td colSpan={4} className="rules-cell">
                               <div className="rules-indent">
                                 <ul className="rules-list">
@@ -803,15 +783,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 </ul>
                               </div>
                             </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+                <tr className="fs-tableCtaRow">
+                  <td colSpan={4}>
+                    <button type="button" className="fs-tableCtaBtn" onClick={() => void addPerson()} aria-label="Add person">
+                      {peopleInView.length > 0 ? '+ Add another person' : '+ Add a person'}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       ) : null}
 
