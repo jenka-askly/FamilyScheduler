@@ -636,30 +636,72 @@ h2 {
   box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
 }
 
+.fs-pageHeader {
+  margin-bottom: 24px;
+}
+
+.fs-groupHeaderStack {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
 .fs-h1 {
-  margin: 0;
+  margin: 0 0 4px 0;
+  line-height: 1.15;
   font-size: 1.5rem;
   font-weight: 700;
   color: #0f172a;
 }
 
-.fs-desc {
-  margin: 0.5rem 0 0;
-  color: #475569;
+.fs-groupBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
+.fs-groupLinkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.1;
+  flex-wrap: wrap;
+  margin: 2px 0;
+}
 
 .fs-groupName {
-  margin-top: 0.75rem;
+  margin: 2px 0;
   font-size: 1.05rem;
   font-weight: 600;
   color: #0f172a;
 }
 
+.fs-pageTitle {
+  font-weight: 500;
+}
+
 .fs-meta {
-  margin-top: 0.75rem;
+  margin: 2px 0 0 0;
   color: #64748b;
   font-size: 0.825rem;
+}
+
+.fs-groupExplain {
+  margin: 2px 0 8px 0;
+  line-height: 1.2;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.fs-headerMeta {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.fs-desc {
+  margin: 0;
+  color: #475569;
 }
 
 .join-form-wrap {

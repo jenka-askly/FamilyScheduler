@@ -4541,3 +4541,36 @@ Remove header-level Add CTAs and replace with compact bottom-of-table add rows i
 ### Follow-ups
 
 - Validate in production theme that bottom CTA rows remain visible with custom token overrides and maintain compact height.
+
+## 2026-02-21 05:09 UTC (compact PageHeader group block spacing)
+
+### Objective
+
+Pack the PageHeader “group name + link + explainer” into a tighter visual unit with reduced vertical whitespace.
+
+### Approach
+
+- Audited `PageHeader` markup + CSS selectors controlling `.fs-h1`, `.fs-groupName`, and `.fs-meta`.
+- Replaced inline spacing styles in `PageHeader` with explicit class-based structure (`fs-pageHeader`, `fs-groupHeaderStack`, `fs-groupBlock`, `fs-groupLinkRow`, `fs-groupExplain`, `fs-headerMeta`).
+- Tightened margin rules in `apps/web/src/styles.css` so title/link/explainer spacing is compact while preserving a larger separation before view-toggle controls.
+- Updated continuity docs with behavior change summary.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "function PageHeader|fs-h1|fs-groupName|fs-meta|Group ID|This link is required" apps/web/src` ✅ located PageHeader and related selectors/usages.
+- `rg -n "\.fs-h1\b|\.fs-groupName\b|\.fs-meta\b|PageHeader|header" apps/web/src --glob='*.css'` ✅ located CSS source of spacing rules.
+- `sed -n '1,180p' apps/web/src/components/layout/PageHeader.tsx` ✅ inspected existing inline/layout spacing.
+- `pnpm -C apps/web build` ✅ build succeeded after markup/CSS updates.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ launched local app for screenshot capture (stopped after capture).
+- Browser tool Playwright screenshot capture ✅ produced `browser:/tmp/codex_browser_invocations/5f5d5b6e7a695d47/artifacts/artifacts/pageheader-tight-spacing.png`.
+
+### Follow-ups
+
+- Validate in production theme/token variants that compact spacing remains consistent if typography tokens are overridden.
