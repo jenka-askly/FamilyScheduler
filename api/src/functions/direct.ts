@@ -4,6 +4,7 @@ import { executeActions } from '../lib/actions/executor.js';
 import type { Action } from '../lib/actions/schema.js';
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
+import { getTimeSpec } from '../lib/time/timeSpec.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -13,9 +14,9 @@ import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
+  appointments: Array<{ code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
-  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
+  rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
 
@@ -50,6 +51,9 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
     const derived = deriveDateTimeParts(appointment.start, appointment.end);
     return {
       code: appointment.code,
+      schemaVersion: appointment.schemaVersion,
+      updatedAt: appointment.updatedAt,
+      time: getTimeSpec(appointment, appointment.timezone ?? process.env.TZ ?? 'America/Los_Angeles'),
       desc: appointment.title,
       date: appointment.date ?? derived.date,
       startTime: appointment.startTime ?? derived.startTime,
@@ -68,7 +72,7 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
     };
   }),
   people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, cellE164: person.cellE164, status: person.status === 'active' ? 'active' : 'removed', timezone: person.timezone, notes: person.notes ?? '' })),
-  rules: state.rules.map((rule) => ({ code: rule.code, personId: rule.personId, kind: rule.kind, date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
+  rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
 

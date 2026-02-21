@@ -4574,3 +4574,39 @@ Pack the PageHeader “group name + link + explainer” into a tighter visual un
 ### Follow-ups
 
 - Validate in production theme/token variants that compact spacing remains consistent if typography tokens are overridden.
+
+## 2026-02-21 (UTC) — TimeSpec end-to-end implementation pass
+### Objective
+Implement TimeSpec v2 behavior across API + UI in one pass, including unresolved handling, rule confirm gating, and spec/continuity updates.
+
+### Approach
+- Added shared type definitions for TimeSpec primitives.
+- Added deterministic parser/normalizer utility for TimeSpec derivation and legacy in-memory fallback.
+- Updated API state/executor/snapshot surfaces to carry `schemaVersion` + `time` and expose TimeSpec to clients.
+- Updated UI schedule sorting + rendering to consume TimeSpec intent/resolved fields.
+- Updated docs and continuity artifacts.
+
+### Files changed
+- `packages/shared/src/types.ts`
+- `packages/shared/src/index.ts`
+- `api/src/lib/time/timeSpec.ts`
+- `api/src/lib/state.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `api/tsconfig.json`
+- `docs/TIME_DATE_SPEC.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api test` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (for screenshot capture; terminated intentionally)
+
+### Follow-ups
+- Tighten appointment inline time-edit UX to use a single free-text time input prefilled from `time.intent.originalText` for all edit entry points.

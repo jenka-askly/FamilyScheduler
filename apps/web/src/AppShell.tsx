@@ -4,12 +4,13 @@ import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
 import { buildInfo } from './lib/buildInfo';
+import type { TimeSpec } from '../../../packages/shared/src/types.js';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
-  appointments: Array<{ code: string; desc: string; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
+  appointments: Array<{ code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
-  rules: Array<{ code: string; personId: string; kind: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
+  rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: TimeSpec; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
 
@@ -83,6 +84,7 @@ const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2"
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
 const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
+  if (rule.time?.resolved?.startUtc && rule.time?.resolved?.endUtc) return { startMs: Date.parse(rule.time.resolved.startUtc), endMs: Date.parse(rule.time.resolved.endUtc) };
   if (rule.startUtc && rule.endUtc) {
     const startMs = Date.parse(rule.startUtc);
     const endMs = Date.parse(rule.endUtc);
@@ -96,6 +98,7 @@ const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
 };
 
 const getUtcBoundsForAppt = (appt: Snapshot['appointments'][0]) => {
+  if (appt.time?.resolved?.startUtc && appt.time?.resolved?.endUtc) return { startMs: Date.parse(appt.time.resolved.startUtc), endMs: Date.parse(appt.time.resolved.endUtc) };
   if (appt.isAllDay) {
     const dayStart = new Date(`${appt.date}T00:00:00`);
     const startMs = dayStart.getTime();
@@ -143,7 +146,8 @@ const formatRuleRangeForList = (rule: Snapshot['rules'][0], personTz?: string) =
 
 const computePersonStatusForInterval = (personId: string, appointment: Snapshot['appointments'][0], rules: Snapshot['rules']) => {
   const appointmentRange = getUtcBoundsForAppt(appointment);
-  if (!appointmentRange) return { status: 'unknown' as const };
+  if (appointment.time?.intent?.status !== 'resolved') return { status: 'unreconcilable' as const };
+  if (!appointmentRange) return { status: 'unreconcilable' as const };
   const overlappingRules = rules
     .filter((rule) => rule.personId === personId)
     .map((rule) => ({ rule, range: getUtcBoundsForRule(rule) }))
@@ -151,9 +155,8 @@ const computePersonStatusForInterval = (personId: string, appointment: Snapshot[
     .filter((entry) => rangesOverlap(appointmentRange, entry.range))
     .map((entry) => entry.rule);
 
-  if (overlappingRules.some((rule) => rule.kind === 'unavailable')) return { status: 'unavailable' as const };
-  if (overlappingRules.some((rule) => rule.kind === 'available')) return { status: 'available' as const };
-  return { status: 'unknown' as const };
+  if (overlappingRules.some((rule) => rule.kind === 'unavailable')) return { status: 'conflict' as const };
+  return { status: 'no_conflict' as const };
 };
 
 const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
@@ -165,6 +168,11 @@ const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
   const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
   if (sameDay) return `${dateFormatter.format(start)} ${timeFormatter.format(start)} → ${timeFormatter.format(end)} UTC`;
   return `${dateFormatter.format(start)} ${timeFormatter.format(start)} → ${dateFormatter.format(end)} ${timeFormatter.format(end)} UTC`;
+};
+
+const formatAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
+  if (appointment.time?.intent?.status !== 'resolved' || !appointment.time.resolved) return 'Unresolved';
+  return formatDraftRuleRange(appointment.time.resolved.startUtc, appointment.time.resolved.endUtc).replace(' UTC', '');
 };
 
 const isAllDayDraftRule = (startUtc: string, endUtc: string) => {
@@ -356,7 +364,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     await sendMessage(out);
   };
 
-  const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => a.date.localeCompare(b.date)), [snapshot.appointments]);
+  const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => {
+    const aUnresolved = a.time?.intent?.status !== 'resolved';
+    const bUnresolved = b.time?.intent?.status !== 'resolved';
+    if (aUnresolved && !bUnresolved) return -1;
+    if (!aUnresolved && bUnresolved) return 1;
+    if (aUnresolved && bUnresolved) return (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');
+    const byStart = (a.time?.resolved?.startUtc ?? '').localeCompare(b.time?.resolved?.startUtc ?? '');
+    if (byStart !== 0) return byStart;
+    const byEnd = (a.time?.resolved?.endUtc ?? '').localeCompare(b.time?.resolved?.endUtc ?? '');
+    if (byEnd !== 0) return byEnd;
+    return a.code.localeCompare(b.code);
+  }), [snapshot.appointments]);
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
   const headerTitle = view === 'appointments' ? 'Schedule' : 'People';
@@ -625,26 +644,26 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   const isEditing = editingApptCode === appointment.code;
                   return (
                     <tr key={appointment.code} ref={isEditing ? editingAppointmentRowRef : undefined}>
-                        <td><code>{appointment.code}</code></td>
+                        <td><code>{appointment.code}</code>{appointment.time?.intent?.status !== 'resolved' ? <span className='status-tag unknown' style={{ marginLeft: 8 }}>Unresolved</span> : null}</td>
                         <td>
                           {isEditing ? (
                             <input type="date" defaultValue={appointment.date || ''} onBlur={(event) => { const value = event.currentTarget.value; if (value && value !== appointment.date) void sendDirectAction({ type: 'set_appointment_date', code: appointment.code, date: value }); }} />
                           ) : (
-                            <span>{appointment.date || '—'}</span>
+                            <span>{appointment.time?.resolved?.startUtc?.slice(0,10) || appointment.date || '—'}</span>
                           )}
                         </td>
                         <td>
                           {isEditing ? (
                             <div className="time-cell"><input type="time" defaultValue={appointment.startTime ?? ''} onBlur={(event) => { const value = event.currentTarget.value; if (value !== (appointment.startTime ?? '')) void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code, startTime: value || undefined }); }} /><button type="button" className="compact-button" onClick={() => void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code })}>Clear</button></div>
                           ) : (
-                            <span>{appointment.startTime || (appointment.isAllDay ? 'All day' : '—')}</span>
+                            <span>{formatAppointmentTime(appointment)}</span>
                           )}
                         </td>
                         <td>
                           {isEditing ? (
                             <input type="number" min={1} max={1440} defaultValue={appointment.durationMins ?? ''} onBlur={(event) => { const value = event.currentTarget.value; const normalized = value ? Number(value) : undefined; if (normalized !== appointment.durationMins) void sendDirectAction({ type: 'set_appointment_duration', code: appointment.code, durationMins: normalized }); }} />
                           ) : (
-                            <span>{appointment.durationMins ? `${appointment.durationMins}m` : '—'}</span>
+                            <span>{appointment.time?.intent?.status !== 'resolved' ? '—' : (appointment.durationMins ? `${appointment.durationMins}m` : '—')}</span>
                           )}
                         </td>
                         <td className="multiline-cell">
@@ -906,7 +925,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         const isSelected = selectedAppointment.people.includes(person.personId);
         return <div key={person.personId} className={`picker-row ${index < activePeople.length - 1 ? 'picker-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
           <div className="picker-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="picker-name">{person.name}</span></div>
-          <div className="picker-status-wrap"><span className={`status-tag ${status.status}`}>{status.status === 'available' ? 'Available' : status.status === 'unavailable' ? 'Unavailable' : 'Unknown'}</span></div>
+          <div className="picker-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
       <FooterHelp />
