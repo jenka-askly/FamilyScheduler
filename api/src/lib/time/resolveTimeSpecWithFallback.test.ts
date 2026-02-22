@@ -61,3 +61,26 @@ test('disabled AI keeps deterministic unresolved local parse', async () => {
   assert.equal(fetchMock.mock.callCount(), 0);
   fetchMock.mock.restore();
 });
+
+
+test('AI bad response does not silently fallback', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test';
+  process.env.OPENAI_MODEL = 'gpt-test';
+
+  const fetchMock = mock.method(global, 'fetch', async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: 'resp_bad',
+      output_text: JSON.stringify({ status: 'resolved', startUtc: 'not-iso', endUtc: 'not-iso' })
+    })
+  }) as unknown as Response);
+
+  await assert.rejects(
+    resolveTimeSpecWithFallback({ whenText: 'tomorrow 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-4', context: { log: () => {} } as any }),
+    /Resolved output missing valid UTC interval/
+  );
+
+  assert.equal(fetchMock.mock.callCount(), 1);
+  fetchMock.mock.restore();
+});
