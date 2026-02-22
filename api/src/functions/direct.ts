@@ -31,6 +31,7 @@ type DirectAction =
   | { type: 'set_appointment_notes'; code: string; notes: string }
   | { type: 'set_appointment_desc'; code: string; desc: string }
   | { type: 'set_appointment_duration'; code: string; durationMins?: number }
+  | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string }
   | { type: 'create_blank_person' }
   | { type: 'update_person'; personId: string; name?: string; phone?: string }
   | { type: 'delete_person'; personId: string };
@@ -131,6 +132,18 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (value.durationMins === undefined || value.durationMins === null || value.durationMins === '') return { type, code, durationMins: undefined };
     if (typeof value.durationMins !== 'number' || !Number.isInteger(value.durationMins) || value.durationMins < 1 || value.durationMins > 24 * 60) throw new Error('durationMins must be an integer between 1 and 1440');
     return { type, code, durationMins: value.durationMins };
+  }
+
+  if (type === 'reschedule_appointment') {
+    const code = asString(value.code);
+    const date = asString(value.date);
+    if (!code || !date) throw new Error('code and date are required');
+    if (!datePattern.test(date)) throw new Error('date must be YYYY-MM-DD');
+    const startTime = typeof value.startTime === 'string' ? value.startTime.trim() : undefined;
+    if (startTime !== undefined && startTime !== '' && !timePattern.test(startTime)) throw new Error('startTime must be HH:MM');
+    if (value.durationMins !== undefined && value.durationMins !== null && value.durationMins !== '' && (typeof value.durationMins !== 'number' || !Number.isInteger(value.durationMins) || value.durationMins < 1 || value.durationMins > 24 * 60)) throw new Error('durationMins must be an integer between 1 and 1440');
+    const timezone = typeof value.timezone === 'string' ? value.timezone.trim() : undefined;
+    return { type, code, date, startTime: startTime || undefined, durationMins: typeof value.durationMins === 'number' ? value.durationMins : undefined, timezone: timezone || undefined };
   }
   if (type === 'create_blank_person') return { type };
   if (type === 'update_person') {
