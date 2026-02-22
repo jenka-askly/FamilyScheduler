@@ -828,34 +828,40 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       </tr>
                       {isWhenEditing ? (
                         <tr>
-                          <td colSpan={8}>
-                            <div className="rule-draft-output">
-                              <label htmlFor={`when-editor-${appointment.code}`}>When</label>
-                              <input
-                                id={`when-editor-${appointment.code}`}
-                                value={whenDraftText}
-                                onChange={(event) => setWhenDraftText(event.target.value)}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    event.preventDefault();
-                                    previewWhenDraft(appointment);
-                                  }
-                                }}
-                                placeholder="e.g. next Tuesday 8-9pm"
-                              />
-                              <div className="modal-actions">
-                                <button type="button" onClick={() => previewWhenDraft(appointment)}>Preview</button>
-                                <button type="button" onClick={() => void confirmWhenDraft(appointment)}>Confirm</button>
-                                <button type="button" onClick={closeWhenEditor}>Cancel</button>
+                          <td colSpan={8} className="when-editor-cell">
+                            <div className="rule-draft-output when-editor">
+                              <div className="when-editor-input-row">
+                                <label htmlFor={`when-editor-${appointment.code}`}>When</label>
+                                <input
+                                  id={`when-editor-${appointment.code}`}
+                                  value={whenDraftText}
+                                  onChange={(event) => setWhenDraftText(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault();
+                                      previewWhenDraft(appointment);
+                                    }
+                                  }}
+                                  placeholder="e.g. next Tuesday 8-9pm"
+                                />
                               </div>
-                              {whenDraftError ? <p className="form-error">{whenDraftError}</p> : null}
-                              {whenPreviewed ? (
-                                <div>
-                                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
-                                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+                              <div className="when-editor-footer">
+                                <div className="when-editor-feedback">
+                                  {whenDraftError ? <p className="form-error">{whenDraftError}</p> : null}
+                                  {whenPreviewed ? (
+                                    <div>
+                                      <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
+                                      {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                                      {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+                                    </div>
+                                  ) : null}
                                 </div>
-                              ) : null}
+                                <div className="modal-actions when-editor-actions">
+                                  <button type="button" onClick={() => previewWhenDraft(appointment)}>Preview</button>
+                                  <button type="button" onClick={() => void confirmWhenDraft(appointment)}>Confirm</button>
+                                  <button type="button" onClick={closeWhenEditor}>Cancel</button>
+                                </div>
+                              </div>
                             </div>
                           </td>
                         </tr>
