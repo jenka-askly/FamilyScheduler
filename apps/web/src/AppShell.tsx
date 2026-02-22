@@ -5,6 +5,7 @@ import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
 import { buildInfo } from './lib/buildInfo';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
+import { parseTimeSpec } from '../../../api/src/lib/time/timeSpec.js';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -182,7 +183,32 @@ const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
 
 const formatAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
   if (appointment.time?.intent?.status !== 'resolved' || !appointment.time.resolved) return 'Unresolved';
-  return formatDraftRuleRange(appointment.time.resolved.startUtc, appointment.time.resolved.endUtc).replace(' UTC', '');
+  const { startUtc, endUtc, timezone } = appointment.time.resolved;
+  const start = new Date(startUtc);
+  const end = new Date(endUtc);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Unresolved';
+  const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: timezone });
+  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
+  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
+  const isAllDay = start.getUTCHours() === 0
+    && start.getUTCMinutes() === 0
+    && end.getUTCHours() === 0
+    && end.getUTCMinutes() === 0
+    && (end.getTime() - start.getTime()) % 86400000 === 0;
+  if (isAllDay) {
+    const inclusiveEnd = new Date(end.getTime() - 60_000);
+    const sameDay = dateFormatter.format(start) === dateFormatter.format(inclusiveEnd);
+    if (sameDay) return `${dateFormatter.format(start)} · All day`;
+    return `${dateFormatter.format(start)}–${dateFormatter.format(inclusiveEnd)} · All day`;
+  }
+  const sameDay = dateFormatter.format(start) === dateFormatter.format(end);
+  if (sameDay) return `${dateFormatter.format(start)} · ${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
+  return `${dateTimeFormatter.format(start)} – ${dateTimeFormatter.format(end)}`;
+};
+
+const formatMissingSummary = (missing?: string[]) => {
+  if (!missing?.length) return null;
+  return `Missing: ${missing.join(', ')}`;
 };
 
 const isAllDayDraftRule = (startUtc: string, endUtc: string) => {
@@ -223,6 +249,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingApptCode, setEditingApptCode] = useState<string | null>(null);
+  const [whenEditorCode, setWhenEditorCode] = useState<string | null>(null);
+  const [whenDraftText, setWhenDraftText] = useState('');
+  const [whenDraftResult, setWhenDraftResult] = useState<TimeSpec | null>(null);
+  const [whenDraftError, setWhenDraftError] = useState<string | null>(null);
+  const [whenPreviewed, setWhenPreviewed] = useState(false);
   const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
@@ -313,6 +344,64 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (created) setEditingApptCode(created.code);
   };
 
+
+  const openWhenEditor = (appointment: Snapshot['appointments'][0]) => {
+    setWhenEditorCode(appointment.code);
+    setWhenDraftText(appointment.time?.intent?.originalText ?? '');
+    setWhenDraftResult(null);
+    setWhenDraftError(null);
+    setWhenPreviewed(false);
+  };
+
+  const closeWhenEditor = () => {
+    setWhenEditorCode(null);
+    setWhenDraftText('');
+    setWhenDraftResult(null);
+    setWhenDraftError(null);
+    setWhenPreviewed(false);
+  };
+
+  const previewWhenDraft = (appointment: Snapshot['appointments'][0]) => {
+    const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+    const parsed = parseTimeSpec({ originalText: whenDraftText.trim(), timezone });
+    setWhenDraftResult(parsed);
+    setWhenDraftError(null);
+    setWhenPreviewed(true);
+  };
+
+  const confirmWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
+    if (!whenDraftResult || whenDraftResult.intent.originalText !== whenDraftText.trim()) {
+      setWhenDraftError('Preview the updated text before confirming.');
+      return;
+    }
+    if (whenDraftResult.intent.status !== 'resolved' || !whenDraftResult.resolved) {
+      const response = await fetch(apiUrl('/api/chat'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: `Reschedule appointment ${appointment.code} to ${whenDraftText.trim()}`, groupId, phone })
+      });
+      const json = await response.json() as ChatResponse;
+      if (json.snapshot) setSnapshot(json.snapshot);
+      if (!response.ok) {
+        setWhenDraftError('Unable to confirm unresolved time.');
+        return;
+      }
+      closeWhenEditor();
+      return;
+    }
+    const start = new Date(whenDraftResult.resolved.startUtc);
+    const end = new Date(whenDraftResult.resolved.endUtc);
+    const allDay = start.getUTCHours() === 0 && start.getUTCMinutes() === 0 && end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && (end.getTime() - start.getTime()) % 86400000 === 0;
+    const payload = allDay
+      ? { type: 'reschedule_appointment', code: appointment.code, date: whenDraftResult.resolved.startUtc.slice(0, 10), timezone: whenDraftResult.resolved.timezone }
+      : { type: 'reschedule_appointment', code: appointment.code, date: whenDraftResult.resolved.startUtc.slice(0, 10), startTime: whenDraftResult.resolved.startUtc.slice(11, 16), durationMins: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)), timezone: whenDraftResult.resolved.timezone };
+    const result = await sendDirectAction(payload as Record<string, unknown>);
+    if (!result.ok) {
+      setWhenDraftError(result.message);
+      return;
+    }
+    closeWhenEditor();
+  };
 
   const startEditingPerson = (person: Snapshot['people'][0]) => {
     setEditingPersonId(person.personId);
@@ -675,33 +764,37 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <div className="table-wrap fs-tableScroll">
             <table className="data-table">
               <thead>
-                <tr><th>Code</th><th>Date</th><th>Time</th><th>Duration</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
+                <tr><th>Code</th><th>When</th><th>Status</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {sortedAppointments.map((appointment) => {
                   const isEditing = editingApptCode === appointment.code;
+                  const isWhenEditing = whenEditorCode === appointment.code;
+                  const apptStatus = appointment.time?.intent?.status !== 'resolved'
+                    ? 'unreconcilable'
+                    : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                      ? 'conflict'
+                      : 'no_conflict';
                   return (
-                    <tr key={appointment.code} ref={isEditing ? editingAppointmentRowRef : undefined}>
-                        <td><code>{appointment.code}</code>{appointment.time?.intent?.status !== 'resolved' ? <span className='status-tag unknown' style={{ marginLeft: 8 }}>Unresolved</span> : null}</td>
+                    <Fragment key={appointment.code}>
+                      <tr ref={isEditing ? editingAppointmentRowRef : undefined}>
+                        <td><code>{appointment.code}</code></td>
                         <td>
-                          {isEditing ? (
-                            <input type="date" defaultValue={appointment.date || ''} onBlur={(event) => { const value = event.currentTarget.value; if (value && value !== appointment.date) void sendDirectAction({ type: 'set_appointment_date', code: appointment.code, date: value }); }} />
-                          ) : (
-                            <span>{appointment.time?.resolved?.startUtc?.slice(0,10) || appointment.date || '—'}</span>
-                          )}
+                          <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
+                            {appointment.time?.intent?.status !== 'resolved'
+                              ? <span className='status-tag unknown'>Unresolved</span>
+                              : formatAppointmentTime(appointment)}
+                          </button>
                         </td>
                         <td>
-                          {isEditing ? (
-                            <div className="time-cell"><input type="time" defaultValue={appointment.startTime ?? ''} onBlur={(event) => { const value = event.currentTarget.value; if (value !== (appointment.startTime ?? '')) void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code, startTime: value || undefined }); }} /><button type="button" className="compact-button" onClick={() => void sendDirectAction({ type: 'set_appointment_start_time', code: appointment.code })}>Clear</button></div>
+                          {apptStatus === 'unreconcilable' ? (
+                            <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
+                              <span className="status-tag unknown">Unreconcilable</span>
+                            </button>
                           ) : (
-                            <span>{formatAppointmentTime(appointment)}</span>
-                          )}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input type="number" min={1} max={1440} defaultValue={appointment.durationMins ?? ''} onBlur={(event) => { const value = event.currentTarget.value; const normalized = value ? Number(value) : undefined; if (normalized !== appointment.durationMins) void sendDirectAction({ type: 'set_appointment_duration', code: appointment.code, durationMins: normalized }); }} />
-                          ) : (
-                            <span>{appointment.time?.intent?.status !== 'resolved' ? '—' : (appointment.durationMins ? `${appointment.durationMins}m` : '—')}</span>
+                            <span className={`status-tag ${apptStatus === 'conflict' ? 'unavailable' : 'available'}`}>
+                              {apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
+                            </span>
                           )}
                         </td>
                         <td className="multiline-cell">
@@ -732,11 +825,46 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
                           </div>
                         </td>
-                    </tr>
+                      </tr>
+                      {isWhenEditing ? (
+                        <tr>
+                          <td colSpan={8}>
+                            <div className="rule-draft-output">
+                              <label htmlFor={`when-editor-${appointment.code}`}>When</label>
+                              <input
+                                id={`when-editor-${appointment.code}`}
+                                value={whenDraftText}
+                                onChange={(event) => setWhenDraftText(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    previewWhenDraft(appointment);
+                                  }
+                                }}
+                                placeholder="e.g. next Tuesday 8-9pm"
+                              />
+                              <div className="modal-actions">
+                                <button type="button" onClick={() => previewWhenDraft(appointment)}>Preview</button>
+                                <button type="button" onClick={() => void confirmWhenDraft(appointment)}>Confirm</button>
+                                <button type="button" onClick={closeWhenEditor}>Cancel</button>
+                              </div>
+                              {whenDraftError ? <p className="form-error">{whenDraftError}</p> : null}
+                              {whenPreviewed ? (
+                                <div>
+                                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
+                                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
                 <tr className="fs-tableCtaRow">
-                  <td colSpan={9}>
+                  <td colSpan={8}>
                     <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
                       {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
                     </button>
