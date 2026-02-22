@@ -59,6 +59,8 @@ const trimTo = (value: string, limit: number): string => value.length <= limit ?
 
 const toOutputText = (payload: any): string | null => {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text;
+  const directText = payload?.output?.flatMap((entry: any) => entry?.content ?? [])?.find((entry: any) => typeof entry?.text === 'string')?.text;
+  if (typeof directText === 'string' && directText.trim()) return directText;
   const itemText = payload?.output?.flatMap((entry: any) => entry?.content ?? [])?.find((entry: any) => entry?.type === 'output_text' && typeof entry?.text === 'string')?.text;
   return typeof itemText === 'string' && itemText.trim() ? itemText : null;
 };
@@ -166,12 +168,14 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
           ]
         }
       ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'time_spec_parse',
-          schema,
-          strict: true
+      text: {
+        format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'time_spec_parse',
+            schema,
+            strict: true
+          }
         }
       }
     })

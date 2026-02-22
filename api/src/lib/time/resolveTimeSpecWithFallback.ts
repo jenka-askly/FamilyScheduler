@@ -14,6 +14,11 @@ type ResolveArgs = {
 const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
 
 export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ time: ReturnType<typeof parseTimeSpec>; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }> {
+  const fallbackEnabled = process.env.TIME_RESOLVE_OPENAI_FALLBACK === '1';
+  const timeLocal = parseTimeSpec({ originalText: args.whenText, timezone: args.timezone, now: args.now });
+
+  if (!fallbackEnabled) return { time: timeLocal, fallbackAttempted: false, usedFallback: false, opId: undefined, model: undefined };
+
   try {
     const aiResult = await parseTimeSpecAIWithMeta({
       originalText: args.whenText,
@@ -30,7 +35,7 @@ export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ 
       modelOrDeployment: aiResult.meta.modelOrDeployment,
       parseStatus: aiResult.time.intent.status
     }));
-    return { time: aiResult.time, fallbackAttempted: true, usedFallback: false, opId: aiResult.meta.opId, model: aiResult.meta.modelOrDeployment };
+    return { time: aiResult.time, fallbackAttempted: true, usedFallback: true, opId: aiResult.meta.opId, model: aiResult.meta.modelOrDeployment };
   } catch (error) {
     const code = error instanceof TimeParseAiError ? error.code : 'OPENAI_CALL_FAILED';
     const details = error instanceof TimeParseAiError ? error.details : undefined;
@@ -60,6 +65,5 @@ export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ 
     if (code !== 'OPENAI_CALL_FAILED' && code !== 'OPENAI_NOT_CONFIGURED') throw error;
   }
 
-  const timeLocal = parseTimeSpec({ originalText: args.whenText, timezone: args.timezone, now: args.now });
-  return { time: timeLocal, fallbackAttempted: true, usedFallback: true, opId: undefined, model: undefined };
+  return { time: timeLocal, fallbackAttempted: true, usedFallback: false, opId: undefined, model: undefined };
 }

@@ -41,7 +41,7 @@ type DirectAction =
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
 const DIRECT_VERSION = process.env.DIRECT_VERSION ?? process.env.VITE_BUILD_SHA ?? process.env.BUILD_SHA ?? 'unknown';
-const FALLBACK_ENABLED = true;
+const FALLBACK_ENABLED = process.env.TIME_RESOLVE_OPENAI_FALLBACK === '1';
 const TIME_RESOLVE_LOG_ENABLED = process.env.TIME_RESOLVE_LOG_ENABLED === '1';
 
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
