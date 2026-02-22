@@ -14,10 +14,7 @@ type ResolveArgs = {
 const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
 
 export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ time: ReturnType<typeof parseTimeSpec>; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }> {
-  const fallbackEnabled = process.env.TIME_RESOLVE_OPENAI_FALLBACK === '1';
   const timeLocal = parseTimeSpec({ originalText: args.whenText, timezone: args.timezone, now: args.now });
-
-  if (!fallbackEnabled) return { time: timeLocal, fallbackAttempted: false, usedFallback: false, opId: undefined, model: undefined };
 
   try {
     const aiResult = await parseTimeSpecAIWithMeta({
@@ -62,7 +59,6 @@ export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ 
       timezone: args.timezone
     }));
 
-    if (code !== 'OPENAI_CALL_FAILED' && code !== 'OPENAI_NOT_CONFIGURED') throw error;
   }
 
   return { time: timeLocal, fallbackAttempted: true, usedFallback: false, opId: undefined, model: undefined };

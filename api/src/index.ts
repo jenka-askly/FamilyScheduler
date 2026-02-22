@@ -47,7 +47,6 @@ startupLog('time-resolve-ai-config', {
   timeResolveModel: process.env.TIME_RESOLVE_MODEL ?? null,
   openAiModel: process.env.OPENAI_MODEL ?? null,
   azureEndpointConfigured: Boolean(process.env.AZURE_OPENAI_ENDPOINT?.trim()),
-  timeResolveFallbackFlag: process.env.TIME_RESOLVE_OPENAI_FALLBACK ?? null
 });
 
 if (startupDebugEnabled) {

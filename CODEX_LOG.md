@@ -5011,3 +5011,37 @@ Fix time parsing Responses API payload shape (`text.format`), correct `fallbackA
 - Responses API payload no longer uses unsupported `response_format` for time parsing.
 - Fallback flags now accurately describe whether AI was attempted and whether AI result was used.
 - Feature flag `TIME_RESOLVE_OPENAI_FALLBACK=0` now skips AI attempts in resolver/direct preview path.
+
+## 2026-02-22 09:16 UTC (remove time resolve fallback flag, AI-first always)
+
+### Objective
+
+Remove `TIME_RESOLVE_OPENAI_FALLBACK`, enforce AI-first time preview with deterministic degradation only on AI failures, and align docs/tests/status.
+
+### Approach
+
+- Removed fallback flag reads/logging from direct handler and startup config logs.
+- Updated `resolveTimeSpecWithFallback` to always attempt `parseTimeSpecAIWithMeta` first and always degrade to local parser on any AI exception.
+- Kept Responses API `text.format.json_schema` request shape in `parseTimeSpecAI`.
+- Updated direct/time resolver tests to remove feature-flag toggles and assert new `usedFallback`/`fallbackAttempted` semantics.
+- Updated docs and PROJECT_STATUS notes; added outdated note to discovery doc.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `api/src/index.ts`
+- `api/src/lib/time/resolveTimeSpecWithFallback.ts`
+- `api/src/functions/direct.test.ts`
+- `api/src/lib/time/resolveTimeSpecWithFallback.test.ts`
+- `docs/api.md`
+- `docs/discovery-photo-extract-appointment-feasibility.md`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `pnpm --dir api test` (see latest run in task output)
+- `rg -n "TIME_RESOLVE_OPENAI_FALLBACK|timeResolveFallbackFlag|FALLBACK_ENABLED" api/src`
+
+### Follow-ups
+
+- Optional cleanup: prune older superseded PROJECT_STATUS notes that still reference temporary fallback-flag behavior for historical context clarity.
