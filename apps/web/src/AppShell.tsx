@@ -81,7 +81,6 @@ const Icon = ({ children }: { children: ReactNode }) => (
 );
 const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" /></Icon>;
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
-const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2 2 4-4" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
@@ -232,11 +231,6 @@ const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
   return (a.startTime ?? '').localeCompare(b.startTime ?? '');
 });
 
-function autoGrowTextarea(el: HTMLTextAreaElement) {
-  el.style.height = 'auto';
-  el.style.height = `${Math.max(el.scrollHeight, 60)}px`;
-}
-
 export function AppShell({ groupId, phone, groupName: initialGroupName }: { groupId: string; phone: string; groupName?: string }) {
   const [message, setMessage] = useState('');
   const [groupName, setGroupName] = useState<string | undefined>(initialGroupName);
@@ -248,13 +242,14 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingApptCode, setEditingApptCode] = useState<string | null>(null);
   const [whenEditorCode, setWhenEditorCode] = useState<string | null>(null);
   const [whenDraftText, setWhenDraftText] = useState('');
+  const [descDraftText, setDescDraftText] = useState('');
+  const [locationDraftText, setLocationDraftText] = useState('');
+  const [notesDraftText, setNotesDraftText] = useState('');
   const [whenDraftResult, setWhenDraftResult] = useState<TimeSpec | null>(null);
   const [whenDraftError, setWhenDraftError] = useState<string | null>(null);
   const [whenPreviewed, setWhenPreviewed] = useState(false);
-  const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
@@ -276,7 +271,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
   const didInitialLoad = useRef(false);
-  const appointmentDescRef = useRef<HTMLTextAreaElement | null>(null);
   const rulePromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasProposedRules = Boolean(ruleDraft?.draftRules?.length);
 
@@ -341,13 +335,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const result = await sendDirectAction({ type: 'create_blank_appointment' });
     if (!result.ok) return;
     const created = result.snapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
-    if (created) setEditingApptCode(created.code);
+    if (created) openWhenEditor(created);
   };
 
 
   const openWhenEditor = (appointment: Snapshot['appointments'][0]) => {
     setWhenEditorCode(appointment.code);
     setWhenDraftText(appointment.time?.intent?.originalText ?? '');
+    setDescDraftText(appointment.desc ?? '');
+    setLocationDraftText(appointment.locationRaw ?? appointment.location ?? '');
+    setNotesDraftText(appointment.notes ?? '');
     setWhenDraftResult(null);
     setWhenDraftError(null);
     setWhenPreviewed(false);
@@ -356,6 +353,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const closeWhenEditor = () => {
     setWhenEditorCode(null);
     setWhenDraftText('');
+    setDescDraftText('');
+    setLocationDraftText('');
+    setNotesDraftText('');
     setWhenDraftResult(null);
     setWhenDraftError(null);
     setWhenPreviewed(false);
@@ -370,6 +370,27 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   };
 
   const confirmWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
+    if (descDraftText !== (appointment.desc ?? '')) {
+      const descResult = await sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: descDraftText });
+      if (!descResult.ok) {
+        setWhenDraftError(descResult.message);
+        return;
+      }
+    }
+    if (locationDraftText !== (appointment.locationRaw ?? appointment.location ?? '')) {
+      const locationResult = await sendDirectAction({ type: 'set_appointment_location', code: appointment.code, locationRaw: locationDraftText });
+      if (!locationResult.ok) {
+        setWhenDraftError(locationResult.message);
+        return;
+      }
+    }
+    if (notesDraftText !== (appointment.notes ?? '')) {
+      const notesResult = await sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: notesDraftText });
+      if (!notesResult.ok) {
+        setWhenDraftError(notesResult.message);
+        return;
+      }
+    }
     if (!whenDraftResult || whenDraftResult.intent.originalText !== whenDraftText.trim()) {
       setWhenDraftError('Preview the updated text before confirming.');
       return;
@@ -601,10 +622,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [groupId, phone]);
 
   useEffect(() => {
-    if (!editingApptCode) return;
-    const exists = snapshot.appointments.some((appointment) => appointment.code === editingApptCode);
-    if (!exists) setEditingApptCode(null);
-  }, [editingApptCode, snapshot.appointments]);
+    if (!whenEditorCode) return;
+    const exists = snapshot.appointments.some((appointment) => appointment.code === whenEditorCode);
+    if (!exists) closeWhenEditor();
+  }, [whenEditorCode, snapshot.appointments]);
 
   useEffect(() => {
     if (!editingPersonId) return;
@@ -641,37 +662,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       canceled = true;
     };
   }, [groupId, initialGroupName]);
-
-  useEffect(() => {
-    if (!editingApptCode || !appointmentDescRef.current) return;
-    autoGrowTextarea(appointmentDescRef.current);
-  }, [editingApptCode]);
-
-  useEffect(() => {
-    if (!editingApptCode) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setEditingApptCode(null);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [editingApptCode]);
-
-  useEffect(() => {
-    if (!editingApptCode) return;
-    const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      const editingRow = editingAppointmentRowRef.current;
-      const target = event.target;
-      if (!editingRow || !(target instanceof Node)) return;
-      if (!editingRow.contains(target)) setEditingApptCode(null);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('touchstart', onPointerDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('touchstart', onPointerDown);
-    };
-  }, [editingApptCode]);
-
   useEffect(() => {
     if (!editingPersonId) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -768,7 +758,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               </thead>
               <tbody>
                 {sortedAppointments.map((appointment) => {
-                  const isEditing = editingApptCode === appointment.code;
                   const isWhenEditing = whenEditorCode === appointment.code;
                   const apptStatus = appointment.time?.intent?.status !== 'resolved'
                     ? 'unreconcilable'
@@ -777,7 +766,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       : 'no_conflict';
                   return (
                     <Fragment key={appointment.code}>
-                      <tr ref={isEditing ? editingAppointmentRowRef : undefined}>
+                      <tr>
                         <td><code>{appointment.code}</code></td>
                         <td>
                           <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
@@ -797,31 +786,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             </span>
                           )}
                         </td>
-                        <td className="multiline-cell">
-                          {isEditing ? (
-                            <textarea ref={isEditing ? appointmentDescRef : undefined} rows={2} autoFocus={editingApptCode === appointment.code && !appointment.desc} defaultValue={appointment.desc} onInput={(event) => autoGrowTextarea(event.currentTarget)} onBlur={(event) => { if (event.currentTarget.value !== appointment.desc) void sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: event.currentTarget.value }); }} />
-                          ) : (
-                            <span className="line-clamp" title={appointment.desc}>{appointment.desc || '—'}</span>
-                          )}
-                        </td>
+                        <td className="multiline-cell"><span className="line-clamp" title={appointment.desc}>{appointment.desc || '—'}</span></td>
                         <td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
-                        <td className="multiline-cell">
-                          {isEditing ? (
-                            <div className="location-cell"><textarea rows={2} defaultValue={appointment.locationRaw ?? appointment.location} title={appointment.locationDisplay || appointment.location} onBlur={(event) => { if (event.currentTarget.value !== (appointment.locationRaw ?? appointment.location)) void sendDirectAction({ type: 'set_appointment_location', code: appointment.code, locationRaw: event.currentTarget.value }); }} /><div className="location-preview-wrap">{appointment.locationDisplay ? <p className="location-preview" title={appointment.locationDisplay}>{appointment.locationDisplay}</p> : <span className="muted-empty">—</span>}{(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw) ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></div>
-                          ) : (
-                            <div className="location-preview-wrap"><p className="location-preview" title={appointment.locationDisplay || appointment.location}>{appointment.locationDisplay || appointment.location || '—'}</p>{(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw) ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw)}`} target="_blank" rel="noreferrer">Map</a> : null}</div>
-                          )}
-                        </td>
-                        <td className="multiline-cell">
-                          {isEditing ? (
-                            <textarea rows={3} defaultValue={appointment.notes} title={appointment.notes} onInput={(event) => autoGrowTextarea(event.currentTarget)} onBlur={(event) => { if (event.currentTarget.value !== appointment.notes) void sendDirectAction({ type: 'set_appointment_notes', code: appointment.code, notes: event.currentTarget.value }); }} />
-                          ) : (
-                            <span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span>
-                          )}
-                        </td>
+                        <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview" title={appointment.locationDisplay || appointment.location}>{appointment.locationDisplay || appointment.location || '—'}</p>{(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw) ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
+                        <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
                         <td>
                           <div className="action-icons">
-                            <button type="button" className="icon-button" aria-label={isEditing ? 'Done editing appointment' : 'Edit appointment'} data-tooltip={isEditing ? 'Done (Esc/outside click)' : 'Edit'} onClick={() => setEditingApptCode(isEditing ? null : appointment.code)}>{isEditing ? <CheckCircle /> : <Pencil />}</button>
                             <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
                           </div>
                         </td>
@@ -843,6 +813,33 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                     }
                                   }}
                                   placeholder="e.g. next Tuesday 8-9pm"
+                                />
+                              </div>
+                              <div className="when-editor-input-row">
+                                <label htmlFor={`desc-editor-${appointment.code}`}>Description</label>
+                                <input
+                                  id={`desc-editor-${appointment.code}`}
+                                  value={descDraftText}
+                                  onChange={(event) => setDescDraftText(event.target.value)}
+                                  placeholder="e.g. Follow-up visit"
+                                />
+                              </div>
+                              <div className="when-editor-input-row">
+                                <label htmlFor={`location-editor-${appointment.code}`}>Location</label>
+                                <input
+                                  id={`location-editor-${appointment.code}`}
+                                  value={locationDraftText}
+                                  onChange={(event) => setLocationDraftText(event.target.value)}
+                                  placeholder="e.g. Evergreen Health"
+                                />
+                              </div>
+                              <div className="when-editor-input-row">
+                                <label htmlFor={`notes-editor-${appointment.code}`}>Notes</label>
+                                <input
+                                  id={`notes-editor-${appointment.code}`}
+                                  value={notesDraftText}
+                                  onChange={(event) => setNotesDraftText(event.target.value)}
+                                  placeholder="Optional notes"
                                 />
                               </div>
                               <div className="when-editor-footer">
@@ -996,17 +993,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         <form onSubmit={onSubmit}>
           <label htmlFor="prompt">What would you like to do?</label>
           <div className="input-row">
-            <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} />
+            <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder='Add, edit, or assign (e.g., "edit APPT-4")…' />
             <button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button>
           </div>
-          <div style={{ marginTop: 8, color: 'var(--muted)', fontSize: 12, lineHeight: 1.25, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ margin: 0 }}>
-              Add, edit, delete, rename, or assign appointments. You can also paste email text or a CSV with appointment details.
-            </div>
-            <div style={{ margin: 0 }}>
-              Example: “Pre-op visit March 19 at 9:45 AM, Evergreen Health” or paste a confirmation email.
-            </div>
-          </div>
+          <p className="prompt-tip">Tip: Paste an appointment email or CSV — we’ll extract the details and add it for you.</p>
         </form>
       ) : null}
 
