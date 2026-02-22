@@ -16,12 +16,25 @@ type LegacyInput = {
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MONTH_DAY = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:,?\s*(\d{4}))?$/i;
+const MONTH_DAY_PREFIX = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:,?\s*(\d{4}))?(?:\b|\s+)/i;
+const SLASH_MONTH_DAY = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?:\b|\s+)/;
 const RANGE = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[–—-]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i;
 
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 const NEXT_WEEKDAY = /\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i;
 const SINGLE_TIME = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i;
+
+const resolveSingleTime = (sourceText: string, base: Date): { startUtc: string; endUtc: string } | null => {
+  const singleTime = sourceText.match(SINGLE_TIME);
+  if (!singleTime) return null;
+  const [_, h, m, meridiem] = singleTime;
+  const parsed = parseHour(h, m, meridiem);
+  const start = new Date(base);
+  start.setHours(parsed.hour, parsed.minute, 0, 0);
+  const end = new Date(start.getTime() + 60_000);
+  return { startUtc: start.toISOString(), endUtc: end.toISOString() };
+};
 
 const capEvidence = (snippets?: string[]): string[] | undefined => {
   if (!snippets?.length) return undefined;
@@ -165,6 +178,50 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
     }
     const wholeDayEnd = new Date(base); wholeDayEnd.setDate(base.getDate() + 1);
     return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: base.toISOString(), endUtc: wholeDayEnd.toISOString() } };
+  }
+
+  const mdPrefix = text.match(MONTH_DAY_PREFIX);
+  if (mdPrefix) {
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const month = months.indexOf(mdPrefix[1].slice(0, 3).toLowerCase()) + 1;
+    const day = Number(mdPrefix[2]);
+    const year = mdPrefix[3] ? Number(mdPrefix[3]) : now.getFullYear();
+    const dayBase = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const singleTime = resolveSingleTime(text, dayBase);
+    if (singleTime) {
+      assumptions.push('Interpreted single-point time as a 1-minute interval.');
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, ...singleTime } };
+    }
+    const window = fuzzyWindow(text);
+    if (window) {
+      assumptions.push(window.label);
+      const endDate = new Date(dayBase);
+      const [eh, em] = window.end;
+      if (eh === 24) { endDate.setDate(endDate.getDate() + 1); endDate.setHours(0, 0, 0, 0); }
+      else endDate.setHours(eh, em, 0, 0);
+      const startDate = new Date(dayBase); startDate.setHours(window.start[0], window.start[1], 0, 0);
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: startDate.toISOString(), endUtc: endDate.toISOString() } };
+    }
+    const wholeDayEnd = new Date(dayBase); wholeDayEnd.setDate(dayBase.getDate() + 1);
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: dayBase.toISOString(), endUtc: wholeDayEnd.toISOString() } };
+  }
+
+  const slashDate = text.match(SLASH_MONTH_DAY);
+  if (slashDate) {
+    const month = Number(slashDate[1]);
+    const day = Number(slashDate[2]);
+    const parsedYear = slashDate[3] ? Number(slashDate[3]) : now.getFullYear();
+    const year = String(parsedYear).length === 2 ? 2000 + parsedYear : parsedYear;
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const dayBase = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const singleTime = resolveSingleTime(text, dayBase);
+      if (singleTime) {
+        assumptions.push('Interpreted single-point time as a 1-minute interval.');
+        return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, ...singleTime } };
+      }
+      const wholeDayEnd = new Date(dayBase); wholeDayEnd.setDate(dayBase.getDate() + 1);
+      return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: dayBase.toISOString(), endUtc: wholeDayEnd.toISOString() } };
+    }
   }
 
   const range = text.match(RANGE);
