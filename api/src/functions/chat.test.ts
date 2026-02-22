@@ -134,6 +134,23 @@ test('rule confirm rejects draftedIntervals with mismatched personId', async () 
   assert.equal((response.jsonBody as any).error, 'invalid_drafted_intervals_person');
 });
 
+
+test('chat updates active person lastSeen on authenticated access', async () => {
+  let savedState: any;
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: baseState(), etag: 'e1' }; },
+    async save(_g, next) { savedState = next; return { state: next as any, etag: 'e2' }; }
+  };
+  setStorageAdapterForTests(adapter);
+
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'help', traceId: 't-last-seen' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal(typeof savedState.people[0].lastSeen, 'string');
+  assert.equal(Number.isNaN(Date.parse(savedState.people[0].lastSeen)), false);
+  assert.equal((response.jsonBody as any).snapshot.people[0].lastSeen, savedState.people[0].lastSeen);
+});
+
 test('chat returns CONFIG_MISSING when storage env is missing', async () => {
   setStorageAdapterForTests(null);
   const prevUrl = process.env.STORAGE_ACCOUNT_URL;

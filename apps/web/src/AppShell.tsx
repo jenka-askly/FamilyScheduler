@@ -22,6 +22,8 @@ type ChatResponse =
   | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText?: boolean; snapshot?: Snapshot };
 
 type PendingQuestion = { message: string; options: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
+type UsagePayload = { usageState: 'unknown' | 'ok' | 'warning' | 'limit_reached'; usageSummary?: string; updatedAt: string };
+type UsageStatus = { status: 'loading' | 'ok' | 'error'; data?: UsagePayload };
 
 const QuestionDialog = ({
   question,
@@ -212,6 +214,7 @@ function autoGrowTextarea(el: HTMLTextAreaElement) {
 export function AppShell({ groupId, phone, groupName: initialGroupName }: { groupId: string; phone: string; groupName?: string }) {
   const [message, setMessage] = useState('');
   const [groupName, setGroupName] = useState<string | undefined>(initialGroupName);
+  const [usage, setUsage] = useState<UsageStatus>({ status: 'loading' });
   const [view, setView] = useState<'appointments' | 'people'>('appointments');
   const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
@@ -605,6 +608,33 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [editingPersonId, cancelPersonEdit]);
 
 
+  useEffect(() => {
+    let canceled = false;
+
+    const loadUsage = async () => {
+      try {
+        const response = await fetch(apiUrl('/api/usage'));
+        if (!response.ok) throw new Error('usage fetch failed');
+        const data = await response.json() as UsagePayload;
+        if (!canceled) setUsage({ status: 'ok', data });
+      } catch {
+        if (!canceled) setUsage({ status: 'error' });
+      }
+    };
+
+    void loadUsage();
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  const usageLabel = usage.status === 'loading'
+    ? 'Usage: loading…'
+    : usage.status === 'error'
+      ? 'Usage: unavailable'
+      : `Usage: ${usage.data?.usageState ?? 'unknown'}${usage.data?.usageSummary ? ` (${usage.data.usageSummary})` : ''}`;
+
+
   return (
     <Page variant="workspace">
       <PageHeader
@@ -937,7 +967,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
       <FooterHelp />
-      <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time}</div>
+      <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
     </Page>
   );
 }
