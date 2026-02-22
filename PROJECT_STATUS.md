@@ -712,3 +712,10 @@ traces
 - Behavior change: the workflow now explicitly enforces that production serves built assets after deploy.
 
 - API deploy packaging no longer relies on a `dist/index.js` shim; `api/package.json` now points `main` to the actual TypeScript emit at `dist/api/src/index.js`, preventing Azure Functions indexing regressions where no functions were detected.
+
+## 2026-02-22 update
+
+- `/api/chat` now refreshes the authenticated active person's `lastSeen` on successful auth-gated requests (with a 60-second write threshold) and persists it through storage save.
+- Chat snapshots now guarantee `people[*].lastSeen` with fallback order: `lastSeen` → `createdAt` → current server timestamp for legacy records.
+- Added `GET /api/usage` endpoint returning deterministic default usage state payload (`unknown`, summary text, `updatedAt`).
+- Web footer build line now includes a non-blank usage label: `Usage: loading…`, `Usage: unavailable`, or `Usage: <state> (<summary>)`.

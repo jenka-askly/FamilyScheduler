@@ -4874,3 +4874,38 @@ Replace People table Status with Last seen and plumb timestamp data through API 
 
 ### Follow-ups
 - Consider updating `lastSeen` from chat read-only requests as well if "seen" should include non-mutating activity.
+
+## 2026-02-22 01:45 UTC
+
+### Objective
+
+Implement presence freshness on chat access and add usage-state footer plumbing end-to-end.
+
+### Approach
+
+- Updated chat handler to persist authenticated user's `lastSeen` (throttled to once per 60s) without changing auth matching (`cellE164 === phoneE164`).
+- Tightened chat snapshot people serialization to always provide a timestamp fallback for `lastSeen`.
+- Added new `GET /api/usage` Azure Function and registered it in the central HTTP route registry.
+- Added backend tests for `/api/chat` lastSeen updates and `/api/usage` response shape.
+- Updated AppShell footer build line to fetch and render usage state with deterministic loading/error fallbacks.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/functions/usage.ts`
+- `api/src/functions/usage.test.ts`
+- `api/src/index.ts`
+- `api/usage/function.json`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Optional: expose real billing-backed usage signals in `/api/usage` once provider integration is defined.

@@ -51,7 +51,9 @@ const deriveDateTimeParts = (start?: string, end?: string): { date: string; star
   return { date: start.slice(0, 10), startTime: start.match(/T(\d{2}:\d{2})/)?.[1], durationMins, isAllDay: false };
 };
 
-const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
+const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
+  const nowIso = new Date().toISOString();
+  return ({
   appointments: state.appointments.map((appointment) => {
     const derived = deriveDateTimeParts(appointment.start, appointment.end);
     return {
@@ -76,10 +78,11 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       notes: appointment.notes ?? ''
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
+  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt ?? nowIso, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
-});
+  });
+};
 
 const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState): T & { snapshot: ResponseSnapshot } => ({ ...payload, snapshot: toResponseSnapshot(state) });
 
@@ -221,6 +224,12 @@ const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | '
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), expectedEtag, actions });
 const isMutationAction = (action: Action): boolean => !['list_appointments', 'show_appointment', 'list_people', 'show_person', 'list_rules', 'show_rule', 'help'].includes(action.type);
+const shouldPersistLastSeen = (lastSeen: string | undefined, nowMs: number): boolean => {
+  if (!lastSeen) return true;
+  const previousMs = Date.parse(lastSeen);
+  if (Number.isNaN(previousMs)) return true;
+  return nowMs - previousMs >= 60_000;
+};
 
 const normalizeActionCodes = (actions: Action[]): Action[] => actions.map((action) => ('code' in action && typeof action.code === 'string' ? { ...action, code: normalizeAppointmentCode(action.code) ?? action.code } as Action : action));
 const validateReferencedCodes = (state: AppState, actions: Action[]): string | null => {
@@ -278,7 +287,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
       throw error;
     }
-    const state = loaded.state;
+    let state = loaded.state;
     const allowed = findActivePersonByPhone(state, identity.phoneE164);
     if (!allowed) {
       logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
@@ -286,6 +295,26 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
     logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
     session.activePersonId = allowed.personId;
+
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+    if (shouldPersistLastSeen(allowed.lastSeen, nowMs)) {
+      const nextState: AppState = {
+        ...state,
+        people: state.people.map((person) => person.personId === allowed.personId ? {
+          ...person,
+          lastSeen: nowIso,
+          createdAt: person.createdAt ?? nowIso
+        } : person)
+      };
+      try {
+        const written = await storage.save(identity.groupId, nextState, loaded.etag);
+        loaded = { state: written.state, etag: written.etag };
+        state = loaded.state;
+      } catch (error) {
+        if (!(error instanceof ConflictError)) throw error;
+      }
+    }
 
     const ruleMode = isRuleMode(body.ruleMode) ? body.ruleMode : undefined;
     const requestedPersonId = typeof body.personId === 'string' ? body.personId.trim() : '';
