@@ -47,6 +47,7 @@ test('direct maps conflict to 409 with traceId', async () => {
   assert.equal(response.status, 409);
   assert.ok((response.jsonBody as any).traceId);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
+  assert.equal((response.jsonBody as any).invocationId, 'inv-123');
   const headers = response.headers as Record<string, string>;
   assert.equal(headers['x-invocation-id'], 'inv-123');
   assert.equal(headers['x-traceparent'], '00-traceparent');
@@ -73,6 +74,7 @@ test('resolve_appointment_time returns resolved time without persisting', async 
   assert.equal((response.jsonBody as any).fallbackAttempted, false);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
   assert.equal((response.jsonBody as any).opId, null);
+  assert.equal((response.jsonBody as any).invocationId, 'inv-123');
 });
 
 test('resolve_appointment_time does not attempt fallback when feature flag is off', async () => {

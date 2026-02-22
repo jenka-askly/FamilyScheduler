@@ -111,7 +111,21 @@ const withDirectHeaders = (response: HttpResponseInit, traceId: string, context:
 
   return { ...response, headers: Object.fromEntries(headers.entries()) };
 };
-const withDirectMeta = (response: HttpResponseInit, traceId: string, context: InvocationContext): HttpResponseInit => withDirectHeaders(withDirectVersion(response), traceId, context);
+const withDirectMeta = (response: HttpResponseInit, traceId: string, context: InvocationContext, opId: string | null = null): HttpResponseInit => {
+  const withVersion = withDirectVersion(response);
+  const jsonBody = withVersion.jsonBody;
+  const withInvocation = (!jsonBody || typeof jsonBody !== 'object' || Array.isArray(jsonBody))
+    ? withVersion
+    : {
+        ...withVersion,
+        jsonBody: {
+          ...(jsonBody as Record<string, unknown>),
+          invocationId: context.invocationId,
+          opId
+        }
+      };
+  return withDirectHeaders(withInvocation, traceId, context);
+};
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asString = (value: unknown): string | null => typeof value === 'string' ? value.trim() : null;
 const nextPersonId = (state: AppState): string => `P-${state.people.reduce((max, person) => {
@@ -265,8 +279,20 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       });
       fallbackAttempted = resolved.fallbackAttempted;
       usedFallback = resolved.usedFallback;
-      const opId = resolved.opId;
+      const opId = resolved.opId ?? null;
       const model = resolved.model;
+
+      context.log(JSON.stringify({
+        event: 'openai_result',
+        route: 'direct',
+        traceId,
+        invocationId: context.invocationId,
+        opId,
+        model: model ?? null,
+        inputPreview: (directAction.whenText ?? '').slice(0, 120),
+        parseStatus: resolved?.time?.intent?.status ?? null,
+        timezone
+      }));
 
       if (TIME_RESOLVE_LOG_ENABLED) {
         context.log(JSON.stringify({
@@ -299,9 +325,9 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           directVersion: DIRECT_VERSION,
           usedFallback,
           fallbackAttempted,
-          opId: opId ?? null
+          opId
         }
-      }, traceId, context);
+      }, traceId, context, opId);
     } catch (error) {
       if (error instanceof TimeResolveFallbackError) {
         fallbackAttempted = true;
@@ -337,7 +363,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
             fallbackAttempted,
             opId: null
           }
-        }, traceId, context);
+        }, traceId, context, null);
       }
       throw error;
     }
