@@ -13,6 +13,7 @@ import type { StorageAdapter } from '../lib/storage/storage.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
+import { parseTimeSpec } from '../lib/time/timeSpec.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -40,6 +41,7 @@ type DirectAction =
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
+const DIRECT_VERSION = process.env.DIRECT_VERSION ?? process.env.VITE_BUILD_SHA ?? process.env.BUILD_SHA ?? 'unknown';
 
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
   if (!start || !end) return { date: start?.slice(0, 10) ?? '', isAllDay: true };
@@ -85,6 +87,11 @@ export const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
 });
 
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { ok: false, message, traceId } });
+const withDirectVersion = (response: HttpResponseInit): HttpResponseInit => {
+  const jsonBody = response.jsonBody;
+  if (!jsonBody || typeof jsonBody !== 'object' || Array.isArray(jsonBody)) return response;
+  return { ...response, jsonBody: { ...(jsonBody as Record<string, unknown>), directVersion: DIRECT_VERSION } };
+};
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asString = (value: unknown): string | null => typeof value === 'string' ? value.trim() : null;
 const nextPersonId = (state: AppState): string => `P-${state.people.reduce((max, person) => {
@@ -176,16 +183,16 @@ const parseDirectAction = (value: unknown): DirectAction => {
   throw new Error(`unsupported action type: ${type}`);
 };
 
-export async function direct(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
+export async function direct(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const fallbackTraceId = randomUUID();
   const body = await request.json() as DirectBody;
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
   const identity = validateJoinRequest(body.groupId, body.phone);
   if (!identity.ok) {
-    return {
+    return withDirectVersion({
       ...identity.response,
       jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
-    };
+    });
   }
   logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
 
@@ -193,7 +200,7 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
   try {
     directAction = parseDirectAction(body.action);
   } catch (error) {
-    return badRequest(error instanceof Error ? error.message : 'invalid action', traceId);
+    return withDirectVersion(badRequest(error instanceof Error ? error.message : 'invalid action', traceId));
   }
 
   let storage: StorageAdapter;
@@ -202,7 +209,7 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
-      return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+      return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
     }
     throw error;
   }
@@ -212,64 +219,122 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
-      return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+      return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
     }
-    if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+    if (error instanceof GroupNotFoundError) return withDirectVersion(errorResponse(404, 'group_not_found', 'Group not found', traceId));
     throw error;
   }
   const allowed = findActivePersonByPhone(loaded.state, identity.phoneE164);
   if (!allowed) {
     logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-    return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
+    return withDirectVersion(errorResponse(403, 'not_allowed', 'Not allowed', traceId));
   }
   logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
     const loggingEnabled = (process.env.TIME_RESOLVE_LOG_ENABLED ?? '0') === '1';
+    const fallbackEnabled = (process.env.TIME_RESOLVE_OPENAI_FALLBACK ?? '0') === '1';
+    const parsed = parseTimeSpec({ originalText: directAction.whenText, timezone, now: new Date() });
+    let fallbackAttempted = false;
+    let usedFallback = false;
+
+    if (parsed.intent.status === 'resolved' || !fallbackEnabled) {
+      if (loggingEnabled) {
+        context.log(JSON.stringify({
+          traceId,
+          appointmentId: directAction.appointmentId,
+          whenText: directAction.whenText,
+          timezone,
+          fallbackEnabled,
+          fallbackAttempted,
+          usedFallback,
+          finalStatus: parsed.intent.status,
+          missing: parsed.intent.missing,
+          directVersion: DIRECT_VERSION
+        }));
+      }
+      return withDirectVersion({
+        status: 200,
+        jsonBody: {
+          ok: true,
+          time: parsed,
+          timezone,
+          appointmentId: directAction.appointmentId,
+          traceId,
+          usedFallback,
+          fallbackAttempted
+        }
+      });
+    }
+
     try {
+      fallbackAttempted = true;
       const resolved = await resolveTimeSpecWithFallback({
         whenText: directAction.whenText,
         timezone,
         now: new Date(),
         traceId,
-        log: loggingEnabled ? (obj) => console.info(JSON.stringify(obj)) : undefined
+        log: loggingEnabled ? (obj) => context.log(JSON.stringify(obj)) : undefined
       });
+      usedFallback = resolved.usedFallback;
 
       if (loggingEnabled) {
-        console.info(JSON.stringify({
+        context.log(JSON.stringify({
           traceId,
           appointmentId: directAction.appointmentId,
           timezone,
           whenText: directAction.whenText,
-          usedFallback: resolved.usedFallback,
+          fallbackEnabled,
+          fallbackAttempted,
+          usedFallback,
           finalStatus: resolved.time.intent.status,
-          missing: resolved.time.intent.missing
+          missing: resolved.time.intent.missing,
+          directVersion: DIRECT_VERSION
         }));
       }
 
-      return {
+      return withDirectVersion({
         status: 200,
         jsonBody: {
           ok: true,
           time: resolved.time,
           timezone,
           appointmentId: directAction.appointmentId,
-          traceId
+          traceId,
+          usedFallback,
+          fallbackAttempted
         }
-      };
+      });
     } catch (error) {
       if (error instanceof TimeResolveFallbackError) {
-        return {
+        if (loggingEnabled) {
+          context.log(JSON.stringify({
+            traceId,
+            appointmentId: directAction.appointmentId,
+            whenText: directAction.whenText,
+            timezone,
+            fallbackEnabled,
+            fallbackAttempted,
+            usedFallback,
+            finalStatus: 'error',
+            missing: parsed.intent.missing,
+            directVersion: DIRECT_VERSION
+          }));
+        }
+        return withDirectVersion({
           status: 502,
           jsonBody: {
             ok: false,
             error: { code: error.code, message: error.message },
             traceId,
             appointmentId: directAction.appointmentId,
-            timezone
+            timezone,
+            usedFallback,
+            fallbackAttempted,
+            fallbackError: { code: error.code, message: error.message }
           }
-        };
+        });
       }
       throw error;
     }
@@ -282,80 +347,80 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     loaded.state.people.push({ personId, name: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
     try {
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
-      return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } };
+      return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } });
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
-        return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+        return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
       }
-      if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
+      if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
       throw error;
     }
   }
 
   if (directAction.type === 'update_person') {
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
-    if (!person) return badRequest('Person not found', traceId);
+    if (!person) return withDirectVersion(badRequest('Person not found', traceId));
     const nextName = directAction.name === undefined ? person.name : directAction.name.trim();
     const nextPhoneRaw = directAction.phone === undefined ? person.cellDisplay ?? person.cellE164 : directAction.phone;
 
-    if (!nextName) return badRequest('Name is required', traceId);
-    if (!nextPhoneRaw?.trim()) return badRequest('Invalid phone number', traceId);
+    if (!nextName) return withDirectVersion(badRequest('Name is required', traceId));
+    if (!nextPhoneRaw?.trim()) return withDirectVersion(badRequest('Invalid phone number', traceId));
 
     try {
       const normalizedPhone = validateAndNormalizePhone(nextPhoneRaw);
       const duplicate = loaded.state.people.find((entry) => entry.status === 'active' && entry.personId !== person.personId && entry.cellE164 === normalizedPhone.e164);
-      if (duplicate) return badRequest(`That phone is already used by ${duplicate.name || duplicate.personId}`, traceId);
+      if (duplicate) return withDirectVersion(badRequest(`That phone is already used by ${duplicate.name || duplicate.personId}`, traceId));
       person.name = nextName;
       person.cellE164 = normalizedPhone.e164;
       person.cellDisplay = normalizedPhone.display;
       person.lastSeen = new Date().toISOString();
       try {
         const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
-        return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
+        return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
       } catch (error) {
         if (error instanceof MissingConfigError) {
           logConfigMissing('direct', traceId, error.missing);
-          return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+          return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
         }
-        if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
+        if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
         throw error;
       }
     } catch (error) {
-      if (error instanceof PhoneValidationError) return badRequest('Invalid phone number', traceId);
+      if (error instanceof PhoneValidationError) return withDirectVersion(badRequest('Invalid phone number', traceId));
       throw error;
     }
   }
 
   if (directAction.type === 'delete_person') {
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
-    if (!person) return badRequest('Person not found', traceId);
+    if (!person) return withDirectVersion(badRequest('Person not found', traceId));
     person.status = 'removed';
     person.lastSeen = new Date().toISOString();
     try {
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
-      return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
+      return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
-        return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+        return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
       }
-      if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
+      if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
       throw error;
     }
   }
 
-  if (!execution.appliedAll) return { status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } };
+  if (!execution.appliedAll) return withDirectVersion({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } });
 
   try {
     const written = await storage.save(identity.groupId, execution.nextState, loaded.etag);
-    return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
+    return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
-      return errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing });
+      return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
     }
-    if (error instanceof ConflictError) return { status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } };
+    if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
     throw error;
   }
 }
