@@ -4909,3 +4909,39 @@ Implement presence freshness on chat access and add usage-state footer plumbing 
 ### Follow-ups
 
 - Optional: expose real billing-backed usage signals in `/api/usage` once provider integration is defined.
+
+## 2026-02-22 01:59 UTC
+
+### Objective
+
+Implement real usage state and minimal persisted metering for OpenAI chat usage, replacing placeholder `usageState="unknown (usage data not configured)"` behavior.
+
+### Approach
+
+- Added a new persisted usage meter module with Azure Blob-backed storage and test override support.
+- Implemented daily-window usage accumulation (requests, tokens, success/error metadata) and deterministic state evaluation for `/api/usage`.
+- Wired `/api/chat` to record usage on successful OpenAI calls and record recent error metadata on OpenAI failures.
+- Extended OpenAI client plumbing to surface usage metadata from `chat/completions` responses.
+- Added tests for usage endpoint state transitions and chat metering success/error updates.
+
+### Files changed
+
+- `api/src/lib/usageMeter.ts`
+- `api/src/functions/usage.ts`
+- `api/src/functions/usage.test.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/lib/openai/openaiClient.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ✅ passed (61/61 tests).
+- `cd api && node --test dist/api/src/functions/chat.test.js` ✅ used during debugging; passed after metering assertion fix.
+- `cd api && node --test dist/api/src/functions/usage.test.js` ✅ passed usage endpoint transition tests.
+
+### Follow-ups
+
+- Optional: make usage meter group-scoped in a future iteration if per-group quotas are required.
+- Optional: include meter snapshot details in internal diagnostics endpoint for operator debugging.

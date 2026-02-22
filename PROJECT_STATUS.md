@@ -719,3 +719,13 @@ traces
 - Chat snapshots now guarantee `people[*].lastSeen` with fallback order: `lastSeen` → `createdAt` → current server timestamp for legacy records.
 - Added `GET /api/usage` endpoint returning deterministic default usage state payload (`unknown`, summary text, `updatedAt`).
 - Web footer build line now includes a non-blank usage label: `Usage: loading…`, `Usage: unavailable`, or `Usage: <state> (<summary>)`.
+
+## Update — 2026-02-22
+
+- Implemented persisted daily usage metering for OpenAI chat calls with Azure Blob backing (`familyscheduler/usage/meter.json` by default), including success/error timestamps and token counters when present.
+- `/api/chat` now records usage on successful OpenAI calls (general chat + rule-mode model path) and records last error metadata when an OpenAI call fails.
+- `/api/usage` now returns computed deterministic states (`ok`, `warning`, `limit_reached`, `unknown`) using configurable limits:
+  - `USAGE_DAILY_REQUEST_LIMIT` (default `200`)
+  - `USAGE_DAILY_TOKEN_LIMIT` (default `200000`)
+- Usage summary is always non-empty and includes request/token counters when available.
+- Added backend tests for usage endpoint state transitions and chat usage metering hooks.
