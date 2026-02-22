@@ -729,3 +729,8 @@ traces
   - `USAGE_DAILY_TOKEN_LIMIT` (default `200000`)
 - Usage summary is always non-empty and includes request/token counters when available.
 - Added backend tests for usage endpoint state transitions and chat usage metering hooks.
+
+## 2026-02-21 — Schedule When-column UEX update
+- Replaced appointment Date/Time/Duration columns with a single **When** column using compact TimeSpec labels and unresolved badge handling.
+- Added per-row natural language **When** editor with Preview + Confirm + Cancel and preview-only assumptions/missing summary rendering.
+- Added appointment Status cell behavior for unresolved rows (`Unreconcilable`, clickable to open When editor).

@@ -4945,3 +4945,10 @@ Implement real usage state and minimal persisted metering for OpenAI chat usage,
 
 - Optional: make usage meter group-scoped in a future iteration if per-group quotas are required.
 - Optional: include meter snapshot details in internal diagnostics endpoint for operator debugging.
+
+## 2026-02-21T00:00:00Z
+- Objective: Minimal Schedule UEX update for appointments TimeSpec When editor.
+- Approach: Updated `apps/web/src/AppShell.tsx` table columns/rendering; added NL preview/confirm editor state and flows; removed legacy date/time/duration inline appointment inputs.
+- Files changed: apps/web/src/AppShell.tsx, PROJECT_STATUS.md, CODEX_LOG.md
+- Commands: rg searches, pnpm -r build, pnpm -r test
+- Outcome: build/test status recorded below in task output.
