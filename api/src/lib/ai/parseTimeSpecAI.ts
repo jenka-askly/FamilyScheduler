@@ -1,0 +1,189 @@
+import type { TimeIntentMissing, TimeSpec } from '../../../../packages/shared/src/types.js';
+
+const TIME_MISSING_KEYS: TimeIntentMissing[] = ['date', 'startTime', 'endTime', 'duration', 'timezone'];
+
+const schema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['status'],
+  properties: {
+    status: { type: 'string', enum: ['resolved', 'partial', 'unresolved'] },
+    missing: {
+      type: 'array',
+      items: { type: 'string', enum: TIME_MISSING_KEYS },
+      default: []
+    },
+    startUtc: { type: 'string' },
+    endUtc: { type: 'string' },
+    assumptions: { type: 'array', items: { type: 'string' }, default: [] },
+    evidenceSnippets: { type: 'array', items: { type: 'string' }, default: [] }
+  }
+} as const;
+
+export class TimeParseAiError extends Error {
+  code: 'OPENAI_NOT_CONFIGURED' | 'OPENAI_CALL_FAILED' | 'OPENAI_BAD_RESPONSE';
+
+  constructor(code: TimeParseAiError['code'], message: string) {
+    super(message);
+    this.name = 'TimeParseAiError';
+    this.code = code;
+  }
+}
+
+type ParseTimeSpecAIArgs = {
+  originalText: string;
+  timezone: string;
+  nowIso: string;
+  locale?: string;
+};
+
+type ParseTimeSpecAIMeta = {
+  opId?: string;
+  model: string;
+};
+
+type AIOutput = {
+  status: 'resolved' | 'partial' | 'unresolved';
+  missing?: TimeIntentMissing[];
+  startUtc?: string;
+  endUtc?: string;
+  assumptions?: string[];
+  evidenceSnippets?: string[];
+};
+
+const modelForTime = (): string => process.env.TIME_RESOLVE_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+
+const toOutputText = (payload: any): string | null => {
+  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text;
+  const itemText = payload?.output?.flatMap((entry: any) => entry?.content ?? [])?.find((entry: any) => entry?.type === 'output_text' && typeof entry?.text === 'string')?.text;
+  return typeof itemText === 'string' && itemText.trim() ? itemText : null;
+};
+
+const isIsoUtc = (value: unknown): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value)) && value.endsWith('Z');
+
+const parseAiOutput = (raw: unknown): AIOutput => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'AI output is not an object');
+  const record = raw as Record<string, unknown>;
+  const status = record.status;
+  if (status !== 'resolved' && status !== 'partial' && status !== 'unresolved') throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'AI output has invalid status');
+  const missing = Array.isArray(record.missing)
+    ? record.missing.filter((item): item is TimeIntentMissing => typeof item === 'string' && TIME_MISSING_KEYS.includes(item as TimeIntentMissing))
+    : undefined;
+
+  const assumptions = Array.isArray(record.assumptions) ? record.assumptions.filter((item): item is string => typeof item === 'string') : undefined;
+  const evidenceSnippets = Array.isArray(record.evidenceSnippets) ? record.evidenceSnippets.filter((item): item is string => typeof item === 'string') : undefined;
+
+  if (status === 'resolved') {
+    if (!isIsoUtc(record.startUtc) || !isIsoUtc(record.endUtc)) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Resolved output missing valid UTC interval');
+    return { status, startUtc: record.startUtc, endUtc: record.endUtc, assumptions, evidenceSnippets };
+  }
+
+  if (!missing?.length) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Partial/unresolved output requires missing fields');
+  return { status, missing, assumptions, evidenceSnippets };
+};
+
+const toTimeSpec = (input: ParseTimeSpecAIArgs, output: AIOutput): TimeSpec => {
+  if (output.status === 'resolved') {
+    return {
+      intent: {
+        status: 'resolved',
+        originalText: input.originalText,
+        assumptions: output.assumptions?.length ? output.assumptions : undefined,
+        evidenceSnippets: output.evidenceSnippets?.length ? output.evidenceSnippets : undefined
+      },
+      resolved: { startUtc: output.startUtc!, endUtc: output.endUtc!, timezone: input.timezone }
+    };
+  }
+
+  return {
+    intent: {
+      status: output.status,
+      originalText: input.originalText,
+      missing: output.missing,
+      assumptions: output.assumptions?.length ? output.assumptions : undefined,
+      evidenceSnippets: output.evidenceSnippets?.length ? output.evidenceSnippets : undefined
+    }
+  };
+};
+
+export async function parseTimeSpecAI(args: ParseTimeSpecAIArgs): Promise<TimeSpec> {
+  const result = await parseTimeSpecAIWithMeta(args);
+  return result.time;
+}
+
+export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promise<{ time: TimeSpec; meta: ParseTimeSpecAIMeta }> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new TimeParseAiError('OPENAI_NOT_CONFIGURED', 'OPENAI_API_KEY is not configured');
+
+  const model = modelForTime();
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0,
+      input: [
+        {
+          role: 'system',
+          content: [
+            {
+              type: 'input_text',
+              text: [
+                'You resolve natural-language date/time phrases into strict JSON.',
+                'Use nowIso and timezone as the explicit reference clock.',
+                'Resolve relative expressions (tomorrow/next week/in 2 hours/etc.) against nowIso in timezone.',
+                'Do not guess missing components. Return partial/unresolved with missing[] when needed.',
+                'For a single time point (e.g. "1pm"), resolve to a 1-minute interval.',
+                'When resolved, startUtc and endUtc MUST be UTC ISO-8601 strings ending with Z.'
+              ].join(' ')
+            }
+          ]
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: JSON.stringify({
+                originalText: args.originalText,
+                timezone: args.timezone,
+                nowIso: args.nowIso,
+                locale: args.locale ?? null
+              })
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'time_spec_parse',
+          strict: true,
+          schema
+        }
+      }
+    })
+  }).catch((error) => {
+    throw new TimeParseAiError('OPENAI_CALL_FAILED', error instanceof Error ? error.message : 'OpenAI request failed');
+  });
+
+  if (!response.ok) throw new TimeParseAiError('OPENAI_CALL_FAILED', `OpenAI HTTP ${response.status}`);
+
+  const payload = await response.json().catch(() => {
+    throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'OpenAI response was not valid JSON');
+  }) as any;
+
+  const rawText = toOutputText(payload);
+  if (!rawText) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'OpenAI response missing output_text');
+
+  const decoded = JSON.parse(rawText) as unknown;
+  const parsed = parseAiOutput(decoded);
+
+  return {
+    time: toTimeSpec(args, parsed),
+    meta: { opId: typeof payload?.id === 'string' ? payload.id : undefined, model }
+  };
+}
