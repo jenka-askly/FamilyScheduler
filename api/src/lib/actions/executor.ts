@@ -337,7 +337,7 @@ export const executeActions = async (state: AppState, actions: Action[], context
     if (action.type === 'create_blank_appointment') {
       const code = getNextAppointmentCode(nextState);
       const date = todayIsoDate();
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, schemaVersion: 2, updatedAt: new Date().toISOString(), code, title: '', time: { intent: { status: 'unresolved', originalText: '', missing: ['date'] } }, start: undefined, end: undefined, isAllDay: true, date, startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, schemaVersion: 2, updatedAt: new Date().toISOString(), code, title: '', time: { intent: { status: 'unresolved', originalText: '', missing: ['date'] } }, start: undefined, end: undefined, isAllDay: true, date, startTime: undefined, durationMins: undefined, timezone: context.timezoneName, assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '', scanStatus: null, scanImageKey: null, scanImageMime: null, scanCapturedAt: null });
       effectsTextLines.push(`Added ${code} — blank appointment on ${date} (all day)`);
       continue;
     }
@@ -345,7 +345,7 @@ export const executeActions = async (state: AppState, actions: Action[], context
     if (action.type === 'add_appointment') {
       const code = getNextAppointmentCode(nextState); const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
       const resolvedPeople = resolvePeopleRefs(nextState, action.people ?? []);
-      nextState.appointments.push({ id: `${Date.now()}-${code}`, schemaVersion: 2, updatedAt: new Date().toISOString(), code, title: action.desc, time: fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone), start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? action.durationMins : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
+      nextState.appointments.push({ id: `${Date.now()}-${code}`, schemaVersion: 2, updatedAt: new Date().toISOString(), code, title: action.desc, time: fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone), start: resolved.startIso, end: resolved.endIso, isAllDay: resolved.isAllDay, date: action.date, startTime: action.startTime, durationMins: action.startTime ? action.durationMins : undefined, timezone, assigned: resolvedPeople.ids, people: resolvedPeople.ids, location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '', scanStatus: null, scanImageKey: null, scanImageMime: null, scanCapturedAt: null });
       applyAppointmentLocation(nextState.appointments[nextState.appointments.length - 1], action.location ?? '');
       effectsTextLines.push(`Added ${code} — ${action.desc} on ${describeTime(action.date, action.startTime, action.durationMins)}`);
       continue;

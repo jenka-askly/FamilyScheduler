@@ -9,12 +9,16 @@ import { groupCreate } from './functions/groupCreate.js';
 import { groupJoin } from './functions/groupJoin.js';
 import { groupMeta } from './functions/groupMeta.js';
 import { usage } from './functions/usage.js';
+import { scanAppointment } from './functions/scanAppointment.js';
+import { appointmentScanImage } from './functions/appointmentScanImage.js';
+import { appointmentScanDelete } from './functions/appointmentScanDelete.js';
+import { appointmentScanRescan } from './functions/appointmentScanRescan.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct', 'diagnoseOpenAi', 'usage'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -62,6 +66,12 @@ registerHttp('direct', 'direct', ['POST'], direct);
 registerHttp('diagnoseOpenAi', 'diagnose/openai', ['GET'], diagnoseOpenAi);
 
 registerHttp('usage', 'usage', ['GET'], usage);
+
+
+registerHttp('scanAppointment', 'scanAppointment', ['POST'], scanAppointment);
+registerHttp('appointmentScanImage', 'appointmentScanImage', ['GET'], appointmentScanImage);
+registerHttp('appointmentScanDelete', 'appointmentScanDelete', ['POST'], appointmentScanDelete);
+registerHttp('appointmentScanRescan', 'appointmentScanRescan', ['POST'], appointmentScanRescan);
 
 startupLog('registration-summary', {
   expectedFunctions,

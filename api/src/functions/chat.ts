@@ -23,7 +23,7 @@ type PendingQuestion = { message: string; options?: Array<{ label: string; value
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
 
 type ResponseSnapshot = {
-  appointments: Array<{ code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
+  appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
@@ -58,6 +58,7 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
   appointments: state.appointments.map((appointment) => {
     const derived = deriveDateTimeParts(appointment.start, appointment.end);
     return {
+      id: appointment.id,
       code: appointment.code,
       schemaVersion: appointment.schemaVersion,
       updatedAt: appointment.updatedAt,
@@ -76,7 +77,11 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
       locationName: appointment.locationName ?? '',
       locationAddress: appointment.locationAddress ?? '',
       locationDirections: appointment.locationDirections ?? '',
-      notes: appointment.notes ?? ''
+      notes: appointment.notes ?? '',
+      scanStatus: appointment.scanStatus ?? null,
+      scanImageKey: appointment.scanImageKey ?? null,
+      scanImageMime: appointment.scanImageMime ?? null,
+      scanCapturedAt: appointment.scanCapturedAt ?? null
     };
   }),
   people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt ?? nowIso, timezone: person.timezone, notes: person.notes ?? '' })),

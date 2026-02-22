@@ -8,7 +8,7 @@ import type { TimeSpec } from '../../../packages/shared/src/types.js';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
-  appointments: Array<{ code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
+  appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
   people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: TimeSpec; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
@@ -272,6 +272,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const didInitialLoad = useRef(false);
   const rulePromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasProposedRules = Boolean(ruleDraft?.draftRules?.length);
+  const fileScanInputRef = useRef<HTMLInputElement | null>(null);
+  const [scanTargetAppointmentId, setScanTargetAppointmentId] = useState<string | null>(null);
+  const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -536,6 +539,34 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     }
   };
 
+
+  const refreshSnapshot = async () => {
+    const response = await fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) });
+    if (!response.ok) return;
+    const json = await response.json() as ChatResponse;
+    if (json.snapshot) setSnapshot(json.snapshot);
+  };
+
+  const submitScanFile = async (file: File, appointmentId?: string) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const endpoint = appointmentId ? '/api/appointmentScanRescan' : '/api/scanAppointment';
+    const payload: Record<string, unknown> = { groupId, phone, imageBase64: base64, imageMime: file.type || 'image/jpeg', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+    if (appointmentId) payload.appointmentId = appointmentId;
+    const response = await fetch(apiUrl(endpoint), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const json = await response.json() as { snapshot?: Snapshot };
+    if (json.snapshot) setSnapshot(json.snapshot); else await refreshSnapshot();
+  };
+
+  const onPickScanFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const target = scanTargetAppointmentId;
+    setScanTargetAppointmentId(null);
+    event.currentTarget.value = '';
+    await submitScanFile(file, target ?? undefined);
+  };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!message.trim() || proposalText || pendingQuestion) return;
@@ -772,6 +803,14 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ? 'Usage: unavailable'
       : `Usage: ${usage.data?.usageState ?? 'unknown'}${usage.data?.usageSummary ? ` (${usage.data.usageSummary})` : ''}`;
 
+  useEffect(() => {
+    if (!sortedAppointments.some((appointment) => appointment.scanStatus === 'pending')) return;
+    const interval = setInterval(() => { void refreshSnapshot(); }, 7000);
+    const timeout = setTimeout(() => clearInterval(interval), 120000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [sortedAppointments]);
+
+
 
   return (
     <Page variant="workspace">
@@ -851,7 +890,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                         <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
                         <td>
                           <div className="action-icons">
-                            <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
+                            <button type="button" className="icon-button" aria-label="Rescan appointment" data-tooltip="Rescan" onClick={() => { setScanTargetAppointmentId(appointment.id); fileScanInputRef.current?.click(); }}>📷</button><button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
                           </div>
                         </td>
                       </tr>
@@ -926,11 +965,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   );
                 })}
                 <tr className="fs-tableCtaRow">
-                  <td colSpan={8}>
+                  <td colSpan={9}><div className="scan-cta-wrap">
                     <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
                       {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
                     </button>
-                  </td>
+                    <button type="button" className="fs-tableCtaBtn" onClick={() => { setScanTargetAppointmentId(null); fileScanInputRef.current?.click(); }} aria-label="Scan appointment">📷 Scan appointment</button>
+                  </div></td>
                 </tr>
               </tbody>
             </table>
@@ -1064,8 +1104,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
 
 
+      <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
       {appointmentToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
 
+
+      {scanViewerAppointment ? <div className="modal-backdrop"><div className="modal"><h3>{scanViewerAppointment.code} scan</h3><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /><div className="modal-actions"><button type="button" onClick={() => { setScanTargetAppointmentId(scanViewerAppointment.id); fileScanInputRef.current?.click(); setScanViewerAppointment(null); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
       {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
