@@ -4952,3 +4952,32 @@ Implement real usage state and minimal persisted metering for OpenAI chat usage,
 - Files changed: apps/web/src/AppShell.tsx, PROJECT_STATUS.md, CODEX_LOG.md
 - Commands: rg searches, pnpm -r build, pnpm -r test
 - Outcome: build/test status recorded below in task output.
+
+## 2026-02-22 08:48 UTC (UX: restore appointment edit icon + click-away cancel)
+
+### Objective
+
+Restore explicit appointment Edit action in Schedule rows and make inline appointment editing dismiss on outside click without saving.
+
+### Approach
+
+- Added a Schedule row Edit icon button (`Pencil`) immediately before Delete in the Actions cluster, reusing existing `openWhenEditor` behavior.
+- Added appointment edit-surface refs for the active appointment row and its inline editor row.
+- Added a `pointerdown` document listener while appointment edit mode is active; cancels only when click target is outside both refs.
+- Kept Confirm/Delete behavior unchanged and reused `closeWhenEditor` so cancel semantics remain discard-only with no mutation.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `npm --prefix apps/web run typecheck` ✅ passed.
+- `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ launched local UI for visual capture.
+- Playwright screenshot capture on `http://127.0.0.1:4173` ✅ produced artifact (`artifacts/schedule-ui.png`).
+
+### Follow-ups
+
+- Optional: add UI test coverage for appointment click-away cancel if/when front-end test harness is introduced.
