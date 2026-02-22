@@ -1,3 +1,13 @@
+## 2026-02-22 update (AI-first interval resolution + duration provenance)
+
+- Shifted appointment preview resolution to AI-first interval parsing, with deterministic parsing used only when AI is explicitly disabled.
+- Removed single-point 1-minute synthetic interval behavior from deterministic parsing.
+- Added duration provenance metadata to `TimeSpec.resolved` (`durationSource`, `durationConfidence`, `durationReason`, `durationAcceptance`, `inferenceVersion`).
+- Enforced labeled inferred durations (no unlabeled defaults) and required concrete resolved intervals to include both `startUtc` and `endUtc`.
+- Stopped swallowing AI preview failures: `/api/direct` `resolve_appointment_time` now returns `502` with structured error payload.
+- Persisted duration provenance on confirm/reschedule by accepting `timeResolved` metadata and writing it through appointment update paths.
+- Updated shared TimeSpec schema and `docs/TIME_DATE_SPEC.md` to document duration provenance semantics.
+
 ## 2026-02-22 update (TimeSpec AI-first fallback cleanup)
 
 - Removed `TIME_RESOLVE_OPENAI_FALLBACK` from runtime paths so time preview now always attempts AI first, then falls back to deterministic parsing only when AI fails.

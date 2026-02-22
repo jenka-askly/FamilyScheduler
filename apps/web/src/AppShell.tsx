@@ -483,7 +483,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const allDay = start.getUTCHours() === 0 && start.getUTCMinutes() === 0 && end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && (end.getTime() - start.getTime()) % 86400000 === 0;
     const payload = allDay
       ? { type: 'reschedule_appointment', code: appointment.code, date: resolvedDraft.resolved.startUtc.slice(0, 10), timezone: resolvedDraft.resolved.timezone }
-      : { type: 'reschedule_appointment', code: appointment.code, date: resolvedDraft.resolved.startUtc.slice(0, 10), startTime: resolvedDraft.resolved.startUtc.slice(11, 16), durationMins: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)), timezone: resolvedDraft.resolved.timezone };
+      : {
+          type: 'reschedule_appointment',
+          code: appointment.code,
+          date: resolvedDraft.resolved.startUtc.slice(0, 10),
+          startTime: resolvedDraft.resolved.startUtc.slice(11, 16),
+          durationMins: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)),
+          timezone: resolvedDraft.resolved.timezone,
+          timeResolved: resolvedDraft.resolved,
+          durationAcceptance: 'auto'
+        };
     const result = await sendDirectAction(payload as Record<string, unknown>);
     if (!result.ok) {
       setWhenDraftError(result.message);

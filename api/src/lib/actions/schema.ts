@@ -1,3 +1,5 @@
+import type { ResolvedInterval } from '../../../../packages/shared/src/types.js';
+
 export const ACTION_SCHEMA_VERSION = 5;
 
 export type TimedActionFields = {
@@ -5,6 +7,8 @@ export type TimedActionFields = {
   startTime?: string;
   durationMins?: number;
   timezone?: string;
+  timeResolved?: ResolvedInterval;
+  durationAcceptance?: 'auto' | 'user_confirmed' | 'user_edited';
 };
 
 export type Action =
@@ -57,7 +61,35 @@ const assertString = (value: unknown, field: string): string => { if (typeof val
 const assertDate = (value: unknown): string => { const date = assertString(value, 'date'); if (!datePattern.test(date)) throw new Error('Invalid date'); return date; };
 const parseOptionalStartTime = (value: unknown): string | undefined => { if (value === undefined) return undefined; const startTime = assertString(value, 'startTime'); if (!startTimePattern.test(startTime)) throw new Error('Invalid startTime'); return startTime; };
 const parseOptionalDuration = (value: unknown): number | undefined => { if (value === undefined) return undefined; if (typeof value !== 'number' || !Number.isInteger(value) || value < 1 || value > (24 * 60)) throw new Error('Invalid durationMins'); return value; };
-const parseTimedFields = (value: Record<string, unknown>): TimedActionFields => ({ date: assertDate(value.date), startTime: parseOptionalStartTime(value.startTime), durationMins: parseOptionalDuration(value.durationMins), timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined });
+const parseOptionalDurationAcceptance = (value: unknown): TimedActionFields['durationAcceptance'] => {
+  if (value === undefined) return undefined;
+  const parsed = assertString(value, 'durationAcceptance');
+  if (parsed !== 'auto' && parsed !== 'user_confirmed' && parsed !== 'user_edited') throw new Error('Invalid durationAcceptance');
+  return parsed;
+};
+const parseOptionalResolvedTime = (value: unknown): ResolvedInterval | undefined => {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) throw new Error('Invalid timeResolved');
+  assertKeys(value, ['startUtc', 'endUtc', 'timezone', 'durationSource', 'durationConfidence', 'durationReason', 'durationAcceptance', 'inferenceVersion']);
+  const startUtc = assertString(value.startUtc, 'startUtc');
+  const endUtc = assertString(value.endUtc, 'endUtc');
+  const timezone = assertString(value.timezone, 'timezone');
+  const durationSource = assertString(value.durationSource, 'durationSource');
+  if (durationSource !== 'explicit' && durationSource !== 'suggested') throw new Error('Invalid durationSource');
+  const durationConfidence = typeof value.durationConfidence === 'number' ? value.durationConfidence : undefined;
+  const durationReason = typeof value.durationReason === 'string' ? value.durationReason.trim() : undefined;
+  const durationAcceptance = parseOptionalDurationAcceptance(value.durationAcceptance);
+  const inferenceVersion = typeof value.inferenceVersion === 'string' ? value.inferenceVersion.trim() : undefined;
+  return { startUtc, endUtc, timezone, durationSource, durationConfidence, durationReason, durationAcceptance, inferenceVersion };
+};
+const parseTimedFields = (value: Record<string, unknown>): TimedActionFields => ({
+  date: assertDate(value.date),
+  startTime: parseOptionalStartTime(value.startTime),
+  durationMins: parseOptionalDuration(value.durationMins),
+  timezone: typeof value.timezone === 'string' ? assertString(value.timezone, 'timezone') : undefined,
+  timeResolved: parseOptionalResolvedTime(value.timeResolved),
+  durationAcceptance: parseOptionalDurationAcceptance(value.durationAcceptance)
+});
 const assertPeopleArray = (value: unknown, field: string, minItems: number, maxItems: number): string[] => {
   if (!Array.isArray(value) || value.length < minItems || value.length > maxItems) throw new Error(`Invalid ${field}`);
   return value.map((person) => assertString(person, field));
@@ -65,7 +97,7 @@ const assertPeopleArray = (value: unknown, field: string, minItems: number, maxI
 
 const parseAction = (value: unknown): Action => {
   if (!isRecord(value)) throw new Error('Action must be an object');
-  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'name', 'month', 'start', 'end', 'location', 'locationRaw', 'notes', 'personId', 'cell', 'kind']);
+  assertKeys(value, ['type', 'code', 'desc', 'date', 'startTime', 'durationMins', 'timezone', 'people', 'name', 'month', 'start', 'end', 'location', 'locationRaw', 'notes', 'personId', 'cell', 'kind', 'timeResolved', 'durationAcceptance']);
   const type = assertString(value.type, 'type') as Action['type'];
 
   if (type === 'create_blank_appointment') return { type };

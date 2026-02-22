@@ -26,6 +26,7 @@ test.afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.DIRECT_VERSION;
   delete process.env.OPENAI_MODEL;
+  delete process.env.TIME_RESOLVE_OPENAI_FALLBACK;
 });
 
 test('direct returns group_not_found when group is missing', async () => {
@@ -55,7 +56,29 @@ test('direct maps conflict to 409 with traceId', async () => {
 });
 
 
-test('resolve_appointment_time returns resolved time without persisting', async () => {
+test('resolve_appointment_time returns suggested duration for single-point input without persisting', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test';
+  process.env.OPENAI_MODEL = 'gpt-test';
+  const originalFetch = global.fetch;
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: 'resp_case1',
+      model: 'gpt-test',
+      output_text: JSON.stringify({
+        status: 'resolved',
+        startUtc: '2026-03-03T21:00:00.000Z',
+        endUtc: '2026-03-03T22:30:00.000Z',
+        durationSource: 'suggested',
+        durationConfidence: 0.77,
+        durationReason: 'Single point interpreted as a typical 90-minute appointment.',
+        missing: [],
+        assumptions: []
+      })
+    })
+  })) as unknown as typeof fetch;
+
   let saveCalls = 0;
   const adapter: StorageAdapter = {
     async initIfMissing() {},
@@ -69,25 +92,42 @@ test('resolve_appointment_time returns resolved time without persisting', async 
   assert.equal((response.jsonBody as any).ok, true);
   assert.equal((response.jsonBody as any).time?.intent?.status, 'resolved');
   assert.equal((response.jsonBody as any).time?.resolved?.timezone, 'America/Los_Angeles');
-  assert.equal((response.jsonBody as any).usedFallback, false);
+  assert.equal((response.jsonBody as any).time?.resolved?.durationSource, 'suggested');
+  assert.equal((response.jsonBody as any).time?.resolved?.inferenceVersion, 'timeparse-vNext');
+  assert.notEqual((response.jsonBody as any).time?.resolved?.endUtc, '2026-03-03T21:01:00.000Z');
+  assert.equal((response.jsonBody as any).usedFallback, true);
   assert.equal((response.jsonBody as any).fallbackAttempted, true);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
-  assert.equal((response.jsonBody as any).opId, null);
+  assert.equal((response.jsonBody as any).opId, 'resp_case1');
   assert.equal(typeof (response.jsonBody as any).nowIso, 'string');
   assert.equal((response.jsonBody as any).invocationId, 'inv-123');
+  global.fetch = originalFetch;
 });
 
 
 
 
-test('resolve_appointment_time uses AI result when fallback succeeds', async () => {
+test('resolve_appointment_time marks explicit duration when user provides duration text', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
   const originalFetch = global.fetch;
   global.fetch = (async () => ({
     ok: true,
     status: 200,
-    json: async () => ({ id: 'resp_abc', model: 'gpt-test', output_text: JSON.stringify({ status: 'resolved', startUtc: '2026-01-02T21:00:00.000Z', endUtc: '2026-01-02T21:01:00.000Z' }) })
+    json: async () => ({
+      id: 'resp_abc',
+      model: 'gpt-test',
+      output_text: JSON.stringify({
+        status: 'resolved',
+        startUtc: '2026-01-02T18:00:00.000Z',
+        endUtc: '2026-01-02T20:00:00.000Z',
+        durationSource: 'explicit',
+        durationConfidence: 0.99,
+        durationReason: 'Input includes explicit duration phrase "for 2 hours".',
+        missing: [],
+        assumptions: []
+      })
+    })
   })) as unknown as typeof fetch;
 
   const adapter: StorageAdapter = {
@@ -97,16 +137,17 @@ test('resolve_appointment_time uses AI result when fallback succeeds', async () 
   };
   setStorageAdapterForTests(adapter);
 
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'dinner at 6pm tomorrow for 2 hours', timezone: 'America/Los_Angeles' } }) } as any, context());
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).fallbackAttempted, true);
   assert.equal((response.jsonBody as any).usedFallback, true);
   assert.equal((response.jsonBody as any).opId, 'resp_abc');
+  assert.equal((response.jsonBody as any).time?.resolved?.durationSource, 'explicit');
 
   global.fetch = originalFetch;
 });
 
-test('resolve_appointment_time degrades gracefully when AI call fails', async () => {
+test('resolve_appointment_time returns 502 when AI call fails', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
   const originalFetch = global.fetch;
@@ -121,11 +162,11 @@ test('resolve_appointment_time degrades gracefully when AI call fails', async ()
   setStorageAdapterForTests(adapter);
 
   const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
-  assert.equal(response.status, 200);
-  assert.equal((response.jsonBody as any).ok, true);
+  assert.equal(response.status, 502);
+  assert.equal((response.jsonBody as any).ok, false);
+  assert.equal((response.jsonBody as any).error?.code, 'OPENAI_CALL_FAILED');
   assert.equal((response.jsonBody as any).fallbackAttempted, true);
   assert.equal((response.jsonBody as any).usedFallback, false);
-  assert.equal((response.jsonBody as any).time?.intent?.status, 'unresolved');
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
   assert.equal((response.jsonBody as any).opId, null);
   assert.equal(saveCalls, 0);

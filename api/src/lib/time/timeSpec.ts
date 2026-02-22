@@ -25,17 +25,6 @@ const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'frida
 const NEXT_WEEKDAY = /\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i;
 const SINGLE_TIME = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i;
 
-const resolveSingleTime = (sourceText: string, base: Date): { startUtc: string; endUtc: string } | null => {
-  const singleTime = sourceText.match(SINGLE_TIME);
-  if (!singleTime) return null;
-  const [_, h, m, meridiem] = singleTime;
-  const parsed = parseHour(h, m, meridiem);
-  const start = new Date(base);
-  start.setHours(parsed.hour, parsed.minute, 0, 0);
-  const end = new Date(start.getTime() + 60_000);
-  return { startUtc: start.toISOString(), endUtc: end.toISOString() };
-};
-
 const capEvidence = (snippets?: string[]): string[] | undefined => {
   if (!snippets?.length) return undefined;
   const bounded: string[] = [];
@@ -83,6 +72,14 @@ const mondayStart = (date: Date): Date => {
   return d;
 };
 
+const explicitResolved = (timezone: string, startUtc: string, endUtc: string, durationReason?: string): TimeSpec['resolved'] => ({
+  timezone,
+  startUtc,
+  endUtc,
+  durationSource: 'explicit',
+  durationReason
+});
+
 export const parseTimeSpec = ({ originalText, timezone, now = new Date(), evidenceSnippets }: ParseArgs): TimeSpec => {
   const text = originalText.trim();
   const assumptions: string[] = [];
@@ -98,18 +95,18 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
     const monday = mondayStart(now);
     const saturday = new Date(monday); saturday.setDate(monday.getDate() + 5);
     const mondayAfter = new Date(saturday); mondayAfter.setDate(saturday.getDate() + 2);
-    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: saturday.toISOString(), endUtc: mondayAfter.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, saturday.toISOString(), mondayAfter.toISOString()) };
   }
   if (lower.includes('next week') || lower.includes('this week')) {
     const monday = mondayStart(now);
     if (lower.includes('next week')) monday.setDate(monday.getDate() + 7);
     const end = new Date(monday); end.setDate(monday.getDate() + 7);
-    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: monday.toISOString(), endUtc: end.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, monday.toISOString(), end.toISOString()) };
   }
   if (lower.includes('next month')) {
     const start = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 2, 1);
-    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, start.toISOString(), end.toISOString()) };
   }
 
 
@@ -132,18 +129,14 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
       end.setHours(endParsed.hour, endParsed.minute, 0, 0);
       if (end <= start) end.setDate(end.getDate() + 1);
       assumptions.push(`Mapped next ${targetName} to ${start.toDateString()}.`);
-      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: explicitResolved(timezone, start.toISOString(), end.toISOString()) };
     }
 
     const singleTime = text.match(SINGLE_TIME);
     if (singleTime) {
-      const [_, h, m, meridiem] = singleTime;
-      const parsed = parseHour(h, m, meridiem);
-      start.setHours(parsed.hour, parsed.minute, 0, 0);
       assumptions.push(`Mapped next ${targetName} to ${start.toDateString()}.`);
-      assumptions.push('Interpreted single-point time as a 1-minute interval.');
-      const end = new Date(start.getTime() + 60_000);
-      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+      missing.push('duration');
+      return { intent: { ...intentBase, assumptions, status: 'partial', missing, evidenceSnippets: boundedEvidence } };
     }
 
     missing.push('startTime');
@@ -156,7 +149,7 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
     const [, y, m, d] = exactDate;
     const start = new Date(Number(y), Number(m) - 1, Number(d), 0, 0, 0, 0);
     const end = new Date(start); end.setDate(start.getDate() + 1);
-    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, start.toISOString(), end.toISOString()) };
   }
 
   const md = text.match(MONTH_DAY);
@@ -174,10 +167,10 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
       if (eh === 24) { endDate.setDate(endDate.getDate() + 1); endDate.setHours(0, 0, 0, 0); }
       else endDate.setHours(eh, em, 0, 0);
       const startDate = new Date(base); startDate.setHours(window.start[0], window.start[1], 0, 0);
-      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: startDate.toISOString(), endUtc: endDate.toISOString() } };
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: explicitResolved(timezone, startDate.toISOString(), endDate.toISOString()) };
     }
     const wholeDayEnd = new Date(base); wholeDayEnd.setDate(base.getDate() + 1);
-    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: base.toISOString(), endUtc: wholeDayEnd.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, base.toISOString(), wholeDayEnd.toISOString()) };
   }
 
   const mdPrefix = text.match(MONTH_DAY_PREFIX);
@@ -187,10 +180,9 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
     const day = Number(mdPrefix[2]);
     const year = mdPrefix[3] ? Number(mdPrefix[3]) : now.getFullYear();
     const dayBase = new Date(year, month - 1, day, 0, 0, 0, 0);
-    const singleTime = resolveSingleTime(text, dayBase);
-    if (singleTime) {
-      assumptions.push('Interpreted single-point time as a 1-minute interval.');
-      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, ...singleTime } };
+    if (SINGLE_TIME.test(text)) {
+      missing.push('duration');
+      return { intent: { ...intentBase, assumptions, status: 'partial', missing, evidenceSnippets: boundedEvidence } };
     }
     const window = fuzzyWindow(text);
     if (window) {
@@ -200,10 +192,10 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
       if (eh === 24) { endDate.setDate(endDate.getDate() + 1); endDate.setHours(0, 0, 0, 0); }
       else endDate.setHours(eh, em, 0, 0);
       const startDate = new Date(dayBase); startDate.setHours(window.start[0], window.start[1], 0, 0);
-      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: startDate.toISOString(), endUtc: endDate.toISOString() } };
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: explicitResolved(timezone, startDate.toISOString(), endDate.toISOString()) };
     }
     const wholeDayEnd = new Date(dayBase); wholeDayEnd.setDate(dayBase.getDate() + 1);
-    return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: dayBase.toISOString(), endUtc: wholeDayEnd.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, dayBase.toISOString(), wholeDayEnd.toISOString()) };
   }
 
   const slashDate = text.match(SLASH_MONTH_DAY);
@@ -214,13 +206,12 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
     const year = String(parsedYear).length === 2 ? 2000 + parsedYear : parsedYear;
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const dayBase = new Date(year, month - 1, day, 0, 0, 0, 0);
-      const singleTime = resolveSingleTime(text, dayBase);
-      if (singleTime) {
-        assumptions.push('Interpreted single-point time as a 1-minute interval.');
-        return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, ...singleTime } };
+      if (SINGLE_TIME.test(text)) {
+        missing.push('duration');
+        return { intent: { ...intentBase, assumptions, status: 'partial', missing, evidenceSnippets: boundedEvidence } };
       }
       const wholeDayEnd = new Date(dayBase); wholeDayEnd.setDate(dayBase.getDate() + 1);
-      return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: dayBase.toISOString(), endUtc: wholeDayEnd.toISOString() } };
+      return { intent: { ...intentBase, status: 'resolved' }, resolved: explicitResolved(timezone, dayBase.toISOString(), wholeDayEnd.toISOString()) };
     }
   }
 
@@ -239,7 +230,7 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
         assumptions.push('Swapped start/end because end was before start.');
       }
     }
-    return { intent: { ...intentBase, status: 'resolved', assumptions: assumptions.length ? assumptions : undefined, evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+    return { intent: { ...intentBase, status: 'resolved', assumptions: assumptions.length ? assumptions : undefined, evidenceSnippets: boundedEvidence }, resolved: explicitResolved(timezone, start.toISOString(), end.toISOString()) };
   }
 
   if (fuzzyWindow(text)) {
@@ -254,7 +245,7 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
 export const deriveTimeSpecFromLegacy = (legacy: LegacyInput, timezoneFallback: string): TimeSpec => {
   const timezone = legacy.timezone || timezoneFallback;
   if (legacy.start && legacy.end) {
-    return { intent: { status: 'resolved', originalText: legacy.originalText ?? `${legacy.start} to ${legacy.end}`, evidenceSnippets: capEvidence(legacy.evidenceSnippets) }, resolved: { startUtc: legacy.start, endUtc: legacy.end, timezone } };
+    return { intent: { status: 'resolved', originalText: legacy.originalText ?? `${legacy.start} to ${legacy.end}`, evidenceSnippets: capEvidence(legacy.evidenceSnippets) }, resolved: explicitResolved(timezone, legacy.start, legacy.end) };
   }
   if (legacy.date && !legacy.startTime) {
     return parseTimeSpec({ originalText: legacy.originalText ?? legacy.date, timezone, evidenceSnippets: legacy.evidenceSnippets });
@@ -264,7 +255,7 @@ export const deriveTimeSpecFromLegacy = (legacy: LegacyInput, timezoneFallback: 
     const [hh, mm] = legacy.startTime.split(':').map(Number);
     const start = toIso(y, m, d, hh, mm);
     const end = new Date(Date.parse(start) + legacy.durationMins * 60_000).toISOString();
-    return { intent: { status: 'resolved', originalText: legacy.originalText ?? `${legacy.date} ${legacy.startTime} ${legacy.durationMins}m`, evidenceSnippets: capEvidence(legacy.evidenceSnippets) }, resolved: { startUtc: start, endUtc: end, timezone } };
+    return { intent: { status: 'resolved', originalText: legacy.originalText ?? `${legacy.date} ${legacy.startTime} ${legacy.durationMins}m`, evidenceSnippets: capEvidence(legacy.evidenceSnippets) }, resolved: explicitResolved(timezone, start, end) };
   }
   return { intent: { status: 'unresolved', originalText: legacy.originalText ?? '', missing: ['date'], evidenceSnippets: capEvidence(legacy.evidenceSnippets) } };
 };

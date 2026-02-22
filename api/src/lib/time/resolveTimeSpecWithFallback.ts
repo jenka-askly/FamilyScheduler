@@ -12,9 +12,16 @@ type ResolveArgs = {
 };
 
 const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
+const isAiEnabled = (): boolean => process.env.TIME_RESOLVE_OPENAI_FALLBACK !== '0';
 
-export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ time: ReturnType<typeof parseTimeSpec>; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }> {
+export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<
+  | { ok: true; time: ReturnType<typeof parseTimeSpec>; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }
+  | { ok: false; error: { code: string; message: string }; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }
+> {
   const timeLocal = parseTimeSpec({ originalText: args.whenText, timezone: args.timezone, now: args.now });
+  if (!isAiEnabled()) {
+    return { ok: true, time: timeLocal, fallbackAttempted: false, usedFallback: false, opId: undefined, model: undefined };
+  }
 
   try {
     const aiResult = await parseTimeSpecAIWithMeta({
@@ -32,7 +39,7 @@ export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ 
       modelOrDeployment: aiResult.meta.modelOrDeployment,
       parseStatus: aiResult.time.intent.status
     }));
-    return { time: aiResult.time, fallbackAttempted: true, usedFallback: true, opId: aiResult.meta.opId, model: aiResult.meta.modelOrDeployment };
+    return { ok: true, time: aiResult.time, fallbackAttempted: true, usedFallback: true, opId: aiResult.meta.opId, model: aiResult.meta.modelOrDeployment };
   } catch (error) {
     const code = error instanceof TimeParseAiError ? error.code : 'OPENAI_CALL_FAILED';
     const details = error instanceof TimeParseAiError ? error.details : undefined;
@@ -58,8 +65,16 @@ export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ 
       nowIso: args.now.toISOString(),
       timezone: args.timezone
     }));
-
+    return {
+      ok: false,
+      error: {
+        code,
+        message: trimTo(error instanceof Error ? error.message : String(error), 300)
+      },
+      fallbackAttempted: true,
+      usedFallback: false,
+      opId: undefined,
+      model: undefined
+    };
   }
-
-  return { time: timeLocal, fallbackAttempted: true, usedFallback: false, opId: undefined, model: undefined };
 }

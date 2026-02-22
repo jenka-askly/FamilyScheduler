@@ -106,7 +106,11 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
       resolved: {
         timezone,
         startUtc,
-        endUtc
+        endUtc,
+        durationSource: 'suggested',
+        durationReason: 'Duration inferred from scan extraction.',
+        durationConfidence: 0.5,
+        inferenceVersion: 'timeparse-vNext'
       }
     };
     appointment.start = startUtc;

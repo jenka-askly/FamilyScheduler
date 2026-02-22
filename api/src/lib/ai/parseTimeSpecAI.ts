@@ -6,7 +6,7 @@ const TIME_MISSING_KEYS: TimeIntentMissing[] = ['date', 'startTime', 'endTime', 
 const schema = {
   type: 'object',
   additionalProperties: false,
-  required: ['status'],
+  required: ['status', 'startUtc', 'endUtc', 'missing', 'assumptions', 'durationSource', 'durationConfidence', 'durationReason'],
   properties: {
     status: { type: 'string', enum: ['resolved', 'partial', 'unresolved'] },
     startUtc: { type: ['string', 'null'] },
@@ -18,7 +18,10 @@ const schema = {
     assumptions: {
       type: ['array', 'null'],
       items: { type: 'string' }
-    }
+    },
+    durationSource: { type: ['string', 'null'], enum: ['explicit', 'suggested', null] },
+    durationConfidence: { type: ['number', 'null'] },
+    durationReason: { type: ['string', 'null'] }
   }
 } as const;
 
@@ -53,6 +56,9 @@ type AIOutput = {
   startUtc?: string;
   endUtc?: string;
   assumptions?: string[];
+  durationSource?: 'explicit' | 'suggested';
+  durationConfidence?: number;
+  durationReason?: string;
 };
 
 const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
@@ -80,11 +86,22 @@ const parseAiOutput = (raw: unknown): AIOutput => {
 
   if (status === 'resolved') {
     if (!isIsoUtc(record.startUtc) || !isIsoUtc(record.endUtc)) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Resolved output missing valid UTC interval');
-    return { status, startUtc: record.startUtc, endUtc: record.endUtc, assumptions };
+    if (record.durationSource !== 'explicit' && record.durationSource !== 'suggested') throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Resolved output missing durationSource');
+    if (typeof record.durationReason !== 'string' || !record.durationReason.trim()) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Resolved output missing durationReason');
+    if (typeof record.durationConfidence !== 'number' || Number.isNaN(record.durationConfidence)) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Resolved output missing durationConfidence');
+    return {
+      status,
+      startUtc: record.startUtc,
+      endUtc: record.endUtc,
+      assumptions,
+      durationSource: record.durationSource,
+      durationReason: record.durationReason.trim(),
+      durationConfidence: Math.max(0, Math.min(1, record.durationConfidence))
+    };
   }
 
   if (!missing?.length) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Partial/unresolved output requires missing fields');
-  return { status, missing, assumptions };
+  throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'AI must return resolved interval with duration provenance');
 };
 
 const toTimeSpec = (input: ParseTimeSpecAIArgs, output: AIOutput): TimeSpec => {
@@ -95,7 +112,15 @@ const toTimeSpec = (input: ParseTimeSpecAIArgs, output: AIOutput): TimeSpec => {
         originalText: input.originalText,
         assumptions: output.assumptions?.length ? output.assumptions : undefined
       },
-      resolved: { startUtc: output.startUtc!, endUtc: output.endUtc!, timezone: input.timezone }
+      resolved: {
+        startUtc: output.startUtc!,
+        endUtc: output.endUtc!,
+        timezone: input.timezone,
+        durationSource: output.durationSource!,
+        durationConfidence: output.durationConfidence,
+        durationReason: output.durationReason,
+        inferenceVersion: 'timeparse-vNext'
+      }
     };
   }
 
@@ -145,11 +170,13 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
               text: [
                 'You resolve natural-language date/time phrases into strict JSON.',
                 'Use nowIso and timezone as the explicit reference clock.',
-                'Resolve relative expressions (tomorrow/next week/in 2 hours/etc.) against nowIso in timezone.',
-                'Do not guess missing components. Return partial/unresolved with missing[] when needed.',
-                'For a single time point (e.g. "1pm"), resolve to a 1-minute interval.',
-                'When resolved, startUtc and endUtc MUST be UTC ISO-8601 strings ending with Z.'
-              ].join(' ')
+                 'Resolve relative expressions (tomorrow/next week/in 2 hours/etc.) against nowIso in timezone.',
+                 'Do not guess missing components. Return partial/unresolved with missing[] when needed.',
+                 'Always resolve to a concrete interval with startUtc and endUtc when status is resolved.',
+                 'If user supplied duration/range explicitly, set durationSource to "explicit".',
+                 'Otherwise infer duration and set durationSource to "suggested", include durationReason and durationConfidence.',
+                 'When resolved, startUtc and endUtc MUST be UTC ISO-8601 strings ending with Z.'
+               ].join(' ')
             }
           ]
         },

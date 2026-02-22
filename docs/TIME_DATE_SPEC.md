@@ -48,9 +48,10 @@ Notes:
 
 Invariants:
 
-- A TimeSpec is `resolved` **iff** a valid `resolved` interval is present.
+- A TimeSpec is `resolved` **iff** a valid `resolved` interval is present (`startUtc` and `endUtc` are required).
 - `endUtc > startUtc` is mandatory.
 - `timezone` is required whenever `resolved` exists.
+- If duration is inferred by AI, it must be labeled with `durationSource: "suggested"` and include `durationReason` and `durationConfidence`.
 - Time arithmetic (sorting by instant, overlap checks, slicing, availability math) is allowed only when resolved.
 
 ## 3) Appointments Behavior
@@ -98,6 +99,13 @@ Invariants:
 ### No silent default duration
 
 - Timed phrases without explicit end/duration remain unresolved; the system no longer assumes 60 minutes.
+
+## 5.1) Duration Provenance
+
+- `explicit` means the user supplied range/duration directly.
+- `suggested` means AI inferred duration from context.
+- No unlabeled defaults are allowed.
+- Suggested durations block time immediately, while remaining renegotiable in a future planner layer.
 
 ### Unsupported/open-ended phrases
 

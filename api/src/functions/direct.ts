@@ -13,6 +13,7 @@ import type { StorageAdapter } from '../lib/storage/storage.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
+import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -32,7 +33,7 @@ type DirectAction =
   | { type: 'set_appointment_notes'; code: string; notes: string }
   | { type: 'set_appointment_desc'; code: string; desc: string }
   | { type: 'set_appointment_duration'; code: string; durationMins?: number }
-  | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string }
+  | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string; timeResolved?: ResolvedInterval; durationAcceptance?: 'auto' | 'user_confirmed' | 'user_edited' }
   | { type: 'resolve_appointment_time'; appointmentId?: string; whenText: string; timezone?: string }
   | { type: 'create_blank_person' }
   | { type: 'update_person'; personId: string; name?: string; phone?: string }
@@ -190,7 +191,24 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (startTime !== undefined && startTime !== '' && !timePattern.test(startTime)) throw new Error('startTime must be HH:MM');
     if (value.durationMins !== undefined && value.durationMins !== null && value.durationMins !== '' && (typeof value.durationMins !== 'number' || !Number.isInteger(value.durationMins) || value.durationMins < 1 || value.durationMins > 24 * 60)) throw new Error('durationMins must be an integer between 1 and 1440');
     const timezone = typeof value.timezone === 'string' ? value.timezone.trim() : undefined;
-    return { type, code, date, startTime: startTime || undefined, durationMins: typeof value.durationMins === 'number' ? value.durationMins : undefined, timezone: timezone || undefined };
+    const durationAcceptance = typeof value.durationAcceptance === 'string' && ['auto', 'user_confirmed', 'user_edited'].includes(value.durationAcceptance) ? value.durationAcceptance as ('auto' | 'user_confirmed' | 'user_edited') : undefined;
+    const rawResolved = (value.timeResolved && typeof value.timeResolved === 'object') ? value.timeResolved as Record<string, unknown> : null;
+    const durationSource: ResolvedInterval['durationSource'] | undefined = rawResolved?.durationSource === 'explicit' || rawResolved?.durationSource === 'suggested'
+      ? rawResolved.durationSource as ResolvedInterval['durationSource']
+      : undefined;
+    const timeResolved = rawResolved && typeof rawResolved.startUtc === 'string' && typeof rawResolved.endUtc === 'string' && typeof rawResolved.timezone === 'string' && durationSource
+      ? {
+          startUtc: rawResolved.startUtc,
+          endUtc: rawResolved.endUtc,
+          timezone: rawResolved.timezone,
+          durationSource,
+          durationConfidence: typeof rawResolved.durationConfidence === 'number' ? rawResolved.durationConfidence : undefined,
+          durationReason: typeof rawResolved.durationReason === 'string' ? rawResolved.durationReason : undefined,
+          durationAcceptance: (typeof rawResolved.durationAcceptance === 'string' && ['auto', 'user_confirmed', 'user_edited'].includes(rawResolved.durationAcceptance)) ? rawResolved.durationAcceptance as ('auto' | 'user_confirmed' | 'user_edited') : durationAcceptance,
+          inferenceVersion: typeof rawResolved.inferenceVersion === 'string' ? rawResolved.inferenceVersion : undefined
+        }
+      : undefined;
+    return { type, code, date, startTime: startTime || undefined, durationMins: typeof value.durationMins === 'number' ? value.durationMins : undefined, timezone: timezone || undefined, timeResolved, durationAcceptance };
   }
   if (type === 'resolve_appointment_time') {
     const appointmentId = asString(value.appointmentId) || undefined;
@@ -278,6 +296,23 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const usedFallback = resolved.usedFallback;
     const opId = resolved.opId ?? null;
     const model = resolved.model;
+
+    if (!resolved.ok) {
+      return withDirectMeta({
+        status: 502,
+        jsonBody: {
+          ok: false,
+          error: resolved.error,
+          message: resolved.error.message,
+          traceId,
+          directVersion: DIRECT_VERSION,
+          usedFallback,
+          fallbackAttempted,
+          opId,
+          nowIso
+        }
+      }, traceId, context, opId);
+    }
 
       context.log(JSON.stringify({
         event: 'openai_result',

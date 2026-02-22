@@ -28,6 +28,11 @@ export type ResolvedInterval = {
   startUtc: string;
   endUtc: string;
   timezone: string;
+  durationSource: 'explicit' | 'suggested';
+  durationConfidence?: number;
+  durationReason?: string;
+  durationAcceptance?: 'auto' | 'user_confirmed' | 'user_edited';
+  inferenceVersion?: string;
 };
 
 export type TimeSpec = {

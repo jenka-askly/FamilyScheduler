@@ -51,6 +51,7 @@ const fromTimedFieldsToTimeSpec = (date: string, startTime: string | undefined, 
   const m = String(end.getMinutes()).padStart(2, '0');
   return parseTimeSpec({ originalText: `${date} ${startTime}-${h}:${m}`, timezone });
 };
+const toDurationMins = (startUtc: string, endUtc: string): number => Math.max(1, Math.round((new Date(endUtc).getTime() - new Date(startUtc).getTime()) / 60000));
 
 const isLocationAiFormattingEnabled = (): boolean => (process.env.LOCATION_AI_FORMATTING ?? 'false').toLowerCase() === 'true';
 
@@ -362,7 +363,33 @@ export const executeActions = async (state: AppState, actions: Action[], context
       if (!appointment) { effectsTextLines.push(`Not found: ${'code' in action ? action.code : ''}`); appliedAll = false; continue; }
 
       if (action.type === 'update_appointment_desc' || action.type === 'set_appointment_desc') { appointment.updatedAt = new Date().toISOString(); appointment.title = action.desc.trim(); effectsTextLines.push(`Updated ${appointment.code} — ${appointment.title}`); continue; }
-      if (action.type === 'reschedule_appointment') { const timezone = action.timezone ?? context.timezoneName; const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone); appointment.schemaVersion = 2; appointment.time = fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone); appointment.updatedAt = new Date().toISOString(); appointment.date = action.date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? action.durationMins : undefined; appointment.timezone = timezone; appointment.isAllDay = resolved.isAllDay; appointment.start = resolved.startIso; appointment.end = resolved.endIso; effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`); continue; }
+      if (action.type === 'reschedule_appointment') {
+        const timezone = action.timezone ?? context.timezoneName;
+        const resolved = resolveAppointmentTimes(action.date, action.startTime, action.durationMins, timezone);
+        appointment.schemaVersion = 2;
+        appointment.time = fromTimedFieldsToTimeSpec(action.date, action.startTime, action.durationMins, timezone);
+        if (action.timeResolved) {
+          const resolvedInterval = { ...action.timeResolved, durationAcceptance: action.durationAcceptance ?? action.timeResolved.durationAcceptance ?? 'auto' };
+          appointment.time = { intent: { status: 'resolved', originalText: `${action.date}${action.startTime ? ` ${action.startTime}` : ''}`.trim() }, resolved: resolvedInterval };
+          appointment.start = resolvedInterval.startUtc;
+          appointment.end = resolvedInterval.endUtc;
+          appointment.date = resolvedInterval.startUtc.slice(0, 10);
+          appointment.startTime = resolvedInterval.startUtc.slice(11, 16);
+          appointment.durationMins = toDurationMins(resolvedInterval.startUtc, resolvedInterval.endUtc);
+          appointment.isAllDay = false;
+        } else {
+          appointment.date = action.date;
+          appointment.startTime = action.startTime;
+          appointment.durationMins = action.startTime ? action.durationMins : undefined;
+          appointment.start = resolved.startIso;
+          appointment.end = resolved.endIso;
+          appointment.isAllDay = resolved.isAllDay;
+        }
+        appointment.updatedAt = new Date().toISOString();
+        appointment.timezone = timezone;
+        effectsTextLines.push(`Rescheduled ${appointment.code} — ${appointment.title} to ${describeTime(action.date, action.startTime, action.durationMins)}`);
+        continue;
+      }
       if (action.type === 'set_appointment_date') { const timezone = appointment.time?.resolved?.timezone ?? appointment.timezone ?? context.timezoneName; appointment.schemaVersion = 2; appointment.time = parseTimeSpec({ originalText: action.date, timezone }); appointment.updatedAt = new Date().toISOString(); appointment.date = action.date; appointment.startTime = undefined; appointment.durationMins = undefined; appointment.start = appointment.time.resolved?.startUtc; appointment.end = appointment.time.resolved?.endUtc; appointment.isAllDay = appointment.time.intent.status === 'resolved'; effectsTextLines.push(`Set date for ${appointment.code} to ${action.date}.`); continue; }
       if (action.type === 'set_appointment_start_time') { const timezone = appointment.time?.resolved?.timezone ?? appointment.timezone ?? context.timezoneName; const date = (appointment.time?.resolved?.startUtc ?? appointment.start)?.slice(0, 10) ?? appointment.date ?? todayIsoDate(); const duration = appointment.durationMins; appointment.schemaVersion = 2; appointment.time = fromTimedFieldsToTimeSpec(date, action.startTime, duration, timezone); appointment.updatedAt = new Date().toISOString(); appointment.date = date; appointment.startTime = action.startTime; appointment.durationMins = action.startTime ? duration : undefined; appointment.start = appointment.time.resolved?.startUtc; appointment.end = appointment.time.resolved?.endUtc; appointment.isAllDay = !action.startTime; effectsTextLines.push(`Set start time for ${appointment.code}.`); continue; }
       if (action.type === 'set_appointment_duration') { const timezone = appointment.time?.resolved?.timezone ?? appointment.timezone ?? context.timezoneName; const date = (appointment.time?.resolved?.startUtc ?? appointment.start)?.slice(0, 10) ?? appointment.date ?? todayIsoDate(); const startTime = appointment.time?.resolved?.startUtc ? appointment.time.resolved.startUtc.slice(11,16) : appointment.startTime; appointment.schemaVersion = 2; appointment.time = fromTimedFieldsToTimeSpec(date, startTime, action.durationMins, timezone); appointment.updatedAt = new Date().toISOString(); appointment.date = date; appointment.startTime = startTime; appointment.durationMins = action.durationMins; appointment.start = appointment.time.resolved?.startUtc; appointment.end = appointment.time.resolved?.endUtc; appointment.isAllDay = !startTime; effectsTextLines.push(`Set duration for ${appointment.code}.`); continue; }
