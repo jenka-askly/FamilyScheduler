@@ -78,6 +78,32 @@ export class AzureBlobStorage implements StorageAdapter {
     }
   }
 
+
+
+  async putBinary(blobName: string, bytes: Uint8Array | Buffer, contentType: string, metadata?: Record<string, string>): Promise<void> {
+    const blobClient = this.containerClient.getBlockBlobClient(blobName);
+    await blobClient.uploadData(bytes, {
+      blobHTTPHeaders: { blobContentType: contentType },
+      metadata
+    });
+  }
+
+  async getBinary(blobName: string): Promise<{ contentType: string; contentLength?: number; stream: NodeJS.ReadableStream }> {
+    const blobClient = this.containerClient.getBlockBlobClient(blobName);
+    const response = await blobClient.download();
+    if (!response.readableStreamBody) throw new Error('Azure blob response missing body.');
+    return {
+      contentType: response.contentType ?? 'application/octet-stream',
+      contentLength: response.contentLength,
+      stream: response.readableStreamBody
+    };
+  }
+
+  async deleteBlob(blobName: string): Promise<void> {
+    const blobClient = this.containerClient.getBlockBlobClient(blobName);
+    await blobClient.deleteIfExists();
+  }
+
   async save(groupId: string, nextState: AppState, expectedEtag: string): Promise<{ state: AppState; etag: string }> {
     const normalized = normalizeAppState({ ...nextState, groupId, updatedAt: new Date().toISOString() });
     const body = stableStringify(normalized);

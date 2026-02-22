@@ -37,6 +37,10 @@ export type Appointment = {
   locationAddress: string;
   locationDirections: string;
   notes: string;
+  scanStatus?: 'pending' | 'parsed' | 'failed' | 'deleted' | null;
+  scanImageKey?: string | null;
+  scanImageMime?: string | null;
+  scanCapturedAt?: string | null;
 };
 
 export type AvailabilityRule = {
@@ -196,6 +200,10 @@ export const normalizeAppState = (state: AppState): AppState => {
     const locationAddress = typeof raw.locationAddress === 'string' ? raw.locationAddress.trim().slice(0, 300) : '';
     const locationDirections = typeof raw.locationDirections === 'string' ? raw.locationDirections.trim().slice(0, 300) : '';
 
+    const scanStatus: Appointment['scanStatus'] = raw.scanStatus === 'pending' || raw.scanStatus === 'parsed' || raw.scanStatus === 'failed' || raw.scanStatus === 'deleted'
+      ? raw.scanStatus
+      : null;
+
     return {
       id: typeof raw.id === 'string' ? raw.id : `appt-${idx + 1}`,
       schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : undefined,
@@ -219,7 +227,11 @@ export const normalizeAppState = (state: AppState): AppState => {
       locationName,
       locationAddress,
       locationDirections,
-      notes: typeof raw.notes === 'string' ? raw.notes.trim().slice(0, 500) : ''
+      notes: typeof raw.notes === 'string' ? raw.notes.trim().slice(0, 500) : '',
+      scanStatus,
+      scanImageKey: typeof raw.scanImageKey === 'string' && raw.scanImageKey.trim() ? raw.scanImageKey.trim() : null,
+      scanImageMime: typeof raw.scanImageMime === 'string' && raw.scanImageMime.trim() ? raw.scanImageMime.trim() : null,
+      scanCapturedAt: typeof raw.scanCapturedAt === 'string' && raw.scanCapturedAt.trim() ? raw.scanCapturedAt.trim() : null
     };
   });
 
