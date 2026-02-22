@@ -6,6 +6,8 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 ## What works now
 
+- Made support email clickable (mailto link).
+
 - Updated support contact email to `support@yapper-app.com` in `apps/web/src/components/layout/FooterHelp.tsx` (replacing prior support mailbox).
 
 - People table now shows **Last seen** instead of status. Backend snapshots include `lastSeen` (fallback to `createdAt`) and direct person mutations update `lastSeen` timestamps so the column reflects recent person activity.
