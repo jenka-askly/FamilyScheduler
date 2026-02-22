@@ -6,6 +6,10 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 
 ## What works now
 
+- Standardized appointment row editing to a single row-level editor model: default rows now show plain text for Description/Location/Notes, and the When editor panel now includes editable When/Description/Location/Notes fields with the existing Preview/Confirm/Cancel flow.
+- Updated command input guidance with placeholder `Add, edit, or assign (e.g., "edit APPT-4")…` and a compact italic helper tip for email/CSV paste support.
+- Tightened group header spacing and muted micro-typography for the group link + explainer so title/link/explainer read as one cohesive block.
+
 - Updated support contact email to `support@yapper-app.com` in `apps/web/src/components/layout/FooterHelp.tsx` (replacing prior support mailbox).
 
 - People table now shows **Last seen** instead of status. Backend snapshots include `lastSeen` (fallback to `createdAt`) and direct person mutations update `lastSeen` timestamps so the column reflects recent person activity.
