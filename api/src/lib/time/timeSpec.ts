@@ -18,6 +18,11 @@ const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MONTH_DAY = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2})(?:,?\s*(\d{4}))?$/i;
 const RANGE = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[–—-]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i;
 
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+const NEXT_WEEKDAY = /\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i;
+const SINGLE_TIME = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i;
+
 const capEvidence = (snippets?: string[]): string[] | undefined => {
   if (!snippets?.length) return undefined;
   const bounded: string[] = [];
@@ -92,6 +97,45 @@ export const parseTimeSpec = ({ originalText, timezone, now = new Date(), eviden
     const start = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 2, 1);
     return { intent: { ...intentBase, status: 'resolved' }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+  }
+
+
+  const nextWeekday = text.match(NEXT_WEEKDAY);
+  if (nextWeekday) {
+    const targetName = nextWeekday[1].toLowerCase() as (typeof WEEKDAYS)[number];
+    const targetDay = WEEKDAYS.indexOf(targetName);
+    const start = new Date(base);
+    const dayDiff = (targetDay - start.getDay() + 7) % 7;
+    const offsetDays = dayDiff === 0 ? 7 : dayDiff;
+    start.setDate(start.getDate() + offsetDays);
+
+    const rangeOnDay = text.match(RANGE);
+    if (rangeOnDay) {
+      const [_, sh, sm, sa, eh, em, ea] = rangeOnDay;
+      const startParsed = parseHour(sh, sm, sa || ea);
+      const endParsed = parseHour(eh, em, ea || sa);
+      start.setHours(startParsed.hour, startParsed.minute, 0, 0);
+      const end = new Date(start);
+      end.setHours(endParsed.hour, endParsed.minute, 0, 0);
+      if (end <= start) end.setDate(end.getDate() + 1);
+      assumptions.push(`Mapped next ${targetName} to ${start.toDateString()}.`);
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+    }
+
+    const singleTime = text.match(SINGLE_TIME);
+    if (singleTime) {
+      const [_, h, m, meridiem] = singleTime;
+      const parsed = parseHour(h, m, meridiem);
+      start.setHours(parsed.hour, parsed.minute, 0, 0);
+      assumptions.push(`Mapped next ${targetName} to ${start.toDateString()}.`);
+      assumptions.push('Interpreted single-point time as a 1-minute interval.');
+      const end = new Date(start.getTime() + 60_000);
+      return { intent: { ...intentBase, assumptions, status: 'resolved', evidenceSnippets: boundedEvidence }, resolved: { timezone, startUtc: start.toISOString(), endUtc: end.toISOString() } };
+    }
+
+    missing.push('startTime');
+    assumptions.push(`Mapped next ${targetName} to ${start.toDateString()}.`);
+    return { intent: { ...intentBase, status: 'partial', missing, assumptions, evidenceSnippets: boundedEvidence } };
   }
 
   const exactDate = text.match(DATE_ONLY);
