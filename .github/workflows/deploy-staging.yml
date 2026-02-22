@@ -1,0 +1,173 @@
+name: Deploy API (staging)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - "api/**"
+      - ".github/workflows/deploy-staging.yml"
+      - "pnpm-lock.yaml"
+      - "package.json"
+
+jobs:
+  deploy-api-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: pnpm --filter @familyscheduler/api build
+
+      - name: Build clean deploy staging directory (api_deploy)
+        run: |
+          set -euo pipefail
+          set -x
+
+          rm -rf api_deploy api.zip
+          mkdir -p api_deploy
+
+          cp api/host.json api_deploy/host.json
+          cp api/package.json api_deploy/package.json
+          cp pnpm-lock.yaml api_deploy/pnpm-lock.yaml
+          cp -R api/dist api_deploy/dist
+
+          for d in api/*/; do
+            if [ -f "${d}function.json" ]; then
+              cp -R "$d" "api_deploy/$(basename "$d")"
+            fi
+          done
+
+          # Install production deps directly in deploy root with hoisted node_modules
+          cd api_deploy
+          pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
+
+          # Copy workspace root node_modules into api_deploy and dereference symlinks
+          rm -rf node_modules
+          cp -RL ../node_modules ./node_modules
+
+          # Assert we have local materialized dependencies needed at runtime
+          test -d node_modules
+          test -d node_modules/@azure/core-util
+          test -d node_modules/@azure/storage-common
+          test -d node_modules/@azure/storage-blob
+
+          node -e "import('@azure/core-util').then(()=>console.log('core-util-import-ok'))"
+          node -e "import('@azure/storage-common').then(()=>console.log('storage-common-import-ok'))"
+          node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))"
+
+          cd ..
+
+      - name: Validate deploy staging directory
+        run: |
+          set -euo pipefail
+          set -x
+
+          test -f api_deploy/host.json
+          test -f api_deploy/package.json
+          test -f api_deploy/pnpm-lock.yaml
+          test -f api_deploy/dist/api/src/index.js
+
+          test -d api_deploy/node_modules
+          test -d api_deploy/node_modules/@azure/storage-blob
+          test -d api_deploy/node_modules/@azure/storage-common
+          test -d api_deploy/node_modules/@azure/core-util
+
+          # Ensure at least one trigger folder was staged
+          test -f api_deploy/groupJoin/function.json
+
+          # Quick import checks from the staged root
+          (cd api_deploy && node -e "import('@azure/core-util').then(()=>console.log('core-util-import-ok'))")
+          (cd api_deploy && node -e "import('@azure/storage-common').then(()=>console.log('storage-common-import-ok'))")
+          (cd api_deploy && node -e "import('@azure/storage-blob').then(()=>console.log('storage-blob-import-ok'))")
+
+      - name: Package API zip (api_deploy at zip root)
+        run: |
+          set -euo pipefail
+          rm -f api.zip
+          (cd api_deploy && zip -r ../api.zip .)
+
+      - name: Validate artifact has triggers
+        run: |
+          set -euo pipefail
+          test -f api_deploy/host.json
+          find api_deploy -mindepth 2 -maxdepth 2 -name function.json -print -quit | grep -q .
+          unzip -l api.zip | head -n 80
+
+      - name: Azure login (staging)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_STAGING }}
+
+      - name: Deploy zip to Function App (Flex) - staging
+        run: |
+          set -euo pipefail
+          az functionapp deployment source config-zip \
+            --name familyscheduler-api-staging \
+            --resource-group familyscheduler-staging-rg \
+            --src api.zip
+
+      - name: Verify staging Function App responds (group join non-500)
+        run: |
+          set -euo pipefail
+
+          APP_HOST=$(az functionapp show \
+            --name familyscheduler-api-staging \
+            --resource-group familyscheduler-staging-rg \
+            --query "properties.defaultHostName" -o tsv)
+
+          if [ -z "$APP_HOST" ]; then
+            APP_HOST=$(az functionapp show \
+              --name familyscheduler-api-staging \
+              --resource-group familyscheduler-staging-rg \
+              --query "properties.hostNames[0]" -o tsv)
+          fi
+
+          if [ -z "$APP_HOST" ]; then
+            echo "ERROR: APP_HOST is empty."
+            az functionapp show --name familyscheduler-api-staging --resource-group familyscheduler-staging-rg -o json || true
+            exit 1
+          fi
+
+          FUNCTION_APP_URL="https://${APP_HOST}"
+          echo "Using FUNCTION_APP_URL=$FUNCTION_APP_URL"
+
+          GROUP_JOIN_STATUS=$(curl -sS -o /tmp/function-group-join.out -w "%{http_code}" \
+            -X POST "$FUNCTION_APP_URL/api/group/join" \
+            -H 'content-type: application/json' \
+            --data '{"groupId":"deploy-smoke","phone":"0000000000"}')
+          echo "POST /api/group/join status: $GROUP_JOIN_STATUS"
+          cat /tmp/function-group-join.out
+
+          if [ "$GROUP_JOIN_STATUS" = "500" ]; then
+            echo "Expected non-500 from /api/group/join after staging deployment"
+            exit 1
+          fi
+
+          CHAT_STATUS=$(curl -sS -o /tmp/function-chat.out -w "%{http_code}" \
+            -X POST "$FUNCTION_APP_URL/api/chat" \
+            -H 'content-type: application/json' \
+            --data '{"phone":"0000000000","text":"deploy smoke"}')
+          echo "POST /api/chat status: $CHAT_STATUS"
+          if [ "$CHAT_STATUS" = "404" ]; then
+            echo "Expected /api/chat to be discoverable (non-404)"
+            exit 1
+          fi
