@@ -11,58 +11,55 @@ type ResolveArgs = {
   locale?: string;
 };
 
-const aiEnabled = (): boolean => process.env.TIME_RESOLVE_OPENAI_FALLBACK !== '0';
 const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
 
 export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ time: ReturnType<typeof parseTimeSpec>; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }> {
-  if (aiEnabled()) {
-    try {
-      const aiResult = await parseTimeSpecAIWithMeta({
-        originalText: args.whenText,
-        timezone: args.timezone,
-        nowIso: args.now.toISOString(),
-        locale: args.locale
-      });
-      args.context.log(JSON.stringify({
-        event: 'ai_time_parse',
-        status: 'ok',
-        traceId: args.traceId,
-        opId: aiResult.meta.opId ?? null,
-        provider: aiResult.meta.provider,
-        modelOrDeployment: aiResult.meta.modelOrDeployment,
-        parseStatus: aiResult.time.intent.status
-      }));
-      return { time: aiResult.time, fallbackAttempted: true, usedFallback: false, opId: aiResult.meta.opId, model: aiResult.meta.modelOrDeployment };
-    } catch (error) {
-      const code = error instanceof TimeParseAiError ? error.code : 'OPENAI_CALL_FAILED';
-      const details = error instanceof TimeParseAiError ? error.details : undefined;
-      const errStatus = typeof (details?.errStatus) === 'number' ? details.errStatus
-        : typeof (error as any)?.status === 'number' ? (error as any).status
-          : typeof (error as any)?.response?.status === 'number' ? (error as any).response.status
-            : undefined;
+  try {
+    const aiResult = await parseTimeSpecAIWithMeta({
+      originalText: args.whenText,
+      timezone: args.timezone,
+      nowIso: args.now.toISOString(),
+      locale: args.locale
+    });
+    args.context.log(JSON.stringify({
+      event: 'ai_time_parse',
+      status: 'ok',
+      traceId: args.traceId,
+      opId: aiResult.meta.opId ?? null,
+      provider: aiResult.meta.provider,
+      modelOrDeployment: aiResult.meta.modelOrDeployment,
+      parseStatus: aiResult.time.intent.status
+    }));
+    return { time: aiResult.time, fallbackAttempted: true, usedFallback: false, opId: aiResult.meta.opId, model: aiResult.meta.modelOrDeployment };
+  } catch (error) {
+    const code = error instanceof TimeParseAiError ? error.code : 'OPENAI_CALL_FAILED';
+    const details = error instanceof TimeParseAiError ? error.details : undefined;
+    const errStatus = typeof (details?.errStatus) === 'number' ? details.errStatus
+      : typeof (error as any)?.status === 'number' ? (error as any).status
+        : typeof (error as any)?.response?.status === 'number' ? (error as any).response.status
+          : undefined;
 
-      args.context.log(JSON.stringify({
-        event: 'ai_time_parse',
-        status: 'fallback',
-        traceId: args.traceId,
-        opId: null,
-        errorCode: code,
-        errName: error instanceof Error ? error.name : undefined,
-        errMessage: trimTo(error instanceof Error ? error.message : String(error), 300),
-        errStatus,
-        errCode: (error as any)?.code,
-        errType: (error as any)?.type,
-        errBodyPreview: typeof details?.errBodyPreview === 'string' ? trimTo(details.errBodyPreview, 300) : undefined,
-        provider: typeof details?.provider === 'string' ? details.provider : undefined,
-        modelOrDeployment: typeof details?.modelOrDeployment === 'string' ? details.modelOrDeployment : undefined,
-        nowIso: args.now.toISOString(),
-        timezone: args.timezone
-      }));
+    args.context.log(JSON.stringify({
+      event: 'ai_time_parse',
+      status: 'fallback',
+      traceId: args.traceId,
+      opId: null,
+      errorCode: code,
+      errName: error instanceof Error ? error.name : undefined,
+      errMessage: trimTo(error instanceof Error ? error.message : String(error), 300),
+      errStatus,
+      errCode: (error as any)?.code,
+      errType: (error as any)?.type,
+      errBodyPreview: typeof details?.errBodyPreview === 'string' ? trimTo(details.errBodyPreview, 300) : undefined,
+      provider: typeof details?.provider === 'string' ? details.provider : undefined,
+      modelOrDeployment: typeof details?.modelOrDeployment === 'string' ? details.modelOrDeployment : undefined,
+      nowIso: args.now.toISOString(),
+      timezone: args.timezone
+    }));
 
-      if (code !== 'OPENAI_CALL_FAILED' && code !== 'OPENAI_NOT_CONFIGURED') throw error;
-    }
+    if (code !== 'OPENAI_CALL_FAILED' && code !== 'OPENAI_NOT_CONFIGURED') throw error;
   }
 
   const timeLocal = parseTimeSpec({ originalText: args.whenText, timezone: args.timezone, now: args.now });
-  return { time: timeLocal, fallbackAttempted: aiEnabled(), usedFallback: aiEnabled(), opId: undefined, model: undefined };
+  return { time: timeLocal, fallbackAttempted: true, usedFallback: true, opId: undefined, model: undefined };
 }

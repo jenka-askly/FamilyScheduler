@@ -120,6 +120,14 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
     throw new TimeParseAiError('OPENAI_NOT_CONFIGURED', error instanceof Error ? error.message : 'OpenAI is not configured');
   }
 
+  console.info(JSON.stringify({
+    event: 'ai_time_parse_openai_before_request',
+    provider: client.provider,
+    configuredModel: client.modelOrDeployment,
+    timeResolveModelEnv: process.env.TIME_RESOLVE_MODEL ?? null,
+    openAiModelEnv: process.env.OPENAI_MODEL ?? null
+  }));
+
   const response = await fetch(client.requestUrl, {
     method: 'POST',
     headers: client.headers,
@@ -190,6 +198,16 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
     throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'OpenAI response was not valid JSON');
   }) as any;
 
+  const responseOpId = typeof payload?.id === 'string' ? payload.id : undefined;
+  const responseModel = typeof payload?.model === 'string' ? payload.model : undefined;
+  console.info(JSON.stringify({
+    event: 'ai_time_parse_openai_result',
+    provider: client.provider,
+    opId: responseOpId ?? null,
+    model: responseModel ?? null,
+    configuredModel: client.modelOrDeployment
+  }));
+
   const rawText = toOutputText(payload);
   if (!rawText) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'OpenAI response missing output_text');
 
@@ -198,6 +216,10 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
 
   return {
     time: toTimeSpec(args, parsed),
-    meta: { opId: typeof payload?.id === 'string' ? payload.id : undefined, modelOrDeployment: client.modelOrDeployment, provider: client.provider }
+    meta: {
+      opId: responseOpId,
+      modelOrDeployment: responseModel ?? client.modelOrDeployment,
+      provider: client.provider
+    }
   };
 }
