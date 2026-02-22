@@ -20,11 +20,11 @@ test('AI-first returns resolved result from OpenAI', async () => {
     status: 200,
     json: async () => ({
       id: 'resp_123',
-      output_text: JSON.stringify({ status: 'resolved', startUtc: '2026-01-02T21:00:00.000Z', endUtc: '2026-01-02T21:01:00.000Z', assumptions: [], evidenceSnippets: [] })
+      output_text: JSON.stringify({ status: 'resolved', startUtc: '2026-01-02T09:00:00.000Z', endUtc: '2026-01-02T09:01:00.000Z', assumptions: [] })
     })
   }) as unknown as Response);
 
-  const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-1', context: { log: () => {} } as any });
+  const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 1am', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-1', context: { log: () => {} } as any });
 
   assert.equal(result.usedFallback, false);
   assert.equal(result.fallbackAttempted, true);

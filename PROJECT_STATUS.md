@@ -1,3 +1,9 @@
+## 2026-02-22 update (time_spec_parse schema flattening fix)
+
+- Fixed AI time parsing structured output request to use `response_format.json_schema` with a minimal flat `time_spec_parse` schema (`status`, nullable `startUtc`/`endUtc`, nullable `missing`/`assumptions`) to avoid OpenAI HTTP 400 invalid schema errors.
+- Updated AI output mapping to align with the simplified schema while preserving fallback behavior in `resolveTimeSpecWithFallback` (call/config failures still fallback; bad AI payloads still surface).
+- Added/updated tests to assert `response_format` payload shape and verify AI-first resolution for `"tomorrow 1am"` returns `usedFallback=false` with non-null `opId`.
+
 ## 2026-02-22 update (provider-aware AI time parsing + actionable telemetry)
 
 - Added provider-aware AI client adapter for time parsing (`openai` vs `azure`) with explicit selection: Azure when `AZURE_OPENAI_ENDPOINT` is set, otherwise OpenAI.
