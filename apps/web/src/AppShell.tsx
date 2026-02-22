@@ -273,8 +273,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const rulePromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const hasProposedRules = Boolean(ruleDraft?.draftRules?.length);
   const fileScanInputRef = useRef<HTMLInputElement | null>(null);
+  const scanCaptureVideoRef = useRef<HTMLVideoElement | null>(null);
+  const scanCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scanCaptureStreamRef = useRef<MediaStream | null>(null);
   const [scanTargetAppointmentId, setScanTargetAppointmentId] = useState<string | null>(null);
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -547,6 +551,32 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (json.snapshot) setSnapshot(json.snapshot);
   };
 
+  const stopScanCaptureStream = () => {
+    if (!scanCaptureStreamRef.current) return;
+    scanCaptureStreamRef.current.getTracks().forEach((track) => track.stop());
+    scanCaptureStreamRef.current = null;
+  };
+
+  const openScanCapture = async (appointmentId: string | null) => {
+    setScanTargetAppointmentId(appointmentId);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      fileScanInputRef.current?.click();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      scanCaptureStreamRef.current = stream;
+      setScanCaptureModal({ appointmentId, useCameraPreview: true });
+    } catch {
+      fileScanInputRef.current?.click();
+    }
+  };
+
+  const closeScanCaptureModal = () => {
+    stopScanCaptureStream();
+    setScanCaptureModal({ appointmentId: null, useCameraPreview: false });
+  };
+
   const submitScanFile = async (file: File, appointmentId?: string) => {
     const arrayBuffer = await file.arrayBuffer();
     const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
@@ -556,6 +586,26 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const response = await fetch(apiUrl(endpoint), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
     const json = await response.json() as { snapshot?: Snapshot };
     if (json.snapshot) setSnapshot(json.snapshot); else await refreshSnapshot();
+  };
+
+  const captureScanFrame = async () => {
+    const video = scanCaptureVideoRef.current;
+    const canvas = scanCaptureCanvasRef.current;
+    if (!video || !canvas) return;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.drawImage(video, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) return;
+    const file = new File([blob], 'scan.jpg', { type: blob.type || 'image/jpeg' });
+    const target = scanTargetAppointmentId;
+    closeScanCaptureModal();
+    setScanTargetAppointmentId(null);
+    await submitScanFile(file, target ?? undefined);
   };
 
   const onPickScanFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -812,6 +862,19 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
 
+  useEffect(() => {
+    if (!scanCaptureModal.useCameraPreview) return;
+    const video = scanCaptureVideoRef.current;
+    const stream = scanCaptureStreamRef.current;
+    if (!video || !stream) return;
+    video.srcObject = stream;
+    void video.play().catch(() => undefined);
+  }, [scanCaptureModal.useCameraPreview]);
+
+  useEffect(() => () => {
+    stopScanCaptureStream();
+  }, []);
+
   return (
     <Page variant="workspace">
       <PageHeader
@@ -884,12 +947,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             </span>
                           )}
                         </td>
-                        <td className="multiline-cell"><span className="line-clamp" title={appointment.desc}>{appointment.desc || '—'}</span></td>
+                        <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
                         <td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
                         <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview" title={appointment.locationDisplay || appointment.location}>{appointment.locationDisplay || appointment.location || '—'}</p>{(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw) ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
                         <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
                         <td>
-                          <div className="action-icons">
+                          <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
                             {appointment.scanImageKey ? (
                               <button
                                 type="button"
@@ -905,7 +968,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 📷
                               </button>
                             ) : null}
-                            <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
+                            <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></button>
                           </div>
                         </td>
                       </tr>
@@ -984,7 +1047,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
                       {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
                     </button>
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => { setScanTargetAppointmentId(null); fileScanInputRef.current?.click(); }} aria-label="Scan appointment">📷 Scan appointment</button>
+                    <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
                   </div></td>
                 </tr>
               </tbody>
@@ -1123,7 +1186,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       {appointmentToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
 
 
-      {scanViewerAppointment ? <div className="modal-backdrop"><div className="modal"><h3>{scanViewerAppointment.code} scan</h3><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /><div className="modal-actions"><button type="button" onClick={() => { setScanTargetAppointmentId(scanViewerAppointment.id); fileScanInputRef.current?.click(); setScanViewerAppointment(null); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
+      {scanViewerAppointment ? <div className="modal-backdrop"><div className="modal scan-viewer-modal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
+      {scanCaptureModal.useCameraPreview ? <div className="modal-backdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
       {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}

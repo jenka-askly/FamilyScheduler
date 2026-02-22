@@ -448,11 +448,11 @@ input {
 }
 
 .action-icons {
-  display: inline-flex;
+  display: flex;
   justify-content: flex-end;
-  gap: 8px;
   align-items: center;
-  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 72px;
 }
 
 .action-buttons {
@@ -900,7 +900,12 @@ button.fs-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   z-index: 10;
 }
 .scan-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid #d1d5db; }
-.scan-full { max-width: min(90vw, 720px); max-height: 70vh; object-fit: contain; border-radius: 8px; }
+.scan-viewer-modal { width: min(900px, calc(100vw - 2rem)); }
+.scan-viewer-content { max-width: 100%; max-height: 70vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+.scan-full { max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px; position: static; }
+.scan-capture-modal { width: min(760px, calc(100vw - 2rem)); }
+.scan-capture-preview { max-height: 70vh; overflow: hidden; border-radius: 8px; background: #0f172a; }
+.scan-capture-preview video { width: 100%; height: auto; max-height: 70vh; object-fit: contain; display: block; }
 .scan-status { display: inline-block; margin-left: 8px; font-size: 12px; color: #6b7280; }
 .scan-status-failed { color: #b45309; }
 .scan-cta-wrap { display:flex; gap:12px; justify-content:center; }
