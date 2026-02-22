@@ -384,7 +384,11 @@ input {
 
 .toggle-row { display:flex; gap:.5rem; margin-bottom:.75rem; }
 .active-toggle { background:#1d4ed8; color:white; }
-.linkish { border:0; background:none; color:#1d4ed8; padding:0; cursor:pointer; }
+.linkish { border:0; background:none; color:#1d4ed8; padding:0; cursor:pointer; min-height:0; line-height:inherit; }
+.linkish:hover { background:none; border-color:transparent; text-decoration:underline; }
+.when-link { display:inline; padding:0; line-height:inherit; color:#1d4ed8; text-decoration:none; }
+.when-link:hover { color:#1d4ed8; text-decoration:underline; background:rgba(37, 99, 235, 0.08); }
+.when-link:focus-visible { outline:2px solid rgba(37, 99, 235, 0.35); outline-offset:2px; border-radius:4px; }
 .picker-list {
   margin-bottom: 0.75rem;
 }

@@ -780,11 +780,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       <tr ref={isEditing ? editingAppointmentRowRef : undefined}>
                         <td><code>{appointment.code}</code></td>
                         <td>
-                          <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
+                          <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
                             {appointment.time?.intent?.status !== 'resolved'
                               ? <span className='status-tag unknown'>Unresolved</span>
                               : formatAppointmentTime(appointment)}
-                          </button>
+                          </a>
                         </td>
                         <td>
                           {apptStatus === 'unreconcilable' ? (
