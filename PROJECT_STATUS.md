@@ -1,3 +1,11 @@
+## 2026-02-22 update (AI-first time parsing with explicit now+timezone)
+
+- Implemented AI-first time parsing for `resolve_appointment_time` with explicit `nowIso` and IANA `timezone` passed in the model prompt (no implicit server clock assumptions).
+- Switched AI call to OpenAI Responses API with strict `json_schema` structured output and UTC `startUtc`/`endUtc` validation.
+- Added deterministic safe fallback to local `parseTimeSpec` on missing API key, timeout, HTTP errors, or schema/parse failures (no hard parse-related 500/502s).
+- Added `ai_time_parse` logging (`traceId` + `opId` + parse status) and optional `nowIso` debug field in direct response payloads.
+- Added multilingual smoke coverage (`mañana a la 1pm`) through AI parser tests.
+
 ## 2026-02-22 update (OpenAI opId propagation)
 
 - Added opId (OpenAI response id) propagation to API responses and logs for debugging.

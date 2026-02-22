@@ -5,7 +5,7 @@ import type { Action } from '../lib/actions/schema.js';
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
 import { getTimeSpec } from '../lib/time/timeSpec.js';
-import { TimeResolveFallbackError, resolveTimeSpecWithFallback } from '../lib/time/resolveTimeSpecWithFallback.js';
+import { resolveTimeSpecWithFallback } from '../lib/time/resolveTimeSpecWithFallback.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -267,20 +267,18 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
-    let fallbackAttempted = false;
-    let usedFallback = false;
-    try {
-      const resolved = await resolveTimeSpecWithFallback({
-        whenText: directAction.whenText,
-        timezone,
-        now: new Date(),
-        traceId,
-        context
-      });
-      fallbackAttempted = resolved.fallbackAttempted;
-      usedFallback = resolved.usedFallback;
-      const opId = resolved.opId ?? null;
-      const model = resolved.model;
+    const nowIso = new Date().toISOString();
+    const resolved = await resolveTimeSpecWithFallback({
+      whenText: directAction.whenText,
+      timezone,
+      now: new Date(nowIso),
+      traceId,
+      context
+    });
+    const fallbackAttempted = resolved.fallbackAttempted;
+    const usedFallback = resolved.usedFallback;
+    const opId = resolved.opId ?? null;
+    const model = resolved.model;
 
       context.log(JSON.stringify({
         event: 'openai_result',
@@ -314,59 +312,21 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         }));
       }
 
-      return withDirectMeta({
-        status: 200,
-        jsonBody: {
-          ok: true,
-          time: resolved.time,
-          timezone,
-          appointmentId: directAction.appointmentId,
-          traceId,
-          directVersion: DIRECT_VERSION,
-          usedFallback,
-          fallbackAttempted,
-          opId
-        }
-      }, traceId, context, opId);
-    } catch (error) {
-      if (error instanceof TimeResolveFallbackError) {
-        fallbackAttempted = true;
-        if (TIME_RESOLVE_LOG_ENABLED) {
-          context.log(JSON.stringify({
-            kind: 'time_resolve',
-            traceId,
-            invocationId: context.invocationId,
-            traceparent: (context.traceContext as { traceParent?: string } | undefined)?.traceParent,
-            appointmentId: directAction.appointmentId,
-            whenText: directAction.whenText,
-            timezone,
-            fallbackEnabled: FALLBACK_ENABLED,
-            fallbackAttempted,
-            usedFallback,
-            status: 'error',
-            missing: [],
-            directVersion: DIRECT_VERSION,
-            opId: null,
-            model: process.env.TIME_RESOLVE_MODEL ?? process.env.OPENAI_MODEL ?? null
-          }));
-        }
-        return withDirectMeta({
-          status: 502,
-          jsonBody: {
-            ok: false,
-            error: { code: error.code, message: error.message },
-            traceId,
-            appointmentId: directAction.appointmentId,
-            timezone,
-            directVersion: DIRECT_VERSION,
-            usedFallback,
-            fallbackAttempted,
-            opId: null
-          }
-        }, traceId, context, null);
+    return withDirectMeta({
+      status: 200,
+      jsonBody: {
+        ok: true,
+        time: resolved.time,
+        timezone,
+        appointmentId: directAction.appointmentId,
+        traceId,
+        directVersion: DIRECT_VERSION,
+        usedFallback,
+        fallbackAttempted,
+        opId,
+        nowIso
       }
-      throw error;
-    }
+    }, traceId, context, opId);
   }
 
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
