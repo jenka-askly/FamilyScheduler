@@ -45,5 +45,5 @@ jobs:
           npx -y @azure/static-web-apps-cli@latest deploy \
             apps/web/dist \
             --deployment-token "$SWA_DEPLOYMENT_TOKEN" \
-            --env preview \
+            --env production  \
             --verbose
