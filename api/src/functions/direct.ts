@@ -5,7 +5,7 @@ import type { Action } from '../lib/actions/schema.js';
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
 import { getTimeSpec } from '../lib/time/timeSpec.js';
-import { TimeResolveFallbackError, resolveTimeSpecWithFallback } from '../lib/time/aiTimeResolve.js';
+import { TimeResolveFallbackError, resolveTimeSpecWithFallback } from '../lib/time/resolveTimeSpecWithFallback.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -13,7 +13,6 @@ import type { StorageAdapter } from '../lib/storage/storage.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
-import { parseTimeSpec } from '../lib/time/timeSpec.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -42,6 +41,8 @@ type DirectAction =
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
 const DIRECT_VERSION = process.env.DIRECT_VERSION ?? process.env.VITE_BUILD_SHA ?? process.env.BUILD_SHA ?? 'unknown';
+const FALLBACK_ENABLED = process.env.TIME_RESOLVE_OPENAI_FALLBACK === '1';
+const TIME_RESOLVE_LOG_ENABLED = process.env.TIME_RESOLVE_LOG_ENABLED === '1';
 
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
   if (!start || !end) return { date: start?.slice(0, 10) ?? '', isAllDay: true };
@@ -92,6 +93,25 @@ const withDirectVersion = (response: HttpResponseInit): HttpResponseInit => {
   if (!jsonBody || typeof jsonBody !== 'object' || Array.isArray(jsonBody)) return response;
   return { ...response, jsonBody: { ...(jsonBody as Record<string, unknown>), directVersion: DIRECT_VERSION } };
 };
+const withDirectHeaders = (response: HttpResponseInit, traceId: string, context: InvocationContext): HttpResponseInit => {
+  const baseHeaders = response.headers ?? {};
+  const headers = new Headers(baseHeaders as HeadersInit);
+  const existingExpose = headers.get('access-control-expose-headers');
+  const exposeSet = new Set((existingExpose ?? '').split(',').map((item) => item.trim()).filter(Boolean));
+  exposeSet.add('x-trace-id');
+  exposeSet.add('x-invocation-id');
+  exposeSet.add('x-traceparent');
+
+  headers.set('x-trace-id', traceId);
+  headers.set('x-invocation-id', context.invocationId);
+  headers.set('cache-control', 'no-store');
+  headers.set('access-control-expose-headers', Array.from(exposeSet).join(','));
+  const traceparent = (context.traceContext as { traceParent?: string } | undefined)?.traceParent;
+  if (traceparent) headers.set('x-traceparent', traceparent);
+
+  return { ...response, headers: Object.fromEntries(headers.entries()) };
+};
+const withDirectMeta = (response: HttpResponseInit, traceId: string, context: InvocationContext): HttpResponseInit => withDirectHeaders(withDirectVersion(response), traceId, context);
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asString = (value: unknown): string | null => typeof value === 'string' ? value.trim() : null;
 const nextPersonId = (state: AppState): string => `P-${state.people.reduce((max, person) => {
@@ -189,10 +209,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
   const identity = validateJoinRequest(body.groupId, body.phone);
   if (!identity.ok) {
-    return withDirectVersion({
+    return withDirectMeta({
       ...identity.response,
       jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
-    });
+    }, traceId, context);
   }
   logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
 
@@ -200,7 +220,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   try {
     directAction = parseDirectAction(body.action);
   } catch (error) {
-    return withDirectVersion(badRequest(error instanceof Error ? error.message : 'invalid action', traceId));
+    return withDirectMeta(badRequest(error instanceof Error ? error.message : 'invalid action', traceId), traceId, context);
   }
 
   let storage: StorageAdapter;
@@ -209,7 +229,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
-      return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+      return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
     }
     throw error;
   }
@@ -219,82 +239,52 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
-      return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+      return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
     }
-    if (error instanceof GroupNotFoundError) return withDirectVersion(errorResponse(404, 'group_not_found', 'Group not found', traceId));
+    if (error instanceof GroupNotFoundError) return withDirectMeta(errorResponse(404, 'group_not_found', 'Group not found', traceId), traceId, context);
     throw error;
   }
   const allowed = findActivePersonByPhone(loaded.state, identity.phoneE164);
   if (!allowed) {
     logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-    return withDirectVersion(errorResponse(403, 'not_allowed', 'Not allowed', traceId));
+    return withDirectMeta(errorResponse(403, 'not_allowed', 'Not allowed', traceId), traceId, context);
   }
   logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
-    const loggingEnabled = (process.env.TIME_RESOLVE_LOG_ENABLED ?? '0') === '1';
-    const fallbackEnabled = (process.env.TIME_RESOLVE_OPENAI_FALLBACK ?? '0') === '1';
-    const parsed = parseTimeSpec({ originalText: directAction.whenText, timezone, now: new Date() });
     let fallbackAttempted = false;
     let usedFallback = false;
-
-    if (parsed.intent.status === 'resolved' || !fallbackEnabled) {
-      if (loggingEnabled) {
-        context.log(JSON.stringify({
-          traceId,
-          appointmentId: directAction.appointmentId,
-          whenText: directAction.whenText,
-          timezone,
-          fallbackEnabled,
-          fallbackAttempted,
-          usedFallback,
-          finalStatus: parsed.intent.status,
-          missing: parsed.intent.missing,
-          directVersion: DIRECT_VERSION
-        }));
-      }
-      return withDirectVersion({
-        status: 200,
-        jsonBody: {
-          ok: true,
-          time: parsed,
-          timezone,
-          appointmentId: directAction.appointmentId,
-          traceId,
-          usedFallback,
-          fallbackAttempted
-        }
-      });
-    }
-
     try {
-      fallbackAttempted = true;
       const resolved = await resolveTimeSpecWithFallback({
         whenText: directAction.whenText,
         timezone,
         now: new Date(),
         traceId,
-        log: loggingEnabled ? (obj) => context.log(JSON.stringify(obj)) : undefined
+        context
       });
+      fallbackAttempted = resolved.fallbackAttempted;
       usedFallback = resolved.usedFallback;
 
-      if (loggingEnabled) {
+      if (TIME_RESOLVE_LOG_ENABLED) {
         context.log(JSON.stringify({
+          kind: 'time_resolve',
           traceId,
+          invocationId: context.invocationId,
+          traceparent: (context.traceContext as { traceParent?: string } | undefined)?.traceParent,
           appointmentId: directAction.appointmentId,
           timezone,
           whenText: directAction.whenText,
-          fallbackEnabled,
+          fallbackEnabled: FALLBACK_ENABLED,
           fallbackAttempted,
           usedFallback,
-          finalStatus: resolved.time.intent.status,
-          missing: resolved.time.intent.missing,
+          status: resolved.time.intent.status,
+          missing: resolved.time.intent.missing ?? [],
           directVersion: DIRECT_VERSION
         }));
       }
 
-      return withDirectVersion({
+      return withDirectMeta({
         status: 200,
         jsonBody: {
           ok: true,
@@ -302,27 +292,32 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           timezone,
           appointmentId: directAction.appointmentId,
           traceId,
+          directVersion: DIRECT_VERSION,
           usedFallback,
           fallbackAttempted
         }
-      });
+      }, traceId, context);
     } catch (error) {
       if (error instanceof TimeResolveFallbackError) {
-        if (loggingEnabled) {
+        fallbackAttempted = true;
+        if (TIME_RESOLVE_LOG_ENABLED) {
           context.log(JSON.stringify({
+            kind: 'time_resolve',
             traceId,
+            invocationId: context.invocationId,
+            traceparent: (context.traceContext as { traceParent?: string } | undefined)?.traceParent,
             appointmentId: directAction.appointmentId,
             whenText: directAction.whenText,
             timezone,
-            fallbackEnabled,
+            fallbackEnabled: FALLBACK_ENABLED,
             fallbackAttempted,
             usedFallback,
-            finalStatus: 'error',
-            missing: parsed.intent.missing,
+            status: 'error',
+            missing: [],
             directVersion: DIRECT_VERSION
           }));
         }
-        return withDirectVersion({
+        return withDirectMeta({
           status: 502,
           jsonBody: {
             ok: false,
@@ -330,11 +325,11 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
             traceId,
             appointmentId: directAction.appointmentId,
             timezone,
+            directVersion: DIRECT_VERSION,
             usedFallback,
-            fallbackAttempted,
-            fallbackError: { code: error.code, message: error.message }
+            fallbackAttempted
           }
-        });
+        }, traceId, context);
       }
       throw error;
     }
@@ -347,80 +342,80 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     loaded.state.people.push({ personId, name: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
     try {
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
-      return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } });
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } }, traceId, context);
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
-        return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+        return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
       }
-      if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
+      if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
       throw error;
     }
   }
 
   if (directAction.type === 'update_person') {
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
-    if (!person) return withDirectVersion(badRequest('Person not found', traceId));
+    if (!person) return withDirectMeta(badRequest('Person not found', traceId), traceId, context);
     const nextName = directAction.name === undefined ? person.name : directAction.name.trim();
     const nextPhoneRaw = directAction.phone === undefined ? person.cellDisplay ?? person.cellE164 : directAction.phone;
 
-    if (!nextName) return withDirectVersion(badRequest('Name is required', traceId));
-    if (!nextPhoneRaw?.trim()) return withDirectVersion(badRequest('Invalid phone number', traceId));
+    if (!nextName) return withDirectMeta(badRequest('Name is required', traceId), traceId, context);
+    if (!nextPhoneRaw?.trim()) return withDirectMeta(badRequest('Invalid phone number', traceId), traceId, context);
 
     try {
       const normalizedPhone = validateAndNormalizePhone(nextPhoneRaw);
       const duplicate = loaded.state.people.find((entry) => entry.status === 'active' && entry.personId !== person.personId && entry.cellE164 === normalizedPhone.e164);
-      if (duplicate) return withDirectVersion(badRequest(`That phone is already used by ${duplicate.name || duplicate.personId}`, traceId));
+      if (duplicate) return withDirectMeta(badRequest(`That phone is already used by ${duplicate.name || duplicate.personId}`, traceId), traceId, context);
       person.name = nextName;
       person.cellE164 = normalizedPhone.e164;
       person.cellDisplay = normalizedPhone.display;
       person.lastSeen = new Date().toISOString();
       try {
         const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
-        return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+        return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
       } catch (error) {
         if (error instanceof MissingConfigError) {
           logConfigMissing('direct', traceId, error.missing);
-          return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+          return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
         }
-        if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
+        if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
         throw error;
       }
     } catch (error) {
-      if (error instanceof PhoneValidationError) return withDirectVersion(badRequest('Invalid phone number', traceId));
+      if (error instanceof PhoneValidationError) return withDirectMeta(badRequest('Invalid phone number', traceId), traceId, context);
       throw error;
     }
   }
 
   if (directAction.type === 'delete_person') {
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
-    if (!person) return withDirectVersion(badRequest('Person not found', traceId));
+    if (!person) return withDirectMeta(badRequest('Person not found', traceId), traceId, context);
     person.status = 'removed';
     person.lastSeen = new Date().toISOString();
     try {
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
-      return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
-        return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+        return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
       }
-      if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
+      if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
       throw error;
     }
   }
 
-  if (!execution.appliedAll) return withDirectVersion({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } });
+  if (!execution.appliedAll) return withDirectMeta({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } }, traceId, context);
 
   try {
     const written = await storage.save(identity.groupId, execution.nextState, loaded.etag);
-    return withDirectVersion({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+    return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
-      return withDirectVersion(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+      return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
     }
-    if (error instanceof ConflictError) return withDirectVersion({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
+    if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
     throw error;
   }
 }

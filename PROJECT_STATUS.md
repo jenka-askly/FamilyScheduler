@@ -1,3 +1,11 @@
+## 2026-02-22 update (direct time resolve observability + fallback)
+
+- Added `/api/direct` correlation headers on responses: `x-trace-id`, `x-invocation-id`, optional `x-traceparent`, plus `access-control-expose-headers` and `cache-control: no-store` so browser tools can read trace metadata.
+- Added resolve preview metadata in `resolve_appointment_time` responses: `directVersion`, `fallbackAttempted`, and `usedFallback`.
+- Added OpenAI fallback path behind `TIME_RESOLVE_OPENAI_FALLBACK=1` for unresolved local parses (including `tomorrow`), with explicit `ok:false` + typed error on fallback failures.
+- Added optional single-line structured log event (`kind=time_resolve`) behind `TIME_RESOLVE_LOG_ENABLED=1` for Kusto-friendly diagnostics.
+- Time point-in-time results continue returning `startUtc` only (no invented duration/end time).
+
 # PROJECT_STATUS
 
 ## Current milestone
