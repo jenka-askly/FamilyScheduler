@@ -1,3 +1,9 @@
+## 2026-02-22 update (schedule row actions + click-away cancel)
+
+- Re-added Edit icon next to Delete in Schedule row actions, including explicit accessible labels (`Edit appointment`, `Delete appointment`).
+- Added click-away cancel for the inline appointment editor: clicking outside the active row + editor container now triggers the same cancel path (discard unsaved changes, no mutation).
+- Files touched: `apps/web/src/AppShell.tsx`, `PROJECT_STATUS.md`, `CODEX_LOG.md`.
+
 ## 2026-02-22 update (AI time parse opId/model null debugging)
 
 - Traced the AI time parsing path end-to-end and added explicit pre-request diagnostics that log configured model wiring (`TIME_RESOLVE_MODEL`, `OPENAI_MODEL`) before the time parse request is sent.

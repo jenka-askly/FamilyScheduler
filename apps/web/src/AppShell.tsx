@@ -257,6 +257,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
+  const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
+  const whenEditorRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
   const [rulePromptModal, setRulePromptModal] = useState<{ person: Snapshot['people'][0] } | null>(null);
@@ -826,6 +828,22 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     };
   }, [editingPersonId, cancelPersonEdit]);
 
+  useEffect(() => {
+    if (!whenEditorCode) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      const editingRow = editingAppointmentRowRef.current;
+      const editorRow = whenEditorRowRef.current;
+      const clickedInEditingSurface = Boolean(editingRow?.contains(target) || editorRow?.contains(target));
+      if (!clickedInEditingSurface) closeWhenEditor();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [whenEditorCode]);
+
 
   useEffect(() => {
     let canceled = false;
@@ -927,7 +945,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       : 'no_conflict';
                   return (
                     <Fragment key={appointment.code}>
-                      <tr>
+                      <tr ref={isWhenEditing ? editingAppointmentRowRef : undefined}>
                         <td><code>{appointment.code}</code></td>
                         <td>
                           <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
@@ -968,12 +986,25 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 📷
                               </button>
                             ) : null}
+                            <button
+                              type="button"
+                              className="icon-button"
+                              aria-label="Edit appointment"
+                              data-tooltip="Edit appointment"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                openWhenEditor(appointment);
+                              }}
+                            >
+                              <Pencil />
+                            </button>
                             <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></button>
                           </div>
                         </td>
                       </tr>
                       {isWhenEditing ? (
-                        <tr>
+                        <tr ref={whenEditorRowRef}>
                           <td colSpan={8} className="when-editor-cell">
                             <div className="rule-draft-output when-editor">
                               <div className="when-editor-input-row">
