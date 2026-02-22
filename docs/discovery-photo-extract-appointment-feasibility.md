@@ -1,3 +1,5 @@
+> **Outdated note:** TimeSpec AI parsing now uses the OpenAI Responses API (`/v1/responses`) structured output format (`text.format`).
+
 # Discovery: Photo -> Extract Appointment feasibility in Azure Static Web Apps
 
 Date: 2026-02-20

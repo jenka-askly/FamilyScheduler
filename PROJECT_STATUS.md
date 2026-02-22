@@ -1,3 +1,9 @@
+## 2026-02-22 update (TimeSpec AI-first fallback cleanup)
+
+- Removed `TIME_RESOLVE_OPENAI_FALLBACK` from runtime paths so time preview now always attempts AI first, then falls back to deterministic parsing only when AI fails.
+- Corrected `usedFallback`/`fallbackAttempted` semantics for `/api/direct` time preview: `fallbackAttempted` is always `true`, `usedFallback` is `true` when AI output is used and `false` when deterministic fallback is used.
+- Confirmed TimeSpec parsing uses Responses API structured outputs via `text.format.json_schema` (no `response_format` on this path).
+
 ## 2026-02-22 update (Responses API text.format + fallback semantics)
 
 - Fixed TimeSpec AI structured output payload for Responses API (OpenAI `/v1/responses` and Azure `/openai/responses`) by migrating from `response_format` to `text.format.json_schema` (`time_spec_parse`, `strict: true`).

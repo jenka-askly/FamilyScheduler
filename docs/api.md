@@ -218,3 +218,4 @@ OpenAI is used only for free-form natural language command-to-action parsing.
 - Structured Outputs JSON schema only (actions, no prose).
 - Deterministic command paths bypass OpenAI.
 - Invalid model output must be rejected and mapped to clarify/error.
+- TimeSpec preview (`/api/direct` `resolve_appointment_time`) may use OpenAI Responses API (`text.format` JSON schema) for natural-language time resolution, and falls back to deterministic parsing when the AI call/response fails.

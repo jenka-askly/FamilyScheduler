@@ -23,7 +23,6 @@ const state = () => ({
 
 test.afterEach(() => setStorageAdapterForTests(null));
 test.afterEach(() => {
-  delete process.env.TIME_RESOLVE_OPENAI_FALLBACK;
   delete process.env.OPENAI_API_KEY;
   delete process.env.DIRECT_VERSION;
   delete process.env.OPENAI_MODEL;
@@ -71,34 +70,17 @@ test('resolve_appointment_time returns resolved time without persisting', async 
   assert.equal((response.jsonBody as any).time?.intent?.status, 'resolved');
   assert.equal((response.jsonBody as any).time?.resolved?.timezone, 'America/Los_Angeles');
   assert.equal((response.jsonBody as any).usedFallback, false);
-  assert.equal((response.jsonBody as any).fallbackAttempted, false);
+  assert.equal((response.jsonBody as any).fallbackAttempted, true);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
   assert.equal((response.jsonBody as any).opId, null);
   assert.equal(typeof (response.jsonBody as any).nowIso, 'string');
   assert.equal((response.jsonBody as any).invocationId, 'inv-123');
 });
 
-test('resolve_appointment_time skips AI when feature flag is off', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '0';
-  const adapter: StorageAdapter = {
-    async initIfMissing() {},
-    async load() { return { state: state(), etag: 'etag-1' }; },
-    async save() { throw new Error('save should not be called'); }
-  };
-  setStorageAdapterForTests(adapter);
-
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
-  assert.equal(response.status, 200);
-  assert.equal((response.jsonBody as any).fallbackAttempted, false);
-  assert.equal((response.jsonBody as any).usedFallback, false);
-  assert.equal(typeof (response.jsonBody as any).directVersion, 'string');
-  assert.equal((response.jsonBody as any).opId, null);
-});
 
 
 
 test('resolve_appointment_time uses AI result when fallback succeeds', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
   const originalFetch = global.fetch;
@@ -125,7 +107,6 @@ test('resolve_appointment_time uses AI result when fallback succeeds', async () 
 });
 
 test('resolve_appointment_time degrades gracefully when AI call fails', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
   const originalFetch = global.fetch;

@@ -5,14 +5,12 @@ import { resolveTimeSpecWithFallback } from './resolveTimeSpecWithFallback.js';
 const NOW = new Date('2026-01-01T12:00:00.000Z');
 
 test.afterEach(() => {
-  delete process.env.TIME_RESOLVE_OPENAI_FALLBACK;
   delete process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_MODEL;
   delete process.env.TIME_RESOLVE_MODEL;
 });
 
-test('AI-first returns resolved result from OpenAI', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
+test('AI-first returns result from OpenAI', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 
@@ -36,11 +34,10 @@ test('AI-first returns resolved result from OpenAI', async () => {
 });
 
 test('OpenAI failure gracefully falls back to deterministic parser', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 
-  const fetchMock = mock.method(global, 'fetch', async () => ({ ok: false, status: 503, json: async () => ({}) }) as unknown as Response);
+  const fetchMock = mock.method(global, 'fetch', async () => ({ ok: false, status: 503, text: async () => 'upstream failed' }) as unknown as Response);
 
   const result = await resolveTimeSpecWithFallback({ whenText: '3/3 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-2', context: { log: () => {} } as any });
   assert.equal(result.fallbackAttempted, true);
@@ -50,33 +47,7 @@ test('OpenAI failure gracefully falls back to deterministic parser', async () =>
   fetchMock.mock.restore();
 });
 
-test('AI parse is skipped when fallback flag is disabled', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '0';
-  process.env.OPENAI_API_KEY = 'sk-test';
-  process.env.OPENAI_MODEL = 'gpt-test';
-
-  const fetchMock = mock.method(global, 'fetch', async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      id: 'resp_forced',
-      model: 'gpt-live',
-      output_text: JSON.stringify({ status: 'resolved', startUtc: '2026-01-02T23:00:00.000Z', endUtc: '2026-01-02T23:01:00.000Z' })
-    })
-  }) as unknown as Response);
-
-  const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 3pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-3', context: { log: () => {} } as any });
-  assert.equal(result.fallbackAttempted, false);
-  assert.equal(result.usedFallback, false);
-  assert.equal(result.time.intent.status, 'unresolved');
-  assert.equal(result.model, undefined);
-  assert.equal(fetchMock.mock.callCount(), 0);
-  fetchMock.mock.restore();
-});
-
-
-test('AI bad response does not silently fallback', async () => {
-  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
+test('AI bad response gracefully falls back to deterministic parser', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 
@@ -89,10 +60,10 @@ test('AI bad response does not silently fallback', async () => {
     })
   }) as unknown as Response);
 
-  await assert.rejects(
-    resolveTimeSpecWithFallback({ whenText: 'tomorrow 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-4', context: { log: () => {} } as any }),
-    /Resolved output missing valid UTC interval/
-  );
+  const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-4', context: { log: () => {} } as any });
+  assert.equal(result.fallbackAttempted, true);
+  assert.equal(result.usedFallback, false);
+  assert.equal(result.time.intent.status, 'unresolved');
 
   assert.equal(fetchMock.mock.callCount(), 1);
   fetchMock.mock.restore();
