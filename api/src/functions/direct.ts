@@ -15,7 +15,7 @@ import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validati
 
 type ResponseSnapshot = {
   appointments: Array<{ code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
-  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
+  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -71,7 +71,7 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       notes: appointment.notes ?? ''
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, cellE164: person.cellE164, status: person.status === 'active' ? 'active' : 'removed', timezone: person.timezone, notes: person.notes ?? '' })),
+  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, cellE164: person.cellE164, status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
@@ -199,7 +199,8 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (directAction.type === 'create_blank_person') {
     const personId = nextPersonId(loaded.state);
-    loaded.state.people.push({ personId, name: '', cellE164: '', cellDisplay: '', status: 'active', timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
+    const now = new Date().toISOString();
+    loaded.state.people.push({ personId, name: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
     try {
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
       return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } };
@@ -229,6 +230,7 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
       person.name = nextName;
       person.cellE164 = normalizedPhone.e164;
       person.cellDisplay = normalizedPhone.display;
+      person.lastSeen = new Date().toISOString();
       try {
         const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
         return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
@@ -250,6 +252,7 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
     if (!person) return badRequest('Person not found', traceId);
     person.status = 'removed';
+    person.lastSeen = new Date().toISOString();
     try {
       const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
       return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } };
