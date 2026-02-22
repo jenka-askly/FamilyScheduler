@@ -8,6 +8,7 @@ export type Person = {
   cellDisplay?: string;
   status: 'active' | 'removed';
   createdAt?: string;
+  lastSeen?: string;
   timezone?: string;
   notes?: string;
 };
@@ -124,10 +125,11 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     const cellE164 = typeof raw?.cellE164 === 'string' ? raw.cellE164.trim() : '';
     const cellDisplay = typeof raw?.cellDisplay === 'string' ? raw.cellDisplay.trim() : cellE164;
     const createdAt = typeof raw?.createdAt === 'string' && raw.createdAt.trim() ? raw.createdAt.trim() : undefined;
+    const lastSeen = typeof raw?.lastSeen === 'string' && raw.lastSeen.trim() ? raw.lastSeen.trim() : createdAt;
     const timezone = typeof raw?.timezone === 'string' && raw.timezone.trim() ? raw.timezone.trim() : DEFAULT_TZ;
     const notes = typeof raw?.notes === 'string' ? raw.notes.trim().slice(0, 500) : '';
 
-    people.push({ personId, name, cellE164, cellDisplay, status, createdAt, timezone, notes });
+    people.push({ personId, name, cellE164, cellDisplay, status, createdAt, lastSeen, timezone, notes });
   }
   return people;
 };

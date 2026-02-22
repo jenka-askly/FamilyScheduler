@@ -9,7 +9,7 @@ import type { TimeSpec } from '../../../packages/shared/src/types.js';
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
   appointments: Array<{ code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string }>;
-  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; timezone?: string; notes?: string }>;
+  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: TimeSpec; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -82,6 +82,14 @@ const CheckCircle = () => <Icon><circle cx="12" cy="12" r="9" /><path d="m9 12 2
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
+
+
+const formatLastSeen = (lastSeen?: string): string => {
+  if (!lastSeen) return '—';
+  const parsed = new Date(lastSeen);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleString();
+};
 
 const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
   if (rule.time?.resolved?.startUtc && rule.time?.resolved?.endUtc) return { startMs: Date.parse(rule.time.resolved.startUtc), endMs: Date.parse(rule.time.resolved.endUtc) };
@@ -722,7 +730,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
           <div className="table-wrap fs-tableScroll">
             <table className="data-table">
-              <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
               <tbody>
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
@@ -738,7 +746,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                             {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} placeholder="(425) 555-1234" /> : <span style={{ fontFamily: 'var(--font-mono)' }}>{person.cellDisplay || '—'}</span>}
                             {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
                           </td>
-                          <td><span className={`status-tag ${person.status === 'active' ? 'available' : 'unknown'}`}>{person.status}</span></td>
+                          <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
                           <td className="actions-cell">
                             {isNewRowEditing ? (
                               <div className="action-buttons">

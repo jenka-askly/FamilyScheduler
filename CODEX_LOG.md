@@ -4845,3 +4845,32 @@ Eliminate deploy-time shim entrypoint usage so Azure Functions runtime loads the
 ### Follow-ups
 
 - Trigger deploy to Azure and confirm Portal function list reflects expected functions in production environment.
+
+
+## 2026-02-22 01:25 UTC
+
+### Objective
+Replace People table Status with Last seen and plumb timestamp data through API snapshots/state.
+
+### Approach
+- Added optional `lastSeen` to normalized person state (fallbacks to `createdAt` for older blobs).
+- Included `lastSeen` in `chat` and `direct` response snapshots.
+- Updated `direct` person create/update/delete flows to refresh `lastSeen` on saved mutations.
+- Updated web People table to render a new **Last seen** column with local date/time formatting.
+- Updated continuity doc (`PROJECT_STATUS.md`).
+
+### Files changed
+- `api/src/lib/state.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/chat.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `git status --short` ✅ verified expected modified files only.
+
+### Follow-ups
+- Consider updating `lastSeen` from chat read-only requests as well if "seen" should include non-mutating activity.
