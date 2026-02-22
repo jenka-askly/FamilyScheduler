@@ -198,11 +198,9 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
       text: {
         format: {
           type: 'json_schema',
-          json_schema: {
-            name: 'time_spec_parse',
-            schema,
-            strict: true
-          }
+          name: 'time_spec',
+          schema,
+          strict: true
         }
       }
     })

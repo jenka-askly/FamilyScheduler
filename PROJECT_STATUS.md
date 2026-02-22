@@ -1,3 +1,7 @@
+## 2026-02-22 update (Responses API text.format.name fix)
+
+- Fixed time parse AI `/v1/responses` structured output payload by adding required `text.format.name` (`time_spec`) and keeping schema under `text.format.schema` with `strict: true`.
+
 ## 2026-02-22 update (AI-first interval resolution + duration provenance)
 
 - Shifted appointment preview resolution to AI-first interval parsing, with deterministic parsing used only when AI is explicitly disabled.
