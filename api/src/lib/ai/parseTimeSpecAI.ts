@@ -9,15 +9,16 @@ const schema = {
   required: ['status'],
   properties: {
     status: { type: 'string', enum: ['resolved', 'partial', 'unresolved'] },
+    startUtc: { type: ['string', 'null'] },
+    endUtc: { type: ['string', 'null'] },
     missing: {
-      type: 'array',
-      items: { type: 'string', enum: TIME_MISSING_KEYS },
-      default: []
+      type: ['array', 'null'],
+      items: { type: 'string' }
     },
-    startUtc: { type: 'string' },
-    endUtc: { type: 'string' },
-    assumptions: { type: 'array', items: { type: 'string' }, default: [] },
-    evidenceSnippets: { type: 'array', items: { type: 'string' }, default: [] }
+    assumptions: {
+      type: ['array', 'null'],
+      items: { type: 'string' }
+    }
   }
 } as const;
 
@@ -52,7 +53,6 @@ type AIOutput = {
   startUtc?: string;
   endUtc?: string;
   assumptions?: string[];
-  evidenceSnippets?: string[];
 };
 
 const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
@@ -75,15 +75,14 @@ const parseAiOutput = (raw: unknown): AIOutput => {
     : undefined;
 
   const assumptions = Array.isArray(record.assumptions) ? record.assumptions.filter((item): item is string => typeof item === 'string') : undefined;
-  const evidenceSnippets = Array.isArray(record.evidenceSnippets) ? record.evidenceSnippets.filter((item): item is string => typeof item === 'string') : undefined;
 
   if (status === 'resolved') {
     if (!isIsoUtc(record.startUtc) || !isIsoUtc(record.endUtc)) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Resolved output missing valid UTC interval');
-    return { status, startUtc: record.startUtc, endUtc: record.endUtc, assumptions, evidenceSnippets };
+    return { status, startUtc: record.startUtc, endUtc: record.endUtc, assumptions };
   }
 
   if (!missing?.length) throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'Partial/unresolved output requires missing fields');
-  return { status, missing, assumptions, evidenceSnippets };
+  return { status, missing, assumptions };
 };
 
 const toTimeSpec = (input: ParseTimeSpecAIArgs, output: AIOutput): TimeSpec => {
@@ -92,8 +91,7 @@ const toTimeSpec = (input: ParseTimeSpecAIArgs, output: AIOutput): TimeSpec => {
       intent: {
         status: 'resolved',
         originalText: input.originalText,
-        assumptions: output.assumptions?.length ? output.assumptions : undefined,
-        evidenceSnippets: output.evidenceSnippets?.length ? output.evidenceSnippets : undefined
+        assumptions: output.assumptions?.length ? output.assumptions : undefined
       },
       resolved: { startUtc: output.startUtc!, endUtc: output.endUtc!, timezone: input.timezone }
     };
@@ -104,8 +102,7 @@ const toTimeSpec = (input: ParseTimeSpecAIArgs, output: AIOutput): TimeSpec => {
       status: output.status,
       originalText: input.originalText,
       missing: output.missing,
-      assumptions: output.assumptions?.length ? output.assumptions : undefined,
-      evidenceSnippets: output.evidenceSnippets?.length ? output.evidenceSnippets : undefined
+      assumptions: output.assumptions?.length ? output.assumptions : undefined
     }
   };
 };
@@ -161,12 +158,12 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
           ]
         }
       ],
-      text: {
-        format: {
-          type: 'json_schema',
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
           name: 'time_spec_parse',
-          strict: true,
-          schema
+          schema,
+          strict: true
         }
       }
     })
