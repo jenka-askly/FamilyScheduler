@@ -8,6 +8,16 @@ export const MAX_SCAN_BYTES = 3 * 1024 * 1024;
 export const scanMimeToExt = (mime: string): 'jpg' | 'png' | 'webp' => (mime === 'image/png' ? 'png' : (mime === 'image/webp' ? 'webp' : 'jpg'));
 export const scanBlobKey = (groupId: string, appointmentId: string, mime: string): string => `familyscheduler/groups/${groupId}/appointments/${appointmentId}/scan/scan.${scanMimeToExt(mime)}`;
 
+const getTimeZoneOffset = (date: Date, timeZone: string): string => {
+  const formatter = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' });
+  const zonePart = formatter.formatToParts(date).find((part) => part.type === 'timeZoneName')?.value ?? 'GMT-08:00';
+  const match = zonePart.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+  if (!match) return '-08:00';
+  return `${match[1]}${match[2].padStart(2, '0')}:${(match[3] ?? '00').padStart(2, '0')}`;
+};
+
+const buildIsoAtZone = (date: string, startTime: string, timezone: string): string => `${date}T${startTime}:00${getTimeZoneOffset(new Date(`${date}T${startTime}:00Z`), timezone)}`;
+
 export const decodeImageBase64 = (value: string): Buffer => {
   const cleaned = value.replace(/\s+/g, '');
   const bytes = Buffer.from(cleaned, 'base64');
@@ -71,12 +81,37 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
 
   if (parsed.startTime) {
     if (mode === 'rescan' || !appointment.startTime) appointment.startTime = parsed.startTime;
-    if (mode === 'rescan' || appointment.durationMins === undefined) appointment.durationMins = parsed.durationMins ?? appointment.durationMins;
+    if (mode === 'rescan' || appointment.durationMins === undefined) appointment.durationMins = parsed.durationMins ?? 60;
     appointment.isAllDay = false;
   } else if (mode === 'rescan' || appointment.isAllDay || !appointment.startTime) {
     appointment.startTime = undefined;
     appointment.durationMins = undefined;
     appointment.isAllDay = true;
+  }
+
+  const parsedDate = parsed.date ?? undefined;
+  const parsedStartTime = parsed.startTime ?? undefined;
+  const hasParsedDateAndTime = Boolean(parsedDate && parsedStartTime);
+  const timeIsEmptyEquivalent = !appointment.time || appointment.time.intent.status !== 'resolved' || !appointment.time.resolved;
+  if (hasParsedDateAndTime && (mode === 'rescan' || timeIsEmptyEquivalent)) {
+    const timezone = parsed.timezone ?? appointment.timezone ?? 'America/Los_Angeles';
+    const durationMins = parsed.durationMins ?? appointment.durationMins ?? 60;
+    const startUtc = buildIsoAtZone(parsedDate as string, parsedStartTime as string, timezone);
+    const endUtc = new Date(Date.parse(startUtc) + durationMins * 60_000).toISOString();
+    appointment.time = {
+      intent: {
+        status: 'resolved',
+        originalText: `${parsedDate} ${parsedStartTime}`
+      },
+      resolved: {
+        timezone,
+        startUtc,
+        endUtc
+      }
+    };
+    appointment.start = startUtc;
+    appointment.end = endUtc;
+    appointment.isAllDay = false;
   }
 
   if (parsed.date || parsed.startTime) appointment.scanAutoDate = false;
