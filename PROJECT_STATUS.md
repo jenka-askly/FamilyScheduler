@@ -1,3 +1,12 @@
+## 2026-02-22 update (AI time parse opId/model null debugging)
+
+- Traced the AI time parsing path end-to-end and added explicit pre-request diagnostics that log configured model wiring (`TIME_RESOLVE_MODEL`, `OPENAI_MODEL`) before the time parse request is sent.
+- Added explicit OpenAI result diagnostics after response decode to log `opId` from `resp.id` and `model` from `resp.model`.
+- Updated metadata propagation so `resolve_appointment_time` logging now prefers runtime response model (`resp.model`) while preserving configured model as fallback.
+- Removed the `TIME_RESOLVE_OPENAI_FALLBACK=0` bypass in the time resolver so AI is always attempted first, then deterministic parser fallback is used only for call/config failures.
+- Added startup config log line in `api/src/index.ts` so deployments confirm time-parse model settings at boot.
+- Updated tests for always-attempt-AI behavior and response-model propagation.
+
 ## 2026-02-22 update (time_spec_parse schema flattening fix)
 
 - Fixed AI time parsing structured output request to use `response_format.json_schema` with a minimal flat `time_spec_parse` schema (`status`, nullable `startUtc`/`endUtc`, nullable `missing`/`assumptions`) to avoid OpenAI HTTP 400 invalid schema errors.

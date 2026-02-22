@@ -48,17 +48,27 @@ test('OpenAI failure gracefully falls back to deterministic parser', async () =>
   fetchMock.mock.restore();
 });
 
-test('disabled AI keeps deterministic unresolved local parse', async () => {
+test('AI parse is attempted even when fallback flag is disabled', async () => {
   process.env.TIME_RESOLVE_OPENAI_FALLBACK = '0';
-  const fetchMock = mock.method(global, 'fetch', async () => {
-    throw new Error('fetch should not be called');
-  });
+  process.env.OPENAI_API_KEY = 'sk-test';
+  process.env.OPENAI_MODEL = 'gpt-test';
+
+  const fetchMock = mock.method(global, 'fetch', async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: 'resp_forced',
+      model: 'gpt-live',
+      output_text: JSON.stringify({ status: 'resolved', startUtc: '2026-01-02T23:00:00.000Z', endUtc: '2026-01-02T23:01:00.000Z' })
+    })
+  }) as unknown as Response);
 
   const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 3pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-3', context: { log: () => {} } as any });
-  assert.equal(result.fallbackAttempted, false);
+  assert.equal(result.fallbackAttempted, true);
   assert.equal(result.usedFallback, false);
-  assert.equal(result.time.intent.status, 'unresolved');
-  assert.equal(fetchMock.mock.callCount(), 0);
+  assert.equal(result.time.intent.status, 'resolved');
+  assert.equal(result.model, 'gpt-live');
+  assert.equal(fetchMock.mock.callCount(), 1);
   fetchMock.mock.restore();
 });
 
