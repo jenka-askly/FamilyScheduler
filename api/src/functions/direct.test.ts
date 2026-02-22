@@ -20,6 +20,11 @@ const state = () => ({
 } as any);
 
 test.afterEach(() => setStorageAdapterForTests(null));
+test.afterEach(() => {
+  delete process.env.TIME_RESOLVE_OPENAI_FALLBACK;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.DIRECT_VERSION;
+});
 
 test('direct returns group_not_found when group is missing', async () => {
   const adapter: StorageAdapter = { async initIfMissing() {}, async save() { throw new Error('not used'); }, async load() { throw new GroupNotFoundError(); } };
@@ -38,6 +43,7 @@ test('direct maps conflict to 409 with traceId', async () => {
   const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'create_blank_appointment' } }) } as any, {} as any);
   assert.equal(response.status, 409);
   assert.ok((response.jsonBody as any).traceId);
+  assert.equal((response.jsonBody as any).directVersion, 'unknown');
 });
 
 
@@ -55,6 +61,25 @@ test('resolve_appointment_time returns resolved time without persisting', async 
   assert.equal((response.jsonBody as any).ok, true);
   assert.equal((response.jsonBody as any).time?.intent?.status, 'resolved');
   assert.equal((response.jsonBody as any).time?.resolved?.timezone, 'America/Los_Angeles');
+  assert.equal((response.jsonBody as any).usedFallback, false);
+  assert.equal((response.jsonBody as any).fallbackAttempted, false);
+  assert.equal((response.jsonBody as any).directVersion, 'unknown');
+});
+
+test('resolve_appointment_time does not attempt fallback when feature flag is off', async () => {
+  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '0';
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); }
+  };
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).fallbackAttempted, false);
+  assert.equal((response.jsonBody as any).usedFallback, false);
+  assert.equal(typeof (response.jsonBody as any).directVersion, 'string');
 });
 
 
@@ -76,6 +101,9 @@ test('resolve_appointment_time returns openai error when fallback call fails', a
   assert.equal(response.status, 502);
   assert.equal((response.jsonBody as any).ok, false);
   assert.equal((response.jsonBody as any).error?.code, 'OPENAI_CALL_FAILED');
+  assert.equal((response.jsonBody as any).fallbackAttempted, true);
+  assert.equal((response.jsonBody as any).usedFallback, false);
+  assert.equal((response.jsonBody as any).directVersion, 'unknown');
   assert.equal(saveCalls, 0);
 
   global.fetch = originalFetch;
