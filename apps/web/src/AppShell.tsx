@@ -890,7 +890,22 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                         <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
                         <td>
                           <div className="action-icons">
-                            <button type="button" className="icon-button" aria-label="Rescan appointment" data-tooltip="Rescan" onClick={() => { setScanTargetAppointmentId(appointment.id); fileScanInputRef.current?.click(); }}>📷</button><button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
+                            {appointment.scanImageKey ? (
+                              <button
+                                type="button"
+                                className="icon-button"
+                                aria-label="View appointment scan"
+                                data-tooltip="View scan"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setScanViewerAppointment(appointment);
+                                }}
+                              >
+                                📷
+                              </button>
+                            ) : null}
+                            <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => setAppointmentToDelete(appointment)}><Trash2 /></button>
                           </div>
                         </td>
                       </tr>
