@@ -33,7 +33,7 @@ test('OPENAI_LOG_ENABLED=true writes redacted request and response NDJSON lines'
   })) as unknown as typeof fetch;
 
   const parsed = await parseToActions('help https://example.test?sig=abc123', createContext(), { traceId: 'trace-1', sessionIdHash: 'sess-1' });
-  assert.equal(parsed.kind, 'reply');
+  assert.equal(parsed.parsed.kind, 'reply');
 
   const logPath = path.join(tmpDir, 'openai.ndjson');
   const file = await fs.readFile(logPath, 'utf8');
@@ -67,8 +67,8 @@ test('parseToActions logs and throws on non-200 OpenAI HTTP response', async () 
 
   console.error = originalConsoleError;
   const tags = consoleErrorCalls.map((args) => String(args[0]));
-  assert.equal(tags.includes('openai_http_error'), true);
-  assert.equal(tags.includes('openai_call_failed'), true);
+  assert.equal(tags.some((entry) => entry.includes('openai_http_error')), true);
+  assert.equal(tags.some((entry) => entry.includes('openai_call_failed')), true);
 });
 
 

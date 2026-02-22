@@ -55,12 +55,14 @@ const toTimeSpec = (whenText: string, timezone: string, aiResult: OpenAiTimeReso
   };
 };
 
-const callOpenAi = async ({ whenText, timezone, now }: ResolveArgs): Promise<OpenAiTimeResolve> => {
+const callOpenAi = async ({ whenText, timezone, now, traceId }: ResolveArgs): Promise<{ parsed: OpenAiTimeResolve; opId?: string; model: string }> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new TimeResolveFallbackError('OPENAI_NOT_CONFIGURED', 'OPENAI_API_KEY is not configured');
 
   const model = process.env.TIME_RESOLVE_MODEL ?? process.env.OPENAI_MODEL;
   if (!model) throw new TimeResolveFallbackError('OPENAI_NOT_CONFIGURED', 'OPENAI_MODEL is not configured');
+
+  console.info(JSON.stringify({ traceId, stage: 'time_resolve_openai_before_fetch', model }));
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -97,7 +99,9 @@ const callOpenAi = async ({ whenText, timezone, now }: ResolveArgs): Promise<Ope
 
   const payload = await response.json().catch(() => {
     throw new TimeResolveFallbackError('OPENAI_BAD_RESPONSE', 'OpenAI response was not valid JSON');
-  }) as { choices?: Array<{ message?: { content?: string } }> };
+  }) as { id?: string; choices?: Array<{ message?: { content?: string } }> };
+  const opId = payload.id;
+  console.info(JSON.stringify({ traceId, stage: 'time_resolve_openai_after_fetch', model, status: response.status, opId: opId ?? null }));
 
   const rawContent = payload.choices?.[0]?.message?.content;
   if (!rawContent) throw new TimeResolveFallbackError('OPENAI_BAD_RESPONSE', 'OpenAI response missing content');
@@ -111,14 +115,14 @@ const callOpenAi = async ({ whenText, timezone, now }: ResolveArgs): Promise<Ope
 
   const validated = parseOpenAiTimeResolve(parsed);
   if (!validated) throw new TimeResolveFallbackError('OPENAI_BAD_RESPONSE', 'OpenAI response schema validation failed');
-  return validated;
+  return { parsed: validated, opId, model };
 };
 
-export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ time: TimeSpec; fallbackAttempted: boolean; usedFallback: boolean }> {
+export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<{ time: TimeSpec; fallbackAttempted: boolean; usedFallback: boolean; opId?: string; model?: string }> {
   const timeLocal = parseTimeSpec({ originalText: args.whenText, timezone: args.timezone, now: args.now });
-  if (timeLocal.intent.status === 'resolved') return { time: timeLocal, fallbackAttempted: false, usedFallback: false };
-  if (!fallbackEnabled()) return { time: timeLocal, fallbackAttempted: false, usedFallback: false };
+  if (timeLocal.intent.status === 'resolved') return { time: timeLocal, fallbackAttempted: false, usedFallback: false, opId: undefined, model: undefined };
+  if (!fallbackEnabled()) return { time: timeLocal, fallbackAttempted: false, usedFallback: false, opId: undefined, model: undefined };
 
   const aiResult = await callOpenAi(args);
-  return { time: toTimeSpec(args.whenText, args.timezone, aiResult), fallbackAttempted: true, usedFallback: true };
+  return { time: toTimeSpec(args.whenText, args.timezone, aiResult.parsed), fallbackAttempted: true, usedFallback: true, opId: aiResult.opId, model: aiResult.model };
 }

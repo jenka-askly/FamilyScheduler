@@ -117,13 +117,17 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
   if (parsed.date || parsed.startTime) appointment.scanAutoDate = false;
 };
 
-export const parseAndApplyScan = async (storage: StorageAdapter, state: AppState, groupId: string, appointment: Appointment, imageBase64: string, imageMime: 'image/jpeg' | 'image/png' | 'image/webp', timezone: string | undefined, mode: 'initial' | 'rescan', traceId: string): Promise<void> => {
+export type ParseAndApplyScanResult = { opId?: string; model?: string };
+
+export const parseAndApplyScan = async (storage: StorageAdapter, state: AppState, groupId: string, appointment: Appointment, imageBase64: string, imageMime: 'image/jpeg' | 'image/png' | 'image/webp', timezone: string | undefined, mode: 'initial' | 'rescan', traceId: string): Promise<ParseAndApplyScanResult> => {
   try {
     const parsed = await parseAppointmentFromImage({ imageBase64, imageMime, timezone, traceId });
-    applyParsedFields(appointment, parsed, mode);
+    applyParsedFields(appointment, parsed.parsed, mode);
     appointment.scanStatus = 'parsed';
+    return { opId: parsed.opId, model: parsed.model };
   } catch (error) {
     appointment.scanStatus = 'failed';
-    console.warn(JSON.stringify({ traceId, stage: 'scan_parse_failed', groupId, appointmentId: appointment.id, message: error instanceof Error ? error.message : String(error) }));
+    console.warn(JSON.stringify({ traceId, stage: 'scan_parse_failed', groupId, appointmentId: appointment.id, message: error instanceof Error ? error.message : String(error), opId: null }));
+    return { opId: undefined, model: process.env.OPENAI_VISION_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4.1-mini' };
   }
 };

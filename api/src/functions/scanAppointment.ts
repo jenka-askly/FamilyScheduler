@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { validateJoinRequest, findActivePersonByPhone } from '../lib/groupAuth.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -8,6 +7,7 @@ import { createScannedAppointment, decodeImageBase64, parseAndApplyScan, scanBlo
 import { toResponseSnapshot } from './direct.js';
 
 export async function scanAppointment(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
+  let opId: string | undefined;
   const traceId = `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const body = await request.json() as { groupId?: unknown; phone?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
   const identity = validateJoinRequest(body.groupId, body.phone);
@@ -36,9 +36,10 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
     const fresh = await storage.load(identity.groupId);
     const target = fresh.state.appointments.find((item) => item.id === appointment.id);
     if (!target) return;
-    await parseAndApplyScan(storage, fresh.state, identity.groupId, target, body.imageBase64 as string, imageMime, typeof body.timezone === 'string' ? body.timezone : undefined, 'initial', traceId);
+    const scanResult = await parseAndApplyScan(storage, fresh.state, identity.groupId, target, body.imageBase64 as string, imageMime, typeof body.timezone === 'string' ? body.timezone : undefined, 'initial', traceId);
+    opId = scanResult.opId;
     await storage.save(identity.groupId, fresh.state, fresh.etag);
   })().catch((error) => console.warn(JSON.stringify({ traceId, stage: 'scan_async_failed', appointmentId: appointment.id, message: error instanceof Error ? error.message : String(error) })));
 
-  return { status: 200, jsonBody: { ok: true, appointmentId: appointment.id, snapshot: toResponseSnapshot(saved.state), traceId: randomUUID() } };
+  return { status: 200, jsonBody: { ok: true, appointmentId: appointment.id, snapshot: toResponseSnapshot(saved.state), traceId, opId: opId ?? null } };
 }

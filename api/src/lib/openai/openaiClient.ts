@@ -11,8 +11,10 @@ type ParseOptions = {
   traceId: string;
   sessionIdHash: string;
   onHttpResult?: (result: { status: number; latencyMs: number }) => void;
+  onOpenAiResult?: (result: { opId?: string; model: string }) => void;
   onModelUsage?: (usage: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined) => void;
 };
+export type ParseToActionsResult = { parsed: ParsedModelResponse; opId?: string };
 export type OpenAiDiagnosticResult = { ok: boolean; model: string; hasApiKey: boolean; lastError?: string; latencyMs?: number };
 
 const truncate = (value: string, maxChars: number): string => value.length <= maxChars ? value : `${value.slice(0, maxChars)}...`;
@@ -26,7 +28,7 @@ const getOpenAiLogPath = (): string => {
   return path.join(configuredDir, 'openai.ndjson');
 };
 
-export const parseToActions = async (input: string, context: ParserContext, options: ParseOptions): Promise<ParsedModelResponse> => {
+export const parseToActions = async (input: string, context: ParserContext, options: ParseOptions): Promise<ParseToActionsResult> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not configured');
@@ -87,9 +89,12 @@ export const parseToActions = async (input: string, context: ParserContext, opti
     }
 
     const payload = await response.json() as {
+      id?: string;
       choices?: Array<{ message?: { content?: string } }>;
       usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
+    options.onOpenAiResult?.({ opId: payload.id, model });
+    console.info(JSON.stringify({ traceId: options.traceId, stage: 'openai_result_received', opId: payload.id ?? null, model }));
     options.onModelUsage?.(payload.usage);
 
     const rawContent = payload.choices?.[0]?.message?.content;
@@ -123,11 +128,9 @@ export const parseToActions = async (input: string, context: ParserContext, opti
     }
 
     if (!parsed) throw new Error('OpenAI parse response validation failed');
-    return parsed;
+    return { parsed, opId: payload.id };
   } catch (err) {
-    console.error('openai_call_failed', {
-      message: err instanceof Error ? err.message : String(err)
-    });
+    console.error(JSON.stringify({ stage: 'openai_call_failed', traceId: options.traceId, message: err instanceof Error ? err.message : String(err) }));
     throw err;
   }
 };
