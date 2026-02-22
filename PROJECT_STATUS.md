@@ -10,6 +10,11 @@
 - Added optional single-line structured log event (`kind=time_resolve`) behind `TIME_RESOLVE_LOG_ENABLED=1` for Kusto-friendly diagnostics.
 - Time point-in-time results continue returning `startUtc` only (no invented duration/end time).
 
+### Instrumentation
+- Added structured OpenAI logging in /api/direct
+- Exposed invocationId and opId in API responses
+- Enables Kusto correlation without dependency auto-collection
+
 # PROJECT_STATUS
 
 ## Current milestone
