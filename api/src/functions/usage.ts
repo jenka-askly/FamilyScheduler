@@ -1,15 +1,10 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-
-export type UsageState = 'unknown' | 'ok' | 'warning' | 'limit_reached';
+import { readUsageResponse } from '../lib/usageMeter.js';
 
 export async function usage(_request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const nowIso = new Date().toISOString();
+  const payload = await readUsageResponse();
   return {
     status: 200,
-    jsonBody: {
-      usageState: 'unknown' as UsageState,
-      usageSummary: 'usage data not configured',
-      updatedAt: nowIso
-    }
+    jsonBody: payload
   };
 }

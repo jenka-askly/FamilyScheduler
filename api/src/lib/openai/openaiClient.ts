@@ -11,6 +11,7 @@ type ParseOptions = {
   traceId: string;
   sessionIdHash: string;
   onHttpResult?: (result: { status: number; latencyMs: number }) => void;
+  onModelUsage?: (usage: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined) => void;
 };
 export type OpenAiDiagnosticResult = { ok: boolean; model: string; hasApiKey: boolean; lastError?: string; latencyMs?: number };
 
@@ -87,7 +88,9 @@ export const parseToActions = async (input: string, context: ParserContext, opti
 
     const payload = await response.json() as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
+    options.onModelUsage?.(payload.usage);
 
     const rawContent = payload.choices?.[0]?.message?.content;
     if (!rawContent) {

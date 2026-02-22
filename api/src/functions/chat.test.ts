@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { chat } from './chat.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
+import { setUsageMeterStoreForTests, type UsageMeterRecord } from '../lib/usageMeter.js';
 
 const GROUP_ID = '11111111-1111-4111-8111-111111111111';
 const PHONE = '+14155550123';
@@ -18,6 +19,7 @@ const okAdapter = (): StorageAdapter => ({
 
 test.afterEach(() => {
   setStorageAdapterForTests(null);
+  setUsageMeterStoreForTests(null);
   globalThis.fetch = originalFetch;
 });
 
@@ -164,4 +166,58 @@ test('chat returns CONFIG_MISSING when storage env is missing', async () => {
   assert.equal((response.jsonBody as any).traceId, 't-config');
   if (prevUrl) process.env.STORAGE_ACCOUNT_URL = prevUrl; else delete process.env.STORAGE_ACCOUNT_URL;
   if (prevContainer) process.env.STATE_CONTAINER = prevContainer; else delete process.env.STATE_CONTAINER;
+});
+
+
+test('chat records usage meter on successful OpenAI call', async () => {
+  setStorageAdapterForTests(okAdapter());
+  process.env.OPENAI_API_KEY = 'sk-test';
+  const updates: UsageMeterRecord[] = [];
+  setUsageMeterStoreForTests({
+    trackingAvailable: true,
+    async load() { return updates.at(-1) ?? null; },
+    async update(updater) {
+      const next = updater(updates.at(-1) ?? null);
+      updates.push(next);
+      return next;
+    }
+  });
+
+  globalThis.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      usage: { input_tokens: 11, output_tokens: 7 },
+      choices: [{ message: { content: JSON.stringify({ kind: 'reply', message: 'done', actions: [{ type: 'help' }] }) } }]
+    })
+  })) as any;
+
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'list people', traceId: 't-usage-ok' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal(updates.length > 0, true);
+  assert.equal(updates.at(-1)?.requests, 1);
+  assert.equal(updates.at(-1)?.tokensIn, 11);
+  assert.equal(updates.at(-1)?.tokensOut, 7);
+});
+
+test('chat records usage meter error on OpenAI failure', async () => {
+  setStorageAdapterForTests(okAdapter());
+  process.env.OPENAI_API_KEY = 'sk-invalid';
+  const updates: UsageMeterRecord[] = [];
+  setUsageMeterStoreForTests({
+    trackingAvailable: true,
+    async load() { return updates.at(-1) ?? null; },
+    async update(updater) {
+      const next = updater(updates.at(-1) ?? null);
+      updates.push(next);
+      return next;
+    }
+  });
+
+  globalThis.fetch = (async () => ({ ok: false, status: 401, text: async () => 'invalid api key' })) as any;
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'list people', traceId: 't-usage-err' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 502);
+  assert.equal(updates.length > 0, true);
+  assert.equal(typeof updates.at(-1)?.lastErrorAtISO, 'string');
+  assert.match(updates.at(-1)?.lastErrorSummary ?? '', /OpenAI HTTP 401/i);
 });

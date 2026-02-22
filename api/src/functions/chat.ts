@@ -15,6 +15,7 @@ import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
+import { recordUsageError, recordUsageSuccess } from '../lib/usageMeter.js';
 
 type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
@@ -212,7 +213,8 @@ const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | '
   });
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_after_fetch', mode: params.mode, status: response.status, latencyMs: Date.now() - startedAt }));
   if (!response.ok) throw new Error(`OpenAI HTTP ${response.status}`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+  await recordUsageSuccess(payload.usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI rule parse missing content');
   if (process.env.RULES_DRAFT_DEBUG_RAW === '1') {
@@ -246,13 +248,16 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
   const contextEnvelope = buildContext({ state: params.state, identityName: getIdentityName(params.state, params.session.activePersonId), pendingProposal: params.session.pendingProposal ? { summary: 'Pending proposal', actions: params.session.pendingProposal.actions } : null, pendingClarification: params.session.pendingQuestion ? { question: params.session.pendingQuestion.message, partialAction: { type: 'help' }, missing: ['action'] } : null, history: params.session.chatHistory });
   const contextLen = JSON.stringify(contextEnvelope).length;
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_openai_before_fetch', model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', messageLen: params.message.length, contextLen }));
+  let usage: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
   const rawModel = await parseToActions(params.message, contextEnvelope, {
     traceId: params.traceId,
     sessionIdHash: createHash('sha256').update(params.sessionId).digest('hex').slice(0, 16),
     onHttpResult: ({ status, latencyMs }) => {
       console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_openai_after_fetch', status, latencyMs }));
-    }
+    },
+    onModelUsage: (modelUsage) => { usage = modelUsage; }
   });
+  await recordUsageSuccess(usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   return ParsedModelResponseSchema.parse(rawModel);
 };
 
@@ -529,6 +534,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     });
 
     if (openAiCallInFlight) {
+      await recordUsageError(err instanceof Error ? err.message : 'Unknown error').catch((error) => console.warn(JSON.stringify({ traceId, stage: 'usage_meter_record_error_failed', message: error instanceof Error ? error.message : String(error) })));
       return {
         status: 502,
         jsonBody: {
