@@ -56,3 +56,27 @@ test('resolve_appointment_time returns resolved time without persisting', async 
   assert.equal((response.jsonBody as any).time?.intent?.status, 'resolved');
   assert.equal((response.jsonBody as any).time?.resolved?.timezone, 'America/Los_Angeles');
 });
+
+
+test('resolve_appointment_time returns openai error when fallback call fails', async () => {
+  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
+  process.env.OPENAI_API_KEY = 'sk-test';
+  const originalFetch = global.fetch;
+  global.fetch = (async () => ({ ok: false, status: 503, json: async () => ({}) })) as unknown as typeof fetch;
+
+  let saveCalls = 0;
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { saveCalls += 1; throw new Error('save should not be called'); }
+  };
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, {} as any);
+  assert.equal(response.status, 502);
+  assert.equal((response.jsonBody as any).ok, false);
+  assert.equal((response.jsonBody as any).error?.code, 'OPENAI_CALL_FAILED');
+  assert.equal(saveCalls, 0);
+
+  global.fetch = originalFetch;
+});

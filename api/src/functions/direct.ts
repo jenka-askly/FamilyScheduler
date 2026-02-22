@@ -4,7 +4,8 @@ import { executeActions } from '../lib/actions/executor.js';
 import type { Action } from '../lib/actions/schema.js';
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
-import { getTimeSpec, parseTimeSpec } from '../lib/time/timeSpec.js';
+import { getTimeSpec } from '../lib/time/timeSpec.js';
+import { TimeResolveFallbackError, resolveTimeSpecWithFallback } from '../lib/time/aiTimeResolve.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -225,17 +226,53 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
-    const parsed = parseTimeSpec({ originalText: directAction.whenText, timezone, now: new Date() });
-    return {
-      status: 200,
-      jsonBody: {
-        ok: true,
-        time: parsed,
+    const loggingEnabled = (process.env.TIME_RESOLVE_LOG_ENABLED ?? '0') === '1';
+    try {
+      const resolved = await resolveTimeSpecWithFallback({
+        whenText: directAction.whenText,
         timezone,
-        appointmentId: directAction.appointmentId,
-        traceId
+        now: new Date(),
+        traceId,
+        log: loggingEnabled ? (obj) => console.info(JSON.stringify(obj)) : undefined
+      });
+
+      if (loggingEnabled) {
+        console.info(JSON.stringify({
+          traceId,
+          appointmentId: directAction.appointmentId,
+          timezone,
+          whenText: directAction.whenText,
+          usedFallback: resolved.usedFallback,
+          finalStatus: resolved.time.intent.status,
+          missing: resolved.time.intent.missing
+        }));
       }
-    };
+
+      return {
+        status: 200,
+        jsonBody: {
+          ok: true,
+          time: resolved.time,
+          timezone,
+          appointmentId: directAction.appointmentId,
+          traceId
+        }
+      };
+    } catch (error) {
+      if (error instanceof TimeResolveFallbackError) {
+        return {
+          status: 502,
+          jsonBody: {
+            ok: false,
+            error: { code: error.code, message: error.message },
+            traceId,
+            appointmentId: directAction.appointmentId,
+            timezone
+          }
+        };
+      }
+      throw error;
+    }
   }
 
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
