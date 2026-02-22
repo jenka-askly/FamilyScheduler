@@ -4981,3 +4981,33 @@ Restore explicit appointment Edit action in Schedule rows and make inline appoin
 ### Follow-ups
 
 - Optional: add UI test coverage for appointment click-away cancel if/when front-end test harness is introduced.
+
+## 2026-02-22 09:00 UTC (Responses API payload + fallback flag semantics)
+
+### Objective
+Fix time parsing Responses API payload shape (`text.format`), correct `fallbackAttempted`/`usedFallback` semantics, and align tests/docs.
+
+### Approach
+- Updated `parseTimeSpecAI` request body to use Responses structured outputs via `text.format.json_schema`.
+- Kept parse/output extraction intact and broadened `toOutputText()` slightly to handle content text variants.
+- Reworked `resolveTimeSpecWithFallback` to honor `TIME_RESOLVE_OPENAI_FALLBACK` and return corrected fallback booleans.
+- Updated direct/time resolver tests to match corrected semantics, including an explicit direct-route AI-success assertion.
+- Updated PROJECT_STATUS with this behavior change and stale-doc note.
+
+### Files changed
+- `api/src/lib/ai/parseTimeSpecAI.ts`
+- `api/src/lib/ai/parseTimeSpecAI.test.ts`
+- `api/src/lib/time/resolveTimeSpecWithFallback.ts`
+- `api/src/lib/time/resolveTimeSpecWithFallback.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+
+### Commands run
+- `pnpm --dir api test` ✅ (pass)
+- `node - <<'NODE' ...` ✅ (manual direct-route checks)
+
+### Outcomes
+- Responses API payload no longer uses unsupported `response_format` for time parsing.
+- Fallback flags now accurately describe whether AI was attempted and whether AI result was used.
+- Feature flag `TIME_RESOLVE_OPENAI_FALLBACK=0` now skips AI attempts in resolver/direct preview path.

@@ -12,6 +12,7 @@ test.afterEach(() => {
 });
 
 test('AI-first returns resolved result from OpenAI', async () => {
+  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 
@@ -26,7 +27,7 @@ test('AI-first returns resolved result from OpenAI', async () => {
 
   const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 1am', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-1', context: { log: () => {} } as any });
 
-  assert.equal(result.usedFallback, false);
+  assert.equal(result.usedFallback, true);
   assert.equal(result.fallbackAttempted, true);
   assert.equal(result.time.intent.status, 'resolved');
   assert.equal(result.opId, 'resp_123');
@@ -35,6 +36,7 @@ test('AI-first returns resolved result from OpenAI', async () => {
 });
 
 test('OpenAI failure gracefully falls back to deterministic parser', async () => {
+  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 
@@ -42,13 +44,13 @@ test('OpenAI failure gracefully falls back to deterministic parser', async () =>
 
   const result = await resolveTimeSpecWithFallback({ whenText: '3/3 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-2', context: { log: () => {} } as any });
   assert.equal(result.fallbackAttempted, true);
-  assert.equal(result.usedFallback, true);
+  assert.equal(result.usedFallback, false);
   assert.equal(result.time.intent.status, 'resolved');
   assert.equal(fetchMock.mock.callCount(), 1);
   fetchMock.mock.restore();
 });
 
-test('AI parse is attempted even when fallback flag is disabled', async () => {
+test('AI parse is skipped when fallback flag is disabled', async () => {
   process.env.TIME_RESOLVE_OPENAI_FALLBACK = '0';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
@@ -64,16 +66,17 @@ test('AI parse is attempted even when fallback flag is disabled', async () => {
   }) as unknown as Response);
 
   const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 3pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-3', context: { log: () => {} } as any });
-  assert.equal(result.fallbackAttempted, true);
+  assert.equal(result.fallbackAttempted, false);
   assert.equal(result.usedFallback, false);
-  assert.equal(result.time.intent.status, 'resolved');
-  assert.equal(result.model, 'gpt-live');
-  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.equal(result.time.intent.status, 'unresolved');
+  assert.equal(result.model, undefined);
+  assert.equal(fetchMock.mock.callCount(), 0);
   fetchMock.mock.restore();
 });
 
 
 test('AI bad response does not silently fallback', async () => {
+  process.env.TIME_RESOLVE_OPENAI_FALLBACK = '1';
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 

@@ -1,3 +1,11 @@
+## 2026-02-22 update (Responses API text.format + fallback semantics)
+
+- Fixed TimeSpec AI structured output payload for Responses API (OpenAI `/v1/responses` and Azure `/openai/responses`) by migrating from `response_format` to `text.format.json_schema` (`time_spec_parse`, `strict: true`).
+- Corrected `resolveTimeSpecWithFallback` semantics: `fallbackAttempted` now tracks whether AI was attempted, and `usedFallback` is true only when AI output is used; deterministic parse paths report `usedFallback: false`.
+- Restored feature-flag behavior for `TIME_RESOLVE_OPENAI_FALLBACK`: when disabled, AI is skipped and deterministic parsing is returned directly.
+- Updated tests to assert the new Responses API request contract and corrected fallback-flag expectations in direct/time resolver tests.
+- Note: `docs/discovery-photo-extract-appointment-feasibility.md` is currently stale (it claims no Responses API usage) and should be refreshed in a docs pass.
+
 ## 2026-02-22 update (schedule row actions + click-away cancel)
 
 - Re-added Edit icon next to Delete in Schedule row actions, including explicit accessible labels (`Edit appointment`, `Delete appointment`).

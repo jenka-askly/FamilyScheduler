@@ -14,10 +14,10 @@ test('parseTimeSpecAI resolves multilingual relative phrase', async () => {
 
   const fetchMock = mock.method(global, 'fetch', async (_input: unknown, init: { body?: BodyInit | null } | undefined) => {
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, any>;
-    assert.equal(body.response_format?.type, 'json_schema');
-    assert.equal(body.response_format?.json_schema?.name, 'time_spec_parse');
-    assert.equal(body.response_format?.json_schema?.strict, true);
-    assert.equal(body.response_format?.json_schema?.schema?.required?.includes('status'), true);
+    assert.equal(body.text?.format?.type, 'json_schema');
+    assert.equal(body.text?.format?.json_schema?.name, 'time_spec_parse');
+    assert.equal(body.text?.format?.json_schema?.strict, true);
+    assert.equal(body.text?.format?.json_schema?.schema?.required?.includes('status'), true);
 
     return ({
       ok: true,
