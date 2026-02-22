@@ -25,7 +25,7 @@ export const createScannedAppointment = (state: AppState, timezone: string): App
   return {
     id: `${Date.now()}-${randomUUID()}`,
     code,
-    title: 'Scanned item',
+    title: '',
     schemaVersion: 2,
     updatedAt: new Date().toISOString(),
     assigned: [],
@@ -33,24 +33,33 @@ export const createScannedAppointment = (state: AppState, timezone: string): App
     location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '',
     notes: '',
     timezone,
-    date: new Date().toISOString().slice(0, 10),
-    isAllDay: true,
+    date: '',
+    isAllDay: false,
     scanStatus: 'pending',
     scanImageKey: null,
     scanImageMime: null,
-    scanCapturedAt: new Date().toISOString()
+    scanCapturedAt: new Date().toISOString(),
+    scanAutoDate: true
   };
 };
 
 export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppointmentFromImage, mode: 'initial' | 'rescan'): void => {
-  const take = (curr: string | undefined, next: string | null): string => (mode === 'rescan' ? (next ?? '') : (curr?.trim() ? curr : (next ?? '')));
-  appointment.title = take(appointment.title, parsed.title) || appointment.title;
-  appointment.date = mode === 'rescan' ? (parsed.date ?? appointment.date ?? new Date().toISOString().slice(0, 10)) : (appointment.date || parsed.date || appointment.date);
-  appointment.startTime = mode === 'rescan' ? (parsed.startTime ?? undefined) : (appointment.startTime ?? parsed.startTime ?? undefined);
-  appointment.durationMins = mode === 'rescan' ? (parsed.durationMins ?? undefined) : (appointment.durationMins ?? parsed.durationMins ?? undefined);
-  appointment.timezone = mode === 'rescan' ? (parsed.timezone ?? appointment.timezone) : (appointment.timezone ?? parsed.timezone ?? appointment.timezone);
-  appointment.notes = take(appointment.notes, parsed.notes);
-  const locationValue = take(appointment.locationRaw, parsed.location);
+  const isEmptyText = (value: string | undefined): boolean => !value || !value.trim() || value.trim().toLowerCase() === 'scanned item';
+  const shouldApply = (curr: string | undefined, next: string | null): boolean => mode === 'rescan' ? true : (isEmptyText(curr) && next !== null);
+
+  if (shouldApply(appointment.title, parsed.title)) appointment.title = parsed.title ?? '';
+
+  const hasParsedDate = Boolean(parsed.date);
+  const dateIsEmptyEquivalent = !appointment.date || !appointment.date.trim() || appointment.scanAutoDate === true;
+  if (mode === 'rescan') {
+    appointment.date = parsed.date ?? '';
+  } else if (hasParsedDate && dateIsEmptyEquivalent) {
+    appointment.date = parsed.date ?? '';
+  }
+
+  if (mode === 'rescan' || !appointment.timezone) appointment.timezone = parsed.timezone ?? appointment.timezone;
+  if (mode === 'rescan' || !appointment.notes?.trim()) appointment.notes = parsed.notes ?? '';
+  const locationValue = (mode === 'rescan' || !appointment.locationRaw?.trim()) ? (parsed.location ?? '') : appointment.locationRaw;
   const loc = normalizeLocation(locationValue);
   appointment.locationRaw = locationValue;
   appointment.locationDisplay = loc.display;
@@ -59,6 +68,18 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
   appointment.locationName = '';
   appointment.locationAddress = '';
   appointment.locationDirections = '';
+
+  if (parsed.startTime) {
+    if (mode === 'rescan' || !appointment.startTime) appointment.startTime = parsed.startTime;
+    if (mode === 'rescan' || appointment.durationMins === undefined) appointment.durationMins = parsed.durationMins ?? appointment.durationMins;
+    appointment.isAllDay = false;
+  } else if (mode === 'rescan' || appointment.isAllDay || !appointment.startTime) {
+    appointment.startTime = undefined;
+    appointment.durationMins = undefined;
+    appointment.isAllDay = true;
+  }
+
+  if (parsed.date || parsed.startTime) appointment.scanAutoDate = false;
 };
 
 export const parseAndApplyScan = async (storage: StorageAdapter, state: AppState, groupId: string, appointment: Appointment, imageBase64: string, imageMime: 'image/jpeg' | 'image/png' | 'image/webp', timezone: string | undefined, mode: 'initial' | 'rescan', traceId: string): Promise<void> => {

@@ -23,7 +23,7 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   const key = scanBlobKey(identity.groupId, appt.id, imageMime);
   await storage.putBinary(key, decodeImageBase64(body.imageBase64), imageMime, { groupId: identity.groupId, appointmentId: appt.id, kind: 'scan-image', uploadedAt: new Date().toISOString() });
   appt.scanImageKey = key; appt.scanImageMime = imageMime; appt.scanCapturedAt = new Date().toISOString(); appt.scanStatus = 'pending';
-  appt.title = ''; appt.date = undefined; appt.startTime = undefined; appt.durationMins = undefined; appt.location = ''; appt.locationRaw = ''; appt.locationDisplay = ''; appt.locationMapQuery = ''; appt.locationName = ''; appt.locationAddress = ''; appt.locationDirections = ''; appt.notes = '';
+  appt.title = ''; appt.date = ''; appt.startTime = undefined; appt.durationMins = undefined; appt.isAllDay = false; appt.location = ''; appt.locationRaw = ''; appt.locationDisplay = ''; appt.locationMapQuery = ''; appt.locationName = ''; appt.locationAddress = ''; appt.locationDirections = ''; appt.notes = ''; appt.scanAutoDate = true;
   await parseAndApplyScan(storage, loaded.state, identity.groupId, appt, body.imageBase64, imageMime, typeof body.timezone === 'string' ? body.timezone : undefined, 'rescan', traceId);
   const saved = await storage.save(identity.groupId, loaded.state, loaded.etag);
   return { status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(saved.state) } };
