@@ -204,7 +204,7 @@ const parseDraftedIntervals = (value: unknown): { ok: true; intervals: DraftedIn
   return { ok: true, intervals };
 };
 
-const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; now: string; traceId: string; groupSnapshot: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[] }> => {
+const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; now: string; traceId: string; groupSnapshot: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[]; opId?: string }> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
   const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
@@ -218,17 +218,19 @@ const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | '
   });
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_after_fetch', mode: params.mode, status: response.status, latencyMs: Date.now() - startedAt }));
   if (!response.ok) throw new Error(`OpenAI HTTP ${response.status}`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+  const payload = await response.json() as { id?: string; choices?: Array<{ message?: { content?: string } }>; usage?: { input_tokens?: number; output_tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } };
+  const opId = payload.id;
+  console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_result', mode: params.mode, model, opId: opId ?? null }));
   await recordUsageSuccess(payload.usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI rule parse missing content');
   if (process.env.RULES_DRAFT_DEBUG_RAW === '1') {
     console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_raw_response', mode: params.mode, raw }));
   }
-  return parseRuleModeModelOutput(JSON.parse(raw), { mode: params.mode, requestPersonId: params.personId });
+  return { ...parseRuleModeModelOutput(JSON.parse(raw), { mode: params.mode, requestPersonId: params.personId }), opId };
 };
 
-const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId } });
+const badRequest = (message: string, traceId: string, opId?: string): HttpResponseInit => ({ status: 400, jsonBody: { kind: 'error', message, traceId, opId: opId ?? null } });
 const toProposal = (expectedEtag: string, actions: Action[]): PendingProposal => ({ id: Date.now().toString(), expectedEtag, actions });
 const isMutationAction = (action: Action): boolean => !['list_appointments', 'show_appointment', 'list_people', 'show_person', 'list_rules', 'show_rule', 'help'].includes(action.type);
 const shouldPersistLastSeen = (lastSeen: string | undefined, nowMs: number): boolean => {
@@ -249,7 +251,7 @@ const validateReferencedCodes = (state: AppState, actions: Action[]): string | n
 };
 const getIdentityName = (state: AppState, activePersonId: string | null): string | null => state.people.find((person) => person.personId === activePersonId)?.name ?? null;
 
-const parseWithOpenAi = async (params: { message: string; state: AppState; session: SessionRuntimeState; sessionId: string; traceId: string; }) => {
+const parseWithOpenAi = async (params: { message: string; state: AppState; session: SessionRuntimeState; sessionId: string; traceId: string; }): Promise<{ parsed: ReturnType<typeof ParsedModelResponseSchema.parse>; opId?: string }> => {
   const contextEnvelope = buildContext({ state: params.state, identityName: getIdentityName(params.state, params.session.activePersonId), pendingProposal: params.session.pendingProposal ? { summary: 'Pending proposal', actions: params.session.pendingProposal.actions } : null, pendingClarification: params.session.pendingQuestion ? { question: params.session.pendingQuestion.message, partialAction: { type: 'help' }, missing: ['action'] } : null, history: params.session.chatHistory });
   const contextLen = JSON.stringify(contextEnvelope).length;
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_openai_before_fetch', model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', messageLen: params.message.length, contextLen }));
@@ -263,13 +265,14 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
     onModelUsage: (modelUsage) => { usage = modelUsage; }
   });
   await recordUsageSuccess(usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
-  return ParsedModelResponseSchema.parse(rawModel);
+  return { parsed: ParsedModelResponseSchema.parse(rawModel.parsed), opId: rawModel.opId };
 };
 
 export async function chat(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const fallbackTraceId = randomUUID();
   let traceId: string = fallbackTraceId;
   let openAiCallInFlight = false;
+  let opId: string | undefined;
 
   try {
     const body = await request.json() as ChatRequest;
@@ -285,7 +288,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     }
     logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
     const message = typeof body.message === 'string' ? body.message.trim() : '';
-    if (message.length === 0) return badRequest('message is required', traceId);
+    if (message.length === 0) return badRequest('message is required', traceId, opId);
     const normalized = normalizeUserText(message);
 
     const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
@@ -409,6 +412,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       let ruleParse;
       try {
         ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', now: new Date().toISOString(), traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)) });
+        opId = ruleParse.opId;
       } catch (error) {
         openAiCallInFlight = false;
         const isSchemaIssue = error instanceof SyntaxError || (error instanceof Error && error.message.startsWith('Rule mode response'));
@@ -493,7 +497,9 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
     openAiCallInFlight = true;
-    const parsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
+    const openAiParsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
+    opId = openAiParsed.opId;
+    const parsed = openAiParsed.parsed;
     openAiCallInFlight = false;
     const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
     const codeError = validateReferencedCodes(state, normalizedActions);
@@ -546,7 +552,8 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           ok: false,
           error: 'OPENAI_CALL_FAILED',
           message: err instanceof Error ? err.message : 'Unknown error',
-          traceId
+          traceId,
+          opId: null
         }
       };
     }

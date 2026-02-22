@@ -265,6 +265,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       });
       fallbackAttempted = resolved.fallbackAttempted;
       usedFallback = resolved.usedFallback;
+      const opId = resolved.opId;
+      const model = resolved.model;
 
       if (TIME_RESOLVE_LOG_ENABLED) {
         context.log(JSON.stringify({
@@ -280,7 +282,9 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           usedFallback,
           status: resolved.time.intent.status,
           missing: resolved.time.intent.missing ?? [],
-          directVersion: DIRECT_VERSION
+          directVersion: DIRECT_VERSION,
+          opId: opId ?? null,
+          model: model ?? null
         }));
       }
 
@@ -294,7 +298,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           traceId,
           directVersion: DIRECT_VERSION,
           usedFallback,
-          fallbackAttempted
+          fallbackAttempted,
+          opId: opId ?? null
         }
       }, traceId, context);
     } catch (error) {
@@ -314,7 +319,9 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
             usedFallback,
             status: 'error',
             missing: [],
-            directVersion: DIRECT_VERSION
+            directVersion: DIRECT_VERSION,
+            opId: null,
+            model: process.env.TIME_RESOLVE_MODEL ?? process.env.OPENAI_MODEL ?? null
           }));
         }
         return withDirectMeta({
@@ -327,7 +334,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
             timezone,
             directVersion: DIRECT_VERSION,
             usedFallback,
-            fallbackAttempted
+            fallbackAttempted,
+            opId: null
           }
         }, traceId, context);
       }

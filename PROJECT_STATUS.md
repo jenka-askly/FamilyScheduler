@@ -1,3 +1,7 @@
+## 2026-02-22 update (OpenAI opId propagation)
+
+- Added opId (OpenAI response id) propagation to API responses and logs for debugging.
+
 ## 2026-02-22 update (direct time resolve observability + fallback)
 
 - Added `/api/direct` correlation headers on responses: `x-trace-id`, `x-invocation-id`, optional `x-traceparent`, plus `access-control-expose-headers` and `cache-control: no-store` so browser tools can read trace metadata.

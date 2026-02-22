@@ -72,6 +72,7 @@ test('resolve_appointment_time returns resolved time without persisting', async 
   assert.equal((response.jsonBody as any).usedFallback, false);
   assert.equal((response.jsonBody as any).fallbackAttempted, false);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
+  assert.equal((response.jsonBody as any).opId, null);
 });
 
 test('resolve_appointment_time does not attempt fallback when feature flag is off', async () => {
@@ -88,6 +89,7 @@ test('resolve_appointment_time does not attempt fallback when feature flag is of
   assert.equal((response.jsonBody as any).fallbackAttempted, false);
   assert.equal((response.jsonBody as any).usedFallback, false);
   assert.equal(typeof (response.jsonBody as any).directVersion, 'string');
+  assert.equal((response.jsonBody as any).opId, null);
 });
 
 
@@ -113,6 +115,7 @@ test('resolve_appointment_time returns openai error when fallback call fails', a
   assert.equal((response.jsonBody as any).fallbackAttempted, true);
   assert.equal((response.jsonBody as any).usedFallback, false);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
+  assert.equal((response.jsonBody as any).opId, null);
   assert.equal(saveCalls, 0);
 
   global.fetch = originalFetch;

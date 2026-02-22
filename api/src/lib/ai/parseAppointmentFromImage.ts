@@ -8,16 +8,25 @@ export type ParsedAppointmentFromImage = {
   location: string | null;
   notes: string | null;
 };
+
+export type ParseAppointmentFromImageResult = {
+  parsed: ParsedAppointmentFromImage;
+  opId?: string;
+  model: string;
+};
+
 const EMPTY_RESULT: ParsedAppointmentFromImage = { title: null, date: null, startTime: null, endTime: null, durationMins: null, timezone: null, location: null, notes: null };
 const toTime = (value: unknown): string | null => (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value) ? value : null);
 
-export const parseAppointmentFromImage = async (params: { imageBase64: string; imageMime: 'image/jpeg' | 'image/png' | 'image/webp'; timezone?: string; traceId: string }): Promise<ParsedAppointmentFromImage> => {
+export const parseAppointmentFromImage = async (params: { imageBase64: string; imageMime: 'image/jpeg' | 'image/png' | 'image/webp'; timezone?: string; traceId: string }): Promise<ParseAppointmentFromImageResult> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
+  const model = process.env.OPENAI_VISION_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+  console.info(JSON.stringify({ traceId: params.traceId, stage: 'scan_openai_before_fetch', model }));
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.OPENAI_VISION_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4.1-mini',
+      model,
       temperature: 0,
       response_format: { type: 'json_object' },
       messages: [
@@ -27,7 +36,9 @@ export const parseAppointmentFromImage = async (params: { imageBase64: string; i
     })
   });
   if (!response.ok) throw new Error(`OpenAI HTTP ${response.status}`);
-  const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const payload = await response.json() as { id?: string; choices?: Array<{ message?: { content?: string } }> };
+  const opId = payload.id;
+  console.info(JSON.stringify({ traceId: params.traceId, stage: 'scan_openai_after_fetch', model, status: response.status, opId: opId ?? null }));
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI parse response missing content');
   const obj = JSON.parse(raw) as Record<string, unknown>;
@@ -41,5 +52,5 @@ export const parseAppointmentFromImage = async (params: { imageBase64: string; i
     location: typeof obj.location === 'string' && obj.location.trim() ? obj.location.trim().slice(0, 300) : null,
     notes: typeof obj.notes === 'string' && obj.notes.trim() ? obj.notes.trim().slice(0, 500) : null
   };
-  return { ...EMPTY_RESULT, ...result };
+  return { parsed: { ...EMPTY_RESULT, ...result }, opId, model };
 };
