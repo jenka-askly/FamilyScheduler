@@ -1,3 +1,7 @@
+## 2026-02-22 update (environment topology documentation)
+
+- Formally documented production/staging environment topology in `docs/environments.md`, including resource mapping, isolation rules, deployment notes, and invariants.
+
 ## 2026-02-22 update (Responses API text.format.name fix)
 
 - Fixed time parse AI `/v1/responses` structured output payload by adding required `text.format.name` (`time_spec`) and keeping schema under `text.format.schema` with `strict: true`.
