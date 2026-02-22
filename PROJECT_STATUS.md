@@ -1,3 +1,11 @@
+## 2026-02-22 update (provider-aware AI time parsing + actionable telemetry)
+
+- Added provider-aware AI client adapter for time parsing (`openai` vs `azure`) with explicit selection: Azure when `AZURE_OPENAI_ENDPOINT` is set, otherwise OpenAI.
+- Fixed Azure configuration mismatch by targeting Azure Responses API endpoint (`/openai/responses`) with `api-version` and using deployment name (`AZURE_OPENAI_DEPLOYMENT`) in the request model field.
+- Kept OpenAI path clean (`OPENAI_API_KEY` bearer auth; no Azure base URL/version mixing).
+- Improved `ai_time_parse` telemetry: success now logs `status:"ok"` with `opId`, provider, model/deployment, and parse status; failure logs actionable safe diagnostics (`errName`, trimmed message/body preview, status/code/type, provider, model/deployment, `nowIso`, `timezone`).
+- Tightened fallback behavior so deterministic fallback only occurs on actual call/config failures (`OPENAI_CALL_FAILED` / `OPENAI_NOT_CONFIGURED`), while invalid AI payloads surface instead of being silently masked.
+
 ## 2026-02-22 update (AI-first time parsing with explicit now+timezone)
 
 - Implemented AI-first time parsing for `resolve_appointment_time` with explicit `nowIso` and IANA `timezone` passed in the model prompt (no implicit server clock assumptions).

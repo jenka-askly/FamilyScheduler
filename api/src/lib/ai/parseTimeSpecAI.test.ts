@@ -31,6 +31,8 @@ test('parseTimeSpecAI resolves multilingual relative phrase', async () => {
   assert.equal(result.time.intent.status, 'resolved');
   assert.equal(result.time.resolved?.timezone, 'America/Los_Angeles');
   assert.equal(result.meta.opId, 'resp_mx');
+  assert.equal(result.meta.provider, 'openai');
+  assert.equal(result.meta.modelOrDeployment, 'gpt-test');
   assert.equal(fetchMock.mock.callCount(), 1);
   fetchMock.mock.restore();
 });

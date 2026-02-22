@@ -1,4 +1,5 @@
 import type { TimeIntentMissing, TimeSpec } from '../../../../packages/shared/src/types.js';
+import { type AiProvider, getOpenAIClient } from './openaiClient.js';
 
 const TIME_MISSING_KEYS: TimeIntentMissing[] = ['date', 'startTime', 'endTime', 'duration', 'timezone'];
 
@@ -22,11 +23,13 @@ const schema = {
 
 export class TimeParseAiError extends Error {
   code: 'OPENAI_NOT_CONFIGURED' | 'OPENAI_CALL_FAILED' | 'OPENAI_BAD_RESPONSE';
+  details?: Record<string, unknown>;
 
-  constructor(code: TimeParseAiError['code'], message: string) {
+  constructor(code: TimeParseAiError['code'], message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = 'TimeParseAiError';
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -39,7 +42,8 @@ type ParseTimeSpecAIArgs = {
 
 type ParseTimeSpecAIMeta = {
   opId?: string;
-  model: string;
+  modelOrDeployment: string;
+  provider: AiProvider;
 };
 
 type AIOutput = {
@@ -51,7 +55,7 @@ type AIOutput = {
   evidenceSnippets?: string[];
 };
 
-const modelForTime = (): string => process.env.TIME_RESOLVE_MODEL ?? process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+const trimTo = (value: string, limit: number): string => value.length <= limit ? value : value.slice(0, limit);
 
 const toOutputText = (payload: any): string | null => {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text;
@@ -112,18 +116,18 @@ export async function parseTimeSpecAI(args: ParseTimeSpecAIArgs): Promise<TimeSp
 }
 
 export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promise<{ time: TimeSpec; meta: ParseTimeSpecAIMeta }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new TimeParseAiError('OPENAI_NOT_CONFIGURED', 'OPENAI_API_KEY is not configured');
+  let client: ReturnType<typeof getOpenAIClient>;
+  try {
+    client = getOpenAIClient();
+  } catch (error) {
+    throw new TimeParseAiError('OPENAI_NOT_CONFIGURED', error instanceof Error ? error.message : 'OpenAI is not configured');
+  }
 
-  const model = modelForTime();
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const response = await fetch(client.requestUrl, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
+    headers: client.headers,
     body: JSON.stringify({
-      model,
+      model: client.modelOrDeployment,
       temperature: 0,
       input: [
         {
@@ -167,10 +171,23 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
       }
     })
   }).catch((error) => {
-    throw new TimeParseAiError('OPENAI_CALL_FAILED', error instanceof Error ? error.message : 'OpenAI request failed');
+    throw new TimeParseAiError('OPENAI_CALL_FAILED', error instanceof Error ? error.message : 'OpenAI request failed', {
+      provider: client.provider,
+      modelOrDeployment: client.modelOrDeployment,
+      errName: error instanceof Error ? error.name : undefined,
+      errMessage: trimTo(error instanceof Error ? error.message : String(error), 300)
+    });
   });
 
-  if (!response.ok) throw new TimeParseAiError('OPENAI_CALL_FAILED', `OpenAI HTTP ${response.status}`);
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new TimeParseAiError('OPENAI_CALL_FAILED', `OpenAI HTTP ${response.status}`, {
+      provider: client.provider,
+      modelOrDeployment: client.modelOrDeployment,
+      errStatus: response.status,
+      errBodyPreview: trimTo(errorText, 300)
+    });
+  }
 
   const payload = await response.json().catch(() => {
     throw new TimeParseAiError('OPENAI_BAD_RESPONSE', 'OpenAI response was not valid JSON');
@@ -184,6 +201,6 @@ export async function parseTimeSpecAIWithMeta(args: ParseTimeSpecAIArgs): Promis
 
   return {
     time: toTimeSpec(args, parsed),
-    meta: { opId: typeof payload?.id === 'string' ? payload.id : undefined, model }
+    meta: { opId: typeof payload?.id === 'string' ? payload.id : undefined, modelOrDeployment: client.modelOrDeployment, provider: client.provider }
   };
 }
