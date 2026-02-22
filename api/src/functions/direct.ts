@@ -4,7 +4,7 @@ import { executeActions } from '../lib/actions/executor.js';
 import type { Action } from '../lib/actions/schema.js';
 import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
-import { getTimeSpec } from '../lib/time/timeSpec.js';
+import { getTimeSpec, parseTimeSpec } from '../lib/time/timeSpec.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -32,6 +32,7 @@ type DirectAction =
   | { type: 'set_appointment_desc'; code: string; desc: string }
   | { type: 'set_appointment_duration'; code: string; durationMins?: number }
   | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string }
+  | { type: 'resolve_appointment_time'; appointmentId?: string; whenText: string; timezone?: string }
   | { type: 'create_blank_person' }
   | { type: 'update_person'; personId: string; name?: string; phone?: string }
   | { type: 'delete_person'; personId: string };
@@ -145,6 +146,13 @@ const parseDirectAction = (value: unknown): DirectAction => {
     const timezone = typeof value.timezone === 'string' ? value.timezone.trim() : undefined;
     return { type, code, date, startTime: startTime || undefined, durationMins: typeof value.durationMins === 'number' ? value.durationMins : undefined, timezone: timezone || undefined };
   }
+  if (type === 'resolve_appointment_time') {
+    const appointmentId = asString(value.appointmentId) || undefined;
+    const whenText = asString(value.whenText);
+    if (!whenText) throw new Error('whenText is required');
+    const timezone = asString(value.timezone) || undefined;
+    return { type, appointmentId, whenText, timezone };
+  }
   if (type === 'create_blank_person') return { type };
   if (type === 'update_person') {
     const personId = asString(value.personId);
@@ -209,6 +217,22 @@ export async function direct(request: HttpRequest, _context: InvocationContext):
     return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
   }
   logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
+
+  if (directAction.type === 'resolve_appointment_time') {
+    const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
+    const parsed = parseTimeSpec({ originalText: directAction.whenText, timezone, now: new Date() });
+    return {
+      status: 200,
+      jsonBody: {
+        ok: true,
+        time: parsed,
+        timezone,
+        appointmentId: directAction.appointmentId,
+        traceId
+      }
+    };
+  }
+
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (directAction.type === 'create_blank_person') {
     const personId = nextPersonId(loaded.state);

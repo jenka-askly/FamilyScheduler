@@ -39,3 +39,20 @@ test('direct maps conflict to 409 with traceId', async () => {
   assert.equal(response.status, 409);
   assert.ok((response.jsonBody as any).traceId);
 });
+
+
+test('resolve_appointment_time returns resolved time without persisting', async () => {
+  let saveCalls = 0;
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { saveCalls += 1; throw new Error('save should not be called'); }
+  };
+  setStorageAdapterForTests(adapter);
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: '3/3 1pm', timezone: 'America/Los_Angeles' } }) } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal(saveCalls, 0);
+  assert.equal((response.jsonBody as any).ok, true);
+  assert.equal((response.jsonBody as any).time?.intent?.status, 'resolved');
+  assert.equal((response.jsonBody as any).time?.resolved?.timezone, 'America/Los_Angeles');
+});

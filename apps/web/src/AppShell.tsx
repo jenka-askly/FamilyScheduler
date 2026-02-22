@@ -5,7 +5,6 @@ import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
 import { buildInfo } from './lib/buildInfo';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
-import { parseTimeSpec } from '../../../api/src/lib/time/timeSpec.js';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -361,12 +360,45 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setWhenPreviewed(false);
   };
 
-  const previewWhenDraft = (appointment: Snapshot['appointments'][0]) => {
+  const previewWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
+    const whenText = whenDraftText.trim();
+    if (!whenText) {
+      setWhenDraftResult(null);
+      setWhenPreviewed(false);
+      setWhenDraftError('Enter a date/time to resolve.');
+      return;
+    }
     const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
-    const parsed = parseTimeSpec({ originalText: whenDraftText.trim(), timezone });
-    setWhenDraftResult(parsed);
-    setWhenDraftError(null);
-    setWhenPreviewed(true);
+    try {
+      const response = await fetch(apiUrl('/api/direct'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          phone,
+          action: {
+            type: 'resolve_appointment_time',
+            appointmentId: appointment.code,
+            whenText,
+            timezone
+          }
+        })
+      });
+      const json = await response.json() as { ok?: boolean; time?: TimeSpec; message?: string };
+      if (!response.ok || !json.ok || !json.time) {
+        setWhenDraftResult(null);
+        setWhenDraftError(json.message ?? 'Unable to resolve date.');
+        setWhenPreviewed(false);
+        return;
+      }
+      setWhenDraftResult(json.time);
+      setWhenDraftError(null);
+      setWhenPreviewed(true);
+    } catch (_error) {
+      setWhenDraftResult(null);
+      setWhenDraftError('Unable to resolve date.');
+      setWhenPreviewed(false);
+    }
   };
 
   const confirmWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
@@ -391,11 +423,38 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         return;
       }
     }
-    if (!whenDraftResult || whenDraftResult.intent.originalText !== whenDraftText.trim()) {
-      setWhenDraftError('Preview the updated text before confirming.');
-      return;
+    let resolvedDraft = whenDraftResult;
+    if (!resolvedDraft || resolvedDraft.intent.originalText !== whenDraftText.trim()) {
+      const whenText = whenDraftText.trim();
+      if (!whenText) {
+        setWhenDraftError('Enter a date/time to resolve.');
+        return;
+      }
+      const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+      const response = await fetch(apiUrl('/api/direct'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          phone,
+          action: {
+            type: 'resolve_appointment_time',
+            appointmentId: appointment.code,
+            whenText,
+            timezone
+          }
+        })
+      });
+      const json = await response.json() as { ok?: boolean; time?: TimeSpec; message?: string };
+      if (!response.ok || !json.ok || !json.time) {
+        setWhenDraftError(json.message ?? 'Unable to resolve date.');
+        return;
+      }
+      resolvedDraft = json.time;
+      setWhenDraftResult(json.time);
+      setWhenPreviewed(true);
     }
-    if (whenDraftResult.intent.status !== 'resolved' || !whenDraftResult.resolved) {
+    if (resolvedDraft.intent.status !== 'resolved' || !resolvedDraft.resolved) {
       const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -410,12 +469,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       closeWhenEditor();
       return;
     }
-    const start = new Date(whenDraftResult.resolved.startUtc);
-    const end = new Date(whenDraftResult.resolved.endUtc);
+    const start = new Date(resolvedDraft.resolved.startUtc);
+    const end = new Date(resolvedDraft.resolved.endUtc);
     const allDay = start.getUTCHours() === 0 && start.getUTCMinutes() === 0 && end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && (end.getTime() - start.getTime()) % 86400000 === 0;
     const payload = allDay
-      ? { type: 'reschedule_appointment', code: appointment.code, date: whenDraftResult.resolved.startUtc.slice(0, 10), timezone: whenDraftResult.resolved.timezone }
-      : { type: 'reschedule_appointment', code: appointment.code, date: whenDraftResult.resolved.startUtc.slice(0, 10), startTime: whenDraftResult.resolved.startUtc.slice(11, 16), durationMins: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)), timezone: whenDraftResult.resolved.timezone };
+      ? { type: 'reschedule_appointment', code: appointment.code, date: resolvedDraft.resolved.startUtc.slice(0, 10), timezone: resolvedDraft.resolved.timezone }
+      : { type: 'reschedule_appointment', code: appointment.code, date: resolvedDraft.resolved.startUtc.slice(0, 10), startTime: resolvedDraft.resolved.startUtc.slice(11, 16), durationMins: Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)), timezone: resolvedDraft.resolved.timezone };
     const result = await sendDirectAction(payload as Record<string, unknown>);
     if (!result.ok) {
       setWhenDraftError(result.message);
@@ -809,11 +868,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                   onKeyDown={(event) => {
                                     if (event.key === 'Enter') {
                                       event.preventDefault();
-                                      previewWhenDraft(appointment);
+                                      void previewWhenDraft(appointment);
                                     }
                                   }}
                                   placeholder="e.g. next Tuesday 8-9pm"
                                 />
+                                <button type="button" onClick={() => void previewWhenDraft(appointment)}>Resolve date</button>
                               </div>
                               <div className="when-editor-input-row">
                                 <label htmlFor={`desc-editor-${appointment.code}`}>Description</label>
@@ -854,7 +914,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                   ) : null}
                                 </div>
                                 <div className="modal-actions when-editor-actions">
-                                  <button type="button" onClick={() => previewWhenDraft(appointment)}>Preview</button>
                                   <button type="button" onClick={() => void confirmWhenDraft(appointment)}>Confirm</button>
                                   <button type="button" onClick={closeWhenEditor}>Cancel</button>
                                 </div>
