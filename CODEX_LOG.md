@@ -5927,3 +5927,37 @@ Implement requested Ignite organizer UX updates: hide join URL by default, conve
 
 - Visual browser screenshot captured for this frontend UX change.
 
+
+## 2026-02-23 17:37 UTC (Breakout Group button reposition in AppShell header)
+
+### Objective
+
+Move the Breakout Group control to the top-right of the Group title card while preserving behavior.
+
+### Approach
+
+- Traced Group header rendering to `PageHeader` and breakout rendering to `AppShell`.
+- Added an optional `breakoutAction` slot prop to `PageHeader` and rendered it in the header top row as a right-aligned, non-shrinking action.
+- Moved existing breakout button JSX from `AppShell`'s old standalone bar into `PageHeader` via the new prop.
+- Removed obsolete breakout bar CSS and added minimal header layout helpers for `min-width: 0` left content + `shrink-0` action container.
+- Captured a browser screenshot of the updated layout.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Save this link|Group\\b|Only listed phone numbers|Need help\\?|Calendar\\b" apps/web/src/AppShell.tsx` ✅
+- `rg -n --hidden --glob '!**/node_modules/**' "Breakout Group|Keep This Going|keep this going" apps/web/src/AppShell.tsx` ✅
+- `pnpm --filter @familyscheduler/web run typecheck` ✅
+- `pnpm --filter @familyscheduler/web run build` ✅
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (terminated with SIGINT after capture).
+
+### Follow-ups
+
+- Human should verify in a real group (`/#/g/<real-id>/app`) that clicking Breakout Group still returns expected API response and routes to `/ignite`.

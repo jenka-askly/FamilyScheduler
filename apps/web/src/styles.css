@@ -750,11 +750,6 @@ h2 {
   min-width: 0;
 }
 
-.fs-breakoutBar {
-  display: flex;
-  justify-content: flex-end;
-  margin: -4px 0 12px;
-}
 
 .fs-breakoutAction {
   display: inline-flex;
@@ -818,6 +813,14 @@ h2 {
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
+}
+
+.fs-groupTitleBlockWrap {
+  min-width: 0;
+}
+
+.fs-groupHeaderAction {
+  flex-shrink: 0;
 }
 
 .fs-groupLabel {
