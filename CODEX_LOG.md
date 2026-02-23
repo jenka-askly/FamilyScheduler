@@ -5420,3 +5420,42 @@ Implement UEX header cleanup so invite link is the primary utility, remove Group
 ### Follow-ups
 
 - If desired, move raw Group ID to a dedicated Settings/Advanced surface in a future pass.
+
+
+## 2026-02-23 04:08 UTC (UEX: fix header invite link layout + calm accent + member chips)
+
+### Objective
+
+Stabilize the group header invite-link layout (no overflow), add calmer visual treatment to the title/header card, and show a compact member summary chip list near the title without backend changes.
+
+### Approach
+
+- Updated `PageHeader` to a single grouped card layout (`fs-groupHeaderCard`) with:
+  - title block and muted meta line,
+  - compact member chips (max 4 + overflow `+N`),
+  - invite section with explicit row (`Invite link` + `Copy link`),
+  - read-only invite URL input that truncates cleanly.
+- Kept copy behavior unchanged by preserving existing clipboard write with full `groupLink` value.
+- Wired member names from existing `snapshot.people` data in `AppShell` (active members only, no new API call).
+- Reworked header CSS to:
+  - apply calm tinted card styling + subtle accent strip,
+  - enforce `min-width: 0` and non-overflow input behavior,
+  - keep chips compact/neutral and responsive at narrow widths.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Invite link|Copy link|Save this link|only way to return|Group ID|3333" apps/web/src` ✅ located header implementation points.
+- `rg -n --hidden --glob '!**/node_modules/**' "members|groupMembers|Member|Members" apps/web/src` ✅ confirmed existing member data source.
+- `pnpm --filter @familyscheduler/web build` ✅ web build passed after changes.
+
+### Follow-ups
+
+- Optional: add a direct jump interaction from member chips to Members section if product wants chip row to be clickable.
