@@ -1470,3 +1470,19 @@ traces
 3. `rg -n "overlay-backdrop|className=\"modal\"|scan-viewer-modal|picker-" apps/web/src/AppShell.tsx`
 4. `rg -n "join-form-wrap|field-label|field-input|join-actions|form-error|ui-btn" apps/web/src/App.tsx`
 5. Run app and smoke all required routes for badge visibility and dialog behavior.
+
+## 2026-02-23 20:55 UTC update (AppShell legacy overlays migrated to MUI Dialogs)
+
+### Success criteria
+- Assign People picker, scan viewer, and confirmation overlays in `AppShell` now render as MUI `Dialog` components rather than inline overlay blocks.
+- Existing handlers and message/API actions are preserved (`sendMessage`, `sendDirectAction`, scan delete endpoint, scan recapture flow).
+- Legacy overlay class hooks removed from the migrated dialog blocks (`overlayBackdrop`, `dialog-modal`, `scanViewerModal`, assigner row/list wrappers).
+
+### Non-regressions
+- Rule prompt modal, quick-add, advanced add, and scan capture camera modal remain as-is (not part of this change scope).
+- Appointment/person/rule delete flows still clear state and keep existing cleanup behavior.
+
+### How to verify locally
+1. `rg -n 'overlay-backdrop|className="modal"|scan-viewer-modal|picker-list|picker-row' apps/web/src/AppShell.tsx` should return no matches.
+2. `pnpm -C apps/web run typecheck` (currently fails in this environment due missing `@mui/material` dependency/types and pre-existing implicit-any errors).
+3. `pnpm -C apps/web run build` (same environment limitation as typecheck).
