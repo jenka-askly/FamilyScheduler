@@ -956,3 +956,9 @@ traces
   - List view reuses existing appointment list UI behavior (desktop table + mobile cards) unchanged.
 - Added frontend-only Todos section with local client state CRUD (add, toggle done, edit via Drawer, delete), with explicit TODO note for backend persistence wiring.
 - Members sidebar section maps to existing People view behavior without functional changes.
+
+## 2026-02-23 update (UEX: simplify title section invite link presentation)
+
+- Header invite link UI now renders as plain text (non-input) with truncation-safe ellipsis behavior and no border/field styling.
+- Copy affordance is now an icon-only button in the same row as the URL; clipboard copy behavior remains unchanged and still copies the full invite URL.
+- Title section invite block is left-aligned with tighter vertical spacing so Members line, invite URL row, and helper text read as one compact group.
