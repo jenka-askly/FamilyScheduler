@@ -1,10 +1,13 @@
 import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
+import { AppointmentCardList } from './components/AppointmentCardList';
+import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
 import { buildInfo } from './lib/buildInfo';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
@@ -25,6 +28,11 @@ type ChatResponse =
 type PendingQuestion = { message: string; options: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type UsagePayload = { usageState: 'unknown' | 'ok' | 'warning' | 'limit_reached'; usageSummary?: string; updatedAt: string };
 type UsageStatus = { status: 'loading' | 'ok' | 'error'; data?: UsagePayload };
+type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
+type CalendarView = 'month' | 'list' | 'week' | 'day';
+type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
+
+const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const QuestionDialog = ({
   question,
@@ -82,6 +90,10 @@ const Icon = ({ children }: { children: ReactNode }) => (
 const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" /></Icon>;
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
+const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
+const Camera = () => <Icon><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
+const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
+const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
@@ -235,7 +247,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [message, setMessage] = useState('');
   const [groupName, setGroupName] = useState<string | undefined>(initialGroupName);
   const [usage, setUsage] = useState<UsageStatus>({ status: 'loading' });
-  const [view, setView] = useState<'appointments' | 'people'>('appointments');
+  const [activeSection, setActiveSection] = useState<ShellSection>('calendar');
+  const [calendarView, setCalendarView] = useState<CalendarView>('list');
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [todoDraft, setTodoDraft] = useState<{ text: string; dueDate: string; assignee: string; done: boolean }>({ text: '', dueDate: '', assignee: '', done: false });
   const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
   const [proposalText, setProposalText] = useState<string | null>(null);
@@ -257,9 +277,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [personDraft, setPersonDraft] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
-  const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
-  const whenEditorRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
   const [rulePromptModal, setRulePromptModal] = useState<{ person: Snapshot['people'][0] } | null>(null);
@@ -345,6 +364,40 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (!result.ok) return;
     const created = result.snapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
     if (created) openWhenEditor(created);
+  };
+
+  const openTodoEditor = (todo: TodoItem) => {
+    setEditingTodoId(todo.id);
+    setTodoDraft({ text: todo.text, dueDate: todo.dueDate ?? '', assignee: todo.assignee ?? '', done: todo.done });
+  };
+
+  const closeTodoEditor = () => {
+    setEditingTodoId(null);
+    setTodoDraft({ text: '', dueDate: '', assignee: '', done: false });
+  };
+
+  const createTodo = () => {
+    const next: TodoItem = { id: `todo-${Date.now()}`, text: 'New todo', done: false };
+    setTodos((prev) => [next, ...prev]);
+    openTodoEditor(next);
+  };
+
+
+  const saveTodo = () => {
+    if (!editingTodoId || !todoDraft.text.trim()) return;
+    setTodos((prev) => prev.map((todo) => todo.id === editingTodoId
+      ? { ...todo, text: todoDraft.text.trim(), dueDate: todoDraft.dueDate || undefined, assignee: todoDraft.assignee.trim() || undefined, done: todoDraft.done }
+      : todo));
+    closeTodoEditor();
+  };
+
+  const toggleTodo = (todoId: string) => {
+    setTodos((prev) => prev.map((todo) => todo.id === todoId ? { ...todo, done: !todo.done } : todo));
+  };
+
+  const deleteTodo = (todoId: string) => {
+    setTodos((prev) => prev.filter((todo) => todo.id !== todoId));
+    if (editingTodoId === todoId) closeTodoEditor();
   };
 
 
@@ -649,12 +702,54 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (byEnd !== 0) return byEnd;
     return a.code.localeCompare(b.code);
   }), [snapshot.appointments]);
+  const editingAppointment = whenEditorCode
+    ? sortedAppointments.find((appointment) => appointment.code === whenEditorCode) ?? null
+    : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
-  const headerTitle = view === 'appointments' ? 'Schedule' : 'People';
-  const headerDescription = view === 'appointments'
-    ? 'Add, edit, and track upcoming appointments for this group.'
-    : 'Manage who can access this schedule.';
+  const headerTitle = activeSection === 'members' ? 'Members' : activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : 'Calendar';
+  const headerDescription = activeSection === 'members'
+    ? 'Manage who can access this schedule.'
+    : activeSection === 'todos'
+      ? 'Track personal and family todos.'
+      : activeSection === 'overview'
+        ? 'Overview is coming soon.'
+        : activeSection === 'settings'
+          ? 'Settings is coming soon.'
+          : 'Add, edit, and track upcoming appointments for this group.';
+  const monthAnchor = monthCursor;
+  const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthAnchor);
+  const monthStartWeekday = monthAnchor.getDay();
+  const monthGridStart = new Date(monthAnchor);
+  monthGridStart.setDate(monthAnchor.getDate() - monthStartWeekday);
+  const monthDays = Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(monthGridStart);
+    day.setDate(monthGridStart.getDate() + index);
+    return day;
+  });
+  const appointmentsByDate = sortedAppointments.reduce<Record<string, Snapshot['appointments']>>((acc, appointment) => {
+    const dateKey = appointment.time?.resolved?.startUtc ? appointment.time.resolved.startUtc.slice(0, 10) : appointment.date;
+    if (!dateKey) return acc;
+    if (!acc[dateKey]) acc[dateKey] = [];
+    acc[dateKey].push(appointment);
+    return acc;
+  }, {});
+  const todosByDate = todos.reduce<Record<string, TodoItem[]>>((acc, todo) => {
+    if (!todo.dueDate) return acc;
+    if (!acc[todo.dueDate]) acc[todo.dueDate] = [];
+    acc[todo.dueDate].push(todo);
+    return acc;
+  }, {});
+  const editingTodo = editingTodoId ? todos.find((todo) => todo.id === editingTodoId) ?? null : null;
+  const formatMonthAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
+    if (appointment.time?.intent?.status !== 'resolved' || !appointment.time.resolved) return 'Unresolved';
+    const { startUtc, endUtc, timezone } = appointment.time.resolved;
+    const start = new Date(startUtc);
+    const end = new Date(endUtc);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Unresolved';
+    const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
+    return `${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
+  };
 
   const openRulePromptModal = (person: Snapshot['people'][0]) => {
     setRulePromptModal({ person });
@@ -839,23 +934,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [editingPersonId, cancelPersonEdit]);
 
   useEffect(() => {
-    if (!whenEditorCode) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      const editingRow = editingAppointmentRowRef.current;
-      const editorRow = whenEditorRowRef.current;
-      const clickedInEditingSurface = Boolean(editingRow?.contains(target) || editorRow?.contains(target));
-      if (!clickedInEditingSurface) closeWhenEditor();
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [whenEditorCode]);
-
-
-  useEffect(() => {
     let canceled = false;
 
     const loadUsage = async () => {
@@ -910,161 +988,251 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         description={headerDescription}
         groupName={groupName}
         groupId={groupId}
+        memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
       />
-      <div style={{ display: 'flex', gap: 8, marginTop: 8, marginBottom: 12 }}>
-        <button
-          type="button"
-          onClick={() => setView('appointments')}
-          className={view === 'appointments' ? 'fs-btnPrimary' : 'fs-btnSecondary'}
-        >
-          Schedule
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('people')}
-          className={view === 'people' ? 'fs-btnPrimary' : 'fs-btnSecondary'}
-        >
-          People
-        </button>
-      </div>
+      <div className="fs-shell">
+        <aside className="fs-sidebar">
+          <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
+          <button type="button" className={`fs-btn ${activeSection === 'members' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
+        </aside>
+        <section className="fs-main">
+          {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
-      {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
-
-      {view === 'appointments' ? (
-        <section className="panel">
-          {sortedAppointments.length === 0 ? (
-            <div className="fs-alert" style={{ maxWidth: 760 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
-              <div style={{ color: 'var(--muted)' }}>
-                Use the add row at the bottom of the table to create the first entry.
+          <form onSubmit={onSubmit}>
+            <section className="panel fs-commandBar" aria-label="Command bar">
+                <div className="fs-commandHeader">
+                  <div>
+                    <h2>Add event</h2>
+                    <p className="prompt-tip">Type details or scan an image.</p>
+                  </div>
+                  <div className="fs-commandActions">
+                  <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment"><Camera />Scan</button>
+                  <button type="button" className="fs-btn fs-btn-secondary" onClick={() => { void addAppointment(); }} disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}><Plus />Add</button>
+                  </div>
+                </div>
+              <div className="input-row fs-commandInputRow">
+                <input id="prompt" aria-label="Command input" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'e.g. Dentist Tue 3pm, Flight to Seattle Friday 8am'} />
               </div>
-            </div>
-          ) : null}
-          <div className="table-wrap fs-tableScroll">
-            <table className="data-table">
-              <thead>
-                <tr><th>Code</th><th>When</th><th>Status</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {sortedAppointments.map((appointment) => {
-                  const isWhenEditing = whenEditorCode === appointment.code;
-                  const apptStatus = appointment.time?.intent?.status !== 'resolved'
-                    ? 'unreconcilable'
-                    : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
-                      ? 'conflict'
-                      : 'no_conflict';
-                  return (
-                    <Fragment key={appointment.code}>
-                      <tr ref={isWhenEditing ? editingAppointmentRowRef : undefined}>
-                        <td><code>{appointment.code}</code></td>
-                        <td>
-                          <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
-                            {appointment.time?.intent?.status !== 'resolved'
-                              ? <span className='status-tag unknown'>Unresolved</span>
-                              : formatAppointmentTime(appointment)}
-                          </a>
-                        </td>
-                        <td>
-                          {apptStatus === 'unreconcilable' ? (
-                            <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
-                              <span className="status-tag unknown">Unreconcilable</span>
-                            </button>
-                          ) : (
-                            <span className={`status-tag ${apptStatus === 'conflict' ? 'unavailable' : 'available'}`}>
-                              {apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
-                        <td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
-                        <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview" title={appointment.locationDisplay || appointment.location}>{appointment.locationDisplay || appointment.location || '—'}</p>{(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw) ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
-                        <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
-                        <td>
-                          <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
-                            {appointment.scanImageKey ? (
-                              <button
-                                type="button"
-                                className="icon-button"
-                                aria-label="View appointment scan"
-                                data-tooltip="View scan"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  setScanViewerAppointment(appointment);
-                                }}
-                              >
-                                📷
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="icon-button"
-                              aria-label="Edit appointment"
-                              data-tooltip="Edit appointment"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                openWhenEditor(appointment);
-                              }}
-                            >
-                              <Pencil />
-                            </button>
-                            <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></button>
-                          </div>
-                        </td>
-                      </tr>
-                      {isWhenEditing ? (
-                        <tr ref={whenEditorRowRef}>
-                          <td colSpan={8} className="when-editor-cell">
-                            <AppointmentEditorForm
-                              appointmentCode={appointment.code}
-                              whenValue={whenDraftText}
-                              descriptionValue={descDraftText}
-                              locationValue={locationDraftText}
-                              notesValue={notesDraftText}
-                              onWhenChange={setWhenDraftText}
-                              onWhenKeyDown={(event) => {
-                                if (event.key === 'Enter') {
-                                  event.preventDefault();
-                                  void previewWhenDraft(appointment);
-                                }
-                              }}
-                              onDescriptionChange={setDescDraftText}
-                              onLocationChange={setLocationDraftText}
-                              onNotesChange={setNotesDraftText}
-                              onResolveDate={() => void previewWhenDraft(appointment)}
-                              errorText={whenDraftError}
-                              previewContent={whenPreviewed ? (
-                                <div>
-                                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
-                                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-                                </div>
-                              ) : null}
-                              onConfirm={() => void confirmWhenDraft(appointment)}
-                              onCancel={closeWhenEditor}
-                            />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-                <tr className="fs-tableCtaRow">
-                  <td colSpan={9}><div className="scan-cta-wrap">
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
-                      {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
-                    </button>
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
-                  </div></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
+              <p className="prompt-tip">Examples: add/update appointments, assign APPT codes, or paste screenshot text for parsing.</p>
+            </section>
+          </form>
 
-      {view === 'people' ? (
+          {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
+
+          {activeSection === 'settings' ? <section className="panel"><p>Settings view coming soon.</p></section> : null}
+
+          {activeSection === 'calendar' ? (
+            <>
+              <section className="panel fs-cal">
+                <div className="fs-calToolbar">
+                  <div className="fs-calTabs" role="tablist" aria-label="Calendar views">
+                    <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`fs-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
+                    <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`fs-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
+                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
+                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
+                  </div>
+                  {calendarView === 'month' ? (
+                    <div className="fs-calMonthNav">
+                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></button>
+                      <div className="fs-calMonth">{monthLabel}</div>
+                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></button>
+                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
+                    </div>
+                  ) : null}
+                </div>
+                {calendarView === 'month' ? (
+                  <>
+                    <div className="fs-cal-grid fs-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="fs-cal-cell fs-cal-weekday">{weekday}</div>)}</div>
+                    <div className="fs-cal-grid">
+                      {monthDays.map((day) => {
+                        const dateKey = day.toISOString().slice(0, 10);
+                        const dayAppointments = appointmentsByDate[dateKey] ?? [];
+                        const dayTodos = todosByDate[dateKey] ?? [];
+                        const inMonth = day.getMonth() === monthAnchor.getMonth();
+                        return (
+                          <div key={dateKey} className={`fs-cal-cell ${inMonth ? '' : 'fs-cal-outside'}`}>
+                            <div className="fs-cal-dateRow">
+                              <span>{day.getDate()}</span>
+                              <button type="button" className="fs-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                            </div>
+                            <div className="fs-cal-items">
+                              {dayAppointments.map((appointment) => (
+                                <button
+                                  key={appointment.code}
+                                  type="button"
+                                  className="fs-chip"
+                                  onClick={() => openWhenEditor(appointment)}
+                                  title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
+                                >
+                                  <span className="fs-chipTitle">{appointment.desc || appointment.code}</span>
+                                  <span className="fs-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                </button>
+                              ))}
+                              {dayTodos.map((todo) => (
+                                <button key={todo.id} type="button" className={`fs-chip fs-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                  📝 {todo.text}
+                                </button>
+                              ))}
+                              
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
+              </section>
+
+              {calendarView === 'list' ? (
+                <section className="panel">
+                  {sortedAppointments.length === 0 ? (
+                    <div className="fs-alert" style={{ maxWidth: 760 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
+                      <div style={{ color: 'var(--muted)' }}>
+                        Use the add row at the bottom of the table to create the first entry.
+                      </div>
+                    </div>
+                  ) : null}
+                  {isMobile ? (
+                    <AppointmentCardList
+                      appointments={sortedAppointments}
+                      getStatus={(appointment) => (
+                        appointment.time?.intent?.status !== 'resolved'
+                          ? 'unreconcilable'
+                          : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                            ? 'conflict'
+                            : 'no_conflict'
+                      )}
+                      formatWhen={formatAppointmentTime}
+                      onEdit={openWhenEditor}
+                      onDelete={setAppointmentToDelete}
+                      onSelectPeople={setSelectedAppointment}
+                      onOpenScanViewer={setScanViewerAppointment}
+                      editIcon={<Pencil />}
+                      deleteIcon={<Trash2 />}
+                    />
+                  ) : (
+                    <div className="table-wrap fs-tableScroll fs-listContainer">
+                      <table className="data-table fs-listTable">
+                        <thead>
+                          <tr>
+                            <th className="fs-col-code">Code</th>
+                            <th className="fs-col-when">When</th>
+                            <th className="fs-col-status">Status</th>
+                            <th>Description</th>
+                            <th className="fs-col-people">People</th>
+                            <th>Location</th>
+                            <th>Notes</th>
+                            <th className="fs-col-actions">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedAppointments.map((appointment) => {
+                            const apptStatus = appointment.time?.intent?.status !== 'resolved'
+                              ? 'unreconcilable'
+                              : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                                ? 'conflict'
+                                : 'no_conflict';
+                            return (
+                              <tr key={appointment.code}>
+                                <td className="fs-codeCell fs-col-code"><code>{appointment.code}</code></td>
+                                <td className="fs-col-when">
+                                  <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
+                                    {appointment.time?.intent?.status !== 'resolved'
+                                      ? <span className='status-tag unknown'>Unresolved</span>
+                                      : formatAppointmentTime(appointment)}
+                                  </a>
+                                </td>
+                                <td className="fs-col-status">
+                                  {apptStatus === 'unreconcilable' ? (
+                                    <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
+                                      <span className="status-tag unknown">Unreconcilable</span>
+                                    </button>
+                                  ) : (
+                                    <span className={`status-tag ${apptStatus === 'conflict' ? 'unavailable' : 'available'}`}>
+                                      {apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
+                                <td className="fs-col-people"><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
+                                <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview">{appointment.locationDisplay || '—'}</p>{appointment.locationMapQuery ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
+                                <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
+                                <td className="actions-cell fs-col-actions">
+                                  <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
+                                    {appointment.scanImageKey ? (
+                                      <button
+                                        type="button"
+                                        className="icon-button"
+                                        aria-label="View appointment scan"
+                                        data-tooltip="View scan"
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          setScanViewerAppointment(appointment);
+                                        }}
+                                      >
+                                        <Camera />
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      className="icon-button"
+                                      aria-label="Edit appointment"
+                                      data-tooltip="Edit appointment"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        openWhenEditor(appointment);
+                                      }}
+                                    >
+                                      <Pencil />
+                                    </button>
+                                    <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+            </>
+          ) : null}
+
+          {activeSection === 'todos' ? (
+            <section className="panel fs-todo">
+              <div className="panel-header">
+                <h2>Todos</h2>
+                <button type="button" className="fs-btn fs-btn-primary" onClick={createTodo}>+ Add todo</button>
+              </div>
+              <p className="fs-meta">TODO: wire todo persistence to backend in a follow-up pass.</p>
+              <div className="fs-todo-list">
+                {todos.map((todo) => (
+                  <div key={todo.id} className="fs-todo-item">
+                    <label>
+                      <input type="checkbox" checked={todo.done} onChange={() => toggleTodo(todo.id)} />
+                      <span>{todo.text}</span>
+                    </label>
+                    <div className="fs-todo-meta">
+                      {todo.dueDate ? <span>Due: {todo.dueDate}</span> : null}
+                      {todo.assignee ? <span>Assignee: {todo.assignee}</span> : null}
+                    </div>
+                    <div className="action-buttons">
+                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => openTodoEditor(todo)}>Edit</button>
+                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
+                    </div>
+                  </div>
+                ))}
+                {todos.length === 0 ? <p className="fs-meta">No todos yet.</p> : null}
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'members' ? (
         <section className="panel"> 
           {peopleInView.length === 0 ? (
             <div className="fs-alert" style={{ maxWidth: 760 }}>
@@ -1096,8 +1264,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <td className="actions-cell">
                             {isNewRowEditing ? (
                               <div className="action-buttons">
-                                <button type="button" className="fs-btnPrimary" onClick={() => void submitPersonEdit()}>Accept</button>
-                                <button type="button" className="fs-btnSecondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
+                                <button type="button" className="fs-btn fs-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
+                                <button type="button" className="fs-btn fs-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
                               </div>
                             ) : (
                               <div className="action-icons"> 
@@ -1172,18 +1340,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             </table>
           </div>
         </section>
-      ) : null}
-
-      {view === 'appointments' ? (
-        <form onSubmit={onSubmit}>
-          <label htmlFor="prompt">What would you like to do?</label>
-          <div className="input-row">
-            <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder='Add, edit, or assign (e.g., "edit APPT-4")…' />
-            <button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button>
-          </div>
-          <p className="prompt-tip">Tip: Paste an appointment email or CSV — we’ll extract the details and add it for you.</p>
-        </form>
-      ) : null}
+          ) : null}
+        </section>
+      </div>
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
@@ -1279,6 +1438,55 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <div className="picker-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
+
+      <Drawer open={editingTodo != null} title="Edit todo" onClose={closeTodoEditor}>
+        {editingTodo ? (
+          <div className="field-grid">
+            <label>Text<input value={todoDraft.text} onChange={(event) => setTodoDraft((prev) => ({ ...prev, text: event.target.value }))} /></label>
+            <label>Due date<input type="date" value={todoDraft.dueDate} onChange={(event) => setTodoDraft((prev) => ({ ...prev, dueDate: event.target.value }))} /></label>
+            <label>Assignee<input value={todoDraft.assignee} onChange={(event) => setTodoDraft((prev) => ({ ...prev, assignee: event.target.value }))} placeholder="Name" /></label>
+            <label className="switch-row"><input type="checkbox" checked={todoDraft.done} onChange={(event) => setTodoDraft((prev) => ({ ...prev, done: event.target.checked }))} />Done</label>
+            <div className="modal-actions">
+              <button type="button" onClick={saveTodo} disabled={!todoDraft.text.trim()}>Save</button>
+              <button type="button" onClick={() => deleteTodo(editingTodo.id)}>Delete</button>
+              <button type="button" onClick={closeTodoEditor}>Cancel</button>
+            </div>
+          </div>
+        ) : null}
+      </Drawer>
+
+      <Drawer open={whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
+        {editingAppointment ? (
+          <AppointmentEditorForm
+            appointmentCode={editingAppointment.code}
+            whenValue={whenDraftText}
+            descriptionValue={descDraftText}
+            locationValue={locationDraftText}
+            notesValue={notesDraftText}
+            onWhenChange={setWhenDraftText}
+            onWhenKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void previewWhenDraft(editingAppointment);
+              }
+            }}
+            onDescriptionChange={setDescDraftText}
+            onLocationChange={setLocationDraftText}
+            onNotesChange={setNotesDraftText}
+            onResolveDate={() => void previewWhenDraft(editingAppointment)}
+            errorText={whenDraftError}
+            previewContent={whenPreviewed ? (
+              <div>
+                <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
+                {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+              </div>
+            ) : null}
+            onConfirm={() => void confirmWhenDraft(editingAppointment)}
+            onCancel={closeWhenEditor}
+          />
+        ) : null}
+      </Drawer>
       <FooterHelp />
       <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
     </Page>

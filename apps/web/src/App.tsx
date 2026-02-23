@@ -142,7 +142,7 @@ function CreateGroupPage() {
             <span className="field-help">Use a number you will use to sign into this group.</span>
           </label>
           <div className="join-actions">
-            <button className="fs-btnPrimary" type="submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create Group'}</button>
+            <button className="fs-btn fs-btn-primary" type="submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create Group'}</button>
           </div>
         </div>
         {error ? <p className="form-error">{error}</p> : null}
@@ -160,7 +160,7 @@ function CreateGroupPage() {
             </label>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', maxWidth: 640 }}>
               <input type="text" value={shareUrl} readOnly className="field-input" />
-              <button className="fs-btnSecondary" type="button" onClick={() => void copyShareLink()}>Copy</button>
+              <button className="fs-btn fs-btn-secondary" type="button" onClick={() => void copyShareLink()}>Copy</button>
             </div>
             {copied ? <p className="fs-meta">Copied to clipboard.</p> : null}
 
@@ -177,7 +177,7 @@ function CreateGroupPage() {
               </ul>
             </div>
             <div className="join-actions">
-              <button className="fs-btnPrimary" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
+              <button className="fs-btn fs-btn-primary" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
             </div>
           </section>
         ) : null}
@@ -261,7 +261,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
             <input className="field-input" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="(425) 555-1234" />
           </label>
           <div className="join-actions">
-            <button className="fs-btnPrimary" type="submit">Join Group</button>
+            <button className="fs-btn fs-btn-primary" type="submit">Join Group</button>
           </div>
         </div>
         {error ? <p className="form-error">{error}</p> : null}

@@ -1,3 +1,106 @@
+## 2026-02-23 05:03 UTC update (UEX polish: title section + nav cleanup)
+
+- Header polish: invite URL text is now smaller + muted, invite help line spacing is tightened, and the members line now renders names only (removed the `Members:` prefix).
+- Navigation cleanup: hid unimplemented Overview/Todos/Settings entries from the left nav; only Calendar and Members remain visible to avoid dead UI.
+- No backend/API/shared-package changes.
+- Production release via `develop -> main` merge is pending repository/hosting access outside this workspace.
+
+## 2026-02-23 04:16 UTC update (UEX: remove list horizontal scroll)
+
+- List view: removed horizontal scroll; enforced fixed table layout and column constraints.
+- Added a list-specific table class (`fs-listTable`) with fixed layout and explicit widths for Code/When/Status/People/Actions.
+- Added list-specific container hardening (`fs-listContainer`) with `overflow-x: hidden`, `overflow-y: auto`, and `min-width: 0` to prevent flex overflow growth.
+- Constrained list cells with single-line ellipsis for long content to maintain row stability and readability.
+- No backend/API/shared-package changes.
+
+## 2026-02-23 04:10 UTC update (UEX: Title section restructure)
+
+- Header title section updated with a new `Group` label above the group name.
+- Member summary now appears directly below the group name as muted text (up to 4 names, then `+N`).
+- Invite link row reworked to a 2-column layout with URL input on the left and Copy button on the right.
+- Explainer text is now directly beneath the invite URL row with tighter spacing.
+- Removed the `Calendar` subtitle from the group title block.
+- Copy behavior remains unchanged and still copies the full invite URL.
+
+## 2026-02-23 04:08 UTC update (UEX: header invite layout + calm accent + member chips)
+
+- Group header: invite link layout fixed (no overflow), calm accent styling added.
+- Added member chips summary in header (up to 4 names with +N overflow chip).
+- Removed Group ID from primary UI header surface.
+- Copy link behavior unchanged (copies full invite URL).
+- No backend/API/shared-package changes.
+
+## 2026-02-23 03:50 UTC update (UEX header cleanup: invite link primary)
+
+- Updated group page header UX to make the group name the primary title and present an explicit Invite link utility card.
+- Replaced prior “Invite” row with “Invite link” + “Copy link” action, visible invite URL surface, and persistent explainer text: “Save this link — it’s the only way to return to this group.”
+- Removed Group ID and its copy icon/button from the primary header UI.
+- Removed the “Copies full invite URL” helper copy.
+- Added calm utility-card styling and URL overflow protection for narrow widths.
+- No backend/API/shared-package changes.
+
+## 2026-02-23 03:55 UTC update (UEX: clean up Edit Appointment form)
+
+- Edit appointment drawer now enforces vertical-only scrolling and hides horizontal overflow in drawer containers.
+- Appointment editor fields (When, Description, Location, Notes) are now auto-growing multiline textareas.
+- When-row layout now wraps with `min-width: 0` hardening so controls do not overflow at narrow widths.
+- No backend or data model changes.
+## 2026-02-23 03:36 UTC update (discovery query: group logic, Azure storage, identity fields, function routes)
+
+- Added a discovery report at `docs/discovery-group-azure-identity-endpoints.md`.
+- Confirmed group create/join and membership-related flow locations across frontend (`apps/web/src/App.tsx`) and backend (`api/src/functions/groupCreate.ts`, `groupJoin.ts`, `groupMeta.ts`).
+- Confirmed Azure Blob usage (`@azure/storage-blob`, `BlobServiceClient`) and no `@azure/data-tables` / `TableClient` usage.
+- Confirmed identity claim header/claim-field tokens (`x-ms-client-principal`, `claims`, `oid`, `sub`, `preferred_username`) are not currently referenced in app code.
+- Enumerated Azure Function endpoints from `function.json` and noted additional code-registered routes in `api/src/index.ts`.
+- No runtime behavior changes; documentation/discovery only.
+
+## 2026-02-23 03:31 UTC update (UEX copy tweak: add event language)
+
+- Renamed “Command” section to “Add event”.
+- Simplified instructional helper text for clarity and tone alignment.
+- Updated command input placeholder to remove internal references and use cleaner example phrasing.
+- No architectural changes.
+- No behavior changes.
+- UI language refinement only.
+
+## 2026-02-23 03:16 UTC update (UEX polish pass 3 frontend-only)
+
+- Completed frontend-only Calendar/List UX polish in `apps/web/**` with no backend or shared package changes.
+- Calendar tabs now render as segmented control in order **List, Month, Week, Day**, with List as default and Week/Day disabled as “Soon”.
+- Month view now includes **Prev / Today / Next** controls and local month cursor state so the month grid and title rerender correctly.
+- Month chips now emphasize appointment description + muted time line and use a subtle chip style instead of blue pill styling.
+- Header invite clarity updated: “Invite” control copies full group URL; Group ID row retains compact display + explicit copy icon.
+- Command bar cleanup: removed duplicate “Command” field label, retained single heading, and wired Add button to existing `addAppointment()` path.
+- Table polish: increased action-column/icon hit areas and reinforced APPT code no-wrap behavior.
+- Debug/artifact conventions unchanged (`./.artifacts/<traceId>/` when debug instrumentation is enabled).
+
+## 2026-02-23 02:31 UTC update (web UEX polish pass frontend-only)
+
+- Completed a frontend-only UEX polish pass scoped to `apps/web/**` with no backend/API contract changes.
+- Promoted command input into a persistent Command Bar with primary Scan CTA and secondary Add action across Calendar/Todos/Members/Overview/Settings sections.
+- Simplified calendar hygiene: default view is List, Week/Day are shown as disabled placeholders, and month cell add/todo CTA noise was reduced.
+- Simplified header identity: removed inline group `(id)` clutter in app shell header row, replaced raw URL surface with compact Copy link action, and moved group ID to shortened muted display with copy.
+- Unified button styling via shared class set (`fs-btn`, `fs-btn-primary`, `fs-btn-secondary`, `fs-btn-ghost`) and applied to key create/join, members, and drawer/editor actions.
+- Added APPT code nowrap/min-width treatment in list table and card headers to prevent wrapping.
+- Improved form visual surfaces/spacing for Create Group and drawer editor rows.
+
+## 2026-02-23 update (Phase 1 Step 3 mobile-only Drawer editor)
+
+- Finalized mobile-only appointment editing surface in `AppShell` using `useMediaQuery('(max-width: 768px)')`.
+- Mobile now renders appointment editing exclusively in `Drawer open={whenEditorCode != null}`; desktop preserves existing inline `<tr>` editor behavior.
+- Preserved all existing editor entry points (edit icon, When link, unreconcilable status button, add-appointment auto-open).
+- Drawer close behaviors remain intact via overlay click, `Escape`, and form cancel.
+- No API contract or appointment sorting behavior changed.
+
+## 2026-02-23 update (mobile appointment editor drawer)
+
+- Added responsive appointment editing behavior in the web app:
+  - Mobile (`max-width: 768px`): appointment editor now opens in the shared Drawer component.
+  - Desktop: existing inline table-row editor remains unchanged.
+- Added reusable `useMediaQuery` hook for client-side media query detection.
+- Preserved all existing editor entry points and confirm/cancel flows; no API or sorting behavior changes.
+- Debug/artifact switches unchanged (`./.artifacts/<traceId>/` remains the convention when enabled).
+
 ## 2026-02-22 update (environment topology documentation)
 
 - Formally documented production/staging environment topology in `docs/environments.md`, including resource mapping, isolation rules, deployment notes, and invariants.
@@ -839,3 +942,38 @@ traces
 - Extracted the inline appointment editor form UI from `AppShell` into a new presentational component at `apps/web/src/components/AppointmentEditorForm.tsx`.
 - Kept all appointment editor state/handlers/preview derivation in `AppShell`; only moved JSX rendering of fields, feedback area, and confirm/cancel actions.
 - Build verified for `apps/web`.
+
+## 2026-02-23 update (Phase 1 Step 2 drawer primitive scaffold)
+
+- Added a new reusable `Drawer` primitive (`apps/web/src/components/Drawer.tsx`) with overlay-click close, Escape-key close, and body-scroll lock/unlock lifecycle handling.
+- Added namespaced drawer CSS classes under `apps/web/src/styles/ui.css` (`.fs-drawer-*`) to avoid table/button/input regressions.
+- Wired a non-functional `Drawer` mount in `AppShell` with `open={false}` and placeholder content, preserving the current inline `<tr>` appointment editor as active UI.
+- Current milestone: Phase 1 foundation work for future drawer-based editing (activation planned in Step 3).
+
+## 2026-02-23 update (Drawer-only editor + mobile schedule cards)
+
+- Appointment editing now uses the Drawer on all screen sizes (desktop + mobile); the inline schedule editor `<tr>` expansion was removed.
+- Preserved existing AppShell edit state/handlers (`whenEditorCode`, draft fields, preview/error handling, confirm/cancel) while moving rendering exclusively to `Drawer` + `AppointmentEditorForm`.
+- Added mobile schedule card rendering (`AppointmentCardList`) for `max-width: 768px`, while keeping desktop table rendering and existing sorted order behavior intact.
+- Mobile cards include: code, when, status, description, people, location + map link, notes, and edit/delete actions (plus scan-view icon when available).
+- Added namespaced `.fs-card*` styles in `apps/web/src/styles/ui.css` to support readable mobile cards and CTA actions without global selector changes.
+- Build status: `pnpm --filter @familyscheduler/web build` passes after this change.
+
+## 2026-02-23 update (shell layout + month calendar + todos view, frontend-only)
+
+- Replaced in-app Schedule/People toggle with a persistent shell layout (`.fs-shell`) containing sidebar navigation (Overview, Calendar, Todos, Members, Settings), top bar group label, search placeholder, and main content panel.
+- Kept hash routing and group app route shape unchanged (`#/g/:groupId/app`) and retained existing `AppShell` wiring.
+- Calendar now supports `Month | List | Week | Day` view toggle (Week/Day placeholders for now):
+  - Month view renders a 7-column month grid (with leading/trailing days) and shows appointment chips per day.
+  - Clicking an appointment chip opens the existing appointment drawer editor flow.
+  - Day-cell `+ Add` action reuses existing `addAppointment()` flow.
+  - Due-dated todos render as distinct chips in the month grid and open a todo drawer editor.
+  - List view reuses existing appointment list UI behavior (desktop table + mobile cards) unchanged.
+- Added frontend-only Todos section with local client state CRUD (add, toggle done, edit via Drawer, delete), with explicit TODO note for backend persistence wiring.
+- Members sidebar section maps to existing People view behavior without functional changes.
+
+## 2026-02-23 update (UEX: simplify title section invite link presentation)
+
+- Header invite link UI now renders as plain text (non-input) with truncation-safe ellipsis behavior and no border/field styling.
+- Copy affordance is now an icon-only button in the same row as the URL; clipboard copy behavior remains unchanged and still copies the full invite URL.
+- Title section invite block is left-aligned with tighter vertical spacing so Members line, invite URL row, and helper text read as one compact group.

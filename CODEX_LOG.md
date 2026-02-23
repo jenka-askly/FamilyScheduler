@@ -1,4 +1,141 @@
+## 2026-02-23 05:03 UTC (UEX polish: title section + hide unimplemented nav)
+
+### Objective
+
+Apply requested UEX polish in the header/title section, hide unimplemented navigation items, and validate frontend build without backend changes.
+
+### Approach
+
+- Updated `PageHeader` member summary text to remove the `Members:` prefix while preserving existing truncation/`+N` behavior.
+- Tightened invite link presentation styles (`fs-inviteUrlText`, `fs-inviteHelp`, `fs-inviteBlock`) for smaller muted URL text and compact helper spacing.
+- Removed Overview/Todos/Settings buttons from the sidebar navigation render so only Calendar and Members are exposed.
+- Built the web app and captured a screenshot from the updated workspace shell.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Members:|Overview|Todos|Settings|Save this link|invite" apps/web/src PROJECT_STATUS.md CODEX_LOG.md` ✅ located relevant implementation points.
+- `pnpm --filter @familyscheduler/web run build` ✅ build passed after UI/CSS updates.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started local dev server for visual validation.
+- Browser screenshot capture via Playwright ✅ artifact `browser:/tmp/codex_browser_invocations/c8be526d726dd70e/artifacts/artifacts/uex-polish-nav-header.png`.
+
+### Follow-ups
+
+- Production merge/deploy verification requires repo hosting permissions and environment access outside this local workspace.
+
+
+## 2026-02-23 03:55 UTC
+
+### Objective
+
+Implement UEX clean-up for Edit Appointment drawer: remove horizontal scrolling and convert editor fields to auto-growing multiline controls without changing behavior.
+
+### Approach
+
+- Updated drawer overflow rules in shared UI CSS to enforce vertical-only content scrolling and suppress X overflow in drawer wrappers.
+- Added a local `AutoGrowTextarea` helper in `AppointmentEditorForm` using a ref + resize routine triggered on input and value updates.
+- Converted When/Description/Location/Notes from `<input>` to auto-growing textareas while keeping labels, ids, callbacks, resolve action, and Enter-key behavior wiring intact.
+- Hardened editor row layout CSS for flex wrapping, label sizing, textarea shrink behavior (`min-width: 0`), and narrow viewport wrapping for the resolve button.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/components/AppointmentEditorForm.tsx` ✅ inspected existing editor form implementation.
+- `sed -n '1,260p' apps/web/src/styles/ui.css` ✅ located drawer overflow rules.
+- `sed -n '1,320p' apps/web/src/styles.css` ✅ located editor row styles to update for flex-wrap and textarea behavior.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after TS + JSX updates.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed after CSS and component changes.
+
+### Follow-ups
+
+- Manual UI verification on desktop and ~375px widths to confirm no drawer horizontal scrollbar and expected textarea auto-growth with resolve button wrap behavior.
+
+
+## 2026-02-23 02:31 UTC
+
+### Objective
+
+Execute a frontend-only UEX polish pass for `apps/web/**` to improve discoverability, visual consistency, and calendar/header hygiene while preserving behavior/API wiring.
+
+### Approach
+
+- Located UI ownership points in `AppShell`, `PageHeader`, shared styles, and create/join screens.
+- Kept handlers/API calls intact; moved/reshaped only layout + classes + CSS.
+- Introduced a persistent command surface and surfaced scan as primary action.
+- Standardized button classes and added targeted spacing/nowrap polish.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files apps/web | head -n 200` ✅ scoped frontend files.
+- `rg -n "What would you like|Scan appointment|calendarView|fs-btnPrimary" apps/web/src/...` ✅ located target UI nodes.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ TypeScript passed after updates.
+- `pnpm --filter @familyscheduler/web run build` ✅ web build passed.
+
+### Follow-ups
+
+- Optional follow-up: if product wants day-cell quick-create, add subtle hover-only `+` interaction wired to existing add flow (currently visual-only calm indicator).
+
+
 # CODEX_LOG
+
+## 2026-02-23 04:16 UTC (UEX: remove horizontal scroll from List view)
+
+### Objective
+
+Remove horizontal scrollbar from desktop List view table, prevent table expansion beyond container, and truncate long text with ellipsis while preserving readability.
+
+### Approach
+
+- Located desktop List view table in `apps/web/src/AppShell.tsx` and scoped changes to that table only.
+- Added list-only classes to wrapper/table and key columns: `fs-listContainer`, `fs-listTable`, and column classes (`fs-col-*`).
+- Applied list-specific CSS hardening in `apps/web/src/styles.css`:
+  - fixed table layout (`table-layout: fixed; width: 100%`),
+  - horizontal overflow suppression on list container (`overflow-x: hidden; overflow-y: auto;`),
+  - truncation behavior (`overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`),
+  - explicit widths for Code/When/Status/People/Actions,
+  - flex/overflow guard (`min-width: 0`) on wrappers and list multiline cells.
+- Kept global table behavior intact for non-list tables by using list-scoped selectors.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "List|table|Code|When|Status|Description|Notes" apps/web/src` ✅ located list table + style definitions.
+- `pnpm --filter @familyscheduler/web build` ✅ web app build/typecheck passed.
+- `git diff -- apps/web/src/AppShell.tsx apps/web/src/styles.css PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted diff.
+
+### Follow-ups
+
+- Human visual check on desktop at common breakpoints to confirm truncation balance for Description/Location/Notes text.
 
 ## 2026-02-21 03:42 UTC (page header group block vertical packing)
 
@@ -5067,3 +5204,396 @@ Extract appointment edit form UI from `apps/web/src/AppShell.tsx` into a reusabl
 
 ### Follow-ups
 - None for this phase; component extraction is complete and intentionally presentational-only.
+
+## 2026-02-23 01:20 UTC (Phase 1 Step 2 drawer primitive, no UX change)
+
+### Objective
+
+Add a reusable drawer primitive and styles without changing active editing UX (inline schedule-row editor remains in use).
+
+### Approach
+
+- Added `Drawer` component with required behavior: overlay click close, Escape close while open, and body scroll lock with cleanup on close/unmount.
+- Added namespaced `.fs-drawer-*` styles in `apps/web/src/styles/ui.css` for overlay/panel/header/title/close/content.
+- Mounted `<Drawer open={false} ...>` in `AppShell` with placeholder content so no visual behavior changes occur yet.
+- Updated continuity docs per workflow requirements.
+
+### Files changed
+
+- `apps/web/src/components/Drawer.tsx`
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `date '+%Y-%m-%d %H:%M %Z'` ✅ captured timestamp.
+- `pnpm --filter @family-scheduler/web build` ❌ failed (no matching workspace package name).
+- `pnpm --filter @familyscheduler/web build` ✅ web build passed.
+- `git status --short` ✅ verified intended file set only.
+
+### Follow-ups
+
+- Step 3: switch appointment editing trigger/state to open Drawer and host `AppointmentEditorForm` in the drawer panel.
+
+## 2026-02-23 01:29 UTC
+
+### Objective
+
+Implement Phase 1 Step 3: use Drawer-based appointment editing on mobile only while keeping desktop inline `<tr>` editor behavior intact.
+
+### Approach
+
+- Added a small reusable `useMediaQuery` hook with no dependencies.
+- Wired `AppShell` to detect mobile via `(max-width: 768px)`.
+- Kept existing edit entry points (`Edit` icon, `When` link, unreconcilable status button, add appointment flow) routed through the same `openWhenEditor` state path.
+- Rendered inline `<tr>` editor only on non-mobile; rendered Drawer editor only on mobile using the same draft state and handlers.
+- Ensured Drawer close path uses existing `closeWhenEditor` and relies on Drawer overlay/Escape handling.
+- Disabled desktop click-away inline-editor effect on mobile to avoid Drawer interaction conflicts.
+
+### Files changed
+
+- `apps/web/src/hooks/useMediaQuery.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `rg -n "useMediaQuery|isMobile|Drawer open=|!isMobile && isWhenEditing" apps/web/src/AppShell.tsx` ✅ verified responsive editor wiring.
+
+### Follow-ups
+
+- Human verification on a real mobile viewport is recommended to validate Drawer UX end-to-end (open/close/confirm/cancel across all entry points).
+
+## 2026-02-23 01:37 UTC (phase 1 step 3 mobile-only drawer editor)
+
+### Objective
+
+Use Drawer-based appointment editing on mobile only while preserving the existing desktop inline `<tr>` editor.
+
+### Approach
+
+- Verified existing responsive edit flow wiring in `AppShell` and confirmed `useMediaQuery` hook exists and is dependency-free.
+- Tightened mobile Drawer render contract to exactly `isMobile ? <Drawer open={whenEditorCode != null} ...>` and render `AppointmentEditorForm` inside it.
+- Kept desktop inline editor branch unchanged (`!isMobile && isWhenEditing`).
+- Validated that all existing edit entry points continue to call `openWhenEditor`.
+- Ran web TypeScript typecheck and captured a mobile UI screenshot artifact.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "whenEditorCode|AppointmentEditorForm|Drawer|closeWhenEditor|openWhenEditor|status|unreconcilable|When" apps/web/src/AppShell.tsx` ✅ verified edit entry points and responsive branches.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot script against `http://127.0.0.1:4173` ✅ captured `browser:/tmp/codex_browser_invocations/2b086925c7d0831f/artifacts/artifacts/mobile-appshell.png`.
+- `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown for the temporary screenshot server.
+
+### Follow-ups
+
+- Human verification in full local app context with seeded appointments to visually confirm mobile Drawer open/close behavior for each entry point.
+
+## 2026-02-23 01:43 UTC (drawer-only appointment editor + mobile schedule cards)
+
+### Objective
+Implement combined UI step: make Drawer the only appointment editor across all breakpoints and add a mobile card-based schedule layout while preserving existing behavior/state handlers/API flows.
+
+### Approach
+- Removed inline schedule editor `<tr>` rendering path from `AppShell` and kept `Drawer` editor mount always active when `whenEditorCode != null`.
+- Preserved AppShell-owned editor state and handlers (`openWhenEditor`, `closeWhenEditor`, draft fields, preview, confirm/cancel).
+- Replaced mobile schedule table rendering with new `AppointmentCardList` component fed by existing `sortedAppointments` list.
+- Kept desktop table rendering and row actions unchanged except for inline editor removal.
+- Added namespaced `.fs-card*` CSS styles for mobile cards + CTA row spacing.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx` (new)
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web build` ❌ initially failed (new card component appointment type was too narrow).
+- `pnpm --filter @familyscheduler/web build` ✅ passed after aligning `AppointmentCardList` appointment type with `TimeSpec` and required fields.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot attempt (terminated intentionally with SIGINT).
+- `mcp__browser_tools__run_playwright_script` ⚠️ failed due to browser container Chromium SIGSEGV (`TargetClosedError`) before capture.
+
+### Follow-ups
+- Human visual validation recommended in local browser for mobile card readability and Drawer entry points with seeded appointment data.
+
+## 2026-02-23 02:03 UTC (UEX mega pass: shell + month calendar + todos)
+
+### Objective
+Implement frontend-only app shell/navigation plus calendar month view and todos sibling view with minimal-risk changes, preserving appointments behavior/APIs and existing hash route shape.
+
+### Approach
+- Added local shell navigation state in `AppShell` (`activeSection`) to replace Schedule/People toggle and maintain current app route path.
+- Introduced calendar view mode state (`month|list|week|day`) with list mode reusing existing appointments rendering path.
+- Built month grid rendering for current month + leading/trailing days; mapped appointments to day chips that call existing `openWhenEditor` handler.
+- Kept add-appointment behavior by calling existing `addAppointment()` from calendar day cell action.
+- Added local-only todo model/state + CRUD handlers and Drawer-based todo editor; surfaced due-dated todos as distinct chips on month grid.
+- Mapped Members section directly to prior People section rendering with no functional changes.
+- Added namespaced styles for shell/calendar/todos and responsive sidebar stacking.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot script via browser tool against `http://127.0.0.1:4173` ✅ captured `browser:/tmp/codex_browser_invocations/fafea451f84a2f40/artifacts/artifacts/shell-calendar.png`.
+- `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown of temporary dev server.
+
+### Follow-ups
+- TODO: wire todo persistence to backend store/API in a follow-up pass.
+- TODO: implement full week/day calendar views (currently placeholders).
+
+## 2026-02-23 03:16 UTC
+
+### Objective
+
+Implement UEX Polish Pass 3 (frontend-only): calendar view switching UX, month navigation, month chip rendering/tooltips, command/header cleanup, and action-column visual fixes.
+
+### Approach
+
+- Updated only `apps/web/**` + continuity docs to keep scope frontend-only.
+- Introduced segmented calendar tabs and month cursor state for deterministic month navigation.
+- Reworked month chip rendering to show description + subtle time subline with tooltip detail while preserving click-to-edit behavior.
+- Simplified command bar labels and wired Add CTA to existing `addAppointment()` direct action.
+- Tightened header invite semantics and copy affordances; modernized buttons/icons and action hit targets.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual verification.
+- Playwright screenshot capture via browser container ✅ produced artifact `browser:/tmp/codex_browser_invocations/8986689a7f491612/artifacts/artifacts/uex-pass3.png`.
+- Stopped dev server with `Ctrl+C` ✅ expected SIGINT shutdown after screenshot.
+
+### Follow-ups
+
+- Week/Day calendar views remain intentionally deferred and surfaced as disabled “Soon” tabs.
+- If desired, add a dedicated floating tooltip component for richer keyboard/screen-reader month-chip detail beyond native title tooltip.
+
+## 2026-02-23 03:31 UTC
+
+### Objective
+
+Apply UEX copy-only updates in the AppShell command bar: rename “Command” to “Add event” and simplify helper text while preserving existing behavior.
+
+### Approach
+
+- Located the command bar UI strings in `apps/web/src/AppShell.tsx`.
+- Performed minimal string-only replacements for heading, helper text, and placeholder copy.
+- Left all handlers/parsing/action wiring untouched (Scan/Add/input behavior unchanged).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Command|Type once and press Add|Try: Add|scan an image" apps/web/src/AppShell.tsx` ✅ located all target copy.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture; process stopped after capture.
+
+### Follow-ups
+
+- None; copy-only change complete.
+
+## 2026-02-23 03:36 UTC
+
+### Objective
+
+Execute repository discovery for group-related logic, Azure storage usage, identity field usage, and Azure Function endpoint/routing configuration.
+
+### Approach
+
+- Ran targeted ripgrep searches for all requested terms.
+- Enumerated all `function.json` files and inspected route declarations.
+- Inspected `api/src/index.ts` for additional programmatic route registrations.
+- Captured findings in a dedicated discovery document for future reference.
+- Updated continuity docs per workflow requirement.
+
+### Files changed
+
+- `docs/discovery-group-azure-identity-endpoints.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Group|groups/|createGroup|joinGroup|member|TableClient|@azure/data-tables|BlobServiceClient|@azure/storage-blob|x-ms-client-principal|claims|oid|sub|preferred_username|email"` ✅ collected initial discovery matches.
+- `rg --files -g "**/function.json"` ✅ listed function manifests.
+- `for f in api/*/function.json; do cat "$f"; done` ✅ captured function routes/methods.
+- `rg --files -g "**/host.json" -g "**/staticwebapp.config.json" -g "**/routes.json" -g "**/swa-cli.config.json"` ✅ identified routing/runtime config files present.
+- `sed -n '1,220p' api/src/index.ts` ✅ confirmed code-registered HTTP routes beyond manifest list.
+
+### Follow-ups
+
+- If needed, add a machine-readable endpoint inventory (e.g., generated JSON) to keep manifest/code route definitions in sync.
+
+
+## 2026-02-23 03:50 UTC
+
+### Objective
+
+Implement UEX header cleanup so invite link is the primary utility, remove Group ID from the primary header UI, and remove obsolete helper copy.
+
+### Approach
+
+- Located existing header strings/handlers in `PageHeader` and kept changes scoped to the current header component and stylesheet.
+- Replaced the Invite row with a compact invite card that includes label, copy action, URL display, and the new persistence explainer copy.
+- Removed Group ID rendering/copy handler and related icon usage from the main header.
+- Added invite-card styling with thin border, subtle radius, no shadow, and ellipsis overflow handling for narrow widths.
+- Updated project continuity doc with explicit note that this is frontend-only.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Copies full invite URL|Copy link|Group ID|Invite" apps/web/src` ✅ located target header/UI strings.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
+- Playwright screenshot capture via browser container against `http://127.0.0.1:4173/#/g/demo-group/app` ✅ produced artifact `browser:/tmp/codex_browser_invocations/a46449789cff3f4c/artifacts/artifacts/header-invite-card.png`.
+- `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown of temporary dev server.
+
+### Follow-ups
+
+- If desired, move raw Group ID to a dedicated Settings/Advanced surface in a future pass.
+
+
+## 2026-02-23 04:08 UTC (UEX: fix header invite link layout + calm accent + member chips)
+
+### Objective
+
+Stabilize the group header invite-link layout (no overflow), add calmer visual treatment to the title/header card, and show a compact member summary chip list near the title without backend changes.
+
+### Approach
+
+- Updated `PageHeader` to a single grouped card layout (`fs-groupHeaderCard`) with:
+  - title block and muted meta line,
+  - compact member chips (max 4 + overflow `+N`),
+  - invite section with explicit row (`Invite link` + `Copy link`),
+  - read-only invite URL input that truncates cleanly.
+- Kept copy behavior unchanged by preserving existing clipboard write with full `groupLink` value.
+- Wired member names from existing `snapshot.people` data in `AppShell` (active members only, no new API call).
+- Reworked header CSS to:
+  - apply calm tinted card styling + subtle accent strip,
+  - enforce `min-width: 0` and non-overflow input behavior,
+  - keep chips compact/neutral and responsive at narrow widths.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Invite link|Copy link|Save this link|only way to return|Group ID|3333" apps/web/src` ✅ located header implementation points.
+- `rg -n --hidden --glob '!**/node_modules/**' "members|groupMembers|Member|Members" apps/web/src` ✅ confirmed existing member data source.
+- `pnpm --filter @familyscheduler/web build` ✅ web build passed after changes.
+
+### Follow-ups
+
+- Optional: add a direct jump interaction from member chips to Members section if product wants chip row to be clickable.
+
+## 2026-02-23 04:10 UTC
+
+### Objective
+
+Implement UEX title section restructure in the workspace header: add Group label, replace member chips with one-line member summary, move Copy button to the invite URL row, tighten invite explainer spacing, and remove Calendar subtitle.
+
+### Approach
+
+- Updated `PageHeader` markup only (no backend/API changes) to keep copy-link behavior identical while changing layout hierarchy.
+- Replaced chip-style member rendering with a muted single-line summary (`Members: name1, name2, ... +N`) using existing `memberNames` input and conditional rendering when members exist.
+- Reworked invite row into URL input (left) + Copy button (right), then placed helper copy directly below with tight spacing.
+- Updated CSS to support the new title hierarchy and invite row flex behavior including ellipsis-safe URL rendering.
+- Recorded status in `PROJECT_STATUS.md` per continuity requirement.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/components/layout/PageHeader.tsx` ✅ inspected existing header structure.
+- `sed -n '730,880p' apps/web/src/styles.css` ✅ inspected existing header/invite styles.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ initially failed due to JSX bracket mismatch while editing; fixed immediately.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after JSX fix.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local app for visual verification.
+- `mcp__browser_tools__run_playwright_script` ✅ captured updated header screenshot (`artifacts/header-title-restructure.png`).
+
+### Follow-ups
+
+- Optional product follow-up: if member names become very long in real data, consider adding a max-width clamp + tooltip to the member summary line for improved readability on very narrow screens.
+
+## 2026-02-23 UTC (UEX: simplify title section link presentation)
+
+### Objective
+
+Implement the header invite-link simplification: plain-text URL display, icon-only copy button, left-aligned title section treatment, and tighter helper spacing without changing copy behavior.
+
+### Approach
+
+- Updated `PageHeader` invite markup to replace the read-only input with a plain text span and icon-only copy button.
+- Kept existing `copyGroupLink()` handler and `groupLink` generation unchanged to preserve full URL clipboard copy behavior.
+- Updated header/invite CSS to:
+  - remove input/field visual treatment,
+  - left-align container composition,
+  - add dedicated URL row/text/icon button styles,
+  - tighten helper text spacing under the URL.
+- Updated project continuity status entry.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "fs-inviteBlock|fs-inviteRow|fs-inviteUrlInput|fs-copyBtn" apps/web/src` ✅ located exact implementation and style hooks.
+- `pnpm --filter @familyscheduler/web build` ✅ build passed after changes.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local app for visual verification.
+- `mcp__browser_tools__run_playwright_script` ⚠️ failed in this environment due to Chromium headless `SIGSEGV` during browser launch; no screenshot artifact produced.
+
+### Follow-ups
+
+- Optional UX follow-up: if long invite URLs crowd very narrow widths, apply responsive max-inline-size clamp for URL text on smallest breakpoints.
