@@ -90,6 +90,10 @@ const Icon = ({ children }: { children: ReactNode }) => (
 const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1 1-4Z" /></Icon>;
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
+const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
+const Camera = () => <Icon><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
+const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
+const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
@@ -245,6 +249,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [usage, setUsage] = useState<UsageStatus>({ status: 'loading' });
   const [activeSection, setActiveSection] = useState<ShellSection>('calendar');
   const [calendarView, setCalendarView] = useState<CalendarView>('list');
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [todoDraft, setTodoDraft] = useState<{ text: string; dueDate: string; assignee: string; done: boolean }>({ text: '', dueDate: '', assignee: '', done: false });
@@ -709,9 +717,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         : activeSection === 'settings'
           ? 'Settings is coming soon.'
           : 'Add, edit, and track upcoming appointments for this group.';
-  const monthAnchor = new Date();
-  monthAnchor.setDate(1);
-  monthAnchor.setHours(0, 0, 0, 0);
+  const monthAnchor = monthCursor;
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthAnchor);
   const monthStartWeekday = monthAnchor.getDay();
   const monthGridStart = new Date(monthAnchor);
@@ -735,6 +741,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     return acc;
   }, {});
   const editingTodo = editingTodoId ? todos.find((todo) => todo.id === editingTodoId) ?? null : null;
+  const formatMonthAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
+    if (appointment.time?.intent?.status !== 'resolved' || !appointment.time.resolved) return 'Unresolved';
+    const { startUtc, endUtc, timezone } = appointment.time.resolved;
+    const start = new Date(startUtc);
+    const end = new Date(endUtc);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Unresolved';
+    const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
+    return `${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
+  };
 
   const openRulePromptModal = (person: Snapshot['people'][0]) => {
     setRulePromptModal({ person });
@@ -987,19 +1002,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           <form onSubmit={onSubmit}>
             <section className="panel fs-commandBar" aria-label="Command bar">
-              <div className="fs-commandHeader">
-                <div>
-                  <h2>Command</h2>
-                  <p className="prompt-tip">Type once and press Add, or scan an image to fill details quickly.</p>
+                <div className="fs-commandHeader">
+                  <div>
+                    <h2>Command</h2>
+                    <p className="prompt-tip">Type once and press Add, or scan an image to fill details quickly.</p>
+                  </div>
+                  <div className="fs-commandActions">
+                  <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment"><Camera />Scan</button>
+                  <button type="button" className="fs-btn fs-btn-secondary" onClick={() => { void addAppointment(); }} disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}><Plus />Add</button>
+                  </div>
                 </div>
-                <div className="fs-commandActions">
-                  <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">Scan</button>
-                  <button type="submit" className="fs-btn fs-btn-secondary" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Add</button>
-                </div>
-              </div>
-              <label htmlFor="prompt" className="field-label">Command</label>
               <div className="input-row fs-commandInputRow">
-                <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'Try: Add “Dentist Tue 3pm”, Assign APPT-4 to Joe, Scan a screenshot…'} />
+                <input id="prompt" aria-label="Command input" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'Try: Add “Dentist Tue 3pm”, Assign APPT-4 to Joe, Scan a screenshot…'} />
               </div>
               <p className="prompt-tip">Examples: add/update appointments, assign APPT codes, or paste screenshot text for parsing.</p>
             </section>
@@ -1013,13 +1027,20 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <>
               <section className="panel fs-cal">
                 <div className="fs-calToolbar">
-                  <div className="fs-calToggle">
-                    <button type="button" className={`fs-btn ${calendarView === 'month' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setCalendarView('month')}>Month</button>
-                    <button type="button" className={`fs-btn ${calendarView === 'list' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setCalendarView('list')}>List</button>
-                    <button type="button" className="fs-btn fs-btn-ghost" disabled aria-disabled="true">Week</button>
-                    <button type="button" className="fs-btn fs-btn-ghost" disabled aria-disabled="true">Day</button>
+                  <div className="fs-calTabs" role="tablist" aria-label="Calendar views">
+                    <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`fs-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
+                    <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`fs-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
+                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
+                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
                   </div>
-                  <div className="fs-calMonth">{monthLabel}</div>
+                  {calendarView === 'month' ? (
+                    <div className="fs-calMonthNav">
+                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></button>
+                      <div className="fs-calMonth">{monthLabel}</div>
+                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></button>
+                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
+                    </div>
+                  ) : null}
                 </div>
                 {calendarView === 'month' ? (
                   <>
@@ -1034,12 +1055,19 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <div key={dateKey} className={`fs-cal-cell ${inMonth ? '' : 'fs-cal-outside'}`}>
                             <div className="fs-cal-dateRow">
                               <span>{day.getDate()}</span>
-                              <span className="fs-cal-dayPlus">+</span>
+                              <button type="button" className="fs-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
                             </div>
                             <div className="fs-cal-items">
                               {dayAppointments.map((appointment) => (
-                                <button key={appointment.code} type="button" className="fs-chip" onClick={() => openWhenEditor(appointment)} title={appointment.desc || appointment.code}>
-                                  {appointment.code}
+                                <button
+                                  key={appointment.code}
+                                  type="button"
+                                  className="fs-chip"
+                                  onClick={() => openWhenEditor(appointment)}
+                                  title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
+                                >
+                                  <span className="fs-chipTitle">{appointment.desc || appointment.code}</span>
+                                  <span className="fs-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
                                 </button>
                               ))}
                               {dayTodos.map((todo) => (
@@ -1123,7 +1151,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 <td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
                                 <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview">{appointment.locationDisplay || '—'}</p>{appointment.locationMapQuery ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
                                 <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
-                                <td>
+                                <td className="actions-cell">
                                   <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
                                     {appointment.scanImageKey ? (
                                       <button
@@ -1137,7 +1165,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                           setScanViewerAppointment(appointment);
                                         }}
                                       >
-                                        📷
+                                        <Camera />
                                       </button>
                                     ) : null}
                                     <button

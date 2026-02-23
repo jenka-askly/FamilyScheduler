@@ -5256,3 +5256,37 @@ Implement frontend-only app shell/navigation plus calendar month view and todos 
 ### Follow-ups
 - TODO: wire todo persistence to backend store/API in a follow-up pass.
 - TODO: implement full week/day calendar views (currently placeholders).
+
+## 2026-02-23 03:16 UTC
+
+### Objective
+
+Implement UEX Polish Pass 3 (frontend-only): calendar view switching UX, month navigation, month chip rendering/tooltips, command/header cleanup, and action-column visual fixes.
+
+### Approach
+
+- Updated only `apps/web/**` + continuity docs to keep scope frontend-only.
+- Introduced segmented calendar tabs and month cursor state for deterministic month navigation.
+- Reworked month chip rendering to show description + subtle time subline with tooltip detail while preserving click-to-edit behavior.
+- Simplified command bar labels and wired Add CTA to existing `addAppointment()` direct action.
+- Tightened header invite semantics and copy affordances; modernized buttons/icons and action hit targets.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual verification.
+- Playwright screenshot capture via browser container ✅ produced artifact `browser:/tmp/codex_browser_invocations/8986689a7f491612/artifacts/artifacts/uex-pass3.png`.
+- Stopped dev server with `Ctrl+C` ✅ expected SIGINT shutdown after screenshot.
+
+### Follow-ups
+
+- Week/Day calendar views remain intentionally deferred and surfaced as disabled “Soon” tabs.
+- If desired, add a dedicated floating tooltip component for richer keyboard/screen-reader month-chip detail beyond native title tooltip.

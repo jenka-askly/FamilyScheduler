@@ -1,3 +1,14 @@
+## 2026-02-23 03:16 UTC update (UEX polish pass 3 frontend-only)
+
+- Completed frontend-only Calendar/List UX polish in `apps/web/**` with no backend or shared package changes.
+- Calendar tabs now render as segmented control in order **List, Month, Week, Day**, with List as default and Week/Day disabled as “Soon”.
+- Month view now includes **Prev / Today / Next** controls and local month cursor state so the month grid and title rerender correctly.
+- Month chips now emphasize appointment description + muted time line and use a subtle chip style instead of blue pill styling.
+- Header invite clarity updated: “Invite” control copies full group URL; Group ID row retains compact display + explicit copy icon.
+- Command bar cleanup: removed duplicate “Command” field label, retained single heading, and wired Add button to existing `addAppointment()` path.
+- Table polish: increased action-column/icon hit areas and reinforced APPT code no-wrap behavior.
+- Debug/artifact conventions unchanged (`./.artifacts/<traceId>/` when debug instrumentation is enabled).
+
 ## 2026-02-23 02:31 UTC update (web UEX polish pass frontend-only)
 
 - Completed a frontend-only UEX polish pass scoped to `apps/web/**` with no backend/API contract changes.
