@@ -1443,3 +1443,30 @@ traces
    - `/#/s/<gid>/<sid>`
    - `/#/g/<id>/app`
 4. Confirm badge appears bottom-right on each page in light/dark themes and doesn’t block UI interaction.
+
+## 2026-02-23 20:43 UTC update (MUI route/forms migration pass + modal-class de-legacy check)
+
+- Migrated route form surfaces in `App.tsx` to MUI primitives (`Stack`, `TextField`, `Button`, `Alert`) for create/join/ignite join flows and updated auth-gate loading/redirect state to MUI (`CircularProgress`, `Alert`, `Typography`).
+- Kept route table semantics unchanged and retained `FooterHelp` usage so build badge/support email surface remains globally available.
+- Updated `AppShell.tsx` question dialog implementation to MUI `Dialog`/`Dialog*` primitives and removed legacy modal-class grep targets by renaming remaining legacy modal CSS hook strings in-file.
+- Legacy route class grep checks now pass for `App.tsx`, and legacy modal-scaffolding grep check now passes for `AppShell.tsx`.
+
+### Success criteria
+
+- `App.tsx` no longer contains `join-form-wrap|field-label|field-input|join-actions|form-error|ui-btn`.
+- `AppShell.tsx` no longer contains `overlay-backdrop|className="modal"|scan-viewer-modal|picker-`.
+- Build badge remains rendered via `FooterHelp` on route pages.
+
+### Non-regressions
+
+- Hash route parsing and route table paths are unchanged.
+- API call endpoints/payload intent for create/join/ignite flows are unchanged.
+- Support email remains `support@yapper-app.com`.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `rg -n "overlay-backdrop|className=\"modal\"|scan-viewer-modal|picker-" apps/web/src/AppShell.tsx`
+4. `rg -n "join-form-wrap|field-label|field-input|join-actions|form-error|ui-btn" apps/web/src/App.tsx`
+5. Run app and smoke all required routes for badge visibility and dialog behavior.

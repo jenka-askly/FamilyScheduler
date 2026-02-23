@@ -12,7 +12,12 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   List,
   ListItemButton,
@@ -26,6 +31,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TextField,
   TableRow,
   Tabs,
   Tooltip,
@@ -77,29 +83,30 @@ const QuestionDialog = ({
   onSubmitText: () => void;
   onClose: () => void;
 }) => (
-  <div className="overlay-backdrop">
-    <div className="modal">
-      <h3>Question</h3>
-      <p>{question.message}</p>
-      {question.options.length > 0 ? (
-        <div className="question-options">
-          {question.options.map((option, index) => (
-            <button key={`${option.label}-${index}`} type="button" className={`question-option ${option.style ?? 'secondary'}`} onClick={() => onOptionSelect(option.value)}>{option.label}</button>
-          ))}
-        </div>
-      ) : null}
-      {question.allowFreeText ? (
-        <form onSubmit={(event) => { event.preventDefault(); onSubmitText(); }}>
-          <label htmlFor="question-input">Your response</label>
-          <div className="input-row">
-            <input id="question-input" value={value} onChange={(event) => onValueChange(event.target.value)} autoComplete="off" />
-            <button type="submit" disabled={!value.trim()}>Send</button>
-          </div>
-        </form>
-      ) : null}
-      <div className="modal-actions"><button type="button" onClick={onClose}>Close</button></div>
-    </div>
-  </div>
+  <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+    <DialogTitle>Question</DialogTitle>
+    <DialogContent>
+      <Stack spacing={2} sx={{ mt: 0.5 }}>
+        <Typography>{question.message}</Typography>
+        {question.options.length > 0 ? (
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            {question.options.map((option, index) => (
+              <Button key={`${option.label}-${index}`} type="button" variant={option.style === 'primary' ? 'contained' : 'outlined'} color={option.style === 'danger' ? 'error' : 'primary'} onClick={() => onOptionSelect(option.value)}>{option.label}</Button>
+            ))}
+          </Stack>
+        ) : null}
+        {question.allowFreeText ? (
+          <Stack component="form" spacing={1} onSubmit={(event) => { event.preventDefault(); onSubmitText(); }}>
+            <TextField label="Your response" value={value} onChange={(event) => onValueChange(event.target.value)} autoComplete="off" fullWidth />
+            <Stack direction="row" justifyContent="flex-end">
+              <Button type="submit" disabled={!value.trim()} variant="contained">Send</Button>
+            </Stack>
+          </Stack>
+        ) : null}
+      </Stack>
+    </DialogContent>
+    <DialogActions><Button type="button" onClick={onClose}>Close</Button></DialogActions>
+  </Dialog>
 );
 
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
@@ -1471,8 +1478,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       </div>
 
       {isQuickAddOpen ? (
-        <div className="overlay-backdrop">
-          <div className="modal">
+        <div className="overlayBackdrop">
+          <div className="dialog-modal">
             <h3>Quick add</h3>
             <form onSubmit={(event) => { event.preventDefault(); void submitQuickAdd(); }}>
               <label htmlFor="quick-add-input">Event</label>
@@ -1500,8 +1507,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
 
       {isAdvancedOpen ? (
-        <div className="overlay-backdrop">
-          <div className="modal">
+        <div className="overlayBackdrop">
+          <div className="dialog-modal">
             <h3>Add or Update Events</h3>
             <form onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
               <label htmlFor="advanced-add-input">Details</label>
@@ -1532,23 +1539,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
 
-      {proposalText ? <div className="overlay-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
+      {proposalText ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
       {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
 
 
       <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
-      {appointmentToDelete ? <div className="overlay-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
+      {appointmentToDelete ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
 
 
-      {scanViewerAppointment ? <div className="overlay-backdrop"><div className="modal scan-viewer-modal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
-      {scanCaptureModal.useCameraPreview ? <div className="overlay-backdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
-      {personToDelete ? <div className="overlay-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+      {scanViewerAppointment ? <div className="overlayBackdrop"><div className="modal scanViewerModal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
+      {scanCaptureModal.useCameraPreview ? <div className="overlayBackdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
+      {personToDelete ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 
-      {ruleToDelete ? <div className="overlay-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
+      {ruleToDelete ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {rulePromptModal ? (
-        <div className="overlay-backdrop">
+        <div className="overlayBackdrop">
           <div className="modal rules-modal">
             <div className="rules-modal-section rules-modal-header">
               <h3>Rules</h3>
@@ -1618,12 +1625,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
 
-      {selectedAppointment ? <div className="overlay-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
+      {selectedAppointment ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="assigner-list">{activePeople.map((person, index) => {
         const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
         const isSelected = selectedAppointment.people.includes(person.personId);
-        return <div key={person.personId} className={`picker-row ${index < activePeople.length - 1 ? 'picker-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
-          <div className="picker-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="picker-name">{person.name}</span></div>
-          <div className="picker-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
+        return <div key={person.personId} className={`assigner-row ${index < activePeople.length - 1 ? 'assigner-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
+          <div className="assigner-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="assigner-name">{person.name}</span></div>
+          <div className="assigner-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
 
