@@ -309,6 +309,10 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   const startSession = async () => {
     setError(null);
+    if (!phone.trim()) {
+      setError('Missing authorized phone number. Rejoin the group and try again.');
+      return;
+    }
     const traceId = createTraceId();
     const response = await fetch(apiUrl('/api/ignite/start'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId }) });
     const data = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
@@ -325,6 +329,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   useEffect(() => {
     if (!sessionId) {
+      if (!phone.trim()) return;
       void startSession();
       return;
     }

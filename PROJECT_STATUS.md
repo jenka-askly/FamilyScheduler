@@ -1046,3 +1046,27 @@ traces
 - Verified organizer `ignite/start` request body includes `{ groupId, phone, traceId }` and success path sets `sessionId`, enabling join-link composition as `/#/s/<groupId>/<sessionId>`.
 - Verified backend `igniteStart` parses JSON body phone and enforces active membership via `findActivePersonByPhone(...)` with `403 not_allowed` on failure.
 - Removed transient organizer placeholder text `Starting session…` so the join-link field/QR area now stays empty until `sessionId` exists.
+
+## 2026-02-23 07:55 UTC update (Ignite start auth guard for missing phone)
+
+- Confirmed ignite route remains wrapped in `GroupAuthGate` and passes `phone` into `IgniteOrganizerPage` (`(phone) => <IgniteOrganizerPage ... phone={phone} />`).
+- Hardened organizer start-session flow to short-circuit when `phone` is empty/whitespace and show an explicit auth error instead of firing an unauthenticated `POST /api/ignite/start`.
+- Preserved existing success path: `sessionId` still comes from `/api/ignite/start` response and drives join-link + QR rendering.
+
+### Success criteria
+
+- `POST /api/ignite/start` request body includes `{ groupId, phone, traceId }` when organizer phone exists.
+- No ignite/start request is sent while phone is empty.
+- On success, `sessionId` is set from response and join link becomes `/#/s/<groupId>/<sessionId>` with QR rendered.
+
+### Non-regressions
+
+- Ignite route auth gate/wiring unchanged: organizer must be group-authorized.
+- Existing ignite close/meta/photo flows continue to use organizer identity fields.
+
+### How to verify locally
+
+1. Run web app and navigate to `/#/g/<groupId>/ignite` with an authorized session.
+2. In DevTools Network, confirm `POST /api/ignite/start` body contains `groupId`, `phone`, `traceId` and returns `200` with `sessionId`.
+3. Confirm join link updates to `/#/s/<groupId>/<sessionId>` and QR re-renders.
+4. Simulate missing session phone (clear local session and force route) and confirm no ignite/start request is made; page shows missing-phone error.
