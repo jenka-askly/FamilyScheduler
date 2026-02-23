@@ -5386,3 +5386,37 @@ Execute repository discovery for group-related logic, Azure storage usage, ident
 
 - If needed, add a machine-readable endpoint inventory (e.g., generated JSON) to keep manifest/code route definitions in sync.
 
+
+## 2026-02-23 03:50 UTC
+
+### Objective
+
+Implement UEX header cleanup so invite link is the primary utility, remove Group ID from the primary header UI, and remove obsolete helper copy.
+
+### Approach
+
+- Located existing header strings/handlers in `PageHeader` and kept changes scoped to the current header component and stylesheet.
+- Replaced the Invite row with a compact invite card that includes label, copy action, URL display, and the new persistence explainer copy.
+- Removed Group ID rendering/copy handler and related icon usage from the main header.
+- Added invite-card styling with thin border, subtle radius, no shadow, and ellipsis overflow handling for narrow widths.
+- Updated project continuity doc with explicit note that this is frontend-only.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Copies full invite URL|Copy link|Group ID|Invite" apps/web/src` ✅ located target header/UI strings.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
+- Playwright screenshot capture via browser container against `http://127.0.0.1:4173/#/g/demo-group/app` ✅ produced artifact `browser:/tmp/codex_browser_invocations/a46449789cff3f4c/artifacts/artifacts/header-invite-card.png`.
+- `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown of temporary dev server.
+
+### Follow-ups
+
+- If desired, move raw Group ID to a dedicated Settings/Advanced surface in a future pass.

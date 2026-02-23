@@ -1,3 +1,12 @@
+## 2026-02-23 03:50 UTC update (UEX header cleanup: invite link primary)
+
+- Updated group page header UX to make the group name the primary title and present an explicit Invite link utility card.
+- Replaced prior “Invite” row with “Invite link” + “Copy link” action, visible invite URL surface, and persistent explainer text: “Save this link — it’s the only way to return to this group.”
+- Removed Group ID and its copy icon/button from the primary header UI.
+- Removed the “Copies full invite URL” helper copy.
+- Added calm utility-card styling and URL overflow protection for narrow widths.
+- No backend/API/shared-package changes.
+
 ## 2026-02-23 03:55 UTC update (UEX: clean up Edit Appointment form)
 
 - Edit appointment drawer now enforces vertical-only scrolling and hides horizontal overflow in drawer containers.
