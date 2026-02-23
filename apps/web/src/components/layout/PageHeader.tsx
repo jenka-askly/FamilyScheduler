@@ -1,11 +1,6 @@
-import React, { useEffect, useState } from "react";
-
-const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    {children}
-  </svg>
-);
-const CopyIcon = () => <HeaderIcon><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 5" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19" /></HeaderIcon>;
+import React, { useEffect, useState } from 'react';
+import { Alert, Box, Button, IconButton, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material';
+import { useColorMode } from '../../colorMode';
 
 type Props = {
   title: string;
@@ -17,16 +12,10 @@ type Props = {
   breakoutAction?: React.ReactNode;
 };
 
-export function PageHeader({
-  title,
-  description,
-  groupName,
-  groupId,
-  memberNames,
-  groupAccessNote,
-  breakoutAction,
-}: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, breakoutAction }: Props) {
   const [copied, setCopied] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const { mode, toggleMode } = useColorMode();
 
   useEffect(() => {
     if (!copied) return;
@@ -38,11 +27,7 @@ export function PageHeader({
     if (!groupId || typeof window === 'undefined') return;
     const shareLink = window.location.href || `${window.location.origin}/#/g/${groupId}/app`;
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareLink);
-      } else {
-        window.prompt('Copy this group link:', shareLink);
-      }
+      await navigator.clipboard.writeText(shareLink);
       setCopied(true);
     } catch {
       setCopied(false);
@@ -51,74 +36,34 @@ export function PageHeader({
 
   const visibleMembers = (memberNames ?? []).slice(0, 4);
   const remainingMemberCount = Math.max(0, (memberNames ?? []).length - visibleMembers.length);
-  const membersLine = visibleMembers.length > 0
-    ? `${visibleMembers.join(', ')}${remainingMemberCount > 0 ? ` +${remainingMemberCount}` : ''}`
-    : null;
 
   return (
-    <div className="fs-pageHeader">
-      {groupName ? (
-        <div className="fs-groupHeaderCard">
-          <div className="fs-groupHeaderTop">
-            <div className="fs-groupTitleBlockWrap">
-              <div className="fs-groupTitleBlock">
-                <div className="fs-groupLabel">Group</div>
-                <h1 className="fs-groupTitle">{groupName}</h1>
-                {membersLine ? (
-                  <div className="fs-groupMembersLine" aria-label="Members in this group">
-                    {membersLine}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            {breakoutAction ? (
-              <div className="fs-groupHeaderAction">
-                <details className="fs-quickActions">
-                  <summary className="fs-quickActionsSummary" aria-label="Quick actions">
-                    Quick actions
-                  </summary>
-                  <div className="fs-quickActionsMenu" role="menu" aria-label="Quick actions menu">
-                    {breakoutAction}
-                  </div>
-                </details>
-              </div>
+    <Stack spacing={2} sx={{ mb: 2 }}>
+      <Paper>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+          <Box>
+            <Typography variant="overline">Group</Typography>
+            <Typography variant="h5">{groupName ?? title}</Typography>
+            {visibleMembers.length > 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                {visibleMembers.join(', ')}{remainingMemberCount > 0 ? ` +${remainingMemberCount}` : ''}
+              </Typography>
             ) : null}
-          </div>
-
-          {groupId ? (
-            <div className="fs-inviteBlock">
-              <button
-                type="button"
-                className="fs-btn fs-btn-secondary fs-btn-small"
-                aria-label="Copy group link"
-                onClick={() => void copyGroupLink()}
-              >
-                <CopyIcon />
-                Copy group link
-              </button>
-              <div className="fs-inviteHelp">
-                Save this link to get back to this group.
-              </div>
-              {copied ? <span className="fs-meta">Copied</span> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <h1 className="fs-h1">{title}</h1>
-      )}
-
-      {groupName ? (
-        <p className="fs-groupName fs-pageTitle">
-          {title}
-        </p>
-      ) : null}
-
-      <div className="fs-meta fs-headerMeta">
-        {description && (
-          <p className="fs-desc">{description}</p>
-        )}
-        {groupId ? <div>{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</div> : null}
-      </div>
-    </div>
+          </Box>
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" onClick={toggleMode}>{mode === 'light' ? 'Dark' : 'Light'} mode</Button>
+            {groupId ? <Button variant="outlined" onClick={() => void copyGroupLink()}>Copy group link</Button> : null}
+            {breakoutAction ? <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>⋯</IconButton> : null}
+          </Stack>
+        </Stack>
+        <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+          <MenuItem onClick={() => setAnchorEl(null)}>{breakoutAction}</MenuItem>
+        </Menu>
+      </Paper>
+      <Typography variant="h6">{title}</Typography>
+      {description ? <Typography color="text.secondary">{description}</Typography> : null}
+      {groupId ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</Typography> : null}
+      {copied ? <Alert severity="success">Copied</Alert> : null}
+    </Stack>
   );
 }

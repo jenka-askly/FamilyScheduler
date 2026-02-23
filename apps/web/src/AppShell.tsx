@@ -55,7 +55,7 @@ const QuestionDialog = ({
   onSubmitText: () => void;
   onClose: () => void;
 }) => (
-  <div className="modal-backdrop">
+  <div className="overlay-backdrop">
     <div className="modal">
       <h3>Question</h3>
       <p>{question.message}</p>
@@ -1050,27 +1050,27 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         breakoutAction={(
           <button
             type="button"
-            className="fs-quickActionItem"
+            className="ui-quickActionItem"
             onClick={() => { void createBreakoutGroup(); }}
             disabled={isSpinningOff}
           >
-            <div className="fs-quickActionItemTitle">Break out</div>
-            <div className="fs-quickActionItemHelp">Start a new group with just you</div>
+            <div className="ui-quickActionItemTitle">Break out</div>
+            <div className="ui-quickActionItemHelp">Start a new group with just you</div>
           </button>
         )}
       />
       {breakoutError ? (
-        <div className="fs-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
+        <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Group</div>
           <div style={{ color: 'var(--muted)' }}>{breakoutError}</div>
         </div>
       ) : null}
-      <div className="fs-shell">
-        <aside className="fs-sidebar">
-          <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
-          <button type="button" className={`fs-btn ${activeSection === 'members' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
+      <div className="ui-shell">
+        <aside className="ui-sidebar">
+          <button type="button" className={`ui-btn ${activeSection === 'calendar' ? 'ui-btn-primary' : 'ui-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
+          <button type="button" className={`ui-btn ${activeSection === 'members' ? 'ui-btn-primary' : 'ui-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
         </aside>
-        <section className="fs-main">
+        <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
@@ -1079,60 +1079,60 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'calendar' ? (
             <>
-              <section className="panel fs-cal">
-                <div className="fs-calToolbar">
-                  <div className="fs-calToolbarRow">
-                    <div className="fs-calTabs" role="tablist" aria-label="Calendar views">
-                      <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`fs-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
-                      <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`fs-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
-                      <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
-                      <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
+              <section className="panel ui-cal">
+                <div className="ui-calToolbar">
+                  <div className="ui-calToolbarRow">
+                    <div className="ui-calTabs" role="tablist" aria-label="Calendar views">
+                      <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`ui-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
+                      <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`ui-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
+                      <button type="button" role="tab" aria-selected="false" className="ui-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
+                      <button type="button" role="tab" aria-selected="false" className="ui-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
                     </div>
-                    <div className="fs-calActions" aria-label="Calendar actions">
-                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment" title="Scan appointment"><Camera /></button>
-                      <button type="button" className="fs-btn fs-btn-primary fs-btn-icon" onClick={() => setIsQuickAddOpen(true)} aria-label="Quick add" title="Quick add" disabled={commandActionsDisabled}><Plus /></button>
-                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" onClick={() => setIsAdvancedOpen(true)} aria-label="Advanced add or update" title="Add or update (advanced)" disabled={commandActionsDisabled}><MoreVertical /></button>
+                    <div className="ui-calActions" aria-label="Calendar actions">
+                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment" title="Scan appointment"><Camera /></button>
+                      <button type="button" className="ui-btn ui-btn-primary ui-btn-icon" onClick={() => setIsQuickAddOpen(true)} aria-label="Quick add" title="Quick add" disabled={commandActionsDisabled}><Plus /></button>
+                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => setIsAdvancedOpen(true)} aria-label="Advanced add or update" title="Add or update (advanced)" disabled={commandActionsDisabled}><MoreVertical /></button>
                     </div>
                   </div>
                   {calendarView === 'month' ? (
-                    <div className="fs-calMonthNav">
-                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></button>
-                      <div className="fs-calMonth">{monthLabel}</div>
-                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></button>
-                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
+                    <div className="ui-calMonthNav">
+                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></button>
+                      <div className="ui-calMonth">{monthLabel}</div>
+                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></button>
+                      <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
                     </div>
                   ) : null}
                 </div>
                 {calendarView === 'month' ? (
                   <>
-                    <div className="fs-cal-grid fs-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="fs-cal-cell fs-cal-weekday">{weekday}</div>)}</div>
-                    <div className="fs-cal-grid">
+                    <div className="ui-cal-grid ui-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="ui-cal-cell ui-cal-weekday">{weekday}</div>)}</div>
+                    <div className="ui-cal-grid">
                       {monthDays.map((day) => {
                         const dateKey = day.toISOString().slice(0, 10);
                         const dayAppointments = appointmentsByDate[dateKey] ?? [];
                         const dayTodos = todosByDate[dateKey] ?? [];
                         const inMonth = day.getMonth() === monthAnchor.getMonth();
                         return (
-                          <div key={dateKey} className={`fs-cal-cell ${inMonth ? '' : 'fs-cal-outside'}`}>
-                            <div className="fs-cal-dateRow">
+                          <div key={dateKey} className={`ui-cal-cell ${inMonth ? '' : 'ui-cal-outside'}`}>
+                            <div className="ui-cal-dateRow">
                               <span>{day.getDate()}</span>
-                              <button type="button" className="fs-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                              <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
                             </div>
-                            <div className="fs-cal-items">
+                            <div className="ui-cal-items">
                               {dayAppointments.map((appointment) => (
                                 <button
                                   key={appointment.code}
                                   type="button"
-                                  className="fs-chip"
+                                  className="ui-chip"
                                   onClick={() => openWhenEditor(appointment)}
                                   title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
                                 >
-                                  <span className="fs-chipTitle">{appointment.desc || appointment.code}</span>
-                                  <span className="fs-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                  <span className="ui-chipTitle">{appointment.desc || appointment.code}</span>
+                                  <span className="ui-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
                                 </button>
                               ))}
                               {dayTodos.map((todo) => (
-                                <button key={todo.id} type="button" className={`fs-chip fs-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                <button key={todo.id} type="button" className={`ui-chip ui-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
                                   📝 {todo.text}
                                 </button>
                               ))}
@@ -1149,7 +1149,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               {calendarView === 'list' ? (
                 <section className="panel">
                   {sortedAppointments.length === 0 ? (
-                    <div className="fs-alert" style={{ maxWidth: 760 }}>
+                    <div className="ui-alert" style={{ maxWidth: 760 }}>
                       <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
                       <div style={{ color: 'var(--muted)' }}>
                         Add your first event using + above.
@@ -1175,18 +1175,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       deleteIcon={<Trash2 />}
                     />
                   ) : (
-                    <div className="table-wrap fs-tableScroll fs-listContainer">
-                      <table className="data-table fs-listTable">
+                    <div className="table-wrap ui-tableScroll ui-listContainer">
+                      <table className="data-table ui-listTable">
                         <thead>
                           <tr>
-                            <th className="fs-col-code">Code</th>
-                            <th className="fs-col-when">When</th>
-                            <th className="fs-col-status">Status</th>
+                            <th className="ui-col-code">Code</th>
+                            <th className="ui-col-when">When</th>
+                            <th className="ui-col-status">Status</th>
                             <th>Description</th>
-                            <th className="fs-col-people">People</th>
+                            <th className="ui-col-people">People</th>
                             <th>Location</th>
                             <th>Notes</th>
-                            <th className="fs-col-actions">Actions</th>
+                            <th className="ui-col-actions">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1198,15 +1198,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 : 'no_conflict';
                             return (
                               <tr key={appointment.code}>
-                                <td className="fs-codeCell fs-col-code"><code>{appointment.code}</code></td>
-                                <td className="fs-col-when">
+                                <td className="ui-codeCell ui-col-code"><code>{appointment.code}</code></td>
+                                <td className="ui-col-when">
                                   <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
                                     {appointment.time?.intent?.status !== 'resolved'
                                       ? <span className='status-tag unknown'>Unresolved</span>
                                       : formatAppointmentTime(appointment)}
                                   </a>
                                 </td>
-                                <td className="fs-col-status">
+                                <td className="ui-col-status">
                                   {apptStatus === 'unreconcilable' ? (
                                     <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
                                       <span className="status-tag unknown">Unreconcilable</span>
@@ -1218,10 +1218,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                   )}
                                 </td>
                                 <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
-                                <td className="fs-col-people"><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
+                                <td className="ui-col-people"><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
                                 <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview">{appointment.locationDisplay || '—'}</p>{appointment.locationMapQuery ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
                                 <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
-                                <td className="actions-cell fs-col-actions">
+                                <td className="actions-cell ui-col-actions">
                                   <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
                                     {appointment.scanImageKey ? (
                                       <button
@@ -1267,30 +1267,30 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
 
           {activeSection === 'todos' ? (
-            <section className="panel fs-todo">
+            <section className="panel ui-todo">
               <div className="panel-header">
                 <h2>Todos</h2>
-                <button type="button" className="fs-btn fs-btn-primary" onClick={createTodo}>+ Add todo</button>
+                <button type="button" className="ui-btn ui-btn-primary" onClick={createTodo}>+ Add todo</button>
               </div>
-              <p className="fs-meta">TODO: wire todo persistence to backend in a follow-up pass.</p>
-              <div className="fs-todo-list">
+              <p className="ui-meta">TODO: wire todo persistence to backend in a follow-up pass.</p>
+              <div className="ui-todo-list">
                 {todos.map((todo) => (
-                  <div key={todo.id} className="fs-todo-item">
+                  <div key={todo.id} className="ui-todo-item">
                     <label>
                       <input type="checkbox" checked={todo.done} onChange={() => toggleTodo(todo.id)} />
                       <span>{todo.text}</span>
                     </label>
-                    <div className="fs-todo-meta">
+                    <div className="ui-todo-meta">
                       {todo.dueDate ? <span>Due: {todo.dueDate}</span> : null}
                       {todo.assignee ? <span>Assignee: {todo.assignee}</span> : null}
                     </div>
                     <div className="action-buttons">
-                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => openTodoEditor(todo)}>Edit</button>
-                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
+                      <button type="button" className="ui-btn ui-btn-secondary" onClick={() => openTodoEditor(todo)}>Edit</button>
+                      <button type="button" className="ui-btn ui-btn-secondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
                     </div>
                   </div>
                 ))}
-                {todos.length === 0 ? <p className="fs-meta">No todos yet.</p> : null}
+                {todos.length === 0 ? <p className="ui-meta">No todos yet.</p> : null}
               </div>
             </section>
           ) : null}
@@ -1298,14 +1298,14 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           {activeSection === 'members' ? (
         <section className="panel"> 
           {peopleInView.length === 0 ? (
-            <div className="fs-alert" style={{ maxWidth: 760 }}>
+            <div className="ui-alert" style={{ maxWidth: 760 }}>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>No people added yet</div>
               <div style={{ color: 'var(--muted)' }}>
                 Add at least one person to allow them to access this group.
               </div>
             </div>
           ) : null}
-          <div className="table-wrap fs-tableScroll">
+          <div className="table-wrap ui-tableScroll">
             <table className="data-table">
               <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
               <tbody>
@@ -1327,8 +1327,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <td className="actions-cell">
                             {isNewRowEditing ? (
                               <div className="action-buttons">
-                                <button type="button" className="fs-btn fs-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
-                                <button type="button" className="fs-btn fs-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
+                                <button type="button" className="ui-btn ui-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
+                                <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
                               </div>
                             ) : (
                               <div className="action-icons"> 
@@ -1392,9 +1392,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </Fragment>
                   );
                 })}
-                <tr className="fs-tableCtaRow">
+                <tr className="ui-tableCtaRow">
                   <td colSpan={4}>
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => void addPerson()} aria-label="Add person">
+                    <button type="button" className="ui-tableCtaBtn" onClick={() => void addPerson()} aria-label="Add person">
                       {peopleInView.length > 0 ? '+ Add another person' : '+ Add a person'}
                     </button>
                   </td>
@@ -1408,7 +1408,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       </div>
 
       {isQuickAddOpen ? (
-        <div className="modal-backdrop">
+        <div className="overlay-backdrop">
           <div className="modal">
             <h3>Quick add</h3>
             <form onSubmit={(event) => { event.preventDefault(); void submitQuickAdd(); }}>
@@ -1437,7 +1437,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
 
       {isAdvancedOpen ? (
-        <div className="modal-backdrop">
+        <div className="overlay-backdrop">
           <div className="modal">
             <h3>Add or Update Events</h3>
             <form onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
@@ -1469,23 +1469,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
 
-      {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
+      {proposalText ? <div className="overlay-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 
       {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
 
 
       <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
-      {appointmentToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
+      {appointmentToDelete ? <div className="overlay-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
 
 
-      {scanViewerAppointment ? <div className="modal-backdrop"><div className="modal scan-viewer-modal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
-      {scanCaptureModal.useCameraPreview ? <div className="modal-backdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
-      {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+      {scanViewerAppointment ? <div className="overlay-backdrop"><div className="modal scan-viewer-modal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
+      {scanCaptureModal.useCameraPreview ? <div className="overlay-backdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
+      {personToDelete ? <div className="overlay-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
 
-      {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
+      {ruleToDelete ? <div className="overlay-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
 
       {rulePromptModal ? (
-        <div className="modal-backdrop">
+        <div className="overlay-backdrop">
           <div className="modal rules-modal">
             <div className="rules-modal-section rules-modal-header">
               <h3>Rules</h3>
@@ -1555,7 +1555,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
 
-      {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
+      {selectedAppointment ? <div className="overlay-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
         const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
         const isSelected = selectedAppointment.people.includes(person.personId);
         return <div key={person.personId} className={`picker-row ${index < activePeople.length - 1 ? 'picker-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>

@@ -51,7 +51,7 @@ export function AppointmentCardList({
   deleteIcon
 }: AppointmentCardListProps) {
   return (
-    <div className="fs-cardList">
+    <div className="ui-cardList">
       {appointments.map((appointment) => {
         const apptStatus = getStatus(appointment);
         const whenText = appointment.time?.intent?.status !== 'resolved'
@@ -63,8 +63,8 @@ export function AppointmentCardList({
         const mapQuery = appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw;
 
         return (
-          <article key={appointment.code} className="fs-card">
-            <div className="fs-cardHeader">
+          <article key={appointment.code} className="ui-card">
+            <div className="ui-cardHeader">
               <code>{appointment.code}</code>
               <div className="action-icons">
                 {appointment.scanImageKey ? (
@@ -83,17 +83,17 @@ export function AppointmentCardList({
               </div>
             </div>
 
-            <div className="fs-cardRow">
-              <span className="fs-cardLabel">When</span>
-              <button type="button" className="linkish fs-cardValueButton" onClick={() => onEdit(appointment)}>
+            <div className="ui-cardRow">
+              <span className="ui-cardLabel">When</span>
+              <button type="button" className="linkish ui-cardValueButton" onClick={() => onEdit(appointment)}>
                 {appointment.time?.intent?.status !== 'resolved' ? <span className="status-tag unknown">{whenText}</span> : whenText}
               </button>
             </div>
 
-            <div className="fs-cardRow">
-              <span className="fs-cardLabel">Status</span>
+            <div className="ui-cardRow">
+              <span className="ui-cardLabel">Status</span>
               {apptStatus === 'unreconcilable' ? (
-                <button type="button" className="linkish fs-cardValueButton" onClick={() => onEdit(appointment)}>
+                <button type="button" className="linkish ui-cardValueButton" onClick={() => onEdit(appointment)}>
                   <span className="status-tag unknown">Unreconcilable</span>
                 </button>
               ) : (
@@ -103,13 +103,13 @@ export function AppointmentCardList({
               )}
             </div>
 
-            <div className="fs-cardRow"><span className="fs-cardLabel">Description</span><span className="fs-cardValue">{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></div>
-            <div className="fs-cardRow"><span className="fs-cardLabel">People</span><button type="button" className="linkish fs-cardValueButton" onClick={() => onSelectPeople(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></div>
-            <div className="fs-cardRow">
-              <span className="fs-cardLabel">Location</span>
-              <span className="fs-cardValue">{location}{mapQuery ? <><br /><a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`} target="_blank" rel="noreferrer">Map</a></> : null}</span>
+            <div className="ui-cardRow"><span className="ui-cardLabel">Description</span><span className="ui-cardValue">{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></div>
+            <div className="ui-cardRow"><span className="ui-cardLabel">People</span><button type="button" className="linkish ui-cardValueButton" onClick={() => onSelectPeople(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></div>
+            <div className="ui-cardRow">
+              <span className="ui-cardLabel">Location</span>
+              <span className="ui-cardValue">{location}{mapQuery ? <><br /><a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`} target="_blank" rel="noreferrer">Map</a></> : null}</span>
             </div>
-            <div className="fs-cardRow"><span className="fs-cardLabel">Notes</span><span className="fs-cardValue" title={notes}>{truncatedNotes}</span></div>
+            <div className="ui-cardRow"><span className="ui-cardLabel">Notes</span><span className="ui-cardValue" title={notes}>{truncatedNotes}</span></div>
           </article>
         );
       })}

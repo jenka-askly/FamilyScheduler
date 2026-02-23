@@ -1291,3 +1291,13 @@ traces
 - `pnpm --filter @familyscheduler/web run typecheck`
 - `pnpm --filter @familyscheduler/web run build`
 - Run web app and open `/#/g/<id>/app`; confirm breakout button placement in header and click-through behavior.
+
+## 2026-02-23 19:12 UTC update (MUI modernization foundation)
+
+- Added app-wide MUI theming scaffolding (`theme.ts`) with light/dark palettes, Inter typography, rounded surfaces, and component defaults.
+- Added `ColorModeProvider` + `useColorMode()` with persisted mode key `fs-color-mode` and system preference fallback.
+- Updated `main.tsx` to mount `ThemeProvider` + `CssBaseline` around the existing hash-routed app.
+- Migrated core shared layout components (`Page`, `PageHeader`) to MUI containers/paper/stack and added a header light/dark toggle control.
+- Migrated `AppointmentEditorForm` to MUI `TextField`, `Stack`, `Button`, and `Alert` composition.
+- Removed remaining `fs-*` class-name usage in `apps/web/src` and removed legacy stylesheet imports from the app entrypoint.
+- Verification status: dependency install for `@mui/material` and `@emotion/*` is currently blocked in this environment (403 from npm registry), so typecheck/build are failing on unresolved MUI modules until install access is restored.

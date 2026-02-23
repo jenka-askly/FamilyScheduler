@@ -1,28 +1,25 @@
-import React from "react";
+import React from 'react';
+import { Box, Container, Paper } from '@mui/material';
 
 type PageProps = {
   children: React.ReactNode;
-  variant?: "form" | "workspace";
+  variant?: 'form' | 'workspace';
 };
 
-export function Page({ children, variant = "workspace" }: PageProps) {
-  if (variant === "form") {
+export function Page({ children, variant = 'workspace' }: PageProps) {
+  if (variant === 'form') {
     return (
-      <div className="fs-page">
-        <div className="fs-formWrap">
-          <div className="fs-card">
-            {children}
-          </div>
-        </div>
-      </div>
+      <Box sx={{ minHeight: '100vh', py: 6 }}>
+        <Container maxWidth="md">
+          <Paper>{children}</Paper>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <div className="fs-page">
-      <div className="fs-workspaceWrap">
-        {children}
-      </div>
-    </div>
+    <Box sx={{ minHeight: '100vh', py: 3 }}>
+      <Container maxWidth="xl">{children}</Container>
+    </Box>
   );
 }
