@@ -246,3 +246,27 @@ th {
   gap: 12px;
   padding: 10px 0 4px;
 }
+
+.fs-calToolbarRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fs-calActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fs-btn-small {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  font-size: 0.82rem;
+}
+
+.fs-calActions .fs-btn-primary.fs-btn-icon svg {
+  transform: scale(1.05);
+}

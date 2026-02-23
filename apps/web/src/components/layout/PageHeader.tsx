@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -27,11 +27,6 @@ export function PageHeader({
   breakoutAction,
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const groupLink = useMemo(() => {
-    if (!groupId) return null;
-    if (typeof window === 'undefined') return null;
-    return `${window.location.origin}/#/g/${groupId}/app`;
-  }, [groupId]);
 
   useEffect(() => {
     if (!copied) return;
@@ -40,9 +35,14 @@ export function PageHeader({
   }, [copied]);
 
   const copyGroupLink = async () => {
-    if (!groupLink) return;
+    if (!groupId || typeof window === 'undefined') return;
+    const shareLink = window.location.href || `${window.location.origin}/#/g/${groupId}/app`;
     try {
-      await navigator.clipboard.writeText(groupLink);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareLink);
+      } else {
+        window.prompt('Copy this group link:', shareLink);
+      }
       setCopied(true);
     } catch {
       setCopied(false);
@@ -87,25 +87,19 @@ export function PageHeader({
 
           {groupId ? (
             <div className="fs-inviteBlock">
-              {groupLink ? (
-                <>
-                  <div className="fs-inviteUrlRow">
-                    <span className="fs-inviteUrlText">{groupLink}</span>
-                    <button
-                      type="button"
-                      className="fs-copyIconBtn"
-                      aria-label="Copy invite link"
-                      onClick={() => void copyGroupLink()}
-                    >
-                      <CopyIcon />
-                    </button>
-                  </div>
-                  <div className="fs-inviteHelp">
-                    Save this link — it’s the only way to return to this group.
-                  </div>
-                  {copied ? <span className="fs-meta">Copied</span> : null}
-                </>
-              ) : null}
+              <button
+                type="button"
+                className="fs-btn fs-btn-secondary fs-btn-small"
+                aria-label="Copy group link"
+                onClick={() => void copyGroupLink()}
+              >
+                <CopyIcon />
+                Copy group link
+              </button>
+              <div className="fs-inviteHelp">
+                Save this link to get back to this group.
+              </div>
+              {copied ? <span className="fs-meta">Copied</span> : null}
             </div>
           ) : null}
         </div>
