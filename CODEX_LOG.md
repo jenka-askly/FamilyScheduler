@@ -6122,3 +6122,43 @@ Implement MUI-based UI modernization scaffolding in `apps/web`, including light/
 ### Follow-ups
 - Re-run install (`pnpm install --filter @familyscheduler/web` or `npm install` in `apps/web`) once registry policy allows `@mui/*` and `@emotion/*` packages.
 - After install succeeds, rerun typecheck/build and complete visual smoke validation + screenshots.
+
+## 2026-02-23 19:42 UTC (Calendar MUI controls regression fix)
+
+### Objective
+
+Complete MUI styling on Calendar page controls/table to eliminate plain HTML-looking controls without reintroducing legacy stylesheet behavior.
+
+### Approach
+
+- Inspected `apps/web/src/AppShell.tsx` for remaining legacy/plain control blocks and replaced targeted sections only.
+- Added MUI imports into `AppShell` and converted:
+  - left sidebar section switch controls to vertical MUI Tabs,
+  - calendar view switch controls to MUI Tabs,
+  - calendar action controls to MUI IconButtons with Tooltips,
+  - month-nav controls to MUI button primitives,
+  - list empty-state/help text to MUI Alert/Typography/Link,
+  - desktop list table to MUI TableContainer/Table/Rows/Cells with status Chips.
+- Preserved existing state handlers and callbacks (`setActiveSection`, `setCalendarView`, `openWhenEditor`, `setSelectedAppointment`, scan/edit/delete actions).
+- Ran targeted legacy-class search to confirm removal from updated areas.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "fs-btn|fs-calTab|role=\"tab\"|Calendar</button>|Members</button>|List</button>|Month</button>|fs-calToolbar|fs-calTabs|fs-calMonthNav|data-table|table-wrap|No appointments yet|Need help\?" apps/web/src/AppShell.tsx` ✅ identified remaining plain controls.
+- `rg -n "fs-btn|fs-cal|fs-shell|fs-chip|data-table|modal-backdrop" apps/web/src/AppShell.tsx` ✅ no matches after conversion.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due missing installed registry packages in environment (`TS2307: @mui/material`).
+- `pnpm -C apps/web run build` ⚠️ failed for same dependency-install limitation.
+- `pnpm install` ⚠️ blocked by registry auth policy (`ERR_PNPM_FETCH_403`).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ starts vite but dependency resolution fails (`@mui/material` unresolved).
+- Playwright screenshot attempt (`mcp__browser_tools__run_playwright_script`) ⚠️ browser process crashed (`SIGSEGV`) before capture.
+
+### Follow-ups
+
+- Re-run install/build/typecheck in an environment with npm registry access.
+- Capture a visual verification screenshot once browser tooling is stable in this environment.
