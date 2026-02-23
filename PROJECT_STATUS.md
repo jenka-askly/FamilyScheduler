@@ -1,3 +1,12 @@
+## 2026-02-23 03:31 UTC update (UEX copy tweak: add event language)
+
+- Renamed “Command” section to “Add event”.
+- Simplified instructional helper text for clarity and tone alignment.
+- Updated command input placeholder to remove internal references and use cleaner example phrasing.
+- No architectural changes.
+- No behavior changes.
+- UI language refinement only.
+
 ## 2026-02-23 03:16 UTC update (UEX polish pass 3 frontend-only)
 
 - Completed frontend-only Calendar/List UX polish in `apps/web/**` with no backend or shared package changes.

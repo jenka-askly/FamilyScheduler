@@ -1004,8 +1004,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <section className="panel fs-commandBar" aria-label="Command bar">
                 <div className="fs-commandHeader">
                   <div>
-                    <h2>Command</h2>
-                    <p className="prompt-tip">Type once and press Add, or scan an image to fill details quickly.</p>
+                    <h2>Add event</h2>
+                    <p className="prompt-tip">Type details or scan an image.</p>
                   </div>
                   <div className="fs-commandActions">
                   <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment"><Camera />Scan</button>
@@ -1013,7 +1013,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   </div>
                 </div>
               <div className="input-row fs-commandInputRow">
-                <input id="prompt" aria-label="Command input" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'Try: Add “Dentist Tue 3pm”, Assign APPT-4 to Joe, Scan a screenshot…'} />
+                <input id="prompt" aria-label="Command input" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'e.g. Dentist Tue 3pm, Flight to Seattle Friday 8am'} />
               </div>
               <p className="prompt-tip">Examples: add/update appointments, assign APPT codes, or paste screenshot text for parsing.</p>
             </section>
