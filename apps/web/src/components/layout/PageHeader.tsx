@@ -3,6 +3,7 @@ import { Alert, Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, Menu
 import MenuIcon from '@mui/icons-material/Menu';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import { useColorMode } from '../../colorMode';
+import { PRODUCT } from '../../product';
 
 const ContentCopyIcon = () => (
   <SvgIcon fontSize="small">
@@ -65,9 +66,13 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
 
   return (
     <Stack spacing={2} sx={{ mb: 2 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>{PRODUCT.name}</Typography>
       <Paper>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
           <Box sx={{ minWidth: 0 }}>
+            <Typography variant="overline" color="text.secondary" sx={{ opacity: 0.8, display: 'block', lineHeight: 1.2 }}>
+              Group
+            </Typography>
             <Stack direction="row" spacing={0.5} alignItems="center">
               <Typography variant="h5">{displayGroupTitle}</Typography>
               {groupId ? (

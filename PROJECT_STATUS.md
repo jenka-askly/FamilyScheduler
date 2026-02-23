@@ -1608,3 +1608,29 @@ traces
 3. Run `pnpm -C apps/web run build`.
 4. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and open `/#/g/<groupId>/app`.
 5. Confirm header/menu/member-line/scan-icon behavior matches criteria above.
+
+## 2026-02-23 23:18 UTC update (Header product identity + group label restoration)
+
+- Added global `PRODUCT` config at `apps/web/src/product.ts` and displayed `Family Scheduler` above the group card in `PageHeader`.
+- Restored a small visual `Group` label above the group title inside the group card for clearer hierarchy.
+- Verified `displayGroupTitle` precedence remains: `groupName` → `Group <first 8 of groupId>` → `title`.
+- UI-only change; no routing, API calls, or business logic changes.
+
+### Success criteria
+
+- `Family Scheduler` appears above the group header card.
+- A subtle `Group` label appears above the main group title row inside the card.
+- Copy icon behavior remains unchanged and still copies the canonical group link.
+- Header menu icon placement/behavior remains unchanged.
+
+### Non-regressions
+
+- Existing `copyGroupLink` implementation continues to use the canonical `groupId`-based URL fallback.
+- Existing breakout/menu/dark-mode actions and handlers remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open `/#/g/<groupId>/app` and verify product name + group label hierarchy in the header.
+4. Click copy icon and verify copied link still targets the same group route.
