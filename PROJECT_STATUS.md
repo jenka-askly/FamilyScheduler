@@ -1,3 +1,30 @@
+## 2026-02-23 21:20 UTC update (Dialog normalization bundle + icon mode toggle)
+
+- Normalized transient popup flows in `AppShell` to MUI `Dialog` surfaces (Quick add, Advanced, proposal confirm, pending question, delete confirms, scan viewer, scan capture, rules prompt, assign people).
+- Converted scan capture camera preview from inline overlay panel to a centered dialog with Capture/Cancel actions while preserving existing scan stream/file fallback logic.
+- Moved appointment editing from side drawer to centered MUI dialog while keeping existing `AppointmentEditorForm` logic and handlers unchanged.
+- Updated dark-mode toggle in `PageHeader` from text button to tooltip-wrapped icon-only `IconButton` using inline `SvgIcon` moon/sun paths.
+- Verified JoinGroup route currently uses MUI-only form markup; no legacy duplicate join form remained to remove.
+
+### Success criteria
+
+- Popup/confirm flows render as MUI dialogs and close via Escape/backdrop with existing cancel handlers.
+- Scan capture no longer renders inline; it appears only as a modal dialog.
+- Appointment editor opens centered (not side-attached).
+- Header mode toggle is icon-only with correct tooltip/aria label for the next action.
+
+### Non-regressions
+
+- Business logic, API endpoints, route behavior, and auth gating remain unchanged.
+- Usage badge/footer behavior remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run build`.
+3. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+4. Open `/#/g/<groupId>/app` and verify dialogs: quick add, advanced, scan capture/rescan, assign people, rules prompt, and appointment edit.
+
 ## 2026-02-23 19:06 UTC update (Calendar toolbar actions + header link cleanup)
 
 - Removed the sidebar **Keep This Going** action and removed the inline **Add event** command bar from `AppShell`.

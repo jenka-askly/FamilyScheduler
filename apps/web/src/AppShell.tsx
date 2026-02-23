@@ -18,6 +18,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
+  FormControlLabel,
+  FormGroup,
   IconButton,
   List,
   ListItemButton,
@@ -91,7 +94,15 @@ const QuestionDialog = ({
         {question.options.length > 0 ? (
           <Stack direction="row" spacing={1} flexWrap="wrap">
             {question.options.map((option, index) => (
-              <Button key={`${option.label}-${index}`} type="button" variant={option.style === 'primary' ? 'contained' : 'outlined'} color={option.style === 'danger' ? 'error' : 'primary'} onClick={() => onOptionSelect(option.value)}>{option.label}</Button>
+              <Button
+                key={`${option.label}-${index}`}
+                type="button"
+                variant={option.style === 'primary' ? 'contained' : 'outlined'}
+                color={option.style === 'danger' ? 'error' : option.style === 'secondary' ? 'secondary' : 'primary'}
+                onClick={() => onOptionSelect(option.value)}
+              >
+                {option.label}
+              </Button>
             ))}
           </Stack>
         ) : null}
@@ -1477,67 +1488,53 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </section>
       </div>
 
-      {isQuickAddOpen ? (
-        <div className="overlayBackdrop">
-          <div className="dialog-modal">
-            <h3>Quick add</h3>
-            <form onSubmit={(event) => { event.preventDefault(); void submitQuickAdd(); }}>
-              <label htmlFor="quick-add-input">Event</label>
-              <div className="input-row">
-                <input
-                  id="quick-add-input"
-                  value={quickAddText}
-                  onChange={(event) => setQuickAddText(event.target.value)}
-                  autoComplete="off"
-                  placeholder="e.g. Dentist Tue 2pm"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      setIsQuickAddOpen(false);
-                    }
-                  }}
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setIsQuickAddOpen(false)}>Cancel</button>
-                <button type="submit" disabled={commandActionsDisabled || !quickAddText.trim()}>Add</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Quick add</DialogTitle>
+        <DialogContent>
+          <Stack component="form" spacing={2} onSubmit={(event) => { event.preventDefault(); void submitQuickAdd(); }}>
+            <TextField
+              label="Event"
+              value={quickAddText}
+              onChange={(event) => setQuickAddText(event.target.value)}
+              autoComplete="off"
+              placeholder="e.g. Dentist Tue 2pm"
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setIsQuickAddOpen(false)}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void submitQuickAdd(); }} disabled={commandActionsDisabled || !quickAddText.trim()}>Add</Button>
+        </DialogActions>
+      </Dialog>
 
-      {isAdvancedOpen ? (
-        <div className="overlayBackdrop">
-          <div className="dialog-modal">
-            <h3>Add or Update Events</h3>
-            <form onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
-              <label htmlFor="advanced-add-input">Details</label>
-              <textarea
-                id="advanced-add-input"
-                value={advancedText}
-                onChange={(event) => setAdvancedText(event.target.value)}
-                placeholder={[
-                  'Add dentist appointment Tuesday at 2pm',
-                  'Move flight to 8am',
-                  'Assign APPT-3 to John',
-                  'Paste an email confirmation',
-                  'Paste CSV rows'
-                ].join('\n')}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    setIsAdvancedOpen(false);
-                  }
-                }}
-              />
-              <p className="prompt-tip">Describe a change or paste schedule text. We’ll extract the events.</p>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setIsAdvancedOpen(false)}>Cancel</button>
-                <button type="submit" disabled={commandActionsDisabled || !advancedText.trim()}>Process</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={isAdvancedOpen} onClose={() => setIsAdvancedOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add or Update Events</DialogTitle>
+        <DialogContent>
+          <Stack component="form" spacing={2} onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
+            <TextField
+              label="Details"
+              multiline
+              minRows={5}
+              value={advancedText}
+              onChange={(event) => setAdvancedText(event.target.value)}
+              placeholder={[
+                'Add dentist appointment Tuesday at 2pm',
+                'Move flight to 8am',
+                'Assign APPT-3 to John',
+                'Paste an email confirmation',
+                'Paste CSV rows'
+              ].join('\n')}
+              fullWidth
+            />
+            <Typography className="prompt-tip">Describe a change or paste schedule text. We’ll extract the events.</Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setIsAdvancedOpen(false)}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void submitAdvanced(); }} disabled={commandActionsDisabled || !advancedText.trim()}>Process</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(proposalText)} onClose={() => void sendMessage('cancel')} fullWidth maxWidth="sm">
         <DialogTitle>Confirm this change?</DialogTitle>
@@ -1618,7 +1615,19 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <Button type="button" onClick={() => setScanViewerAppointment(null)}>Close</Button>
         </DialogActions>
       </Dialog>
-      {scanCaptureModal.useCameraPreview ? <div className="overlayBackdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
+      <Dialog open={scanCaptureModal.useCameraPreview} onClose={closeScanCaptureModal} maxWidth="md" fullWidth>
+        <DialogTitle>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', maxHeight: '60vh', borderRadius: 1 }} />
+          </Box>
+          <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }}>Capture</Button>
+          <Button type="button" variant="outlined" onClick={closeScanCaptureModal}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={Boolean(personToDelete)} onClose={() => setPersonToDelete(null)} fullWidth maxWidth="sm">
         <DialogTitle>{personToDelete ? `Delete ${personToDelete.name || personToDelete.personId}?` : 'Delete person?'}</DialogTitle>
         <DialogContent>
@@ -1668,38 +1677,30 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </DialogActions>
       </Dialog>
 
-      {rulePromptModal ? (
-        <div className="overlayBackdrop">
-          <div className="modal rules-modal">
-            <div className="rules-modal-section rules-modal-header">
-              <h3>Rules</h3>
-            </div>
-            <div className="rules-modal-section rules-prompt-section">
-              <div className="rules-composer">
-                <label htmlFor="rule-prompt-input">Availability rule</label>
-                <textarea
-                  ref={rulePromptTextareaRef}
-                  id="rule-prompt-input"
-                  rows={4}
-                  value={rulePrompt}
-                  onChange={(event) => setRulePrompt(event.target.value)}
-                  placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
-                />
-                <div className="rules-composer-actions">
-                  <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft Rule'}</button>
-                </div>
-              </div>
-            </div>
-
+      <Dialog open={Boolean(rulePromptModal)} onClose={closeRulePromptModal} fullWidth maxWidth="md">
+        <DialogTitle>Rules</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              inputRef={rulePromptTextareaRef}
+              label="Availability rule"
+              multiline
+              minRows={4}
+              value={rulePrompt}
+              onChange={(event) => setRulePrompt(event.target.value)}
+              placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
+            />
+            <Stack direction="row" justifyContent="flex-end">
+              <Button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft Rule'}</Button>
+            </Stack>
             {ruleDraftError ? (
-              <div className="rules-modal-section">
-                <p>{ruleDraftError}</p>
-                {ruleDraftErrorMeta?.code || ruleDraftErrorMeta?.traceId ? <p><small>{ruleDraftErrorMeta?.code ? `code=${ruleDraftErrorMeta.code} ` : ''}{ruleDraftErrorMeta?.traceId ? `traceId=${ruleDraftErrorMeta.traceId}` : ''}</small></p> : null}
-              </div>
+              <Alert severity="error">
+                {ruleDraftError}
+                {ruleDraftErrorMeta?.code || ruleDraftErrorMeta?.traceId ? <><br /><small>{ruleDraftErrorMeta?.code ? `code=${ruleDraftErrorMeta.code} ` : ''}{ruleDraftErrorMeta?.traceId ? `traceId=${ruleDraftErrorMeta.traceId}` : ''}</small></> : null}
+              </Alert>
             ) : null}
-
-            <div className="rules-modal-section rule-draft-output">
-              <p>Preview</p>
+            <Box>
+              <Typography variant="subtitle2">Preview</Typography>
               {hasProposedRules ? (
                 <ul className="rule-preview-list">
                   {ruleDraft?.draftRules.map((rule, i) => (
@@ -1711,58 +1712,44 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   ))}
                 </ul>
               ) : (
-                <p className="muted-empty">No proposed changes yet. Click Draft to preview.</p>
+                <Typography className="muted-empty">No proposed changes yet. Click Draft to preview.</Typography>
               )}
-              {ruleDraft ? (
-                <>
-                {ruleDraft.assumptions.length > 0 ? (
-                  <>
-                    <p>Assumptions</p>
-                    <ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul>
-                  </>
-                ) : null}
-                {ruleDraft.warnings.length > 0 ? (
-                  <>
-                    <p>Warnings</p>
-                    <ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul>
-                  </>
-                ) : null}
-                </>
-              ) : null}
-            </div>
+              {ruleDraft?.assumptions.length ? <><Typography variant="subtitle2" sx={{ mt: 1 }}>Assumptions</Typography><ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+              {ruleDraft?.warnings.length ? <><Typography variant="subtitle2" sx={{ mt: 1 }}>Warnings</Typography><ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul></> : null}
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="contained" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</Button>
+          <Button type="button" variant="outlined" onClick={closeRulePromptModal}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
 
-            <div className="modal-actions rules-actions-row">
-              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming} aria-disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</button>
-              <button type="button" onClick={closeRulePromptModal}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <Dialog open={Boolean(selectedAppointment)} onClose={() => setSelectedAppointment(null)} maxWidth="sm" fullWidth>
+      <Dialog open={Boolean(selectedAppointment)} onClose={() => setSelectedAppointment(null)} maxWidth="md" fullWidth>
         <DialogTitle>{selectedAppointment ? `Assign people for ${selectedAppointment.code}` : 'Assign people'}</DialogTitle>
         <DialogContent>
-          <List disablePadding>
-            {selectedAppointment ? activePeople.map((person) => {
+          <FormGroup>
+            {selectedAppointment ? activePeople.map((person, index) => {
               const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
               const isSelected = selectedAppointment.people.includes(person.personId);
               return (
-                <ListItemButton key={person.personId} divider onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
-                  <Checkbox
-                    checked={isSelected}
-                    onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)}
-                    onClick={(event) => event.stopPropagation()}
-                  />
-                  <ListItemText primary={person.name} />
-                  <Chip
-                    variant="outlined"
-                    color={status.status === 'no_conflict' ? 'success' : status.status === 'conflict' ? 'warning' : 'default'}
-                    label={status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}
-                  />
-                </ListItemButton>
+                <Box key={person.personId}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
+                    <FormControlLabel
+                      control={<Checkbox checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} />}
+                      label={person.name}
+                    />
+                    <Chip
+                      variant="outlined"
+                      color={status.status === 'no_conflict' ? 'success' : status.status === 'conflict' ? 'warning' : 'default'}
+                      label={status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}
+                    />
+                  </Box>
+                  {index < activePeople.length - 1 ? <Divider /> : null}
+                </Box>
               );
             }) : null}
-          </List>
+          </FormGroup>
         </DialogContent>
         <DialogActions>
           <Button type="button" onClick={() => setSelectedAppointment(null)}>Close</Button>
@@ -1787,47 +1774,50 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <label>Due date<input type="date" value={todoDraft.dueDate} onChange={(event) => setTodoDraft((prev) => ({ ...prev, dueDate: event.target.value }))} /></label>
             <label>Assignee<input value={todoDraft.assignee} onChange={(event) => setTodoDraft((prev) => ({ ...prev, assignee: event.target.value }))} placeholder="Name" /></label>
             <label className="switch-row"><input type="checkbox" checked={todoDraft.done} onChange={(event) => setTodoDraft((prev) => ({ ...prev, done: event.target.checked }))} />Done</label>
-            <div className="modal-actions">
-              <button type="button" onClick={saveTodo} disabled={!todoDraft.text.trim()}>Save</button>
-              <button type="button" onClick={() => deleteTodo(editingTodo.id)}>Delete</button>
-              <button type="button" onClick={closeTodoEditor}>Cancel</button>
-            </div>
+            <Stack direction="row" spacing={1}>
+              <Button type="button" variant="contained" onClick={saveTodo} disabled={!todoDraft.text.trim()}>Save</Button>
+              <Button type="button" color="error" onClick={() => deleteTodo(editingTodo.id)}>Delete</Button>
+              <Button type="button" variant="outlined" onClick={closeTodoEditor}>Cancel</Button>
+            </Stack>
           </div>
         ) : null}
       </Drawer>
 
-      <Drawer open={whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
-        {editingAppointment ? (
-          <AppointmentEditorForm
-            appointmentCode={editingAppointment.code}
-            whenValue={whenDraftText}
-            descriptionValue={descDraftText}
-            locationValue={locationDraftText}
-            notesValue={notesDraftText}
-            onWhenChange={setWhenDraftText}
-            onWhenKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void previewWhenDraft(editingAppointment);
-              }
-            }}
-            onDescriptionChange={setDescDraftText}
-            onLocationChange={setLocationDraftText}
-            onNotesChange={setNotesDraftText}
-            onResolveDate={() => void previewWhenDraft(editingAppointment)}
-            errorText={whenDraftError}
-            previewContent={whenPreviewed ? (
-              <div>
-                <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
-                {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-              </div>
-            ) : null}
-            onConfirm={() => void confirmWhenDraft(editingAppointment)}
-            onCancel={closeWhenEditor}
-          />
-        ) : null}
-      </Drawer>
+      <Dialog open={whenEditorCode != null} onClose={closeWhenEditor} maxWidth="md" fullWidth>
+        <DialogTitle>{editingAppointment ? `Edit ${editingAppointment.code}` : 'Edit appointment'}</DialogTitle>
+        <DialogContent dividers>
+          {editingAppointment ? (
+            <AppointmentEditorForm
+              appointmentCode={editingAppointment.code}
+              whenValue={whenDraftText}
+              descriptionValue={descDraftText}
+              locationValue={locationDraftText}
+              notesValue={notesDraftText}
+              onWhenChange={setWhenDraftText}
+              onWhenKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void previewWhenDraft(editingAppointment);
+                }
+              }}
+              onDescriptionChange={setDescDraftText}
+              onLocationChange={setLocationDraftText}
+              onNotesChange={setNotesDraftText}
+              onResolveDate={() => void previewWhenDraft(editingAppointment)}
+              errorText={whenDraftError}
+              previewContent={whenPreviewed ? (
+                <div>
+                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
+                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+                </div>
+              ) : null}
+              onConfirm={() => void confirmWhenDraft(editingAppointment)}
+              onCancel={closeWhenEditor}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <FooterHelp usageLabel={usageLabel} />
     </Page>
   );
