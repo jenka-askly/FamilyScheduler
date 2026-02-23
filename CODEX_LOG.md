@@ -5597,3 +5597,39 @@ Implement the header invite-link simplification: plain-text URL display, icon-on
 ### Follow-ups
 
 - Optional UX follow-up: if long invite URLs crowd very narrow widths, apply responsive max-inline-size clamp for URL text on smallest breakpoints.
+
+## 2026-02-23 UTC (ignite organizer page: route gating + phone wiring)
+
+### Objective
+
+Implement ignite organizer route/auth behavior so `/g/:groupId/ignite` is group-member gated like `/app` and organizer API calls consistently send the gated phone identity.
+
+### Approach
+
+- Inspected `App.tsx` route switch and route parser; added explicit `ignite` route parsing and branch handling.
+- Wrapped ignite route rendering with `GroupAuthGate` and forwarded gate-resolved `phone` to organizer component.
+- Added a focused `IgniteOrganizerPage` component because it was missing in this repository snapshot; required `phone` prop and wired API calls per requested contract:
+  - `POST /api/ignite/start` body `{ groupId, phone, traceId }`
+  - `GET /api/ignite/meta` query `groupId`, `sessionId`, `phone`, `traceId`
+- Added clearer not-allowed error messaging for `403 not_allowed` start failures.
+- Captured a browser screenshot artifact of the ignite route UI.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/IgniteOrganizerPage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no additional nested AGENTS.md files found in repo tree.
+- `sed -n '1,620p' apps/web/src/App.tsx` ✅ inspected route parser/switch and auth gate.
+- `rg -n "ignite" apps/web/src api packages` ✅ confirmed ignite implementation was absent before this change.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `mcp__browser_tools__run_playwright_script` ✅ captured `browser:/tmp/codex_browser_invocations/69b4ef25aabf5437/artifacts/artifacts/ignite-organizer-route.png`.
+
+### Follow-ups
+
+- Backend ignite endpoints are not present in this repository snapshot; staging/API verification for `ignite/start` 200 + sessionId population still requires the corresponding backend deployment.
