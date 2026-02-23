@@ -5821,3 +5821,39 @@ Resolve organizer `POST /api/ignite/start` authorization failures by ensuring ph
 ### Follow-ups
 
 - Human staging verification required for live API confirmation of 200 response from `/api/ignite/start` for the target group/session.
+
+
+## 2026-02-23 08:20 UTC (ignite/start 403 instrumentation + staging deploy attempt)
+
+### Objective
+
+Instrument `igniteStart` to capture sanitized diagnostics for staging 403 analysis, deploy to staging, reproduce once, and gather App Insights trace values.
+
+### Approach
+
+- Added minimal structured auth logs to `api/src/functions/igniteStart.ts` using existing `logAuth` helper (gated by `DEBUG_AUTH_LOGS=true`).
+- Logged request-level `hasPhone` and safe `rawGroupId` immediately after `traceId` creation.
+- Logged validated identity values (`groupId`, normalized `phoneE164`) after `validateJoinRequest` success.
+- Logged caller lookup output (`callerFound`, `callerPersonId`) after `findActivePersonByPhone`.
+- Attempted staging deployment via `scripts/ship-api.sh` with `APP_NAME=familyscheduler-api-staging` + `RESOURCE_GROUP=familyscheduler-staging-rg`.
+- Deployment blocked by environment registry policy (`ERR_PNPM_FETCH_403` on npm package fetch during `pnpm deploy --prod`), so no new staging run/log reproduction was possible from this workspace.
+
+### Files changed
+
+- `api/src/functions/igniteStart.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' api/src/functions/igniteStart.ts` ✅ inspected existing ignite start handler.
+- `sed -n '1,260p' api/src/lib/logging/authLogs.ts` ✅ confirmed existing logging helper.
+- `pnpm --filter @familyscheduler/api build` ✅ build passed after instrumentation change.
+- `APP_NAME=familyscheduler-api-staging RESOURCE_GROUP=familyscheduler-staging-rg bash scripts/ship-api.sh` ⚠️ failed due to `ERR_PNPM_FETCH_403` (registry/network policy), so staging deploy did not complete.
+- `az account show --output table` ⚠️ failed (`az: command not found`) in this environment.
+
+### Follow-ups
+
+- Run staging deploy from an environment with npm registry access + Azure CLI.
+- Reproduce one `/api/ignite/start` call and run requested KQL query for `igniteStart` traces.
+- Apply the root-cause fix based on observed bucket (`hasPhone`, `callerFound`, `groupId`).

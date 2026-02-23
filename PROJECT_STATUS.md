@@ -1,3 +1,34 @@
+## 2026-02-23 08:20 UTC update (ignite/start 403 diagnostics instrumentation)
+
+- Added temporary, sanitized auth traces in `igniteStart` (behind `DEBUG_AUTH_LOGS=true`) to emit: request `hasPhone`, safe `rawGroupId`, validated `groupId` + normalized `phoneE164`, and caller lookup outcome (`callerFound`, `callerPersonId`).
+- This instrumentation is intended to quickly classify staging 403 root-cause buckets: missing phone from client, group routing issue, or phone mismatch against stored `cellE164`.
+- Staging deploy/repro was attempted via `scripts/ship-api.sh` with staging app/resource settings, but packaging failed in this environment because pnpm registry fetches are blocked (`ERR_PNPM_FETCH_403`), so no fresh staging logs could be captured from this workspace.
+
+### Success criteria
+
+- With `DEBUG_AUTH_LOGS=true`, each `/api/ignite/start` invocation emits `igniteStart` traces containing `hasPhone`, `rawGroupId`, validated identity fields, and caller lookup result for the same `traceId`.
+
+### Non-regressions
+
+- Authorization behavior and response payloads for `ignite/start` remain unchanged (trace-only diagnostics).
+
+### How to verify locally/staging
+
+1. Ensure API setting `DEBUG_AUTH_LOGS=true` and deploy this API build.
+2. Trigger one organizer `POST /api/ignite/start`.
+3. Query traces:
+   ```kusto
+   traces
+   | where timestamp > ago(10m)
+   | where message contains "igniteStart"
+   | order by timestamp desc
+   ```
+4. Classify root cause:
+   - `hasPhone=false` => frontend not sending phone
+   - valid `phoneE164` with `callerFound=false` => phone mismatch with stored member
+   - missing/wrong `rawGroupId` or validated `groupId` => routing/group-id bug
+
+
 ## 2026-02-23 07:20 UTC update (Ignite organizer auth/meta/link/QR alignment)
 
 - Ignite organizer meta polling now uses `POST /api/ignite/meta` with `{groupId, sessionId, phone, traceId}` to satisfy backend identity validation and avoid unauthorized meta responses.
