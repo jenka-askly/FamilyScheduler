@@ -6023,3 +6023,30 @@ Replace the group-header Breakout Group button with a right-aligned Quick action
 ### Follow-ups
 
 - Validate against a real backend session to confirm live `/api/ignite/spinoff` response timing and disabled-state UX under actual network latency.
+
+## 2026-02-23 18:24 UTC
+
+### Objective
+
+Fix Quick actions dropdown text contrast so `Break out` is readable in the menu.
+
+### Approach
+
+- Updated only `apps/web/src/styles.css` to set explicit text color on `.fs-quickActionsMenu`.
+- Ensured `.fs-quickActionItem` inherits parent text color so menu items remain readable without behavior changes.
+- Left JS/TS and API flow untouched.
+
+### Files changed
+
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "fs-quickActionsMenu|fs-quickActionItem" apps/web/src/styles.css` ✅ located target selectors.
+- `pnpm --filter @familyscheduler/web run build` ✅ build passed after CSS update.
+
+### Follow-ups
+
+- Manual visual validation in browser: open Quick actions and confirm `Break out` is now visible with expected hover state.

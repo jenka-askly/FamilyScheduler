@@ -1,3 +1,29 @@
+## 2026-02-23 18:24 UTC update (Quick actions dropdown text contrast fix)
+
+- Fix dropdown text contrast for Quick actions menu.
+- Set explicit readable foreground color on `.fs-quickActionsMenu` and ensured quick action items inherit that color.
+- No JS/TS behavior changes.
+
+### Success criteria
+
+- Opening Quick actions shows readable `Break out` text against the menu background.
+- Hover state styling remains visible and unchanged in behavior.
+- Header layout remains unchanged.
+- Spinoff flow behavior remains unchanged.
+
+### Non-regressions
+
+- No API, routing, or TS/JS logic changes.
+- Existing responsive behavior for quick actions remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`.
+2. Open a group app page (`/#/g/<groupId>/app`) and expand **Quick actions**.
+3. Confirm **Break out** text is clearly visible on white background.
+4. Hover the item and confirm hover background still appears.
+5. Trigger Break out and confirm spinoff flow still navigates as before.
+
 ## 2026-02-23 18:40 UTC update (Quick actions dropdown for breakout)
 
 - Replaced the group header **Breakout Group** button with a right-aligned **Quick actions** dropdown in `PageHeader`.
