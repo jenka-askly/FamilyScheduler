@@ -390,6 +390,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         {joinUrl ? <p className="fs-meta">{joinUrl}</p> : null}
         <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
         <div className="join-actions">
+          <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Back to group</button>
           <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</button>
           <button className="fs-btn fs-btn-primary" type="button" onClick={() => { void startSession(); }}>Reopen</button>
         </div>
@@ -412,27 +413,71 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string>('');
+  const [imageMime, setImageMime] = useState<string>('');
+  const [joined, setJoined] = useState(false);
+
+  const onImagePicked = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    if (!file) {
+      setImageBase64('');
+      setImageMime('');
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(new Error('read_failed'));
+      reader.readAsDataURL(file);
+    });
+    const [, base64 = ''] = dataUrl.split(',', 2);
+    setImageBase64(base64);
+    setImageMime(file.type || 'image/jpeg');
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     const response = await fetch(apiUrl('/api/ignite/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, phone, traceId: createTraceId() }) });
     const data = await response.json() as { ok?: boolean; error?: string; phoneE164?: string; message?: string };
     if (!response.ok || !data.ok) {
-      setError(data.error === 'ignite_closed' ? 'Session closed. Ask organizer to reopen.' : (data.message ?? 'Unable to join session'));
+      setError(data.error === 'ignite_closed' ? 'Session closed. Ask the organizer to reopen the QR.' : (data.message ?? 'Unable to join session'));
       return;
     }
     writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
-    nav(`/g/${groupId}/app`);
+    if (imageBase64) {
+      try {
+        await fetch(apiUrl('/api/ignite/photo'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ groupId, sessionId, phone, imageBase64, imageMime: imageMime || 'image/jpeg', traceId: createTraceId() })
+        });
+      } catch {
+        // Non-fatal: continue into the group even if photo upload fails.
+      }
+    }
+    setJoined(true);
+    window.setTimeout(() => { nav(`/g/${groupId}/app`); }, 500);
   };
 
   return (
     <Page variant="form">
-      <PageHeader title="Join session" description="Enter your name and phone to join this group session." groupId={groupId} />
+      <PageHeader title="Join session" description="Enter your name and phone to join this live session." groupId={groupId} />
       <form onSubmit={submit}>
         <div className="join-form-wrap">
           <label><span className="field-label">Name</span><input className="field-input" value={name} onChange={(e) => setName(e.target.value)} required /></label>
           <label><span className="field-label">Phone</span><input className="field-input" value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
+          <label>
+            <span className="field-label">Add a photo (optional)</span>
+            <input className="field-input" type="file" accept="image/*" capture="environment" onChange={(e) => { void onImagePicked(e.currentTarget); }} />
+          </label>
           <div className="join-actions"><button className="fs-btn fs-btn-primary" type="submit">Join Session</button></div>
+          {joined ? (
+            <div className="join-actions" style={{ marginTop: 12 }}>
+              <p>Joined. Opening group…</p>
+              <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Open group</button>
+            </div>
+          ) : null}
         </div>
         {error ? <p className="form-error">{error}</p> : null}
       </form>

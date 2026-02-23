@@ -1,3 +1,13 @@
+## 2026-02-23 05:57 UTC update (QG/Ignition UX polish: join copy/photo/back nav)
+
+- Ignite join page copy now uses session-specific wording: "Enter your name and phone to join this live session."
+- Ignite join closed-state error now reads: "Session closed. Ask the organizer to reopen the QR."
+- Ignite join page now supports optional photo capture/upload before join with mobile-friendly camera hint (`capture="environment"`).
+- Ignite join flow now attempts a non-fatal `/api/ignite/photo` upload immediately after successful `/api/ignite/join`, then redirects into the group app with a fallback "Open group" button.
+- Ignite organizer page now includes an explicit "Back to group" button to `/#/g/<groupId>/app`.
+- Ignite photo API now accepts any image MIME type and can resolve caller phone from either request body (`phone`) or authenticated `x-ms-client-principal` identity claims/details while preserving existing session-open gating behavior.
+- App shell already includes a "Keep This Going" entry point in sidebar navigation to `/#/g/<groupId>/ignite` (retained).
+
 ## 2026-02-23 05:03 UTC update (UEX polish: title section + nav cleanup)
 
 - Header polish: invite URL text is now smaller + muted, invite help line spacing is tightened, and the members line now renders names only (removed the `Members:` prefix).
