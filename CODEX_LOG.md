@@ -1,3 +1,35 @@
+## 2026-02-24 00:05 UTC (Header hamburger menu + breakout emphasis)
+
+### Objective
+
+Implement updated header menu UX: switch trigger to hamburger icon and move breakout into an emphasized first menu item with RocketLaunch icon while preserving existing breakout/dark-mode logic.
+
+### Approach
+
+- Updated `PageHeader` menu trigger icon from custom `MoreVert` glyph to MUI `Menu` icon with tooltip `Menu`.
+- Reworked `PageHeader` menu content to render `Breakout Session` first with `RocketLaunch` icon in `ListItemIcon`, emphasized via `sx={{ fontWeight: 600 }}`, helper secondary text, and inserted a divider before remaining menu actions.
+- Replaced prior `breakoutAction` node prop with explicit `onBreakoutClick` + `breakoutDisabled` props so the menu item directly invokes existing breakout handler and preserves in-flight disabled behavior.
+- Kept dark mode toggle logic and menu close semantics intact.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in repo scope.
+- `rg -n "<PageHeader|breakoutAction|Breakout|MoreVert" apps/web/src/AppShell.tsx apps/web/src/components/layout/PageHeader.tsx` ✅ located all relevant references.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing environment dependency resolution issues (`@mui/material`/`@mui/icons-material` missing in this environment).
+- `pnpm -C apps/web run build` ⚠️ failed for the same dependency-resolution limitation.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts, then reports unresolved `@mui/*` dependencies in this environment, blocking runtime visual verification.
+
+### Follow-ups
+
+- Restore/install missing MUI dependencies in the local environment, then run the verification steps in `PROJECT_STATUS.md` for full UI validation.
+
 ## 2026-02-23 21:20 UTC (Dialog normalization bundle + icon mode toggle)
 
 ### Objective

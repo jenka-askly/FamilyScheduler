@@ -1132,17 +1132,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
         onMembersClick={() => setActiveSection('members')}
         showGroupAccessNote={activeSection !== 'calendar'}
-        breakoutAction={(
-          <button
-            type="button"
-            className="ui-quickActionItem"
-            onClick={() => { void createBreakoutGroup(); }}
-            disabled={isSpinningOff}
-          >
-            <div className="ui-quickActionItemTitle">Break out</div>
-            <div className="ui-quickActionItemHelp">Start a new group with just you</div>
-          </button>
-        )}
+        onBreakoutClick={() => { void createBreakoutGroup(); }}
+        breakoutDisabled={isSpinningOff}
       />
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>

@@ -1,18 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, IconButton, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import { useColorMode } from '../../colorMode';
 
 const ContentCopyIcon = () => (
   <SvgIcon fontSize="small">
     <path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z" />
-  </SvgIcon>
-);
-
-const MoreVertIcon = () => (
-  <SvgIcon>
-    <circle cx="12" cy="5" r="2" />
-    <circle cx="12" cy="12" r="2" />
-    <circle cx="12" cy="19" r="2" />
   </SvgIcon>
 );
 
@@ -25,10 +19,11 @@ type Props = {
   groupAccessNote?: string;
   onMembersClick?: () => void;
   showGroupAccessNote?: boolean;
-  breakoutAction?: React.ReactNode;
+  onBreakoutClick?: () => void;
+  breakoutDisabled?: boolean;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, breakoutAction }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { mode, toggleMode } = useColorMode();
@@ -104,14 +99,33 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </Box>
           </Box>
           <Stack direction="row" spacing={1}>
-            <Tooltip title="More">
-              <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="More">
-                <MoreVertIcon />
+            <Tooltip title="Menu">
+              <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
+                <MenuIcon />
               </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
         <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+          {onBreakoutClick ? (
+            <MenuItem
+              sx={{ fontWeight: 600 }}
+              disabled={breakoutDisabled}
+              onClick={() => {
+                setAnchorEl(null);
+                onBreakoutClick();
+              }}
+            >
+              <ListItemIcon>
+                <RocketLaunchIcon color="primary" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Breakout Session"
+                secondary={<Typography variant="body2" color="text.secondary">Create a live coordination session</Typography>}
+              />
+            </MenuItem>
+          ) : null}
+          {onBreakoutClick ? <Divider /> : null}
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
               <Typography>Dark mode</Typography>
@@ -123,7 +137,6 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               />
             </Stack>
           </MenuItem>
-          {breakoutAction ? <MenuItem onClick={() => setAnchorEl(null)}>{breakoutAction}</MenuItem> : null}
         </Menu>
       </Paper>
       <Typography variant="h6">{title}</Typography>
