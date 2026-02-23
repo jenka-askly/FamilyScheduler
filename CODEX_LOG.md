@@ -5067,3 +5067,35 @@ Extract appointment edit form UI from `apps/web/src/AppShell.tsx` into a reusabl
 
 ### Follow-ups
 - None for this phase; component extraction is complete and intentionally presentational-only.
+
+## 2026-02-23 01:20 UTC (Phase 1 Step 2 drawer primitive, no UX change)
+
+### Objective
+
+Add a reusable drawer primitive and styles without changing active editing UX (inline schedule-row editor remains in use).
+
+### Approach
+
+- Added `Drawer` component with required behavior: overlay click close, Escape close while open, and body scroll lock with cleanup on close/unmount.
+- Added namespaced `.fs-drawer-*` styles in `apps/web/src/styles/ui.css` for overlay/panel/header/title/close/content.
+- Mounted `<Drawer open={false} ...>` in `AppShell` with placeholder content so no visual behavior changes occur yet.
+- Updated continuity docs per workflow requirements.
+
+### Files changed
+
+- `apps/web/src/components/Drawer.tsx`
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `date '+%Y-%m-%d %H:%M %Z'` ✅ captured timestamp.
+- `pnpm --filter @family-scheduler/web build` ❌ failed (no matching workspace package name).
+- `pnpm --filter @familyscheduler/web build` ✅ web build passed.
+- `git status --short` ✅ verified intended file set only.
+
+### Follow-ups
+
+- Step 3: switch appointment editing trigger/state to open Drawer and host `AppointmentEditorForm` in the drawer panel.

@@ -839,3 +839,10 @@ traces
 - Extracted the inline appointment editor form UI from `AppShell` into a new presentational component at `apps/web/src/components/AppointmentEditorForm.tsx`.
 - Kept all appointment editor state/handlers/preview derivation in `AppShell`; only moved JSX rendering of fields, feedback area, and confirm/cancel actions.
 - Build verified for `apps/web`.
+
+## 2026-02-23 update (Phase 1 Step 2 drawer primitive scaffold)
+
+- Added a new reusable `Drawer` primitive (`apps/web/src/components/Drawer.tsx`) with overlay-click close, Escape-key close, and body-scroll lock/unlock lifecycle handling.
+- Added namespaced drawer CSS classes under `apps/web/src/styles/ui.css` (`.fs-drawer-*`) to avoid table/button/input regressions.
+- Wired a non-functional `Drawer` mount in `AppShell` with `open={false}` and placeholder content, preserving the current inline `<tr>` appointment editor as active UI.
+- Current milestone: Phase 1 foundation work for future drawer-based editing (activation planned in Step 3).

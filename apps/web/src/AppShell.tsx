@@ -1,5 +1,6 @@
 import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
+import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
@@ -1279,6 +1280,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <div className="picker-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
+
+      <Drawer open={false} title="Edit appointment" onClose={() => {}}>
+        <p>Drawer editor placeholder</p>
+      </Drawer>
       <FooterHelp />
       <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
     </Page>
