@@ -6,14 +6,13 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
-import { useMediaQuery } from './hooks/useMediaQuery';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 import {
   Alert,
   Box,
   Button,
-  Checkbox,
   Chip,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
@@ -30,17 +29,13 @@ import {
   Stack,
   SvgIcon,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
   TextField,
-  TableRow,
   Tabs,
   Tooltip,
   Typography
 } from '@mui/material';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -156,7 +151,6 @@ const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
 const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
 const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
 const DocumentScannerIcon = () => <SvgIcon><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm8 1.5V8h4.5" /><path d="M8 13h8M8 17h8M8 9h3" /></SvgIcon>;
-const VisibilityIcon = () => <SvgIcon><path d="M12 5c5 0 9.27 3.11 11 7-1.73 3.89-6 7-11 7S2.73 15.89 1 12c1.73-3.89 6-7 11-7Z" /><circle cx="12" cy="12" r="3" /></SvgIcon>;
 const MoreVertIcon = () => <SvgIcon><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></SvgIcon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
@@ -348,7 +342,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [personDraft, setPersonDraft] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
-  const isMobile = useMediaQuery('(max-width: 768px)');
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
@@ -1261,124 +1254,25 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       <Typography variant="body2">Add your first event using + above.</Typography>
                     </Alert>
                   ) : null}
-                  {isMobile ? (
-                    <AppointmentCardList
-                      appointments={sortedAppointments}
-                      getStatus={(appointment) => (
-                        appointment.time?.intent?.status !== 'resolved'
-                          ? 'unreconcilable'
-                          : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
-                            ? 'conflict'
-                            : 'no_conflict'
-                      )}
-                      formatWhen={formatAppointmentTime}
-                      onEdit={openWhenEditor}
-                      onDelete={setAppointmentToDelete}
-                      onSelectPeople={setSelectedAppointment}
-                      onOpenScanViewer={setScanViewerAppointment}
-                      scanViewIcon={<VisibilityIcon />}
-                      editIcon={<Pencil />}
-                      deleteIcon={<Trash2 />}
-                    />
-                  ) : (
-                    <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
-                      <Table size="small" aria-label="Appointment list table">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>When</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>People</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {sortedAppointments.map((appointment) => {
-                            const apptStatus = appointment.time?.intent?.status !== 'resolved'
-                              ? 'unreconcilable'
-                              : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
-                                ? 'conflict'
-                                : 'no_conflict';
-                            return (
-                              <TableRow hover key={appointment.code}>
-                                <TableCell><code>{appointment.code}</code></TableCell>
-                                <TableCell>
-                                  <MuiLink component="button" type="button" underline="hover" onClick={() => openWhenEditor(appointment)}>
-                                    {appointment.time?.intent?.status !== 'resolved' ? 'Unresolved' : formatAppointmentTime(appointment)}
-                                  </MuiLink>
-                                </TableCell>
-                                <TableCell>
-                                  {apptStatus === 'unreconcilable' ? (
-                                    <Button variant="text" size="small" sx={{ textTransform: 'none', p: 0, minWidth: 0 }} onClick={() => openWhenEditor(appointment)}>
-                                      <Chip size="small" label="Unreconcilable" color="warning" />
-                                    </Button>
-                                  ) : (
-                                    <Chip
-                                      size="small"
-                                      label={apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
-                                      color={apptStatus === 'conflict' ? 'error' : 'success'}
-                                      variant="outlined"
-                                    />
-                                  )}
-                                </TableCell>
-                                <TableCell><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></TableCell>
-                                <TableCell>
-                                  <Button type="button" variant="text" size="small" sx={{ textTransform: 'none', p: 0, minWidth: 0 }} onClick={() => setSelectedAppointment(appointment)}>
-                                    {appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}
-                                  </Button>
-                                </TableCell>
-                                <TableCell>
-                                  <Box className="location-preview-wrap">
-                                    <Typography className="location-preview" variant="body2">{appointment.locationDisplay || '—'}</Typography>
-                                    {appointment.locationMapQuery ? <MuiLink className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</MuiLink> : null}
-                                  </Box>
-                                </TableCell>
-                                <TableCell><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></TableCell>
-                                <TableCell align="right">
-                                  <Stack direction="row" justifyContent="flex-end" spacing={0.5} onClick={(event) => { event.stopPropagation(); }}>
-                                    {appointment.scanImageKey ? (
-                                      <Tooltip title="View scan">
-                                        <IconButton
-                                          size="small"
-                                          aria-label="View appointment scan"
-                                          onClick={(event) => {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            setScanViewerAppointment(appointment);
-                                          }}
-                                        >
-                                          <VisibilityIcon />
-                                        </IconButton>
-                                      </Tooltip>
-                                    ) : null}
-                                    <Tooltip title="Edit appointment">
-                                      <IconButton
-                                        size="small"
-                                        aria-label="Edit appointment"
-                                        onClick={(event) => {
-                                          event.preventDefault();
-                                          event.stopPropagation();
-                                          openWhenEditor(appointment);
-                                        }}
-                                      >
-                                        <Pencil />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Delete appointment">
-                                      <IconButton size="small" aria-label="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></IconButton>
-                                    </Tooltip>
-                                  </Stack>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
+                  <AppointmentCardList
+                    appointments={sortedAppointments}
+                    getStatus={(appointment) => (
+                      appointment.time?.intent?.status !== 'resolved'
+                        ? 'unreconcilable'
+                        : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                          ? 'conflict'
+                          : 'no_conflict'
+                    )}
+                    formatWhen={formatAppointmentTime}
+                    onEdit={openWhenEditor}
+                    onDelete={setAppointmentToDelete}
+                    onSelectPeople={setSelectedAppointment}
+                    onOpenScanViewer={setScanViewerAppointment}
+                    scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
+                    editIcon={<Pencil />}
+                    assignIcon={<GroupOutlinedIcon fontSize="small" />}
+                    deleteIcon={<Trash2 />}
+                  />
                 </section>
               ) : null}
             </>
