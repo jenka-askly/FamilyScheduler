@@ -5791,3 +5791,33 @@ Address ignite organizer regression where start could fail auth and join link/QR
 ### Follow-ups
 
 - Human staging re-test for `/#/g/<groupId>/ignite` network response and QR rendering with real membership/session data.
+
+## 2026-02-23 07:55 UTC (ignite/start 403 fix: enforce phone presence)
+
+### Objective
+
+Resolve organizer `POST /api/ignite/start` authorization failures by ensuring phone is always included and preventing start calls when phone is missing.
+
+### Approach
+
+- Verified ignite route wiring in `App.tsx` already uses `GroupAuthGate` and passes `phone` into `IgniteOrganizerPage`.
+- Updated `IgniteOrganizerPage.startSession()` to guard against blank `phone` and return a user-facing error before network call.
+- Updated the startup `useEffect` to skip `startSession()` if phone is blank, preventing empty-body/invalid auth start attempts.
+- Kept successful response handling unchanged (`setSessionId(data.sessionId)`) so join URL + QR continue to derive from backend session id.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "type: 'ignite'|IgniteOrganizerPage|GroupAuthGate" apps/web/src/App.tsx` ✅ verified route/gate wiring.
+- `rg -n "ignite/start|setSessionId|Starting session|IgniteOrganizerPage" apps/web/src` ✅ verified ignite start call/response handling points.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+
+### Follow-ups
+
+- Human staging verification required for live API confirmation of 200 response from `/api/ignite/start` for the target group/session.
