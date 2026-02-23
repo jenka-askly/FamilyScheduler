@@ -5190,3 +5190,34 @@ Implement combined UI step: make Drawer the only appointment editor across all b
 
 ### Follow-ups
 - Human visual validation recommended in local browser for mobile card readability and Drawer entry points with seeded appointment data.
+
+## 2026-02-23 02:03 UTC (UEX mega pass: shell + month calendar + todos)
+
+### Objective
+Implement frontend-only app shell/navigation plus calendar month view and todos sibling view with minimal-risk changes, preserving appointments behavior/APIs and existing hash route shape.
+
+### Approach
+- Added local shell navigation state in `AppShell` (`activeSection`) to replace Schedule/People toggle and maintain current app route path.
+- Introduced calendar view mode state (`month|list|week|day`) with list mode reusing existing appointments rendering path.
+- Built month grid rendering for current month + leading/trailing days; mapped appointments to day chips that call existing `openWhenEditor` handler.
+- Kept add-appointment behavior by calling existing `addAppointment()` from calendar day cell action.
+- Added local-only todo model/state + CRUD handlers and Drawer-based todo editor; surfaced due-dated todos as distinct chips on month grid.
+- Mapped Members section directly to prior People section rendering with no functional changes.
+- Added namespaced styles for shell/calendar/todos and responsive sidebar stacking.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot script via browser tool against `http://127.0.0.1:4173` ✅ captured `browser:/tmp/codex_browser_invocations/fafea451f84a2f40/artifacts/artifacts/shell-calendar.png`.
+- `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown of temporary dev server.
+
+### Follow-ups
+- TODO: wire todo persistence to backend store/API in a follow-up pass.
+- TODO: implement full week/day calendar views (currently placeholders).

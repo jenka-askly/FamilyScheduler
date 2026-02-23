@@ -872,3 +872,16 @@ traces
 - Mobile cards include: code, when, status, description, people, location + map link, notes, and edit/delete actions (plus scan-view icon when available).
 - Added namespaced `.fs-card*` styles in `apps/web/src/styles/ui.css` to support readable mobile cards and CTA actions without global selector changes.
 - Build status: `pnpm --filter @familyscheduler/web build` passes after this change.
+
+## 2026-02-23 update (shell layout + month calendar + todos view, frontend-only)
+
+- Replaced in-app Schedule/People toggle with a persistent shell layout (`.fs-shell`) containing sidebar navigation (Overview, Calendar, Todos, Members, Settings), top bar group label, search placeholder, and main content panel.
+- Kept hash routing and group app route shape unchanged (`#/g/:groupId/app`) and retained existing `AppShell` wiring.
+- Calendar now supports `Month | List | Week | Day` view toggle (Week/Day placeholders for now):
+  - Month view renders a 7-column month grid (with leading/trailing days) and shows appointment chips per day.
+  - Clicking an appointment chip opens the existing appointment drawer editor flow.
+  - Day-cell `+ Add` action reuses existing `addAppointment()` flow.
+  - Due-dated todos render as distinct chips in the month grid and open a todo drawer editor.
+  - List view reuses existing appointment list UI behavior (desktop table + mobile cards) unchanged.
+- Added frontend-only Todos section with local client state CRUD (add, toggle done, edit via Drawer, delete), with explicit TODO note for backend persistence wiring.
+- Members sidebar section maps to existing People view behavior without functional changes.
