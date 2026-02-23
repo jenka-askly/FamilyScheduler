@@ -988,6 +988,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         description={headerDescription}
         groupName={groupName}
         groupId={groupId}
+        memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
       />
       <div className="fs-shell">
         <aside className="fs-sidebar">

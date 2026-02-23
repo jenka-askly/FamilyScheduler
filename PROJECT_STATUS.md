@@ -1,3 +1,11 @@
+## 2026-02-23 04:08 UTC update (UEX: header invite layout + calm accent + member chips)
+
+- Group header: invite link layout fixed (no overflow), calm accent styling added.
+- Added member chips summary in header (up to 4 names with +N overflow chip).
+- Removed Group ID from primary UI header surface.
+- Copy link behavior unchanged (copies full invite URL).
+- No backend/API/shared-package changes.
+
 ## 2026-02-23 03:50 UTC update (UEX header cleanup: invite link primary)
 
 - Updated group page header UX to make the group name the primary title and present an explicit Invite link utility card.
