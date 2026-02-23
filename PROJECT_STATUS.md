@@ -1513,3 +1513,33 @@ traces
 1. `rg -n 'overlay-backdrop|className="modal"|scan-viewer-modal|picker-list|picker-row' apps/web/src/AppShell.tsx` should return no matches.
 2. `pnpm -C apps/web run typecheck` (currently fails in this environment due missing `@mui/material` dependency/types and pre-existing implicit-any errors).
 3. `pnpm -C apps/web run build` (same environment limitation as typecheck).
+
+## 2026-02-23 21:47 UTC update (Group header + menu + scan icon differentiation)
+
+- Reworked the group header to show `Group <code>` with an inline copy icon, removed the old `Group` overline label, and replaced member summary with a single clickable/truncating line (`N members • names...`) that switches to the Members pane.
+- Removed calendar-only instructional text under the `Calendar` section title (both the appointment helper sentence and access-note sentence are hidden on calendar view).
+- Deprioritized dark mode by moving it from always-visible header controls into the header `More` menu as a toggle switch.
+- Differentiated scan actions: toolbar scan now uses a document-scan icon for creation flow, and per-appointment scan actions now use an eye/visibility icon for viewer flow.
+- Routing, API calls, and business logic were preserved; this is a UI/interaction pass only.
+
+### Success criteria
+
+- Header title presents `Group <code>` with inline copy icon and existing copy behavior.
+- Member summary is single-line, truncates with ellipsis, and opens Members pane via click/keyboard.
+- Calendar helper text lines are removed.
+- Dark mode toggle exists in `More` menu (not on header surface).
+- Scan toolbar action and per-row scan viewer action use distinct icons and existing handlers.
+
+### Non-regressions
+
+- No route changes.
+- No API endpoint/contract changes.
+- Existing scan capture, scan viewer, and tab/pane state logic remain intact.
+
+### How to verify locally
+
+1. Run `pnpm install` (or your normal dependency bootstrap).
+2. Run `pnpm -C apps/web run typecheck`.
+3. Run `pnpm -C apps/web run build`.
+4. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and open `/#/g/<groupId>/app`.
+5. Confirm header/menu/member-line/scan-icon behavior matches criteria above.
