@@ -5290,3 +5290,32 @@ Implement UEX Polish Pass 3 (frontend-only): calendar view switching UX, month n
 
 - Week/Day calendar views remain intentionally deferred and surfaced as disabled “Soon” tabs.
 - If desired, add a dedicated floating tooltip component for richer keyboard/screen-reader month-chip detail beyond native title tooltip.
+
+## 2026-02-23 03:31 UTC
+
+### Objective
+
+Apply UEX copy-only updates in the AppShell command bar: rename “Command” to “Add event” and simplify helper text while preserving existing behavior.
+
+### Approach
+
+- Located the command bar UI strings in `apps/web/src/AppShell.tsx`.
+- Performed minimal string-only replacements for heading, helper text, and placeholder copy.
+- Left all handlers/parsing/action wiring untouched (Scan/Add/input behavior unchanged).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Command|Type once and press Add|Try: Add|scan an image" apps/web/src/AppShell.tsx` ✅ located all target copy.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture; process stopped after capture.
+
+### Follow-ups
+
+- None; copy-only change complete.
