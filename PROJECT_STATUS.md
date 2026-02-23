@@ -1662,3 +1662,28 @@ traces
 2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
 3. Open Calendar → List and verify row collapse/expand behavior and action visibility.
 4. Confirm scan/edit/assign/delete actions still trigger their existing dialogs/flows.
+
+## 2026-02-23 23:45 UTC update (Unified calendar surface + denser list rows + status noise cleanup)
+
+- Unified the calendar view selector row and active view content into one outlined `Paper` surface with a divider, so List and Month now share the same border/radius treatment.
+- Increased product name prominence in the page header via global `PRODUCT` config (`Family Scheduler`) using larger/bolder typography above the group card.
+- Updated list rows in collapsed state to show denser conditional metadata (people/location/notes, max 2 tokens), while keeping right-aligned actions and row expand behavior.
+- Removed `No conflict` status chip rendering in list rows; only problem statuses (`Unreconcilable`/`Conflict`) are shown.
+
+### Success criteria
+
+- Header shows `Family Scheduler` prominently above group card.
+- Calendar tabs + active List/Month content appear inside a single outlined surface.
+- Collapsed list rows always show title + time, and only show available metadata tokens (max 2) with no placeholder dashes.
+- `No conflict` is not displayed in list rows, while problem chips remain visible.
+
+### Non-regressions
+
+- Routing, API calls, and appointment business logic remain unchanged.
+- Existing action handlers (scan view, edit, assign, delete) remain right-aligned and continue to stop row-toggle propagation.
+
+### How to verify locally
+
+1. `pnpm -r --if-present build`
+2. `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`
+3. Open `/#/g/<groupId>/app` and validate header, unified calendar surface, list density, and status chip behavior.

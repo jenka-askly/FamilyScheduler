@@ -6608,3 +6608,40 @@ Replace the table-ish appointment presentation in Calendar List view with compac
 ### Follow-ups
 
 - Once dependencies are available in the environment, rerun build/dev and capture a screenshot of Calendar List view collapsed + expanded rows.
+
+## 2026-02-23 23:45 UTC (Unified calendar surface + list density + status chip cleanup)
+
+### Objective
+
+Implement UI polish across calendar/list/header: single unified calendar surface, denser collapsed list rows, hide `No conflict` chips, and increase product-name prominence with a global product config.
+
+### Approach
+
+- Updated calendar section layout in `AppShell` so the view tabs/actions and active view content render within one outlined `Paper` with `Divider`.
+- Removed separate list-only panel wrapper by rendering `AppointmentCardList` inside the unified paper content area.
+- Updated `AppointmentCardList` collapsed rows to conditionally render up to two metadata tokens (people, location, notes in priority order), retaining row-expansion toggle and action event propagation guards.
+- Changed status chip rendering to only display problem states (`Unreconcilable`, `Conflict`), suppressing `No conflict`.
+- Increased header product-name typography prominence while continuing to source product name from `apps/web/src/product.ts`.
+- Updated project continuity doc (`PROJECT_STATUS.md`) with behavior changes and verification steps.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` (pending run at end of edit pass)
+
+### Follow-ups
+
+- Perform local/manual visual QA on List and Month views to verify single-surface treatment and denser row readability.
+
+### Command outcomes (executed)
+
+- `pnpm -r --if-present build` ❌ failed in `apps/web` due environment dependency resolution issues (`@mui/material` and `@mui/icons-material/*` unresolved) plus pre-existing TypeScript strictness errors outside this change scope.
+- `pnpm -C apps/web exec tsc -p tsconfig.json --noEmit` ❌ same dependency resolution/typecheck baseline failures.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started but runtime dependency resolution failed for MUI packages, so screenshot capture could not proceed.
