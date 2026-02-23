@@ -5597,3 +5597,54 @@ Implement the header invite-link simplification: plain-text URL display, icon-on
 ### Follow-ups
 
 - Optional UX follow-up: if long invite URLs crowd very narrow widths, apply responsive max-inline-size clamp for URL text on smallest breakpoints.
+
+## 2026-02-23 05:40 UTC (Ignition Session alpha: QR join + live counter + photos + close/reopen)
+
+### Objective
+
+Implement an alpha Ignite Session flow with organizer-controlled close/reopen, anonymous QR joins, live joined counter, and per-member photo upload/view without breaking existing create/join/app flows.
+
+### Approach
+
+- Extended `AppState` with optional `ignite` structure and normalization safeguards.
+- Added ignite backend handlers with existing patterns:
+  - member auth via `validateJoinRequest` + `findActivePersonByPhone` for organizer/member routes,
+  - anonymous join for `/ignite/join`,
+  - `errorResponse` + `traceId` propagation.
+- Added shared ignite helpers for grace-window joinability and effective status computation.
+- Implemented deterministic photo blob keying and JPEG-only upload for alpha simplicity.
+- Registered all new routes in `api/src/index.ts` with method-separated GET/POST on `ignite/photo`.
+- Added hash routes and pages in web app:
+  - organizer page auto-start + poll + close/reopen + photo upload + photo grid,
+  - join page with name/phone entry and session-closed messaging.
+- Added authenticated entry button in `AppShell`: “Keep This Going”.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/ignite.ts`
+- `api/src/functions/igniteStart.ts`
+- `api/src/functions/igniteClose.ts`
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/ignitePhoto.ts`
+- `api/src/functions/ignitePhotoGet.ts`
+- `api/src/functions/igniteMeta.ts`
+- `api/src/index.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅ verified branch worktree state.
+- `git checkout -b feature/ignite-session` ✅ created feature branch.
+- `pnpm --filter @familyscheduler/api build` ✅ API TypeScript build passed.
+- `pnpm --filter @familyscheduler/web build` ✅ Web TypeScript + Vite build passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture (stopped via SIGINT after capture).
+- `run_playwright_script` ✅ captured artifact `browser:/tmp/codex_browser_invocations/727333f6dceb3b6a/artifacts/artifacts/ignite-join-page.png`.
+
+### Follow-ups
+
+- Human-run end-to-end validation against live API for organizer auth edge-cases and grace-window timing.
+- Optional hardening: server-side image transcode to JPEG to avoid client-side mime mismatch edge-cases.
