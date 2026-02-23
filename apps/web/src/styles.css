@@ -859,6 +859,7 @@ h2 {
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 12px;
   background: #fff;
+  color: #111;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
   z-index: 10;
 }
@@ -870,6 +871,7 @@ h2 {
   border: 0;
   background: transparent;
   border-radius: 10px;
+  color: inherit;
 }
 
 .fs-quickActionItem:hover {
