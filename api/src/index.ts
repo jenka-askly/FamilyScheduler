@@ -91,7 +91,7 @@ registerHttp('igniteClose', 'ignite/close', ['POST'], igniteClose);
 registerHttp('igniteJoin', 'ignite/join', ['POST'], igniteJoin);
 registerHttp('ignitePhoto', 'ignite/photo', ['POST'], ignitePhoto);
 registerHttp('ignitePhotoGet', 'ignite/photo', ['GET'], ignitePhotoGet);
-registerHttp('igniteMeta', 'ignite/meta', ['GET'], igniteMeta);
+registerHttp('igniteMeta', 'ignite/meta', ['GET', 'POST'], igniteMeta);
 
 startupLog('registration-summary', {
   expectedFunctions,

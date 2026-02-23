@@ -1,3 +1,31 @@
+## 2026-02-23 07:20 UTC update (Ignite organizer auth/meta/link/QR alignment)
+
+- Ignite organizer meta polling now uses `POST /api/ignite/meta` with `{groupId, sessionId, phone, traceId}` to satisfy backend identity validation and avoid unauthorized meta responses.
+- Ignite meta backend now accepts both GET and POST, reading identity/session/trace from JSON body first (POST) and falling back to query params (GET) for compatibility.
+- Ignite organizer links now use a stable hash base (`origin + pathname + search + #`) so: group link resolves to `/#/g/<groupId>/app` and join link resolves to `/#/s/<groupId>/<sessionId>`.
+- Join link input now remains blank + disabled until a `sessionId` is available, join-copy is disabled until non-empty, and QR rendering is gated by `joinUrl` availability with existing fallback text retained.
+
+### Success criteria
+
+- Organizer `ignite/start` returns a session id and UI stores it.
+- Organizer meta polling does not return `not_allowed` due to missing organizer identity in request shape.
+- Group link includes `/#/g/<groupId>/app` and join link includes `/#/s/<groupId>/<sessionId>`.
+- QR is rendered only when join URL exists; before that, UI shows “Starting session…”.
+
+### Non-regressions
+
+- Existing GET callers for `/api/ignite/meta` continue to work.
+- Ignite close/photo flows remain unchanged and continue to include organizer phone/session identity.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/api dev` and `pnpm --filter @familyscheduler/web dev`.
+2. Open `/#/g/<groupId>/ignite` using a phone already authorized in the group.
+3. Confirm network panel shows: `POST /api/ignite/start` body includes `groupId`, `phone`, `traceId` and response contains `sessionId`.
+4. Confirm subsequent `POST /api/ignite/meta` calls include `groupId`, `sessionId`, `phone`, `traceId` and return `ok: true`.
+5. Confirm group link is `/#/g/<groupId>/app`, join link is `/#/s/<groupId>/<sessionId>`, copy join is enabled only after join link exists, and QR appears once join link is present.
+
+
 ## 2026-02-23 06:12 UTC update (Ignition organizer UEX: QR/link copy/camera trigger)
 
 - Organizer ignition page now shows both **Group link** (`/#/g/<groupId>/app`) and **Join link** (`/#/s/<groupId>/<sessionId>`) as read-only fields with inline Copy actions and transient “Copied” status.

@@ -331,7 +331,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     let canceled = false;
     let prevCount = joinedCount;
     const poll = async () => {
-      const response = await fetch(apiUrl(`/api/ignite/meta?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&traceId=${encodeURIComponent(createTraceId())}`));
+      const response = await fetch(apiUrl('/api/ignite/meta'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, sessionId, phone, traceId: createTraceId() })
+      });
       const data = await response.json() as IgniteMetaResponse;
       if (!response.ok || !data.ok || canceled) return;
       const nextCount = data.joinedCount ?? 0;
@@ -386,8 +390,9 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     }
   };
 
-  const groupUrl = `${window.location.origin}${window.location.pathname}#/g/${groupId}/app`;
-  const joinUrl = sessionId ? `${window.location.origin}${window.location.pathname}#/s/${groupId}/${sessionId}` : '';
+  const base = `${window.location.origin}${window.location.pathname}${window.location.search}#`;
+  const groupUrl = `${base}/g/${groupId}/app`;
+  const joinUrl = sessionId ? `${base}/s/${groupId}/${sessionId}` : '';
   const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}` : '';
 
   useEffect(() => {
@@ -422,12 +427,12 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         <label>
           <span className="field-label">Join link</span>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
-            <input className="field-input" value={joinUrl} readOnly placeholder="Starting session…" />
+            <input className="field-input" value={joinUrl} readOnly placeholder="" disabled={!joinUrl} />
             <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>Copy</button>
           </div>
           {copiedLink === 'join' ? <p className="fs-meta">Copied join link.</p> : null}
         </label>
-        {sessionId ? (
+        {joinUrl ? (
           qrLoadFailed ? (
             <p className="fs-meta">QR unavailable right now. Share the join link above.</p>
           ) : (
