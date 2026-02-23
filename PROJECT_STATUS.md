@@ -1159,3 +1159,28 @@ traces
 2. In DevTools Network, confirm `POST /api/ignite/start` body contains `groupId`, `phone`, `traceId` and returns `200` with `sessionId`.
 3. Confirm join link updates to `/#/s/<groupId>/<sessionId>` and QR re-renders.
 4. Simulate missing session phone (clear local session and force route) and confirm no ignite/start request is made; page shows missing-phone error.
+
+## 2026-02-23 17:37 UTC update (Move Breakout Group action into Group header card)
+
+- Moved the **Breakout Group** control from the standalone bar above the shell into the upper-right of the Group title card/header chunk.
+- Kept breakout behavior unchanged: same `createBreakoutGroup()` call path, same loading disable state, same error alert rendering and trace-id handling.
+- Updated header layout so Group title/members remain `min-width: 0` while breakout action is `shrink-0`, preventing button collapse/overlap at common widths.
+- Removed the old breakout bar placement to avoid duplicate controls.
+
+### Success criteria
+
+- On `/#/g/<id>/app`, Breakout Group appears at top-right of the Group header card.
+- Clicking Breakout Group still triggers the existing spin-off API + navigation behavior.
+- No duplicate Breakout Group control appears in the old location.
+
+### Non-regressions
+
+- Group header still shows Group label, name, members, and saved-link invite section.
+- Breakout error alert still renders below header when API call fails.
+- Sidebar/tab behavior remains unchanged.
+
+### How to verify
+
+- `pnpm --filter @familyscheduler/web run typecheck`
+- `pnpm --filter @familyscheduler/web run build`
+- Run web app and open `/#/g/<id>/app`; confirm breakout button placement in header and click-through behavior.

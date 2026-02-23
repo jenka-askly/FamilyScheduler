@@ -1024,16 +1024,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupName={groupName}
         groupId={groupId}
         memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
+        breakoutAction={(
+          <button type="button" className="fs-breakoutAction" onClick={() => { void createBreakoutGroup(); }} disabled={isSpinningOff}>
+            <span className="fs-breakoutIcon" aria-hidden>↗</span>
+            <span>
+              <span className="fs-breakoutTitle">Breakout Group</span>
+              <span className="fs-breakoutSubtext">Start a new group from here</span>
+            </span>
+          </button>
+        )}
       />
-      <div className="fs-breakoutBar">
-        <button type="button" className="fs-breakoutAction" onClick={() => { void createBreakoutGroup(); }} disabled={isSpinningOff}>
-          <span className="fs-breakoutIcon" aria-hidden>↗</span>
-          <span>
-            <span className="fs-breakoutTitle">Breakout Group</span>
-            <span className="fs-breakoutSubtext">Start a new group from here</span>
-          </span>
-        </button>
-      </div>
       {breakoutError ? (
         <div className="fs-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Group</div>
