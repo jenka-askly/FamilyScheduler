@@ -1,3 +1,22 @@
+## 2026-02-23 18:05 UTC update (PageHeader layout inspection baseline)
+
+- Captured a read-only baseline of `PageHeader` group-header structure and related CSS hooks, including `fs-groupHeaderAction` usage and responsive wrapping behavior at the `560px` breakpoint.
+- Confirmed no runtime behavior changes were introduced in this workspace during the inspection pass.
+
+### Success criteria
+
+- Team has a single documented baseline for current group-header JSX/CSS relationships.
+- No code-path or styling behavior changed from this update.
+
+### Non-regressions
+
+- App functionality and rendering remain unchanged (documentation-only update).
+
+### How to verify locally
+
+1. Run `git show --name-only --stat HEAD` after pulling this commit.
+2. Confirm only `PROJECT_STATUS.md` and `CODEX_LOG.md` changed.
+
 
 ## 2026-02-23 17:24 UTC update (Ignite organizer UI: QR-primary, icon actions, header back)
 
