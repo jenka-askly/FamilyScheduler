@@ -1,3 +1,37 @@
+## 2026-02-23 03:55 UTC
+
+### Objective
+
+Implement UEX clean-up for Edit Appointment drawer: remove horizontal scrolling and convert editor fields to auto-growing multiline controls without changing behavior.
+
+### Approach
+
+- Updated drawer overflow rules in shared UI CSS to enforce vertical-only content scrolling and suppress X overflow in drawer wrappers.
+- Added a local `AutoGrowTextarea` helper in `AppointmentEditorForm` using a ref + resize routine triggered on input and value updates.
+- Converted When/Description/Location/Notes from `<input>` to auto-growing textareas while keeping labels, ids, callbacks, resolve action, and Enter-key behavior wiring intact.
+- Hardened editor row layout CSS for flex wrapping, label sizing, textarea shrink behavior (`min-width: 0`), and narrow viewport wrapping for the resolve button.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/styles/ui.css`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/components/AppointmentEditorForm.tsx` ✅ inspected existing editor form implementation.
+- `sed -n '1,260p' apps/web/src/styles/ui.css` ✅ located drawer overflow rules.
+- `sed -n '1,320p' apps/web/src/styles.css` ✅ located editor row styles to update for flex-wrap and textarea behavior.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after TS + JSX updates.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed after CSS and component changes.
+
+### Follow-ups
+
+- Manual UI verification on desktop and ~375px widths to confirm no drawer horizontal scrollbar and expected textarea auto-growth with resolve button wrap behavior.
+
+
 ## 2026-02-23 02:31 UTC
 
 ### Objective

@@ -132,6 +132,10 @@ th {
   min-width: 900px;
 }
 
+
+.fs-drawer {
+  overflow-x: hidden;
+}
 .fs-drawer-overlay {
   position: fixed;
   inset: 0;
@@ -142,6 +146,7 @@ th {
 }
 
 .fs-drawer-panel {
+  overflow-x: hidden;
   height: 100%;
   width: min(480px, 100%);
   background: var(--ui-surface);
@@ -189,7 +194,8 @@ th {
 
 .fs-drawer-content {
   padding: var(--ui-space-4);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .fs-cardList {
