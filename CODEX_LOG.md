@@ -5353,3 +5353,36 @@ Apply UEX copy-only updates in the AppShell command bar: rename “Command” to
 ### Follow-ups
 
 - None; copy-only change complete.
+
+## 2026-02-23 03:36 UTC
+
+### Objective
+
+Execute repository discovery for group-related logic, Azure storage usage, identity field usage, and Azure Function endpoint/routing configuration.
+
+### Approach
+
+- Ran targeted ripgrep searches for all requested terms.
+- Enumerated all `function.json` files and inspected route declarations.
+- Inspected `api/src/index.ts` for additional programmatic route registrations.
+- Captured findings in a dedicated discovery document for future reference.
+- Updated continuity docs per workflow requirement.
+
+### Files changed
+
+- `docs/discovery-group-azure-identity-endpoints.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Group|groups/|createGroup|joinGroup|member|TableClient|@azure/data-tables|BlobServiceClient|@azure/storage-blob|x-ms-client-principal|claims|oid|sub|preferred_username|email"` ✅ collected initial discovery matches.
+- `rg --files -g "**/function.json"` ✅ listed function manifests.
+- `for f in api/*/function.json; do cat "$f"; done` ✅ captured function routes/methods.
+- `rg --files -g "**/host.json" -g "**/staticwebapp.config.json" -g "**/routes.json" -g "**/swa-cli.config.json"` ✅ identified routing/runtime config files present.
+- `sed -n '1,220p' api/src/index.ts` ✅ confirmed code-registered HTTP routes beyond manifest list.
+
+### Follow-ups
+
+- If needed, add a machine-readable endpoint inventory (e.g., generated JSON) to keep manifest/code route definitions in sync.
+

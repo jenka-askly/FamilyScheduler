@@ -4,6 +4,14 @@
 - Appointment editor fields (When, Description, Location, Notes) are now auto-growing multiline textareas.
 - When-row layout now wraps with `min-width: 0` hardening so controls do not overflow at narrow widths.
 - No backend or data model changes.
+## 2026-02-23 03:36 UTC update (discovery query: group logic, Azure storage, identity fields, function routes)
+
+- Added a discovery report at `docs/discovery-group-azure-identity-endpoints.md`.
+- Confirmed group create/join and membership-related flow locations across frontend (`apps/web/src/App.tsx`) and backend (`api/src/functions/groupCreate.ts`, `groupJoin.ts`, `groupMeta.ts`).
+- Confirmed Azure Blob usage (`@azure/storage-blob`, `BlobServiceClient`) and no `@azure/data-tables` / `TableClient` usage.
+- Confirmed identity claim header/claim-field tokens (`x-ms-client-principal`, `claims`, `oid`, `sub`, `preferred_username`) are not currently referenced in app code.
+- Enumerated Azure Function endpoints from `function.json` and noted additional code-registered routes in `api/src/index.ts`.
+- No runtime behavior changes; documentation/discovery only.
 
 ## 2026-02-23 03:31 UTC update (UEX copy tweak: add event language)
 
