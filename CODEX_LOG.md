@@ -1,3 +1,36 @@
+## 2026-02-23 05:03 UTC (UEX polish: title section + hide unimplemented nav)
+
+### Objective
+
+Apply requested UEX polish in the header/title section, hide unimplemented navigation items, and validate frontend build without backend changes.
+
+### Approach
+
+- Updated `PageHeader` member summary text to remove the `Members:` prefix while preserving existing truncation/`+N` behavior.
+- Tightened invite link presentation styles (`fs-inviteUrlText`, `fs-inviteHelp`, `fs-inviteBlock`) for smaller muted URL text and compact helper spacing.
+- Removed Overview/Todos/Settings buttons from the sidebar navigation render so only Calendar and Members are exposed.
+- Built the web app and captured a screenshot from the updated workspace shell.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Members:|Overview|Todos|Settings|Save this link|invite" apps/web/src PROJECT_STATUS.md CODEX_LOG.md` ✅ located relevant implementation points.
+- `pnpm --filter @familyscheduler/web run build` ✅ build passed after UI/CSS updates.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started local dev server for visual validation.
+- Browser screenshot capture via Playwright ✅ artifact `browser:/tmp/codex_browser_invocations/c8be526d726dd70e/artifacts/artifacts/uex-polish-nav-header.png`.
+
+### Follow-ups
+
+- Production merge/deploy verification requires repo hosting permissions and environment access outside this local workspace.
+
+
 ## 2026-02-23 03:55 UTC
 
 ### Objective

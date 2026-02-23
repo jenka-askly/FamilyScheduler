@@ -48,7 +48,7 @@ export function PageHeader({
   const visibleMembers = (memberNames ?? []).slice(0, 4);
   const remainingMemberCount = Math.max(0, (memberNames ?? []).length - visibleMembers.length);
   const membersLine = visibleMembers.length > 0
-    ? `Members: ${visibleMembers.join(', ')}${remainingMemberCount > 0 ? ` +${remainingMemberCount}` : ''}`
+    ? `${visibleMembers.join(', ')}${remainingMemberCount > 0 ? ` +${remainingMemberCount}` : ''}`
     : null;
 
   return (

@@ -992,11 +992,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       />
       <div className="fs-shell">
         <aside className="fs-sidebar">
-          <button type="button" className={`fs-btn ${activeSection === 'overview' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('overview')}>Overview</button>
           <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
-          <button type="button" className={`fs-btn ${activeSection === 'todos' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('todos')}>Todos</button>
           <button type="button" className={`fs-btn ${activeSection === 'members' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
-          <button type="button" className={`fs-btn ${activeSection === 'settings' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('settings')}>Settings</button>
         </aside>
         <section className="fs-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
