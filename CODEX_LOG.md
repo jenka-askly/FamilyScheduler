@@ -5529,3 +5529,38 @@ Implement UEX title section restructure in the workspace header: add Group label
 ### Follow-ups
 
 - Optional product follow-up: if member names become very long in real data, consider adding a max-width clamp + tooltip to the member summary line for improved readability on very narrow screens.
+
+## 2026-02-23 UTC (UEX: simplify title section link presentation)
+
+### Objective
+
+Implement the header invite-link simplification: plain-text URL display, icon-only copy button, left-aligned title section treatment, and tighter helper spacing without changing copy behavior.
+
+### Approach
+
+- Updated `PageHeader` invite markup to replace the read-only input with a plain text span and icon-only copy button.
+- Kept existing `copyGroupLink()` handler and `groupLink` generation unchanged to preserve full URL clipboard copy behavior.
+- Updated header/invite CSS to:
+  - remove input/field visual treatment,
+  - left-align container composition,
+  - add dedicated URL row/text/icon button styles,
+  - tighten helper text spacing under the URL.
+- Updated project continuity status entry.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "fs-inviteBlock|fs-inviteRow|fs-inviteUrlInput|fs-copyBtn" apps/web/src` ✅ located exact implementation and style hooks.
+- `pnpm --filter @familyscheduler/web build` ✅ build passed after changes.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local app for visual verification.
+- `mcp__browser_tools__run_playwright_script` ⚠️ failed in this environment due to Chromium headless `SIGSEGV` during browser launch; no screenshot artifact produced.
+
+### Follow-ups
+
+- Optional UX follow-up: if long invite URLs crowd very narrow widths, apply responsive max-inline-size clamp for URL text on smallest breakpoints.

@@ -5,7 +5,7 @@ const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
     {children}
   </svg>
 );
-const Link2 = () => <HeaderIcon><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 5" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19" /></HeaderIcon>;
+const CopyIcon = () => <HeaderIcon><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 5" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19" /></HeaderIcon>;
 
 type Props = {
   title: string;
@@ -71,21 +71,15 @@ export function PageHeader({
             <div className="fs-inviteBlock">
               {groupLink ? (
                 <>
-                  <div className="fs-inviteRow">
-                    <input
-                      className="fs-inviteUrlInput"
-                      value={groupLink}
-                      readOnly
-                      aria-label="Invite link"
-                    />
+                  <div className="fs-inviteUrlRow">
+                    <span className="fs-inviteUrlText">{groupLink}</span>
                     <button
                       type="button"
-                      className="fs-btn fs-btn-secondary fs-copyBtn"
+                      className="fs-copyIconBtn"
                       aria-label="Copy invite link"
                       onClick={() => void copyGroupLink()}
                     >
-                      <Link2 />
-                      Copy
+                      <CopyIcon />
                     </button>
                   </div>
                   <div className="fs-inviteHelp">
