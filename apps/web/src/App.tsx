@@ -40,13 +40,17 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } => {
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
   const query = new URLSearchParams(queryString);
   const appMatch = path.match(/^\/g\/([^/]+)\/app$/);
   if (appMatch) return { type: 'app', groupId: appMatch[1] };
+  const igniteMatch = path.match(/^\/g\/([^/]+)\/ignite$/);
+  if (igniteMatch) return { type: 'ignite', groupId: igniteMatch[1] };
+  const sessionMatch = path.match(/^\/s\/([^/]+)\/([^/]+)$/);
+  if (sessionMatch) return { type: 'igniteJoin', groupId: sessionMatch[1], sessionId: sessionMatch[2] };
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
   if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined, traceId: query.get('trace') ?? undefined };
   return { type: 'create' };
@@ -271,6 +275,172 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   );
 }
 
+
+type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string> };
+
+const beep = (): void => {
+  const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtor) return;
+  const ctx = new AudioCtor();
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+  gain.gain.setValueAtTime(0.15, ctx.currentTime);
+  oscillator.connect(gain);
+  gain.connect(ctx.destination);
+  oscillator.start();
+  oscillator.stop(ctx.currentTime + 0.12);
+  window.setTimeout(() => { void ctx.close(); }, 180);
+};
+
+function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: string }) {
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
+  const [joinedCount, setJoinedCount] = useState(0);
+  const [joinedPersonIds, setJoinedPersonIds] = useState<string[]>([]);
+  const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const startSession = async () => {
+    setError(null);
+    const traceId = createTraceId();
+    const response = await fetch(apiUrl('/api/ignite/start'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId }) });
+    const data = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
+    if (!response.ok || !data.ok || !data.sessionId) {
+      setError(data.message ?? 'Unable to start session');
+      return;
+    }
+    setSessionId(data.sessionId);
+    setStatus('OPEN');
+    setJoinedCount(0);
+    setJoinedPersonIds([]);
+    setPhotoUpdatedAtByPersonId({});
+  };
+
+  useEffect(() => {
+    if (!sessionId) {
+      void startSession();
+      return;
+    }
+    let canceled = false;
+    let prevCount = joinedCount;
+    const poll = async () => {
+      const response = await fetch(apiUrl(`/api/ignite/meta?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&traceId=${encodeURIComponent(createTraceId())}`));
+      const data = await response.json() as IgniteMetaResponse;
+      if (!response.ok || !data.ok || canceled) return;
+      const nextCount = data.joinedCount ?? 0;
+      if (nextCount > prevCount) beep();
+      prevCount = nextCount;
+      setStatus(data.status ?? 'OPEN');
+      setJoinedCount(nextCount);
+      setJoinedPersonIds(data.joinedPersonIds ?? []);
+      setPhotoUpdatedAtByPersonId(data.photoUpdatedAtByPersonId ?? {});
+    };
+    void poll();
+    const interval = window.setInterval(() => { void poll(); }, 2500);
+    return () => { canceled = true; window.clearInterval(interval); };
+  }, [groupId, phone, sessionId]);
+
+  const closeSession = async () => {
+    if (!sessionId) return;
+    const response = await fetch(apiUrl('/api/ignite/close'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, traceId: createTraceId() }) });
+    const data = await response.json() as { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; message?: string };
+    if (!response.ok || !data.ok) {
+      setError(data.message ?? 'Unable to close session');
+      return;
+    }
+    setStatus(data.status ?? 'CLOSING');
+  };
+
+  const uploadPhoto = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    if (!file || !sessionId) return;
+    setError(null);
+    setIsUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ''));
+        reader.onerror = () => reject(new Error('read_failed'));
+        reader.readAsDataURL(file);
+      });
+      const [, base64 = ''] = dataUrl.split(',', 2);
+      const response = await fetch(apiUrl('/api/ignite/photo'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
+      const data = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) setError(data.message ?? 'Unable to upload photo');
+    } catch {
+      setError('Unable to upload photo');
+    } finally {
+      setIsUploading(false);
+      input.value = '';
+    }
+  };
+
+  const joinUrl = sessionId ? `${window.location.origin}${window.location.pathname}#/s/${groupId}/${sessionId}` : '';
+  const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}` : '';
+
+  return (
+    <Page variant="form">
+      <PageHeader title="Ignition Session" description="QR join for quick onboarding with live count and photos." groupId={groupId} />
+      {error ? <p className="form-error">{error}</p> : null}
+      <div className="join-form-wrap">
+        {sessionId ? <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} /> : <p>Starting session…</p>}
+        {joinUrl ? <p className="fs-meta">{joinUrl}</p> : null}
+        <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
+        <div className="join-actions">
+          <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</button>
+          <button className="fs-btn fs-btn-primary" type="button" onClick={() => { void startSession(); }}>Reopen</button>
+        </div>
+        <label>
+          <span className="field-label">Add/Update your photo</span>
+          <input className="field-input" type="file" accept="image/*" onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
+          {sessionId ? joinedPersonIds.map((personId) => (
+            <img key={personId} src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, background: '#f1f5f9' }} />
+          )) : null}
+        </div>
+      </div>
+      <FooterHelp />
+    </Page>
+  );
+}
+
+function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    const response = await fetch(apiUrl('/api/ignite/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, phone, traceId: createTraceId() }) });
+    const data = await response.json() as { ok?: boolean; error?: string; phoneE164?: string; message?: string };
+    if (!response.ok || !data.ok) {
+      setError(data.error === 'ignite_closed' ? 'Session closed. Ask organizer to reopen.' : (data.message ?? 'Unable to join session'));
+      return;
+    }
+    writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
+    nav(`/g/${groupId}/app`);
+  };
+
+  return (
+    <Page variant="form">
+      <PageHeader title="Join session" description="Enter your name and phone to join this group session." groupId={groupId} />
+      <form onSubmit={submit}>
+        <div className="join-form-wrap">
+          <label><span className="field-label">Name</span><input className="field-input" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+          <label><span className="field-label">Phone</span><input className="field-input" value={phone} onChange={(e) => setPhone(e.target.value)} required /></label>
+          <div className="join-actions"><button className="fs-btn fs-btn-primary" type="submit">Join Session</button></div>
+        </div>
+        {error ? <p className="form-error">{error}</p> : null}
+      </form>
+      <FooterHelp />
+    </Page>
+  );
+}
+
 function GroupAuthGate({ groupId, children }: { groupId: string; children: (phone: string) => ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
   const [authError, setAuthError] = useState<AuthError | undefined>();
@@ -350,6 +520,14 @@ export function App() {
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
+  if (route.type === 'igniteJoin') return <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
+  if (route.type === 'ignite') {
+    return (
+      <GroupAuthGate groupId={route.groupId}>
+        {(phone) => <IgniteOrganizerPage groupId={route.groupId} phone={phone} />}
+      </GroupAuthGate>
+    );
+  }
   return (
     <GroupAuthGate groupId={route.groupId}>
       {(phone) => <AppShell groupId={route.groupId} phone={phone} />}

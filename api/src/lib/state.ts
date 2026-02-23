@@ -73,6 +73,16 @@ export type AppState = {
   appointments: Appointment[];
   rules: AvailabilityRule[];
   history: string[];
+  ignite?: {
+    sessionId: string;
+    status: 'OPEN' | 'CLOSING' | 'CLOSED';
+    createdAt: string;
+    createdByPersonId: string;
+    closeRequestedAt?: string;
+    graceSeconds?: number;
+    joinedPersonIds: string[];
+    photoUpdatedAtByPersonId?: Record<string, string>;
+  };
 };
 
 const DEFAULT_TZ = 'America/Los_Angeles';
@@ -250,6 +260,22 @@ export const normalizeAppState = (state: AppState): AppState => {
     people,
     appointments: normalizedAppointments,
     rules: normalizeRulesCollection(stateLike, people),
-    history: Array.isArray(stateLike.history) ? stateLike.history.filter((item): item is string => typeof item === 'string') : []
+    history: Array.isArray(stateLike.history) ? stateLike.history.filter((item): item is string => typeof item === 'string') : [],
+    ignite: ((): AppState['ignite'] => {
+      if (!stateLike.ignite || typeof stateLike.ignite !== 'object') return undefined;
+      const raw = stateLike.ignite as Record<string, unknown>;
+      const sessionId = typeof raw.sessionId === 'string' ? raw.sessionId.trim() : '';
+      const createdAt = typeof raw.createdAt === 'string' ? raw.createdAt.trim() : '';
+      const createdByPersonId = typeof raw.createdByPersonId === 'string' ? raw.createdByPersonId.trim() : '';
+      if (!sessionId || !createdAt || !createdByPersonId) return undefined;
+      const status = raw.status === 'CLOSING' || raw.status === 'CLOSED' ? raw.status : 'OPEN';
+      const closeRequestedAt = typeof raw.closeRequestedAt === 'string' && raw.closeRequestedAt.trim() ? raw.closeRequestedAt.trim() : undefined;
+      const graceSeconds = typeof raw.graceSeconds === 'number' && Number.isFinite(raw.graceSeconds) && raw.graceSeconds > 0 ? Math.floor(raw.graceSeconds) : undefined;
+      const joinedPersonIds = Array.isArray(raw.joinedPersonIds) ? raw.joinedPersonIds.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+      const photoUpdatedAtByPersonId = raw.photoUpdatedAtByPersonId && typeof raw.photoUpdatedAtByPersonId === 'object'
+        ? Object.fromEntries(Object.entries(raw.photoUpdatedAtByPersonId as Record<string, unknown>).filter(([, value]) => typeof value === 'string').map(([key, value]) => [key, value as string]))
+        : undefined;
+      return { sessionId, status, createdAt, createdByPersonId, closeRequestedAt, graceSeconds, joinedPersonIds, photoUpdatedAtByPersonId };
+    })()
   };
 };

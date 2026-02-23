@@ -13,12 +13,18 @@ import { scanAppointment } from './functions/scanAppointment.js';
 import { appointmentScanImage } from './functions/appointmentScanImage.js';
 import { appointmentScanDelete } from './functions/appointmentScanDelete.js';
 import { appointmentScanRescan } from './functions/appointmentScanRescan.js';
+import { igniteStart } from './functions/igniteStart.js';
+import { igniteClose } from './functions/igniteClose.js';
+import { igniteJoin } from './functions/igniteJoin.js';
+import { ignitePhoto } from './functions/ignitePhoto.js';
+import { ignitePhotoGet } from './functions/ignitePhotoGet.js';
+import { igniteMeta } from './functions/igniteMeta.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -79,6 +85,13 @@ registerHttp('scanAppointment', 'scanAppointment', ['POST'], scanAppointment);
 registerHttp('appointmentScanImage', 'appointmentScanImage', ['GET'], appointmentScanImage);
 registerHttp('appointmentScanDelete', 'appointmentScanDelete', ['POST'], appointmentScanDelete);
 registerHttp('appointmentScanRescan', 'appointmentScanRescan', ['POST'], appointmentScanRescan);
+
+registerHttp('igniteStart', 'ignite/start', ['POST'], igniteStart);
+registerHttp('igniteClose', 'ignite/close', ['POST'], igniteClose);
+registerHttp('igniteJoin', 'ignite/join', ['POST'], igniteJoin);
+registerHttp('ignitePhoto', 'ignite/photo', ['POST'], ignitePhoto);
+registerHttp('ignitePhotoGet', 'ignite/photo', ['GET'], ignitePhotoGet);
+registerHttp('igniteMeta', 'ignite/meta', ['GET'], igniteMeta);
 
 startupLog('registration-summary', {
   expectedFunctions,

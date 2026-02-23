@@ -977,3 +977,18 @@ traces
 - Header invite link UI now renders as plain text (non-input) with truncation-safe ellipsis behavior and no border/field styling.
 - Copy affordance is now an icon-only button in the same row as the URL; clipboard copy behavior remains unchanged and still copies the full invite URL.
 - Title section invite block is left-aligned with tighter vertical spacing so Members line, invite URL row, and helper text read as one compact group.
+
+## 2026-02-23 05:40 UTC update (Ignition Session alpha)
+
+- Added **Ignition Session (alpha)**: organizer-driven QR join flow with live polling count, close/reopen, and member photo upload/display.
+- Backend added new routes: `ignite/start`, `ignite/close`, `ignite/join`, `ignite/photo` (POST/GET), and `ignite/meta`.
+- Data model extended with optional `ignite` session state on `AppState` (sessionId, status, organizer, grace window, joined person IDs, photo timestamps).
+- Organizer-only enforcement: only the session creator can close an active session.
+- Join semantics: OPEN allowed; CLOSING allowed during grace window (default 60s); expired sessions return closed behavior.
+- Photos are alpha-scoped to JPEG uploads and stored at deterministic per-person keys for latest-wins behavior.
+- Frontend routing added:
+  - Organizer screen: `/#/g/<groupId>/ignite`
+  - QR join screen: `/#/s/<groupId>/<sessionId>`
+- Added polling-based updates and audible beep on join-count increase.
+- Added navigation entry point in authenticated shell: **Keep This Going**.
+- Scope note: pre-SMS, no phone verification changes.
