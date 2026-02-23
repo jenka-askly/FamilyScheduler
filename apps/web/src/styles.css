@@ -280,19 +280,36 @@ input {
 
 .when-editor-input-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  align-items: flex-start;
 }
 
-.when-editor-input-row label {
+.when-editor-input-row > label {
   margin: 0;
   font-weight: 600;
+  flex: 0 0 88px;
   min-width: 88px;
+  padding-top: 8px;
 }
 
-.when-editor-input-row input {
-  flex: 1;
+.when-editor-input-row > input,
+.when-editor-input-row > textarea {
+  flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
+}
+
+.when-editor-input-row > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.when-editor-input-row textarea {
+  resize: none;
+  overflow: hidden;
+  line-height: 1.4;
+  padding: 10px 12px;
 }
 
 .when-editor-footer {
@@ -324,6 +341,17 @@ input {
   flex-shrink: 0;
 }
 
+
+@media (max-width: 520px) {
+  .when-editor-input-row > label {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .when-editor-input-row > button {
+    width: 100%;
+  }
+}
 @media (max-width: 760px) {
   .when-editor-footer {
     flex-direction: column;

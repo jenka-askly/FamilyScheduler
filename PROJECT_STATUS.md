@@ -1,3 +1,10 @@
+## 2026-02-23 03:55 UTC update (UEX: clean up Edit Appointment form)
+
+- Edit appointment drawer now enforces vertical-only scrolling and hides horizontal overflow in drawer containers.
+- Appointment editor fields (When, Description, Location, Notes) are now auto-growing multiline textareas.
+- When-row layout now wraps with `min-width: 0` hardening so controls do not overflow at narrow widths.
+- No backend or data model changes.
+
 ## 2026-02-23 03:31 UTC update (UEX copy tweak: add event language)
 
 - Renamed “Command” section to “Add event”.
