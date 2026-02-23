@@ -1,3 +1,7 @@
+## 2026-02-23 22:31 UTC update (Header group title precedence tweak)
+
+- Header now prioritizes group name over groupId (GUID) for display; copy link unchanged.
+
 ## 2026-02-23 22:08 UTC update (Appointment dialog context block + scan preview rendering fix)
 
 - Added a reusable, UI-only appointment context header block in `AppShell` and applied it across appointment-scoped dialogs.

@@ -6452,3 +6452,31 @@ Implement a consistent appointment context block across appointment-scoped dialo
 
 - Re-run typecheck/build/dev in an environment with restorable/installable MUI dependencies.
 - Perform interactive smoke of each appointment-scoped dialog against seeded app data to visually confirm all context blocks in live flows.
+
+## 2026-02-23 22:31 UTC (Header group title display precedence fix)
+
+### Objective
+
+Update the app header title display so it shows `groupName` (when available) instead of full GUID while preserving copy-link behavior and existing business logic.
+
+### Approach
+
+- Updated `PageHeader` display title derivation to prioritize trimmed `groupName`.
+- Added a safe fallback to abbreviated `groupId` (first 8 characters) when `groupName` is absent.
+- Kept copy-link flow untouched so canonical `groupId` link copying behavior remains unchanged.
+- Added a one-line project status note documenting the behavior update.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed due existing environment/workspace issues (missing `@mui/material` resolution and pre-existing implicit-any errors in multiple files outside this change).
+- Playwright screenshot attempt against `http://127.0.0.1:4173` ⚠️ failed (`net::ERR_EMPTY_RESPONSE`) because local web server was not running/available in this environment.
+
+### Follow-ups
+
+- Once dependencies/server are available, verify UI header renders group name (or `Group <shortId>`) and that copy-link still copies canonical group URL.
