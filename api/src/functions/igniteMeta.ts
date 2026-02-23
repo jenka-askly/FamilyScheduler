@@ -8,10 +8,19 @@ import { GroupNotFoundError } from '../lib/storage/storage.js';
 
 export async function igniteMeta(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const url = new URL(request.url);
-  const traceId = ensureTraceId(url.searchParams.get('traceId'));
-  const identity = validateJoinRequest(url.searchParams.get('groupId'), url.searchParams.get('phone'));
+  const body = request.method === 'POST' ? await request.json() as Record<string, unknown> : {};
+
+  const traceId = ensureTraceId(
+    (typeof body.traceId === 'string' ? body.traceId : undefined)
+    ?? url.searchParams.get('traceId')
+  );
+
+  const groupId = (typeof body.groupId === 'string' ? body.groupId : undefined) ?? url.searchParams.get('groupId');
+  const phone = (typeof body.phone === 'string' ? body.phone : undefined) ?? url.searchParams.get('phone');
+  const identity = validateJoinRequest(groupId, phone);
   if (!identity.ok) return { ...identity.response, jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId } };
-  const sessionId = url.searchParams.get('sessionId')?.trim() ?? '';
+
+  const sessionId = ((typeof body.sessionId === 'string' ? body.sessionId : undefined) ?? url.searchParams.get('sessionId') ?? '').trim();
   if (!sessionId) return errorResponse(400, 'sessionId_required', 'sessionId is required', traceId);
 
   const storage = createStorageAdapter();

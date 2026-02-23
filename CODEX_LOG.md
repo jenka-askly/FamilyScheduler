@@ -1,3 +1,41 @@
+## 2026-02-23 07:20 UTC (Ignite organizer: session identity + meta POST + link/QR fixes)
+
+### Objective
+
+Fix organizer Ignite session flow where `sessionId/joinUrl` were missing and meta polling showed `Not allowed` by ensuring organizer identity is consistently sent and consumed.
+
+### Approach
+
+- Verified Ignite route wiring in `App.tsx` is already gated by `GroupAuthGate` and passes `phone` into `IgniteOrganizerPage` props.
+- Updated organizer meta polling from GET query params to POST JSON body with `{ groupId, sessionId, phone, traceId }` for consistent auth payload semantics.
+- Corrected organizer link construction to use a stable hash base including pathname + search before hash.
+- Updated join-link UI behavior: blank/disabled input until `sessionId`, copy disabled until link exists, QR render gated by `joinUrl` instead of only `sessionId`.
+- Updated API route registration to allow both GET and POST on `/api/ignite/meta`.
+- Updated `igniteMeta` handler to parse body fields on POST and fall back to query params for backwards compatibility.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `api/src/functions/igniteMeta.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Ignition Session|Starting session|Status: OPEN|Joined:|Reopen|ignite/start|ignite/meta|Not allowed" apps/web/src` ✅ located ignite organizer implementation and endpoints.
+- `rg -n "groupUrl|joinUrl|qrImageUrl|IgniteOrganizerPage|api/ignite/meta|type === 'ignite'|GroupAuthGate" apps/web/src/App.tsx` ✅ confirmed route/auth wiring + link and QR logic locations.
+- `rg -n --hidden --glob '!**/node_modules/**' "igniteStart|igniteMeta|igniteClose|phoneE164|findActivePersonByPhone|not_allowed" api/src` ✅ located backend handler and auth gates.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ✅ passed (with npm env warnings only).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped after capture.
+- `run_playwright_script` ✅ captured screenshot artifact (`artifacts/ignite-organizer-link-qr.png`).
+
+### Follow-ups
+
+- Human smoke test against live API should confirm `POST /api/ignite/meta` clears prior organizer `Not allowed` banner and join QR appears once `sessionId` is issued.
+
+
 ## 2026-02-23 06:12 UTC (Ignition organizer UEX polish: QR/link copy/camera trigger)
 
 ### Objective
