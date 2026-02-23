@@ -833,3 +833,9 @@ traces
 - Replaced appointment Date/Time/Duration columns with a single **When** column using compact TimeSpec labels and unresolved badge handling.
 - Added per-row natural language **When** editor with Preview + Confirm + Cancel and preview-only assumptions/missing summary rendering.
 - Added appointment Status cell behavior for unresolved rows (`Unreconcilable`, clickable to open When editor).
+
+## 2026-02-23 update (appointment editor form extraction, no UX change)
+
+- Extracted the inline appointment editor form UI from `AppShell` into a new presentational component at `apps/web/src/components/AppointmentEditorForm.tsx`.
+- Kept all appointment editor state/handlers/preview derivation in `AppShell`; only moved JSX rendering of fields, feedback area, and confirm/cancel actions.
+- Build verified for `apps/web`.

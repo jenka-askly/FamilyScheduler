@@ -5045,3 +5045,25 @@ Remove `TIME_RESOLVE_OPENAI_FALLBACK`, enforce AI-first time preview with determ
 ### Follow-ups
 
 - Optional cleanup: prune older superseded PROJECT_STATUS notes that still reference temporary fallback-flag behavior for historical context clarity.
+
+## 2026-02-23 00:52 UTC (Phase 1 Step 1: extract appointment editor form UI)
+
+### Objective
+Extract appointment edit form UI from `apps/web/src/AppShell.tsx` into a reusable presentational component with no UX/logic changes.
+
+### Approach
+- Added `AppointmentEditorForm` component that renders only form UI (when/description/location/notes inputs, preview/error slot, confirm/cancel actions).
+- Updated `AppShell` to render `<AppointmentEditorForm />` in the existing inline editor row and pass all current draft state, callbacks, and derived preview content through props.
+- Kept all state, handlers, API calls, and sorting logic in `AppShell`.
+
+### Files changed
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `npm --prefix apps/web run build` ✅ passed.
+
+### Follow-ups
+- None for this phase; component extraction is complete and intentionally presentational-only.
