@@ -6,7 +6,6 @@ const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
   </svg>
 );
 const Link2 = () => <HeaderIcon><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 5" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19" /></HeaderIcon>;
-const Copy = () => <HeaderIcon><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></HeaderIcon>;
 
 type Props = {
   title: string;
@@ -22,7 +21,6 @@ export function PageHeader({
   groupId,
 }: Props) {
   const [copied, setCopied] = useState(false);
-  const [copiedId, setCopiedId] = useState(false);
   const groupLink = useMemo(() => {
     if (!groupId) return null;
     if (typeof window === 'undefined') return null;
@@ -35,12 +33,6 @@ export function PageHeader({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  useEffect(() => {
-    if (!copiedId) return;
-    const timer = window.setTimeout(() => setCopiedId(false), 1200);
-    return () => window.clearTimeout(timer);
-  }, [copiedId]);
-
   const copyGroupLink = async () => {
     if (!groupLink) return;
     try {
@@ -51,45 +43,35 @@ export function PageHeader({
     }
   };
 
-  const shortGroupId = groupId ? `${groupId.slice(0, 8)}…${groupId.slice(-4)}` : null;
-  const copyGroupId = async () => {
-    if (!groupId) return;
-    try {
-      await navigator.clipboard.writeText(groupId);
-      setCopiedId(true);
-    } catch {
-      setCopiedId(false);
-    }
-  };
-
   return (
     <div className="fs-pageHeader">
       {groupName ? (
         <div className="fs-groupHeaderStack">
           <h1 className="fs-h1">{groupName}</h1>
           {groupId ? (
-            <div className="fs-groupBlock">
+            <div className="fs-inviteCard">
               {groupLink ? (
-                <div className="fs-groupLinkRow">
-                  <button
-                    type="button"
-                    className="fs-btn fs-btn-ghost"
-                    aria-label="Copy group link"
-                    onClick={() => void copyGroupLink()}
-                  >
-                    <Link2 />
-                    Invite
-                  </button>
-                  <span className="fs-meta">Copies full invite URL</span>
+                <>
+                  <div className="fs-inviteCardTop">
+                    <div className="fs-inviteCardLabel">Invite link</div>
+                    <button
+                      type="button"
+                      className="fs-btn fs-btn-secondary"
+                      aria-label="Copy invite link"
+                      onClick={() => void copyGroupLink()}
+                    >
+                      <Link2 />
+                      Copy link
+                    </button>
+                  </div>
+                  <div className="fs-inviteCardUrlRow">
+                    <code className="fs-inviteCardUrl">{groupLink}</code>
+                  </div>
+                  <div className="fs-inviteCardHelp">
+                    Save this link — it’s the only way to return to this group.
+                  </div>
                   {copied ? <span className="fs-meta">Copied</span> : null}
-                </div>
-              ) : null}
-              {groupId ? (
-                <div className="fs-groupIdRow">
-                  <span className="fs-meta">Group ID: {shortGroupId}</span>
-                  <button type="button" className="icon-button" aria-label="Copy full group id" data-tooltip="Copy full ID" onClick={() => void copyGroupId()}><Copy /></button>
-                  {copiedId ? <span className="fs-meta">Copied</span> : null}
-                </div>
+                </>
               ) : null}
             </div>
           ) : null}
