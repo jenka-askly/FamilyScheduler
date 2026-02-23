@@ -51,6 +51,7 @@ main {
 
 .table-wrap {
   width: 100%;
+  min-width: 0;
 }
 
 .data-table {
@@ -1366,13 +1367,59 @@ button.fs-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   white-space: nowrap;
 }
 
-.data-table td,
-.data-table th {
-  overflow: visible;
+.fs-listContainer {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.fs-listTable {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.fs-listTable th,
+.fs-listTable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-listTable .multiline-cell {
+  min-width: 0;
+  max-width: none;
+}
+
+.fs-listTable .actions-cell {
+  min-width: 0;
+}
+
+.fs-col-code {
+  width: 90px;
+}
+
+.fs-col-when {
+  width: 150px;
+}
+
+.fs-col-status {
+  width: 130px;
+}
+
+.fs-col-people {
+  width: 120px;
+}
+
+.fs-col-actions {
+  width: 100px;
 }
 
 .action-icons {
   min-width: 112px;
+}
+
+.fs-listTable .action-icons {
+  min-width: 0;
 }
 
 .icon-button {

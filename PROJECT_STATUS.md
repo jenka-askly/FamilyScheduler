@@ -1,3 +1,11 @@
+## 2026-02-23 04:16 UTC update (UEX: remove list horizontal scroll)
+
+- List view: removed horizontal scroll; enforced fixed table layout and column constraints.
+- Added a list-specific table class (`fs-listTable`) with fixed layout and explicit widths for Code/When/Status/People/Actions.
+- Added list-specific container hardening (`fs-listContainer`) with `overflow-x: hidden`, `overflow-y: auto`, and `min-width: 0` to prevent flex overflow growth.
+- Constrained list cells with single-line ellipsis for long content to maintain row stability and readability.
+- No backend/API/shared-package changes.
+
 ## 2026-02-23 04:10 UTC update (UEX: Title section restructure)
 
 - Header title section updated with a new `Group` label above the group name.

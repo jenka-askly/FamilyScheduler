@@ -69,6 +69,41 @@ Execute a frontend-only UEX polish pass for `apps/web/**` to improve discoverabi
 
 # CODEX_LOG
 
+## 2026-02-23 04:16 UTC (UEX: remove horizontal scroll from List view)
+
+### Objective
+
+Remove horizontal scrollbar from desktop List view table, prevent table expansion beyond container, and truncate long text with ellipsis while preserving readability.
+
+### Approach
+
+- Located desktop List view table in `apps/web/src/AppShell.tsx` and scoped changes to that table only.
+- Added list-only classes to wrapper/table and key columns: `fs-listContainer`, `fs-listTable`, and column classes (`fs-col-*`).
+- Applied list-specific CSS hardening in `apps/web/src/styles.css`:
+  - fixed table layout (`table-layout: fixed; width: 100%`),
+  - horizontal overflow suppression on list container (`overflow-x: hidden; overflow-y: auto;`),
+  - truncation behavior (`overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`),
+  - explicit widths for Code/When/Status/People/Actions,
+  - flex/overflow guard (`min-width: 0`) on wrappers and list multiline cells.
+- Kept global table behavior intact for non-list tables by using list-scoped selectors.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "List|table|Code|When|Status|Description|Notes" apps/web/src` ✅ located list table + style definitions.
+- `pnpm --filter @familyscheduler/web build` ✅ web app build/typecheck passed.
+- `git diff -- apps/web/src/AppShell.tsx apps/web/src/styles.css PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted diff.
+
+### Follow-ups
+
+- Human visual check on desktop at common breakpoints to confirm truncation balance for Description/Location/Notes text.
+
 ## 2026-02-21 03:42 UTC (page header group block vertical packing)
 
 ### Objective
