@@ -6542,3 +6542,36 @@ Fix `apps/web` build failure for missing `@mui/icons-material/Menu` and `@mui/ic
 
 - In an npm-authorized environment, run `pnpm -C apps/web add @mui/icons-material@^6.4.7` and then `pnpm -r --if-present build`.
 - Confirm runtime icon rendering (`Menu`, `RocketLaunch`) and no module resolution errors after dependencies install.
+
+## 2026-02-23 23:18 UTC (Header identity hierarchy: product name + Group label)
+
+### Objective
+
+Implement requested header hierarchy polish by adding global product config, rendering product identity above the group card, and restoring the small `Group` label above the group title without changing behavior.
+
+### Approach
+
+- Added `apps/web/src/product.ts` to centralize app identity (`PRODUCT.name`).
+- Updated `PageHeader` to import `PRODUCT` and render `Family Scheduler` above the group card using subtle typography.
+- Added an `overline` `Group` label above the group display title inside the group card.
+- Confirmed existing `displayGroupTitle` precedence logic already matches requirement (`groupName` → abbreviated `groupId` → `title`) and left logic untouched.
+- Left copy-link, menu actions, routing, API calls, and business logic unchanged.
+
+### Files changed
+
+- `apps/web/src/product.ts`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ❌ `rg` returned non-zero because no AGENTS.md files were found.
+- `find .. -name AGENTS.md -print` ✅ confirmed no AGENTS.md files present in reachable tree.
+- `pnpm -r --if-present build` ❌ failed due environment dependency resolution/typecheck baseline issues (`@mui/material` and `@mui/icons-material/*` unresolved plus existing implicit-any errors in unrelated files).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started but dependency resolution failed for missing `@mui/material`/`@mui/icons-material/*`, blocking app render and screenshot capture.
+
+### Follow-ups
+
+- Re-run `pnpm -r --if-present build` once frontend dependencies are installable in this environment.
+- Capture UI screenshot after dependency resolution allows app rendering.
