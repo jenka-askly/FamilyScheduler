@@ -1039,3 +1039,10 @@ traces
 - Added polling-based updates and audible beep on join-count increase.
 - Added navigation entry point in authenticated shell: **Keep This Going**.
 - Scope note: pre-SMS, no phone verification changes.
+
+## 2026-02-23 07:28 UTC update (Ignite join-link loading state cleanup)
+
+- Verified ignite organizer route remains gated through `GroupAuthGate` and passes session phone into `IgniteOrganizerPage`.
+- Verified organizer `ignite/start` request body includes `{ groupId, phone, traceId }` and success path sets `sessionId`, enabling join-link composition as `/#/s/<groupId>/<sessionId>`.
+- Verified backend `igniteStart` parses JSON body phone and enforces active membership via `findActivePersonByPhone(...)` with `403 not_allowed` on failure.
+- Removed transient organizer placeholder text `Starting session…` so the join-link field/QR area now stays empty until `sessionId` exists.

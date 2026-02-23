@@ -438,7 +438,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
           ) : (
             <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} onError={() => setQrLoadFailed(true)} />
           )
-        ) : <p>Starting session…</p>}
+        ) : null}
         <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
         <div className="join-actions">
           <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Back to group</button>

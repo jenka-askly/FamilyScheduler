@@ -5760,3 +5760,34 @@ Implement ignition UX polish: fix join-page copy, add optional photo capture/upl
 ### Follow-ups
 
 - Human-run staging validation for camera capture behavior on iOS/Android browsers and end-to-end ignite join/photo flow using real QR sessions.
+
+## 2026-02-23 07:28 UTC (Ignite start 403/sessionId handoff verification + join-link UI fix)
+
+### Objective
+
+Address ignite organizer regression where start could fail auth and join link/QR would not materialize; verify phone propagation + backend validation alignment and remove misleading loading placeholder.
+
+### Approach
+
+- Re-checked route wiring in `App.tsx` for `type === 'ignite'` to ensure `GroupAuthGate` supplies `phone` to `IgniteOrganizerPage`.
+- Re-checked organizer `startSession()` request payload and response handling for `/api/ignite/start`.
+- Re-checked backend `igniteStart` request parsing path to confirm JSON body phone + membership gate (`findActivePersonByPhone`) and `403 not_allowed` enforcement.
+- Applied minimal UI tweak to hide the `Starting session…` placeholder when `sessionId` is not yet available.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "type: 'ignite'|/ignite|IgniteOrganizer|GroupAuthGate" apps/web/src/App.tsx` ✅
+- `sed -n '280,700p' apps/web/src/App.tsx` ✅
+- `rg -n --hidden --glob '!**/node_modules/**' "igniteStart|ignite/start|findActivePersonByPhone|not_allowed|403" api/src` ✅
+- `sed -n '1,180p' api/src/functions/igniteStart.ts` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Human staging re-test for `/#/g/<groupId>/ignite` network response and QR rendering with real membership/session data.
