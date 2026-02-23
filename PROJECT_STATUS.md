@@ -1,3 +1,12 @@
+## 2026-02-23 06:12 UTC update (Ignition organizer UEX: QR/link copy/camera trigger)
+
+- Organizer ignition page now shows both **Group link** (`/#/g/<groupId>/app`) and **Join link** (`/#/s/<groupId>/<sessionId>`) as read-only fields with inline Copy actions and transient “Copied” status.
+- Organizer photo upload affordance now uses a camera button (`📷 Add photo`) that triggers a hidden `type="file"` input with `accept="image/*"` and `capture="environment"`; upload flow remains unchanged.
+- Added inline “Photo selected.” feedback after file selection for clearer state.
+- Hardened QR display with load-failure fallback text; keeps join link visible for manual sharing if QR image cannot load.
+- Added lightweight debug log emission (behind existing `VITE_DEBUG_AUTH_LOGS` gate) to surface join URL/session context while diagnosing QR visibility.
+- Attempted to add local `qrcode` npm dependency per implementation request, but package install is blocked in this environment by registry policy (`npm ERR! 403`), so existing QR image endpoint approach was retained.
+
 ## 2026-02-23 05:57 UTC update (QG/Ignition UX polish: join copy/photo/back nav)
 
 - Ignite join page copy now uses session-specific wording: "Enter your name and phone to join this live session."

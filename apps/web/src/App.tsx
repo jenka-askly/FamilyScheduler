@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from './AppShell';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
@@ -302,6 +302,10 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [photoSelected, setPhotoSelected] = useState(false);
+  const [copiedLink, setCopiedLink] = useState<'group' | 'join' | null>(null);
+  const [qrLoadFailed, setQrLoadFailed] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const startSession = async () => {
     setError(null);
@@ -356,7 +360,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   const uploadPhoto = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
-    if (!file || !sessionId) return;
+    if (!file || !sessionId) {
+      setPhotoSelected(false);
+      return;
+    }
+    setPhotoSelected(true);
     setError(null);
     setIsUploading(true);
     try {
@@ -378,16 +386,54 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     }
   };
 
+  const groupUrl = `${window.location.origin}${window.location.pathname}#/g/${groupId}/app`;
   const joinUrl = sessionId ? `${window.location.origin}${window.location.pathname}#/s/${groupId}/${sessionId}` : '';
   const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}` : '';
+
+  useEffect(() => {
+    setQrLoadFailed(false);
+    authLog({ component: 'IgniteOrganizerPage', stage: 'join_url', hasJoinUrl: Boolean(joinUrl), joinUrl, sessionId, groupId });
+  }, [groupId, joinUrl, sessionId]);
+
+  const copyLink = async (kind: 'group' | 'join', value: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedLink(kind);
+      window.setTimeout(() => setCopiedLink((current) => (current === kind ? null : current)), 1800);
+    } catch {
+      setCopiedLink(null);
+    }
+  };
 
   return (
     <Page variant="form">
       <PageHeader title="Ignition Session" description="QR join for quick onboarding with live count and photos." groupId={groupId} />
       {error ? <p className="form-error">{error}</p> : null}
       <div className="join-form-wrap">
-        {sessionId ? <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} /> : <p>Starting session…</p>}
-        {joinUrl ? <p className="fs-meta">{joinUrl}</p> : null}
+        <label>
+          <span className="field-label">Group link</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+            <input className="field-input" value={groupUrl} readOnly />
+            <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void copyLink('group', groupUrl); }}>Copy</button>
+          </div>
+          {copiedLink === 'group' ? <p className="fs-meta">Copied group link.</p> : null}
+        </label>
+        <label>
+          <span className="field-label">Join link</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+            <input className="field-input" value={joinUrl} readOnly placeholder="Starting session…" />
+            <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>Copy</button>
+          </div>
+          {copiedLink === 'join' ? <p className="fs-meta">Copied join link.</p> : null}
+        </label>
+        {sessionId ? (
+          qrLoadFailed ? (
+            <p className="fs-meta">QR unavailable right now. Share the join link above.</p>
+          ) : (
+            <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} onError={() => setQrLoadFailed(true)} />
+          )
+        ) : <p>Starting session…</p>}
         <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
         <div className="join-actions">
           <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Back to group</button>
@@ -396,7 +442,9 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         </div>
         <label>
           <span className="field-label">Add/Update your photo</span>
-          <input className="field-input" type="file" accept="image/*" onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
+          <button className="fs-btn fs-btn-secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>📷 Add photo</button>
+          {photoSelected ? <p className="fs-meta">Photo selected.</p> : null}
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
           {sessionId ? joinedPersonIds.map((personId) => (
