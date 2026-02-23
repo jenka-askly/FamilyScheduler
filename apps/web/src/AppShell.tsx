@@ -244,7 +244,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [groupName, setGroupName] = useState<string | undefined>(initialGroupName);
   const [usage, setUsage] = useState<UsageStatus>({ status: 'loading' });
   const [activeSection, setActiveSection] = useState<ShellSection>('calendar');
-  const [calendarView, setCalendarView] = useState<CalendarView>('month');
+  const [calendarView, setCalendarView] = useState<CalendarView>('list');
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [todoDraft, setTodoDraft] = useState<{ text: string; dueDate: string; assignee: string; done: boolean }>({ text: '', dueDate: '', assignee: '', done: false });
@@ -374,11 +374,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     openTodoEditor(next);
   };
 
-  const createTodoForDate = (date: string) => {
-    const next: TodoItem = { id: `todo-${Date.now()}`, text: 'New todo', dueDate: date, done: false };
-    setTodos((prev) => [next, ...prev]);
-    openTodoEditor(next);
-  };
 
   const saveTodo = () => {
     if (!editingTodoId || !todoDraft.text.trim()) return;
@@ -981,19 +976,34 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       />
       <div className="fs-shell">
         <aside className="fs-sidebar">
-          <button type="button" className={activeSection === 'overview' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setActiveSection('overview')}>Overview</button>
-          <button type="button" className={activeSection === 'calendar' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setActiveSection('calendar')}>Calendar</button>
-          <button type="button" className={activeSection === 'todos' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setActiveSection('todos')}>Todos</button>
-          <button type="button" className={activeSection === 'members' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setActiveSection('members')}>Members</button>
-          <button type="button" className={activeSection === 'settings' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setActiveSection('settings')}>Settings</button>
+          <button type="button" className={`fs-btn ${activeSection === 'overview' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('overview')}>Overview</button>
+          <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
+          <button type="button" className={`fs-btn ${activeSection === 'todos' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('todos')}>Todos</button>
+          <button type="button" className={`fs-btn ${activeSection === 'members' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
+          <button type="button" className={`fs-btn ${activeSection === 'settings' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('settings')}>Settings</button>
         </aside>
         <section className="fs-main">
-          <div className="fs-topbar">
-            <div className="fs-topbarGroup">{groupName || 'Family Schedule'} ({groupId})</div>
-            <input className="fs-topbarSearch" placeholder="Search (coming soon)" disabled />
-          </div>
-
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
+
+          <form onSubmit={onSubmit}>
+            <section className="panel fs-commandBar" aria-label="Command bar">
+              <div className="fs-commandHeader">
+                <div>
+                  <h2>Command</h2>
+                  <p className="prompt-tip">Type once and press Add, or scan an image to fill details quickly.</p>
+                </div>
+                <div className="fs-commandActions">
+                  <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">Scan</button>
+                  <button type="submit" className="fs-btn fs-btn-secondary" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Add</button>
+                </div>
+              </div>
+              <label htmlFor="prompt" className="field-label">Command</label>
+              <div className="input-row fs-commandInputRow">
+                <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'Try: Add “Dentist Tue 3pm”, Assign APPT-4 to Joe, Scan a screenshot…'} />
+              </div>
+              <p className="prompt-tip">Examples: add/update appointments, assign APPT codes, or paste screenshot text for parsing.</p>
+            </section>
+          </form>
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
@@ -1004,10 +1014,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               <section className="panel fs-cal">
                 <div className="fs-calToolbar">
                   <div className="fs-calToggle">
-                    <button type="button" className={calendarView === 'month' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setCalendarView('month')}>Month</button>
-                    <button type="button" className={calendarView === 'list' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setCalendarView('list')}>List</button>
-                    <button type="button" className={calendarView === 'week' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setCalendarView('week')}>Week</button>
-                    <button type="button" className={calendarView === 'day' ? 'fs-btnPrimary' : 'fs-btnSecondary'} onClick={() => setCalendarView('day')}>Day</button>
+                    <button type="button" className={`fs-btn ${calendarView === 'month' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setCalendarView('month')}>Month</button>
+                    <button type="button" className={`fs-btn ${calendarView === 'list' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setCalendarView('list')}>List</button>
+                    <button type="button" className="fs-btn fs-btn-ghost" disabled aria-disabled="true">Week</button>
+                    <button type="button" className="fs-btn fs-btn-ghost" disabled aria-disabled="true">Day</button>
                   </div>
                   <div className="fs-calMonth">{monthLabel}</div>
                 </div>
@@ -1024,7 +1034,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <div key={dateKey} className={`fs-cal-cell ${inMonth ? '' : 'fs-cal-outside'}`}>
                             <div className="fs-cal-dateRow">
                               <span>{day.getDate()}</span>
-                              <button type="button" className="fs-chip fs-chipAdd" onClick={() => void addAppointment()}>+ Add</button>
+                              <span className="fs-cal-dayPlus">+</span>
                             </div>
                             <div className="fs-cal-items">
                               {dayAppointments.map((appointment) => (
@@ -1037,7 +1047,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                   📝 {todo.text}
                                 </button>
                               ))}
-                              {dayTodos.length === 0 ? <button type="button" className="fs-chip fs-chipTodoAction" onClick={() => createTodoForDate(dateKey)}>+ Todo</button> : null}
+                              
                             </div>
                           </div>
                         );
@@ -1045,8 +1055,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </div>
                   </>
                 ) : null}
-                {calendarView === 'week' ? <p>Week view coming soon.</p> : null}
-                {calendarView === 'day' ? <p>Day view coming soon.</p> : null}
               </section>
 
               {calendarView === 'list' ? (
@@ -1092,7 +1100,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 : 'no_conflict';
                             return (
                               <tr key={appointment.code}>
-                                <td><code>{appointment.code}</code></td>
+                                <td className="fs-codeCell"><code>{appointment.code}</code></td>
                                 <td>
                                   <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
                                     {appointment.time?.intent?.status !== 'resolved'
@@ -1151,36 +1159,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                               </tr>
                             );
                           })}
-                          <tr className="fs-tableCtaRow">
-                            <td colSpan={9}><div className="scan-cta-wrap">
-                              <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
-                                {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
-                              </button>
-                              <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
-                            </div></td>
-                          </tr>
                         </tbody>
                       </table>
                     </div>
                   )}
-                  {isMobile ? (
-                    <div className="fs-cardCtaWrap">
-                      <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
-                        {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
-                      </button>
-                      <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
-                    </div>
-                  ) : null}
                 </section>
               ) : null}
-              <form onSubmit={onSubmit}>
-                <label htmlFor="prompt">What would you like to do?</label>
-                <div className="input-row">
-                  <input id="prompt" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder='Add, edit, or assign (e.g., "edit APPT-4")…' />
-                  <button type="submit" disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}>Send</button>
-                </div>
-                <p className="prompt-tip">Tip: Paste an appointment email or CSV — we’ll extract the details and add it for you.</p>
-              </form>
             </>
           ) : null}
 
@@ -1188,7 +1172,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <section className="panel fs-todo">
               <div className="panel-header">
                 <h2>Todos</h2>
-                <button type="button" className="fs-btnPrimary" onClick={createTodo}>+ Add todo</button>
+                <button type="button" className="fs-btn fs-btn-primary" onClick={createTodo}>+ Add todo</button>
               </div>
               <p className="fs-meta">TODO: wire todo persistence to backend in a follow-up pass.</p>
               <div className="fs-todo-list">
@@ -1203,8 +1187,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       {todo.assignee ? <span>Assignee: {todo.assignee}</span> : null}
                     </div>
                     <div className="action-buttons">
-                      <button type="button" className="fs-btnSecondary" onClick={() => openTodoEditor(todo)}>Edit</button>
-                      <button type="button" className="fs-btnSecondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
+                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => openTodoEditor(todo)}>Edit</button>
+                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
                     </div>
                   </div>
                 ))}
@@ -1245,8 +1229,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <td className="actions-cell">
                             {isNewRowEditing ? (
                               <div className="action-buttons">
-                                <button type="button" className="fs-btnPrimary" onClick={() => void submitPersonEdit()}>Accept</button>
-                                <button type="button" className="fs-btnSecondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
+                                <button type="button" className="fs-btn fs-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
+                                <button type="button" className="fs-btn fs-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
                               </div>
                             ) : (
                               <div className="action-icons"> 

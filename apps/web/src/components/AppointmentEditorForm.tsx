@@ -45,7 +45,7 @@ export const AppointmentEditorForm = ({
         onKeyDown={onWhenKeyDown}
         placeholder="e.g. next Tuesday 8-9pm"
       />
-      <button type="button" onClick={onResolveDate}>Resolve date</button>
+      <button type="button" className="fs-btn fs-btn-secondary" onClick={onResolveDate}>Resolve date</button>
     </div>
     <div className="when-editor-input-row">
       <label htmlFor={`desc-editor-${appointmentCode}`}>Description</label>
@@ -80,8 +80,8 @@ export const AppointmentEditorForm = ({
         {previewContent}
       </div>
       <div className="modal-actions when-editor-actions">
-        <button type="button" onClick={onConfirm}>Confirm</button>
-        <button type="button" onClick={onCancel}>Cancel</button>
+        <button type="button" className="fs-btn fs-btn-primary" onClick={onConfirm}>Confirm</button>
+        <button type="button" className="fs-btn fs-btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   </div>
