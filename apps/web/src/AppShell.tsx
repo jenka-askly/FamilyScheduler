@@ -6,7 +6,6 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
-import { buildInfo } from './lib/buildInfo';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 import {
@@ -1676,8 +1675,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           />
         ) : null}
       </Drawer>
-      <FooterHelp />
-      {import.meta.env.DEV ? <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div> : null}
+      <FooterHelp usageLabel={usageLabel} />
     </Page>
   );
 }

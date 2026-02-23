@@ -6238,3 +6238,35 @@ Restore legacy styling on non-migrated routes (`CreateGroupPage`, `JoinGroupPage
 
 - Run smoke-test route verification in a dependency-complete environment.
 - If desired, take route-level screenshots after `pnpm install`/dependency restoration succeeds.
+
+## 2026-02-23 20:15 UTC (Restore global build indicator badge)
+
+### Objective
+
+Restore a persistent bottom-right build indicator across routes (not DEV-only), reusing existing build metadata and optionally showing usage state.
+
+### Approach
+
+- Searched existing build/usage rendering and found DEV-only label in `AppShell` and reusable build metadata in `lib/buildInfo.ts`.
+- Implemented badge rendering in shared `FooterHelp` so all pages already including the footer inherit the same indicator.
+- Added robust build label resolution with fallback to `unknown` and accepted an optional usage label prop.
+- Switched `AppShell` to pass `usageLabel` into `FooterHelp`, removing the old DEV-gated inline build strip.
+
+### Files changed
+
+- `apps/web/src/components/layout/FooterHelp.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Build:|Usage:|usageState|usageSummary|limit_reached|buildInfo|buildId|commit|sha" apps/web/src` ✅ located prior build/usage plumbing and DEV-only rendering.
+- `rg -n "FooterHelp|<FooterHelp|components/layout/FooterHelp" apps/web/src -g '*.tsx'` ✅ confirmed global usage points.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due existing environment/dependency issues (`@mui/material` unresolved and existing implicit-any errors in pre-existing files).
+- `pnpm -C apps/web run build` ⚠️ failed for the same pre-existing unresolved dependency/typecheck issues.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite startup reports unresolved `@mui/material` dependencies, blocking browser smoke/screenshot capture.
+
+### Follow-ups
+
+- Install/restore `@mui/material` (and related workspace deps) to enable local typecheck/build and visual verification.
