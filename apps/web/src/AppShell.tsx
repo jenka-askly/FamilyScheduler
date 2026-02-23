@@ -1157,54 +1157,55 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           {activeSection === 'calendar' ? (
             <>
               <section className="panel ui-cal">
-                <Stack spacing={1.5} sx={{ mb: 2 }}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
-                    <Tabs
-                      value={calendarView}
-                      onChange={(_event: SyntheticEvent, value: CalendarView) => setCalendarView(value)}
-                      aria-label="Calendar views"
-                      sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
-                    >
-                      <Tab label="List" value="list" />
-                      <Tab label="Month" value="month" />
-                      <Tab label="Week · Soon" value="week" disabled aria-disabled="true" />
-                      <Tab label="Day · Soon" value="day" disabled aria-disabled="true" />
-                    </Tabs>
-                    <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
-                      <Tooltip title="Scan to create appointment">
-                        <span>
-                          <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan to create appointment">
-                            <DocumentScannerIcon />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title="Add">
-                        <span>
-                          <IconButton color="primary" onClick={() => { void addAppointment(); }} aria-label="Add appointment" disabled={commandActionsDisabled}>
-                            <Plus />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title="More">
-                        <span>
-                          <IconButton onClick={() => setIsAdvancedOpen(true)} aria-label="More actions" disabled={commandActionsDisabled}>
-                            <MoreVertIcon />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                <Paper variant="outlined" sx={{ borderRadius: 2 }}>
+                  <Box sx={{ px: 2, pt: 1 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
+                      <Tabs
+                        value={calendarView}
+                        onChange={(_event: SyntheticEvent, value: CalendarView) => setCalendarView(value)}
+                        aria-label="Calendar views"
+                        sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
+                      >
+                        <Tab label="List" value="list" />
+                        <Tab label="Month" value="month" />
+                        <Tab label="Week · Soon" value="week" disabled aria-disabled="true" />
+                        <Tab label="Day · Soon" value="day" disabled aria-disabled="true" />
+                      </Tabs>
+                      <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
+                        <Tooltip title="Scan to create appointment">
+                          <span>
+                            <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan to create appointment">
+                              <DocumentScannerIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Add">
+                          <span>
+                            <IconButton color="primary" onClick={() => { void addAppointment(); }} aria-label="Add appointment" disabled={commandActionsDisabled}>
+                              <Plus />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="More">
+                          <span>
+                            <IconButton onClick={() => setIsAdvancedOpen(true)} aria-label="More actions" disabled={commandActionsDisabled}>
+                              <MoreVertIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
                     </Stack>
-                  </Stack>
-                  {calendarView === 'month' ? (
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <IconButton size="small" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></IconButton>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 150 }}>{monthLabel}</Typography>
-                      <IconButton size="small" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></IconButton>
-                      <Button size="small" variant="outlined" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</Button>
-                    </Stack>
-                  ) : null}
-                </Stack>
-                {calendarView === 'month' ? (
-                  <>
+                  </Box>
+                  <Divider />
+                  <Box sx={{ p: 2 }}>
+                    {calendarView === 'month' ? (
+                      <>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                          <IconButton size="small" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></IconButton>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 150 }}>{monthLabel}</Typography>
+                          <IconButton size="small" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></IconButton>
+                          <Button size="small" variant="outlined" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</Button>
+                        </Stack>
                     <div className="ui-cal-grid ui-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="ui-cal-cell ui-cal-weekday">{weekday}</div>)}</div>
                     <div className="ui-cal-grid">
                       {monthDays.map((day) => {
@@ -1242,39 +1243,41 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                         );
                       })}
                     </div>
-                  </>
-                ) : null}
-              </section>
+                      </>
+                    ) : null}
 
-              {calendarView === 'list' ? (
-                <section className="panel">
-                  {sortedAppointments.length === 0 ? (
-                    <Alert severity="info" sx={{ maxWidth: 760 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>No appointments yet</Typography>
-                      <Typography variant="body2">Add your first event using + above.</Typography>
-                    </Alert>
-                  ) : null}
-                  <AppointmentCardList
-                    appointments={sortedAppointments}
-                    getStatus={(appointment) => (
-                      appointment.time?.intent?.status !== 'resolved'
-                        ? 'unreconcilable'
-                        : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
-                          ? 'conflict'
-                          : 'no_conflict'
-                    )}
-                    formatWhen={formatAppointmentTime}
-                    onEdit={openWhenEditor}
-                    onDelete={setAppointmentToDelete}
-                    onSelectPeople={setSelectedAppointment}
-                    onOpenScanViewer={setScanViewerAppointment}
-                    scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
-                    editIcon={<Pencil />}
-                    assignIcon={<GroupOutlinedIcon fontSize="small" />}
-                    deleteIcon={<Trash2 />}
-                  />
-                </section>
-              ) : null}
+                    {calendarView === 'list' ? (
+                      <>
+                        {sortedAppointments.length === 0 ? (
+                          <Alert severity="info" sx={{ maxWidth: 760 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>No appointments yet</Typography>
+                            <Typography variant="body2">Add your first event using + above.</Typography>
+                          </Alert>
+                        ) : null}
+                        <AppointmentCardList
+                          appointments={sortedAppointments}
+                          getStatus={(appointment) => (
+                            appointment.time?.intent?.status !== 'resolved'
+                              ? 'unreconcilable'
+                              : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                                ? 'conflict'
+                                : 'no_conflict'
+                          )}
+                          formatWhen={formatAppointmentTime}
+                          onEdit={openWhenEditor}
+                          onDelete={setAppointmentToDelete}
+                          onSelectPeople={setSelectedAppointment}
+                          onOpenScanViewer={setScanViewerAppointment}
+                          scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
+                          editIcon={<Pencil />}
+                          assignIcon={<GroupOutlinedIcon fontSize="small" />}
+                          deleteIcon={<Trash2 />}
+                        />
+                      </>
+                    ) : null}
+                  </Box>
+                </Paper>
+              </section>
             </>
           ) : null}
 

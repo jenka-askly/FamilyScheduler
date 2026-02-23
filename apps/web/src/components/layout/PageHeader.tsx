@@ -66,7 +66,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
 
   return (
     <Stack spacing={2} sx={{ mb: 2 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>{PRODUCT.name}</Typography>
+      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1.5 }}>{PRODUCT.name}</Typography>
       <Paper>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
           <Box sx={{ minWidth: 0 }}>

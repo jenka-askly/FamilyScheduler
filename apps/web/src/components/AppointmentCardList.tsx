@@ -28,6 +28,8 @@ type Appointment = {
   time: TimeSpec;
 };
 
+type MetadataToken = { kind: 'people' | 'location' | 'notes'; label: string; tooltip?: string };
+
 type AppointmentCardListProps = {
   appointments: Appointment[];
   getStatus: (appointment: Appointment) => 'unreconcilable' | 'conflict' | 'no_conflict';
@@ -63,9 +65,15 @@ export function AppointmentCardList({
         const apptStatus = getStatus(appointment);
         const whenText = appointment.time?.intent?.status !== 'resolved' ? 'Unresolved' : formatWhen(appointment);
         const statusLabel = apptStatus === 'unreconcilable' ? 'Unreconcilable' : apptStatus === 'conflict' ? 'Conflict' : 'No conflict';
-        const statusColor = apptStatus === 'unreconcilable' ? 'warning' : apptStatus === 'conflict' ? 'error' : 'success';
+        const isProblemStatus = statusLabel && statusLabel.toLowerCase() !== 'no conflict';
+        const statusColor = apptStatus === 'unreconcilable' ? 'warning' : 'error';
         const peopleText = appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned';
         const titleText = appointment.desc || appointment.code;
+        const metadataTokens: MetadataToken[] = [];
+        if (appointment.peopleDisplay.length) metadataTokens.push({ kind: 'people', label: `👤 ${appointment.peopleDisplay.join(', ')}` });
+        if (appointment.locationDisplay || appointment.location) metadataTokens.push({ kind: 'location', label: `📍 ${appointment.locationDisplay || appointment.location}` });
+        if (appointment.notes) metadataTokens.push({ kind: 'notes', label: '📝 Notes', tooltip: appointment.notes });
+        const metadataPreview = metadataTokens.slice(0, 2);
 
         return (
           <ListItem key={appointment.id} disableGutters sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}` }}>
@@ -84,7 +92,22 @@ export function AppointmentCardList({
               <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap title={titleText}>{titleText}</Typography>
                 <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5 }}>
-                  <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" />
+                  {isProblemStatus ? <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" /> : null}
+                  {metadataPreview.length > 0 ? (
+                    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
+                      {metadataPreview.map((token, index) => (
+                        token.kind === 'notes' ? (
+                          <Tooltip key={`${appointment.id}-${token.kind}-${index}`} title={token.tooltip ?? 'Notes'}>
+                            <Typography variant="caption" color="text.secondary" noWrap>{token.label}</Typography>
+                          </Tooltip>
+                        ) : (
+                          <Typography key={`${appointment.id}-${token.kind}-${index}`} variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 220 }}>
+                            {token.label}
+                          </Typography>
+                        )
+                      ))}
+                    </Stack>
+                  ) : null}
                 </Stack>
               </Box>
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
