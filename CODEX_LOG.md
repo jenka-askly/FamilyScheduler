@@ -5459,3 +5459,38 @@ Stabilize the group header invite-link layout (no overflow), add calmer visual t
 ### Follow-ups
 
 - Optional: add a direct jump interaction from member chips to Members section if product wants chip row to be clickable.
+
+## 2026-02-23 04:10 UTC
+
+### Objective
+
+Implement UEX title section restructure in the workspace header: add Group label, replace member chips with one-line member summary, move Copy button to the invite URL row, tighten invite explainer spacing, and remove Calendar subtitle.
+
+### Approach
+
+- Updated `PageHeader` markup only (no backend/API changes) to keep copy-link behavior identical while changing layout hierarchy.
+- Replaced chip-style member rendering with a muted single-line summary (`Members: name1, name2, ... +N`) using existing `memberNames` input and conditional rendering when members exist.
+- Reworked invite row into URL input (left) + Copy button (right), then placed helper copy directly below with tight spacing.
+- Updated CSS to support the new title hierarchy and invite row flex behavior including ellipsis-safe URL rendering.
+- Recorded status in `PROJECT_STATUS.md` per continuity requirement.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/components/layout/PageHeader.tsx` ✅ inspected existing header structure.
+- `sed -n '730,880p' apps/web/src/styles.css` ✅ inspected existing header/invite styles.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ initially failed due to JSX bracket mismatch while editing; fixed immediately.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after JSX fix.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local app for visual verification.
+- `mcp__browser_tools__run_playwright_script` ✅ captured updated header screenshot (`artifacts/header-title-restructure.png`).
+
+### Follow-ups
+
+- Optional product follow-up: if member names become very long in real data, consider adding a max-width clamp + tooltip to the member summary line for improved readability on very narrow screens.

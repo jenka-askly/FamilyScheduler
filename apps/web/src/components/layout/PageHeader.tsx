@@ -47,6 +47,9 @@ export function PageHeader({
 
   const visibleMembers = (memberNames ?? []).slice(0, 4);
   const remainingMemberCount = Math.max(0, (memberNames ?? []).length - visibleMembers.length);
+  const membersLine = visibleMembers.length > 0
+    ? `Members: ${visibleMembers.join(', ')}${remainingMemberCount > 0 ? ` +${remainingMemberCount}` : ''}`
+    : null;
 
   return (
     <div className="fs-pageHeader">
@@ -54,18 +57,14 @@ export function PageHeader({
         <div className="fs-groupHeaderCard">
           <div className="fs-groupHeaderTop">
             <div className="fs-groupTitleBlock">
+              <div className="fs-groupLabel">Group</div>
               <h1 className="fs-groupTitle">{groupName}</h1>
-              <div className="fs-groupMeta">Calendar</div>
+              {membersLine ? (
+                <div className="fs-groupMembersLine" aria-label="Members in this group">
+                  {membersLine}
+                </div>
+              ) : null}
             </div>
-
-            {visibleMembers.length > 0 ? (
-              <div className="fs-memberChips" aria-label="Members in this group">
-                {visibleMembers.map((name, index) => (
-                  <span className="fs-memberChip" key={`${name}-${index}`}>{name}</span>
-                ))}
-                {remainingMemberCount > 0 ? <span className="fs-memberChip fs-memberChip-muted">+{remainingMemberCount}</span> : null}
-              </div>
-            ) : null}
           </div>
 
           {groupId ? (
@@ -73,24 +72,21 @@ export function PageHeader({
               {groupLink ? (
                 <>
                   <div className="fs-inviteRow">
-                    <div className="fs-inviteLabel">Invite link</div>
-                    <button
-                      type="button"
-                      className="fs-btn fs-btn-secondary"
-                      aria-label="Copy invite link"
-                      onClick={() => void copyGroupLink()}
-                    >
-                      <Link2 />
-                      Copy link
-                    </button>
-                  </div>
-                  <div className="fs-inviteUrlRow">
                     <input
                       className="fs-inviteUrlInput"
                       value={groupLink}
                       readOnly
                       aria-label="Invite link"
                     />
+                    <button
+                      type="button"
+                      className="fs-btn fs-btn-secondary fs-copyBtn"
+                      aria-label="Copy invite link"
+                      onClick={() => void copyGroupLink()}
+                    >
+                      <Link2 />
+                      Copy
+                    </button>
                   </div>
                   <div className="fs-inviteHelp">
                     Save this link — it’s the only way to return to this group.

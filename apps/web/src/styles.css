@@ -772,6 +772,13 @@ h2 {
   min-width: 0;
 }
 
+.fs-groupLabel {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
 .fs-groupTitle {
   margin: 0;
   line-height: 1.15;
@@ -780,33 +787,10 @@ h2 {
   color: #0f172a;
 }
 
-.fs-groupMeta {
+.fs-groupMembersLine {
   margin-top: 2px;
-  font-size: 0.78rem;
-  color: #64748b;
-}
-
-.fs-memberChips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.fs-memberChip {
-  border: 1px solid #d7e1ea;
-  background: #eef3f7;
-  color: #334155;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  line-height: 1;
-  padding: 0.28rem 0.5rem;
-  white-space: nowrap;
-}
-
-.fs-memberChip-muted {
-  background: #f3f6f9;
+  font-size: 12px;
+  line-height: 1.25;
   color: #64748b;
 }
 
@@ -818,28 +802,13 @@ h2 {
 
 .fs-inviteRow {
   display: flex;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.fs-inviteLabel {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #475569;
-}
-
-.fs-inviteRow .fs-btn {
-  flex-shrink: 0;
-}
-
-.fs-inviteUrlRow {
   min-width: 0;
 }
 
 .fs-inviteUrlInput {
+  flex: 1 1 auto;
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
@@ -854,8 +823,13 @@ h2 {
   padding: 0.45rem 0.625rem;
 }
 
+.fs-copyBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .fs-inviteHelp {
-  margin: 0;
+  margin: 6px 0 0 0;
   font-size: 0.8rem;
   color: #64748b;
 }
@@ -1421,12 +1395,7 @@ button.fs-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
     flex-wrap: wrap;
   }
 
-  .fs-memberChips {
-    justify-content: flex-start;
-  }
-
   .fs-inviteRow {
     flex-wrap: wrap;
   }
 }
-
