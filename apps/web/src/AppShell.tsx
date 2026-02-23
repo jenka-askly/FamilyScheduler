@@ -1,5 +1,6 @@
 import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
+import { AppointmentCardList } from './components/AppointmentCardList';
 import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
@@ -261,8 +262,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
   const isMobile = useMediaQuery('(max-width: 768px)');
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
-  const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
-  const whenEditorRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
   const [rulePromptModal, setRulePromptModal] = useState<{ person: Snapshot['people'][0] } | null>(null);
@@ -780,7 +779,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [groupId, phone]);
 
   useEffect(() => {
-    if (!whenEditorCode || isMobile) return;
+    if (!whenEditorCode) return;
     const exists = snapshot.appointments.some((appointment) => appointment.code === whenEditorCode);
     if (!exists) closeWhenEditor();
   }, [whenEditorCode, snapshot.appointments]);
@@ -843,23 +842,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       document.removeEventListener('touchstart', onPointerDown);
     };
   }, [editingPersonId, cancelPersonEdit]);
-
-  useEffect(() => {
-    if (!whenEditorCode || isMobile) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      const editingRow = editingAppointmentRowRef.current;
-      const editorRow = whenEditorRowRef.current;
-      const clickedInEditingSurface = Boolean(editingRow?.contains(target) || editorRow?.contains(target));
-      if (!clickedInEditingSurface) closeWhenEditor();
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [whenEditorCode, isMobile]);
-
 
   useEffect(() => {
     let canceled = false;
@@ -946,22 +928,39 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               </div>
             </div>
           ) : null}
-          <div className="table-wrap fs-tableScroll">
-            <table className="data-table">
-              <thead>
-                <tr><th>Code</th><th>When</th><th>Status</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {sortedAppointments.map((appointment) => {
-                  const isWhenEditing = whenEditorCode === appointment.code;
-                  const apptStatus = appointment.time?.intent?.status !== 'resolved'
-                    ? 'unreconcilable'
-                    : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
-                      ? 'conflict'
-                      : 'no_conflict';
-                  return (
-                    <Fragment key={appointment.code}>
-                      <tr ref={isWhenEditing ? editingAppointmentRowRef : undefined}>
+          {isMobile ? (
+            <AppointmentCardList
+              appointments={sortedAppointments}
+              getStatus={(appointment) => (
+                appointment.time?.intent?.status !== 'resolved'
+                  ? 'unreconcilable'
+                  : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                    ? 'conflict'
+                    : 'no_conflict'
+              )}
+              formatWhen={formatAppointmentTime}
+              onEdit={openWhenEditor}
+              onDelete={setAppointmentToDelete}
+              onSelectPeople={setSelectedAppointment}
+              onOpenScanViewer={setScanViewerAppointment}
+              editIcon={<Pencil />}
+              deleteIcon={<Trash2 />}
+            />
+          ) : (
+            <div className="table-wrap fs-tableScroll">
+              <table className="data-table">
+                <thead>
+                  <tr><th>Code</th><th>When</th><th>Status</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {sortedAppointments.map((appointment) => {
+                    const apptStatus = appointment.time?.intent?.status !== 'resolved'
+                      ? 'unreconcilable'
+                      : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
+                        ? 'conflict'
+                        : 'no_conflict';
+                    return (
+                      <tr key={appointment.code}>
                         <td><code>{appointment.code}</code></td>
                         <td>
                           <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
@@ -1019,54 +1018,28 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           </div>
                         </td>
                       </tr>
-                      {!isMobile && isWhenEditing ? (
-                        <tr ref={whenEditorRowRef}>
-                          <td colSpan={8} className="when-editor-cell">
-                            <AppointmentEditorForm
-                              appointmentCode={appointment.code}
-                              whenValue={whenDraftText}
-                              descriptionValue={descDraftText}
-                              locationValue={locationDraftText}
-                              notesValue={notesDraftText}
-                              onWhenChange={setWhenDraftText}
-                              onWhenKeyDown={(event) => {
-                                if (event.key === 'Enter') {
-                                  event.preventDefault();
-                                  void previewWhenDraft(appointment);
-                                }
-                              }}
-                              onDescriptionChange={setDescDraftText}
-                              onLocationChange={setLocationDraftText}
-                              onNotesChange={setNotesDraftText}
-                              onResolveDate={() => void previewWhenDraft(appointment)}
-                              errorText={whenDraftError}
-                              previewContent={whenPreviewed ? (
-                                <div>
-                                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
-                                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-                                </div>
-                              ) : null}
-                              onConfirm={() => void confirmWhenDraft(appointment)}
-                              onCancel={closeWhenEditor}
-                            />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-                <tr className="fs-tableCtaRow">
-                  <td colSpan={9}><div className="scan-cta-wrap">
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
-                      {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
-                    </button>
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
-                  </div></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    );
+                  })}
+                  <tr className="fs-tableCtaRow">
+                    <td colSpan={9}><div className="scan-cta-wrap">
+                      <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
+                        {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
+                      </button>
+                      <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
+                    </div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          {isMobile ? (
+            <div className="fs-cardCtaWrap">
+              <button type="button" className="fs-tableCtaBtn" onClick={() => void addAppointment()} aria-label="Add appointment">
+                {sortedAppointments.length > 0 ? '+ Add another appointment' : '+ Add an appointment'}
+              </button>
+              <button type="button" className="fs-tableCtaBtn" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">📷 Scan appointment</button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -1286,40 +1259,38 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
 
-      {isMobile ? (
-        <Drawer open={whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
-          {editingAppointment ? (
-            <AppointmentEditorForm
-              appointmentCode={editingAppointment.code}
-              whenValue={whenDraftText}
-              descriptionValue={descDraftText}
-              locationValue={locationDraftText}
-              notesValue={notesDraftText}
-              onWhenChange={setWhenDraftText}
-              onWhenKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void previewWhenDraft(editingAppointment);
-                }
-              }}
-              onDescriptionChange={setDescDraftText}
-              onLocationChange={setLocationDraftText}
-              onNotesChange={setNotesDraftText}
-              onResolveDate={() => void previewWhenDraft(editingAppointment)}
-              errorText={whenDraftError}
-              previewContent={whenPreviewed ? (
-                <div>
-                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
-                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-                </div>
-              ) : null}
-              onConfirm={() => void confirmWhenDraft(editingAppointment)}
-              onCancel={closeWhenEditor}
-            />
-          ) : null}
-        </Drawer>
-      ) : null}
+      <Drawer open={whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
+        {editingAppointment ? (
+          <AppointmentEditorForm
+            appointmentCode={editingAppointment.code}
+            whenValue={whenDraftText}
+            descriptionValue={descDraftText}
+            locationValue={locationDraftText}
+            notesValue={notesDraftText}
+            onWhenChange={setWhenDraftText}
+            onWhenKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void previewWhenDraft(editingAppointment);
+              }
+            }}
+            onDescriptionChange={setDescDraftText}
+            onLocationChange={setLocationDraftText}
+            onNotesChange={setNotesDraftText}
+            onResolveDate={() => void previewWhenDraft(editingAppointment)}
+            errorText={whenDraftError}
+            previewContent={whenPreviewed ? (
+              <div>
+                <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
+                {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+              </div>
+            ) : null}
+            onConfirm={() => void confirmWhenDraft(editingAppointment)}
+            onCancel={closeWhenEditor}
+          />
+        ) : null}
+      </Drawer>
       <FooterHelp />
       <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
     </Page>
