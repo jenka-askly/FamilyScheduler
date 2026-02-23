@@ -1006,3 +1006,144 @@ button.fs-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   .fs-topbar { flex-direction: column; align-items: flex-start; }
   .fs-topbarSearch { width: 100%; max-width: none; }
 }
+
+/* UEX polish pass */
+.fs-btn {
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+
+.fs-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.fs-btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.fs-btn-primary:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.fs-btn-secondary {
+  background: #fff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.fs-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.fs-btn-ghost {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.fs-btn-ghost[disabled] {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.fs-commandBar {
+  border-radius: 14px;
+  border-color: #dbe4f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 1rem;
+}
+
+.fs-commandHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.fs-commandHeader h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.fs-commandActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.fs-commandInputRow input {
+  min-height: 2.75rem;
+  font-size: 0.98rem;
+}
+
+.fs-groupIdRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fs-groupLinkRow {
+  margin-bottom: 2px;
+}
+
+.fs-cal-dayPlus {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.fs-codeCell,
+.fs-codeCell code,
+.fs-cardHeader code {
+  white-space: nowrap;
+}
+
+.fs-codeCell {
+  min-width: 100px;
+}
+
+.when-editor {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.when-editor-input-row {
+  gap: 0.5rem;
+}
+
+.when-editor-input-row label {
+  margin-bottom: 0.25rem;
+}
+
+.when-editor-actions {
+  gap: 0.5rem;
+}
+
+.join-form-wrap {
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.share-link {
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .fs-commandHeader {
+    flex-direction: column;
+  }
+}

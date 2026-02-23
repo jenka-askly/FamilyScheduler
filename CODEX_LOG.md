@@ -1,3 +1,38 @@
+## 2026-02-23 02:31 UTC
+
+### Objective
+
+Execute a frontend-only UEX polish pass for `apps/web/**` to improve discoverability, visual consistency, and calendar/header hygiene while preserving behavior/API wiring.
+
+### Approach
+
+- Located UI ownership points in `AppShell`, `PageHeader`, shared styles, and create/join screens.
+- Kept handlers/API calls intact; moved/reshaped only layout + classes + CSS.
+- Introduced a persistent command surface and surfaced scan as primary action.
+- Standardized button classes and added targeted spacing/nowrap polish.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files apps/web | head -n 200` ✅ scoped frontend files.
+- `rg -n "What would you like|Scan appointment|calendarView|fs-btnPrimary" apps/web/src/...` ✅ located target UI nodes.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ TypeScript passed after updates.
+- `pnpm --filter @familyscheduler/web run build` ✅ web build passed.
+
+### Follow-ups
+
+- Optional follow-up: if product wants day-cell quick-create, add subtle hover-only `+` interaction wired to existing add flow (currently visual-only calm indicator).
+
+
 # CODEX_LOG
 
 ## 2026-02-21 03:42 UTC (page header group block vertical packing)

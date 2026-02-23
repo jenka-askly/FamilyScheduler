@@ -14,6 +14,7 @@ export function PageHeader({
   groupId,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
   const groupLink = useMemo(() => {
     if (!groupId) return null;
     if (typeof window === 'undefined') return null;
@@ -26,6 +27,12 @@ export function PageHeader({
     return () => window.clearTimeout(timer);
   }, [copied]);
 
+  useEffect(() => {
+    if (!copiedId) return;
+    const timer = window.setTimeout(() => setCopiedId(false), 1200);
+    return () => window.clearTimeout(timer);
+  }, [copiedId]);
+
   const copyGroupLink = async () => {
     if (!groupLink) return;
     try {
@@ -33,6 +40,17 @@ export function PageHeader({
       setCopied(true);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const shortGroupId = groupId ? `${groupId.slice(0, 8)}…${groupId.slice(-4)}` : null;
+  const copyGroupId = async () => {
+    if (!groupId) return;
+    try {
+      await navigator.clipboard.writeText(groupId);
+      setCopiedId(true);
+    } catch {
+      setCopiedId(false);
     }
   };
 
@@ -45,17 +63,22 @@ export function PageHeader({
             <div className="fs-groupBlock">
               {groupLink ? (
                 <div className="fs-groupLinkRow">
-                  <a href={groupLink}>{groupLink}</a>
                   <button
                     type="button"
-                    className="icon-button"
+                    className="fs-btn fs-btn-ghost"
                     aria-label="Copy group link"
-                    data-tooltip="Copy link"
                     onClick={() => void copyGroupLink()}
                   >
-                    ⧉
+                    Copy link
                   </button>
-                  {copied ? <span>Copied</span> : null}
+                  {copied ? <span className="fs-meta">Copied</span> : null}
+                </div>
+              ) : null}
+              {groupId ? (
+                <div className="fs-groupIdRow">
+                  <span className="fs-meta">Group ID: {shortGroupId}</span>
+                  <button type="button" className="icon-button" aria-label="Copy full group id" data-tooltip="Copy full ID" onClick={() => void copyGroupId()}>⧉</button>
+                  {copiedId ? <span className="fs-meta">Copied</span> : null}
                 </div>
               ) : null}
               <div className="fs-groupExplain">

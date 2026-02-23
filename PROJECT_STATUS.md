@@ -1,3 +1,13 @@
+## 2026-02-23 02:31 UTC update (web UEX polish pass frontend-only)
+
+- Completed a frontend-only UEX polish pass scoped to `apps/web/**` with no backend/API contract changes.
+- Promoted command input into a persistent Command Bar with primary Scan CTA and secondary Add action across Calendar/Todos/Members/Overview/Settings sections.
+- Simplified calendar hygiene: default view is List, Week/Day are shown as disabled placeholders, and month cell add/todo CTA noise was reduced.
+- Simplified header identity: removed inline group `(id)` clutter in app shell header row, replaced raw URL surface with compact Copy link action, and moved group ID to shortened muted display with copy.
+- Unified button styling via shared class set (`fs-btn`, `fs-btn-primary`, `fs-btn-secondary`, `fs-btn-ghost`) and applied to key create/join, members, and drawer/editor actions.
+- Added APPT code nowrap/min-width treatment in list table and card headers to prevent wrapping.
+- Improved form visual surfaces/spacing for Create Group and drawer editor rows.
+
 ## 2026-02-23 update (Phase 1 Step 3 mobile-only Drawer editor)
 
 - Finalized mobile-only appointment editing surface in `AppShell` using `useMediaQuery('(max-width: 768px)')`.
