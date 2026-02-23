@@ -5130,3 +5130,35 @@ Implement Phase 1 Step 3: use Drawer-based appointment editing on mobile only wh
 ### Follow-ups
 
 - Human verification on a real mobile viewport is recommended to validate Drawer UX end-to-end (open/close/confirm/cancel across all entry points).
+
+## 2026-02-23 01:37 UTC (phase 1 step 3 mobile-only drawer editor)
+
+### Objective
+
+Use Drawer-based appointment editing on mobile only while preserving the existing desktop inline `<tr>` editor.
+
+### Approach
+
+- Verified existing responsive edit flow wiring in `AppShell` and confirmed `useMediaQuery` hook exists and is dependency-free.
+- Tightened mobile Drawer render contract to exactly `isMobile ? <Drawer open={whenEditorCode != null} ...>` and render `AppointmentEditorForm` inside it.
+- Kept desktop inline editor branch unchanged (`!isMobile && isWhenEditing`).
+- Validated that all existing edit entry points continue to call `openWhenEditor`.
+- Ran web TypeScript typecheck and captured a mobile UI screenshot artifact.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "whenEditorCode|AppointmentEditorForm|Drawer|closeWhenEditor|openWhenEditor|status|unreconcilable|When" apps/web/src/AppShell.tsx` ✅ verified edit entry points and responsive branches.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot script against `http://127.0.0.1:4173` ✅ captured `browser:/tmp/codex_browser_invocations/2b086925c7d0831f/artifacts/artifacts/mobile-appshell.png`.
+- `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown for the temporary screenshot server.
+
+### Follow-ups
+
+- Human verification in full local app context with seeded appointments to visually confirm mobile Drawer open/close behavior for each entry point.
