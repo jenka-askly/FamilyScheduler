@@ -5892,3 +5892,38 @@ Instrument `igniteStart` to capture sanitized diagnostics for staging 403 analys
 - Run staging deploy from an environment with npm registry access + Azure CLI.
 - Reproduce one `/api/ignite/start` call and run requested KQL query for `igniteStart` traces.
 - Apply the root-cause fix based on observed bucket (`hasPhone`, `callerFound`, `groupId`).
+
+
+## 2026-02-23 17:24 UTC
+
+### Objective
+
+Implement requested Ignite organizer UX updates: hide join URL by default, convert copy controls to icons, relabel Group link -> Group home with guidance text, swap photo action to camera icon-only, and move back navigation to top-left header arrow.
+
+### Approach
+
+- Updated `IgniteOrganizerPage` markup/state to make QR primary and keep join URL hidden unless expanded via “Trouble scanning?”.
+- Converted group/join copy actions to icon-only buttons with short inline “✓ Copied” status.
+- Added top-left back arrow button using existing `nav(..., { replace: true })` helper and removed bottom back button.
+- Switched photo action to icon-only camera trigger while retaining existing hidden file input/upload logic.
+- Added a `groupAccessNote` prop on `PageHeader` so Ignite can show OPEN/CLOSED contextual access guidance without changing other pages.
+- Added small Ignite-specific CSS helpers for link row layout and URL truncation.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Ignition Session|ignite/start|Joined:|Status:|Group link|Join link|Back to group|Add/Update your photo" apps/web/src` ✅ located ignite organizer UI implementation.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after UI/prop/CSS updates.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+
+### Follow-ups
+
+- Visual browser screenshot captured for this frontend UX change.
+
