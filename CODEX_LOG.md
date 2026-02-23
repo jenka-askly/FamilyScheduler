@@ -6512,3 +6512,33 @@ Update the app header title display so it shows `groupName` (when available) ins
 ### Follow-ups
 
 - Once dependencies/server are available, verify UI header renders group name (or `Group <shortId>`) and that copy-link still copies canonical group URL.
+
+## 2026-02-23 22:57 UTC (Install @mui/icons-material for header icons)
+
+### Objective
+
+Fix `apps/web` build failure for missing `@mui/icons-material/Menu` and `@mui/icons-material/RocketLaunch` by adding the standard MUI icons dependency (no SVG workaround).
+
+### Approach
+
+- Added `@mui/icons-material` to `apps/web/package.json` with version `^6.4.7` to align with existing `@mui/material` v6.
+- Attempted to install dependency with `pnpm add` in `apps/web`.
+- Re-ran workspace build to validate module resolution.
+
+### Files changed
+
+- `apps/web/package.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm add @mui/icons-material` ⚠️ failed with `ERR_PNPM_FETCH_403` from `https://registry.npmjs.org/@mui%2Ficons-material` (no auth header).
+- `pnpm add @mui/icons-material --registry=https://registry.npmjs.org/` ⚠️ failed with the same `403 Forbidden`.
+- `pnpm add @mui/icons-material@6.4.7 --offline` ⚠️ failed (`ERR_PNPM_NO_OFFLINE_META`; package metadata not cached locally).
+- `pnpm -r --if-present build` ⚠️ failed due pre-existing/unresolved dependency installation state (`@mui/material` unresolved in environment) and strict TypeScript implicit-any errors.
+
+### Follow-ups
+
+- In an npm-authorized environment, run `pnpm -C apps/web add @mui/icons-material@^6.4.7` and then `pnpm -r --if-present build`.
+- Confirm runtime icon rendering (`Menu`, `RocketLaunch`) and no module resolution errors after dependencies install.
