@@ -977,3 +977,14 @@ traces
 - Header invite link UI now renders as plain text (non-input) with truncation-safe ellipsis behavior and no border/field styling.
 - Copy affordance is now an icon-only button in the same row as the URL; clipboard copy behavior remains unchanged and still copies the full invite URL.
 - Title section invite block is left-aligned with tighter vertical spacing so Members line, invite URL row, and helper text read as one compact group.
+
+## 2026-02-23 update (ignite organizer route gating + phone propagation)
+
+- Added explicit hash-route parsing support for `#/g/:groupId/ignite` in `apps/web/src/App.tsx`.
+- Wrapped the ignite route in `GroupAuthGate` (same auth gate behavior as app route) and pass gated `phone` into organizer page rendering.
+- Added `IgniteOrganizerPage` implementation that:
+  - requires `phone` prop,
+  - sends `{ groupId, phone, traceId }` to `/api/ignite/start`,
+  - polls `/api/ignite/meta` with `groupId`, `sessionId`, `phone`, and `traceId` query params,
+  - shows clearer 403 `not_allowed` message: "You must be a member of this group to start a session."
+- Web build/typecheck pass in this environment; backend ignite endpoints are not present in this repo, so functional API verification is pending staging/backend availability.

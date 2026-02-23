@@ -3,6 +3,7 @@ import { AppShell } from './AppShell';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
+import { IgniteOrganizerPage } from './IgniteOrganizerPage';
 import { apiUrl } from './lib/apiUrl';
 
 type Session = { groupId: string; phone: string; joinedAt: string };
@@ -40,13 +41,15 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } => {
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app' | 'ignite'; groupId: string; error?: string; traceId?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
   const query = new URLSearchParams(queryString);
   const appMatch = path.match(/^\/g\/([^/]+)\/app$/);
   if (appMatch) return { type: 'app', groupId: appMatch[1] };
+  const igniteMatch = path.match(/^\/g\/([^/]+)\/ignite$/);
+  if (igniteMatch) return { type: 'ignite', groupId: igniteMatch[1] };
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
   if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined, traceId: query.get('trace') ?? undefined };
   return { type: 'create' };
@@ -350,6 +353,13 @@ export function App() {
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
+  if (route.type === 'ignite') {
+    return (
+      <GroupAuthGate groupId={route.groupId}>
+        {(phone) => <IgniteOrganizerPage groupId={route.groupId} phone={phone} />}
+      </GroupAuthGate>
+    );
+  }
   return (
     <GroupAuthGate groupId={route.groupId}>
       {(phone) => <AppShell groupId={route.groupId} phone={phone} />}
