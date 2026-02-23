@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, IconButton, Menu, MenuItem, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, IconButton, Menu, MenuItem, Paper, Stack, SvgIcon, Tooltip, Typography } from '@mui/material';
 import { useColorMode } from '../../colorMode';
 
 type Props = {
@@ -51,7 +51,20 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             ) : null}
           </Box>
           <Stack direction="row" spacing={1}>
-            <Button variant="outlined" onClick={toggleMode}>{mode === 'light' ? 'Dark' : 'Light'} mode</Button>
+            <Tooltip title={mode === 'light' ? 'Dark mode' : 'Light mode'}>
+              <IconButton onClick={toggleMode} aria-label={mode === 'light' ? 'Dark mode' : 'Light mode'}>
+                {mode === 'light' ? (
+                  <SvgIcon>
+                    <path d="M21 12.79A9 9 0 0 1 11.21 3a1 1 0 0 0-1.42 1.08A7 7 0 1 0 19.92 14.2a1 1 0 0 0 1.08-1.41z" />
+                  </SvgIcon>
+                ) : (
+                  <SvgIcon>
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2.5a.75.75 0 0 1 .75.75v2a.75.75 0 0 1-1.5 0v-2A.75.75 0 0 1 12 2.5zm0 16.25a.75.75 0 0 1 .75.75v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 1 .75-.75zM3.25 11.25h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5zm15.5 0h2a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5zM5.64 4.58a.75.75 0 0 1 1.06 0l1.42 1.41a.75.75 0 0 1-1.06 1.06L5.64 5.64a.75.75 0 0 1 0-1.06zm10.24 10.24a.75.75 0 0 1 1.06 0l1.41 1.42a.75.75 0 0 1-1.06 1.06l-1.41-1.42a.75.75 0 0 1 0-1.06zM5.64 19.42a.75.75 0 0 1 0-1.06l1.41-1.42a.75.75 0 1 1 1.06 1.06L6.7 19.42a.75.75 0 0 1-1.06 0zm10.24-10.24a.75.75 0 0 1 0-1.06l1.41-1.41a.75.75 0 1 1 1.06 1.06l-1.41 1.41a.75.75 0 0 1-1.06 0z" />
+                  </SvgIcon>
+                )}
+              </IconButton>
+            </Tooltip>
             {groupId ? <Button variant="outlined" onClick={() => void copyGroupLink()}>Copy group link</Button> : null}
             {breakoutAction ? <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>⋯</IconButton> : null}
           </Stack>

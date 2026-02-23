@@ -1,3 +1,39 @@
+## 2026-02-23 21:20 UTC (Dialog normalization bundle + icon mode toggle)
+
+### Objective
+
+Implement bundled UI normalization: move transient overlays to MUI dialogs, convert scan capture/editor dialogs, and switch dark-mode to icon-only control.
+
+### Approach
+
+- Replaced overlay-based popup renders in `AppShell` with `Dialog` implementations, preserving existing state/handler wiring.
+- Migrated scan capture preview to dialog with responsive video preview and existing capture/cancel behavior.
+- Converted rules prompt to a dialog shell using existing draft/confirm logic and surfaced errors via MUI `Alert`.
+- Converted appointment editor from `Drawer` to centered `Dialog` container while embedding existing form content unchanged.
+- Updated `PageHeader` mode toggle to a tooltip-wrapped icon button with inline `SvgIcon` moon/sun glyphs and aria labels.
+- Confirmed `JoinGroupPage` already had only MUI `Stack` form markup; no duplicate legacy join form found.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "overlay-backdrop|className=\"modal\"|modal-actions|picker-|when-editor|scan-|QuestionDialog|proposalText|pendingQuestion|appointmentToDelete|personToDelete|ruleToDelete" apps/web/src/AppShell.tsx` ✅ located modal/overlay targets.
+- `rg -n "DARK MODE|LIGHT MODE|ColorMode|useColorMode" apps/web/src/components/layout/PageHeader.tsx apps/web/src/AppShell.tsx apps/web/src/App.tsx` ✅ located mode-toggle surface.
+- `rg -n "JoinGroupPage|join-form-wrap|field-label|field-input|join-actions|form-error" apps/web/src/App.tsx` ✅ confirmed no duplicate legacy Join form classes in JoinGroup route.
+- `pnpm -C apps/web run typecheck` ⚠️ failed in workspace due missing `@mui/material` module resolution (environment dependency issue).
+- `pnpm -C apps/web run build` ⚠️ failed for the same missing `@mui/material` resolution in this environment.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ starts Vite, then runtime import resolution fails for `@mui/material` in this environment.
+- `run_playwright_script` ⚠️ captured artifact despite unresolved runtime deps: `browser:/tmp/codex_browser_invocations/32777fd3c0aef5a7/artifacts/artifacts/dialog-normalization.png`.
+
+### Follow-ups
+
+- Install/restore `@mui/material` dependency resolution in this workspace before final local UI verification.
+
 ## 2026-02-23 19:06 UTC (Option B UI cleanup implementation)
 
 ### Objective
