@@ -1,3 +1,39 @@
+## 2026-02-23 06:12 UTC (Ignition organizer UEX polish: QR/link copy/camera trigger)
+
+### Objective
+
+Implement organizer ignition UX polish to ensure share links are explicit/copiable, QR behavior is visible/fault-tolerant, and file upload is triggered via a camera-style button without changing backend auth/SMS behavior.
+
+### Approach
+
+- Located organizer ignition implementation in `apps/web/src/App.tsx` (`IgniteOrganizerPage`) and verified existing join URL and QR image generation path.
+- Added read-only Group/Join link fields with dedicated copy handlers using `navigator.clipboard.writeText(...)` and transient copied-state UI.
+- Replaced visible file input with hidden input + camera trigger button (`📷 Add photo`) while preserving existing FileReader/base64 upload flow and adding “Photo selected” feedback.
+- Added QR image load-failure fallback text and join URL diagnostic log payload via existing debug log gate (`authLog`).
+- Attempted to install `qrcode` library (`npm -C apps/web install qrcode`) but environment returned `403 Forbidden`; retained existing QR endpoint mechanism to keep UX unblocked.
+- Performed TypeScript check, production build, and captured a screenshot with browser tooling (mocked API routes in Playwright script for deterministic ignition rendering).
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Ignition Session|ignite/meta|ignite/start|/#/s/|joinedCount|Reopen|Close" apps/web/src` ✅ located ignition organizer implementation entry points.
+- `rg -n --hidden --glob '!**/node_modules/**' "qrcode|QRCode" apps/web/package.json apps/web/src` ✅ confirmed no local QR library present.
+- `npm -C apps/web install qrcode` ⚠️ blocked by registry/security policy (`403 Forbidden`), so dependency could not be added in this environment.
+- `npm -C apps/web run typecheck` ✅ passed.
+- `npm -C apps/web run build` ✅ passed.
+- `npm -C apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started local dev server for visual validation.
+- Playwright screenshot capture with mocked `/api/**` responses ✅ artifact `browser:/tmp/codex_browser_invocations/bb72418d15f74fbc/artifacts/artifacts/ignite-organizer-ux.png`.
+
+### Follow-ups
+
+- If/when registry policy allows, switch QR generation to local `qrcode` package (`toCanvas`/`toDataURL`) to remove third-party QR endpoint dependency while keeping the same UI.
+
+
 ## 2026-02-23 05:03 UTC (UEX polish: title section + hide unimplemented nav)
 
 ### Objective
