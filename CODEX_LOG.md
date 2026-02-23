@@ -1,3 +1,39 @@
+## 2026-02-23 19:06 UTC (Option B UI cleanup implementation)
+
+### Objective
+
+Implement agreed Option B UI cleanup in the web app: remove command clutter, move action controls to the calendar toolbar, add Quick add/Advanced modals, and simplify header group-link presentation.
+
+### Approach
+
+- Removed the command bar section and `Keep This Going` sidebar button from `AppShell`.
+- Added two modal state buckets (`isQuickAddOpen`, `isAdvancedOpen`) with dedicated input state and submit handlers that call `sendMessage`.
+- Added toolbar-right icon-only actions (`Camera`, `Plus`, `MoreVertical`) with existing gating (`isSubmitting || proposalText || pendingQuestion`).
+- Added modal UIs reusing existing `.modal-backdrop/.modal` structure and wired submit/escape/cancel behavior.
+- Updated list empty-state sentence per requested copy.
+- Updated `PageHeader` invite area to expose a compact `Copy group link` action and shortened helper text, with clipboard and prompt fallback.
+- Added minimal layout support in `styles/ui.css` for toolbar row/action alignment and small-button sizing.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Keep This Going|fs-commandBar|Add event|fs-calToolbar|openScanCapture|add row at the bottom" apps/web/src/AppShell.tsx` ✅ located exact UI sections to change.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for visual capture.
+- Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/e09949d09a5a9000/artifacts/artifacts/ui-cleanup-calendar-toolbar.png`.
+
+### Follow-ups
+
+- Local API was not running in this environment during screenshoting, so appointment data rendering remained backend-unavailable; layout/UI changes were still captured.
+
 ## 2026-02-23 08:50 UTC (Breakout Group spinoff + ignite)
 
 ### Objective

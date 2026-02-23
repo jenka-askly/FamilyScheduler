@@ -98,6 +98,7 @@ const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
 const Camera = () => <Icon><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
+const MoreVertical = () => <Icon><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></Icon>;
 const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
 const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
 
@@ -309,6 +310,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [scanTargetAppointmentId, setScanTargetAppointmentId] = useState<string | null>(null);
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [quickAddText, setQuickAddText] = useState('');
+  const [advancedText, setAdvancedText] = useState('');
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -698,6 +703,24 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     await sendMessage(out);
   };
 
+  const submitQuickAdd = async () => {
+    const out = quickAddText.trim();
+    if (!out || isSubmitting || proposalText || pendingQuestion) return;
+    setQuickAddText('');
+    setIsQuickAddOpen(false);
+    await sendMessage(out);
+  };
+
+  const submitAdvanced = async () => {
+    const out = advancedText.trim();
+    if (!out || isSubmitting || proposalText || pendingQuestion) return;
+    setAdvancedText('');
+    setIsAdvancedOpen(false);
+    await sendMessage(out);
+  };
+
+  const commandActionsDisabled = isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion);
+
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => {
     const aUnresolved = a.time?.intent?.status !== 'resolved';
     const bUnresolved = b.time?.intent?.status !== 'resolved';
@@ -1046,29 +1069,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         <aside className="fs-sidebar">
           <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
           <button type="button" className={`fs-btn ${activeSection === 'members' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
-          <button type="button" className="fs-btn fs-btn-secondary" onClick={() => { window.location.hash = `/g/${groupId}/ignite`; }}>Keep This Going</button>
         </aside>
         <section className="fs-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
-
-          <form onSubmit={onSubmit}>
-            <section className="panel fs-commandBar" aria-label="Command bar">
-                <div className="fs-commandHeader">
-                  <div>
-                    <h2>Add event</h2>
-                    <p className="prompt-tip">Type details or scan an image.</p>
-                  </div>
-                  <div className="fs-commandActions">
-                  <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment"><Camera />Scan</button>
-                  <button type="button" className="fs-btn fs-btn-secondary" onClick={() => { void addAppointment(); }} disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}><Plus />Add</button>
-                  </div>
-                </div>
-              <div className="input-row fs-commandInputRow">
-                <input id="prompt" aria-label="Command input" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'e.g. Dentist Tue 3pm, Flight to Seattle Friday 8am'} />
-              </div>
-              <p className="prompt-tip">Examples: add/update appointments, assign APPT codes, or paste screenshot text for parsing.</p>
-            </section>
-          </form>
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
@@ -1078,11 +1081,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <>
               <section className="panel fs-cal">
                 <div className="fs-calToolbar">
-                  <div className="fs-calTabs" role="tablist" aria-label="Calendar views">
-                    <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`fs-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
-                    <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`fs-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
-                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
-                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
+                  <div className="fs-calToolbarRow">
+                    <div className="fs-calTabs" role="tablist" aria-label="Calendar views">
+                      <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`fs-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
+                      <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`fs-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
+                      <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
+                      <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
+                    </div>
+                    <div className="fs-calActions" aria-label="Calendar actions">
+                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment" title="Scan appointment"><Camera /></button>
+                      <button type="button" className="fs-btn fs-btn-primary fs-btn-icon" onClick={() => setIsQuickAddOpen(true)} aria-label="Quick add" title="Quick add" disabled={commandActionsDisabled}><Plus /></button>
+                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" onClick={() => setIsAdvancedOpen(true)} aria-label="Advanced add or update" title="Add or update (advanced)" disabled={commandActionsDisabled}><MoreVertical /></button>
+                    </div>
                   </div>
                   {calendarView === 'month' ? (
                     <div className="fs-calMonthNav">
@@ -1142,7 +1152,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     <div className="fs-alert" style={{ maxWidth: 760 }}>
                       <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
                       <div style={{ color: 'var(--muted)' }}>
-                        Use the add row at the bottom of the table to create the first entry.
+                        Add your first event using + above.
                       </div>
                     </div>
                   ) : null}
@@ -1396,6 +1406,68 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
         </section>
       </div>
+
+      {isQuickAddOpen ? (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3>Quick add</h3>
+            <form onSubmit={(event) => { event.preventDefault(); void submitQuickAdd(); }}>
+              <label htmlFor="quick-add-input">Event</label>
+              <div className="input-row">
+                <input
+                  id="quick-add-input"
+                  value={quickAddText}
+                  onChange={(event) => setQuickAddText(event.target.value)}
+                  autoComplete="off"
+                  placeholder="e.g. Dentist Tue 2pm"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      setIsQuickAddOpen(false);
+                    }
+                  }}
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setIsQuickAddOpen(false)}>Cancel</button>
+                <button type="submit" disabled={commandActionsDisabled || !quickAddText.trim()}>Add</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isAdvancedOpen ? (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3>Add or Update Events</h3>
+            <form onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
+              <label htmlFor="advanced-add-input">Details</label>
+              <textarea
+                id="advanced-add-input"
+                value={advancedText}
+                onChange={(event) => setAdvancedText(event.target.value)}
+                placeholder={[
+                  'Add dentist appointment Tuesday at 2pm',
+                  'Move flight to 8am',
+                  'Assign APPT-3 to John',
+                  'Paste an email confirmation',
+                  'Paste CSV rows'
+                ].join('\n')}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setIsAdvancedOpen(false);
+                  }
+                }}
+              />
+              <p className="prompt-tip">Describe a change or paste schedule text. We’ll extract the events.</p>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setIsAdvancedOpen(false)}>Cancel</button>
+                <button type="submit" disabled={commandActionsDisabled || !advancedText.trim()}>Process</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
 

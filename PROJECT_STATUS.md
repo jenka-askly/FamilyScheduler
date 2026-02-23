@@ -1,3 +1,37 @@
+## 2026-02-23 19:06 UTC update (Calendar toolbar actions + header link cleanup)
+
+- Removed the sidebar **Keep This Going** action and removed the inline **Add event** command bar from `AppShell`.
+- Moved command actions to the calendar toolbar row as icon-only buttons: camera (scan flow), primary plus (Quick add modal), and ellipsis (Advanced modal).
+- Added **Quick add** modal (single-line input) and **Add or Update Events** modal (multiline textarea with example placeholders), both submitting through existing `sendMessage(...)` with proposal/question/in-flight gating.
+- Updated list empty-state copy to: `Add your first event using + above.`
+- Simplified group header invite surface: removed raw URL-heavy row and added `Copy group link` button with clipboard + prompt fallback while keeping a concise warning line.
+- Added minimal layout CSS in `styles/ui.css` for toolbar row/actions alignment and small button sizing.
+
+### Success criteria
+
+- Calendar sidebar shows only **Calendar** and **Members**.
+- Inline command bar is absent.
+- Toolbar row shows tabs on left and icon actions on right.
+- Camera action is icon-only and triggers scan capture flow.
+- Plus action is icon-only, primary-styled, and opens Quick add modal.
+- Ellipsis opens Advanced modal with rich example placeholders.
+- Both modals submit via existing message pipeline and respect submit/proposal/question gating.
+- Header shows `Copy group link` button, warning remains concise, and raw URL is no longer visually prominent.
+
+### Non-regressions
+
+- Proposal confirmation modal remains unchanged.
+- Pending question dialog remains unchanged.
+- Appointment editor and month-view day `+` buttons remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run typecheck`.
+2. Run `pnpm --filter @familyscheduler/web run build`.
+3. Run `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` and open `/#/g/<groupId>/app`.
+4. Verify sidebar/actions/modal behavior and empty-state copy match acceptance criteria.
+5. In header, click `Copy group link` and confirm clipboard (or prompt fallback if clipboard API unavailable).
+
 ## 2026-02-23 18:24 UTC update (Quick actions dropdown text contrast fix)
 
 - Fix dropdown text contrast for Quick actions menu.
