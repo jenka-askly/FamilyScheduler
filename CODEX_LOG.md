@@ -6575,3 +6575,36 @@ Implement requested header hierarchy polish by adding global product config, ren
 
 - Re-run `pnpm -r --if-present build` once frontend dependencies are installable in this environment.
 - Capture UI screenshot after dependency resolution allows app rendering.
+
+## 2026-02-24 00:40 UTC (List view collapsible row redesign)
+
+### Objective
+
+Replace the table-ish appointment presentation in Calendar List view with compact collapsible rows while keeping business logic, handlers, and API behavior unchanged.
+
+### Approach
+
+- Located List view rendering path and confirmed `AppointmentCardList` + desktop table branch split inside `AppShell`.
+- Reimplemented `AppointmentCardList` using MUI `List` + row `Box` + inline `Collapse` with local `expandedId` state for accordion-like behavior.
+- Kept action handlers unchanged and added click propagation guards on each action icon so row toggle is unaffected.
+- Unified List view rendering to always use `AppointmentCardList` so both mobile and desktop get the collapsible row pattern.
+- Added explicit assign icon wiring in the action cluster and switched scan action icon to `ReceiptLongOutlined` per request.
+- Updated status/project continuity docs.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no additional AGENTS.md files found in repo tree.
+- `rg -n "AppointmentCardList|calendarView === 'list'" apps/web/src` ✅ confirmed list-view integration points.
+- `pnpm -r --if-present build` ⚠️ failed due environment dependency resolution gaps for `@mui/material`/`@mui/icons-material` modules (pre-existing workspace install issue).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started, then reported unresolved MUI dependencies in environment; screenshot capture blocked.
+
+### Follow-ups
+
+- Once dependencies are available in the environment, rerun build/dev and capture a screenshot of Calendar List view collapsed + expanded rows.

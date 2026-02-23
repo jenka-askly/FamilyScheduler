@@ -1,4 +1,5 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
+import { Box, Chip, Collapse, IconButton, List, ListItem, Stack, Tooltip, Typography } from '@mui/material';
 import type { TimeSpec } from '../../../../packages/shared/src/types.js';
 
 type Appointment = {
@@ -37,6 +38,7 @@ type AppointmentCardListProps = {
   onOpenScanViewer: (appointment: Appointment) => void;
   scanViewIcon: ReactNode;
   editIcon: ReactNode;
+  assignIcon: ReactNode;
   deleteIcon: ReactNode;
 };
 
@@ -50,71 +52,96 @@ export function AppointmentCardList({
   onOpenScanViewer,
   scanViewIcon,
   editIcon,
+  assignIcon,
   deleteIcon
 }: AppointmentCardListProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   return (
-    <div className="ui-cardList">
+    <List disablePadding>
       {appointments.map((appointment) => {
         const apptStatus = getStatus(appointment);
-        const whenText = appointment.time?.intent?.status !== 'resolved'
-          ? 'Unresolved'
-          : formatWhen(appointment);
-        const location = appointment.locationDisplay || appointment.location || '—';
-        const notes = appointment.notes || '—';
-        const truncatedNotes = notes.length > 140 ? `${notes.slice(0, 140)}…` : notes;
-        const mapQuery = appointment.locationMapQuery || appointment.locationAddress || appointment.locationDisplay || appointment.locationRaw;
+        const whenText = appointment.time?.intent?.status !== 'resolved' ? 'Unresolved' : formatWhen(appointment);
+        const statusLabel = apptStatus === 'unreconcilable' ? 'Unreconcilable' : apptStatus === 'conflict' ? 'Conflict' : 'No conflict';
+        const statusColor = apptStatus === 'unreconcilable' ? 'warning' : apptStatus === 'conflict' ? 'error' : 'success';
+        const peopleText = appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned';
+        const titleText = appointment.desc || appointment.code;
 
         return (
-          <article key={appointment.code} className="ui-card">
-            <div className="ui-cardHeader">
-              <code>{appointment.code}</code>
-              <div className="action-icons">
-                {appointment.scanImageKey ? (
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="View appointment scan"
-                    data-tooltip="View scan"
-                    onClick={() => onOpenScanViewer(appointment)}
-                  >
-                    {scanViewIcon}
-                  </button>
+          <ListItem key={appointment.id} disableGutters sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}` }}>
+            <Box
+              onClick={() => setExpandedId((previous) => previous === appointment.id ? null : appointment.id)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                py: 1,
+                px: 0.25,
+                cursor: 'pointer'
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap title={titleText}>{titleText}</Typography>
+                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5 }}>
+                  <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" />
+                </Stack>
+              </Box>
+              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
+                <Typography variant="caption" color="text.secondary" noWrap>{whenText}</Typography>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {appointment.scanImageKey ? (
+                    <Tooltip title="View scanned document">
+                      <IconButton
+                        size="small"
+                        color="inherit"
+                        aria-label="View scanned document"
+                        sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenScanViewer(appointment);
+                        }}
+                      >
+                        {scanViewIcon}
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
+                  <Tooltip title="Edit appointment">
+                    <IconButton size="small" color="inherit" aria-label="Edit appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onEdit(appointment); }}>
+                      {editIcon}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Assign people">
+                    <IconButton size="small" color="inherit" aria-label="Assign people" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onSelectPeople(appointment); }}>
+                      {assignIcon}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Delete appointment">
+                    <IconButton size="small" color="inherit" aria-label="Delete appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onDelete(appointment); }}>
+                      {deleteIcon}
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Stack>
+            </Box>
+            <Collapse in={expandedId === appointment.id} timeout="auto" unmountOnExit>
+              <Stack spacing={0.75} sx={{ py: 0.75, px: 0.25, pr: 1.25 }}>
+                <Typography variant="body2" color="text.secondary">📅 {whenText}</Typography>
+                <Typography variant="body2" color="text.secondary">👤 {peopleText}</Typography>
+                {appointment.locationDisplay || appointment.location ? (
+                  <Typography variant="body2" color="text.secondary">📍 {appointment.locationDisplay || appointment.location}</Typography>
                 ) : null}
-                <button type="button" className="icon-button" aria-label="Edit appointment" data-tooltip="Edit appointment" onClick={() => onEdit(appointment)}>{editIcon}</button>
-                <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={() => onDelete(appointment)}>{deleteIcon}</button>
-              </div>
-            </div>
-
-            <div className="ui-cardRow">
-              <span className="ui-cardLabel">When</span>
-              <button type="button" className="linkish ui-cardValueButton" onClick={() => onEdit(appointment)}>
-                {appointment.time?.intent?.status !== 'resolved' ? <span className="status-tag unknown">{whenText}</span> : whenText}
-              </button>
-            </div>
-
-            <div className="ui-cardRow">
-              <span className="ui-cardLabel">Status</span>
-              {apptStatus === 'unreconcilable' ? (
-                <button type="button" className="linkish ui-cardValueButton" onClick={() => onEdit(appointment)}>
-                  <span className="status-tag unknown">Unreconcilable</span>
-                </button>
-              ) : (
-                <span className={`status-tag ${apptStatus === 'conflict' ? 'unavailable' : 'available'}`}>
-                  {apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
-                </span>
-              )}
-            </div>
-
-            <div className="ui-cardRow"><span className="ui-cardLabel">Description</span><span className="ui-cardValue">{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></div>
-            <div className="ui-cardRow"><span className="ui-cardLabel">People</span><button type="button" className="linkish ui-cardValueButton" onClick={() => onSelectPeople(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></div>
-            <div className="ui-cardRow">
-              <span className="ui-cardLabel">Location</span>
-              <span className="ui-cardValue">{location}{mapQuery ? <><br /><a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`} target="_blank" rel="noreferrer">Map</a></> : null}</span>
-            </div>
-            <div className="ui-cardRow"><span className="ui-cardLabel">Notes</span><span className="ui-cardValue" title={notes}>{truncatedNotes}</span></div>
-          </article>
+                {appointment.notes ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    📝 {appointment.notes}
+                  </Typography>
+                ) : null}
+                <Typography variant="caption" color="text.disabled">Code: {appointment.code}</Typography>
+              </Stack>
+            </Collapse>
+          </ListItem>
         );
       })}
-    </div>
+    </List>
   );
 }

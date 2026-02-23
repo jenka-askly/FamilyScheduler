@@ -1634,3 +1634,31 @@ traces
 2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
 3. Open `/#/g/<groupId>/app` and verify product name + group label hierarchy in the header.
 4. Click copy icon and verify copied link still targets the same group route.
+
+## 2026-02-24 00:40 UTC update (List view collapsible appointment rows + persistent right actions)
+
+- Redesigned Calendar **List** view rows into a collapsible appointment list pattern (dense collapsed row with inline expandable details).
+- Actions are now always visible on the right in both collapsed and expanded states (when applicable): view scanned document, edit, assign people, delete.
+- Row click toggles expansion; action button clicks explicitly stop propagation so they do not expand/collapse rows.
+- Expanded details now show only available context fields (date/time, people, optional location, optional notes, code).
+- Month/Week/Day views were left unchanged.
+- UI-only change; existing routing, API calls, and business logic handlers are unchanged.
+
+### Success criteria
+
+- List rows are compact and scannable by default.
+- Exactly one row is expanded at a time via local accordion-style state.
+- Right-side action icons remain visible regardless of row expansion state.
+- Action clicks preserve existing flows (scan/edit/assign/delete) without toggling expansion.
+
+### Non-regressions
+
+- Existing appointment handlers and backend interactions remain intact.
+- Calendar month/week/day rendering and behavior remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open Calendar → List and verify row collapse/expand behavior and action visibility.
+4. Confirm scan/edit/assign/delete actions still trigger their existing dialogs/flows.
