@@ -5892,3 +5892,36 @@ Instrument `igniteStart` to capture sanitized diagnostics for staging 403 analys
 - Run staging deploy from an environment with npm registry access + Azure CLI.
 - Reproduce one `/api/ignite/start` call and run requested KQL query for `igniteStart` traces.
 - Apply the root-cause fix based on observed bucket (`hasPhone`, `callerFound`, `groupId`).
+
+## 2026-02-23 17:26 UTC
+
+### Objective
+
+Move the Breakout Group control into the Group header card (top-right) while preserving behavior.
+
+### Approach
+
+- Added a `breakoutAction` slot prop to `PageHeader` so AppShell can inject the existing Breakout button UI into the Group card layout.
+- Reworked the Group header top row to a left flexible content region (`min-width: 0`) plus right fixed action region (`flex-shrink: 0`) so long group names/links do not push the action offscreen.
+- Removed old standalone breakout bar render from `AppShell` and retained the same handler (`createBreakoutGroup`) and breakout error block.
+- Updated CSS for new header slot containers and removed obsolete standalone breakout bar styles.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "Save this link|Group\\b|Only listed phone numbers|Need help\\?|Calendar\\b" apps/web/src/AppShell.tsx` ✅ located header-related usage and section placement.
+- `rg -n --hidden --glob '!**/node_modules/**' "Breakout Group|Keep This Going|keep this going" apps/web/src/AppShell.tsx` ✅ located breakout render and related controls.
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for visual validation.
+- Playwright screenshot capture against `http://127.0.0.1:4173/#/g/demo/app` ✅ captured artifact; API proxy errors for demo group were expected in this env and did not block header layout capture.
+
+### Follow-ups
+
+- Optional: verify with a real group id in connected staging/local API to exercise the full breakout API path interactively.

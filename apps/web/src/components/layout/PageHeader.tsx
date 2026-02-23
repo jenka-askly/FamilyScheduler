@@ -13,6 +13,7 @@ type Props = {
   groupName?: string;
   groupId?: string;
   memberNames?: string[];
+  breakoutAction?: React.ReactNode;
 };
 
 export function PageHeader({
@@ -21,6 +22,7 @@ export function PageHeader({
   groupName,
   groupId,
   memberNames,
+  breakoutAction,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const groupLink = useMemo(() => {
@@ -56,15 +58,18 @@ export function PageHeader({
       {groupName ? (
         <div className="fs-groupHeaderCard">
           <div className="fs-groupHeaderTop">
-            <div className="fs-groupTitleBlock">
-              <div className="fs-groupLabel">Group</div>
-              <h1 className="fs-groupTitle">{groupName}</h1>
-              {membersLine ? (
-                <div className="fs-groupMembersLine" aria-label="Members in this group">
-                  {membersLine}
-                </div>
-              ) : null}
+            <div className="fs-groupHeaderTopContent">
+              <div className="fs-groupTitleBlock">
+                <div className="fs-groupLabel">Group</div>
+                <h1 className="fs-groupTitle">{groupName}</h1>
+                {membersLine ? (
+                  <div className="fs-groupMembersLine" aria-label="Members in this group">
+                    {membersLine}
+                  </div>
+                ) : null}
+              </div>
             </div>
+            {breakoutAction ? <div className="fs-groupHeaderAction">{breakoutAction}</div> : null}
           </div>
 
           {groupId ? (
