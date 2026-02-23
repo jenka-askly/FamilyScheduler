@@ -1,3 +1,30 @@
+## 2026-02-23 22:08 UTC update (Appointment dialog context block + scan preview rendering fix)
+
+- Added a reusable, UI-only appointment context header block in `AppShell` and applied it across appointment-scoped dialogs.
+- Normalized appointment dialog titles to action-only labels (`Assign people`, `Delete appointment`, `Scan`, `Edit appointment`) while preserving existing dialog behavior.
+- Standardized dialog sizing for touched dialogs (`Assign people` now `maxWidth="sm"`, delete appointment now `maxWidth="xs"`, scan/edit remain `md` + `fullWidth`).
+- Fixed scan capture preview rendering in dialog by ensuring a non-zero video surface (`minHeight`, `objectFit`, black background) and resilient stream attach timing after mount.
+- UI-only changes; routing, API calls, and business logic remain unchanged.
+
+### Success criteria
+
+- Appointment-scoped dialogs show an action-only title plus a consistent appointment context block.
+- No appointment-scoped title includes the APPT code in the title string.
+- Assign people dialog width is reduced to `sm` and remains full-width within breakpoint constraints.
+- Scan capture preview surface is visible/non-zero in the dialog and still uses existing capture + cleanup flow.
+
+### Non-regressions
+
+- Existing direct actions (`delete_appointment`, people assignment, scan rescan/delete, edit appointment save) remain unchanged.
+- Existing scan stream cleanup (`stop tracks`) remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run typecheck`.
+2. Run `pnpm --filter @familyscheduler/web run build`.
+3. Run `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`.
+4. Open the app shell and verify each touched appointment dialog shows the standardized title/context block.
+
 ## 2026-02-23 21:20 UTC update (Dialog normalization bundle + icon mode toggle)
 
 - Normalized transient popup flows in `AppShell` to MUI `Dialog` surfaces (Quick add, Advanced, proposal confirm, pending question, delete confirms, scan viewer, scan capture, rules prompt, assign people).
