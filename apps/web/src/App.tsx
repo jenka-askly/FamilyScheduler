@@ -303,6 +303,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [photoSelected, setPhotoSelected] = useState(false);
+  const [showJoinUrl, setShowJoinUrl] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'group' | 'join' | null>(null);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -418,42 +419,63 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   return (
     <Page variant="form">
-      <PageHeader title="Ignition Session" description="QR join for quick onboarding with live count and photos." groupId={groupId} />
+      <PageHeader
+        title="Ignition Session"
+        description="QR join for quick onboarding with live count and photos."
+        groupId={groupId}
+        groupAccessNote={status === 'OPEN' ? "Anyone with this QR can join while it's open." : 'Closed. Reopen to allow new joins.'}
+      />
       {error ? <p className="form-error">{error}</p> : null}
       <div className="join-form-wrap">
+        <div className="ignite-top-row">
+          <button
+            className="fs-btn fs-btn-secondary fs-btn-icon"
+            type="button"
+            title="Back to group"
+            aria-label="Back to group"
+            onClick={() => { nav(`/g/${groupId}/app`, { replace: true }); }}
+          >
+            ←
+          </button>
+        </div>
         <label>
-          <span className="field-label">Group link</span>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
-            <input className="field-input" value={groupUrl} readOnly />
-            <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void copyLink('group', groupUrl); }}>Copy</button>
+          <span className="field-label">Group home</span>
+          <p className="fs-meta">Use this link to coordinate later.</p>
+          <div className="ignite-link-row">
+            <span className="ignite-link-text" title={groupUrl}>{groupUrl}</span>
+            <button className="fs-btn fs-btn-secondary fs-btn-icon" type="button" title="Copy" aria-label="Copy group home link" onClick={() => { void copyLink('group', groupUrl); }}>⧉</button>
           </div>
-          {copiedLink === 'group' ? <p className="fs-meta">Copied group link.</p> : null}
+          {copiedLink === 'group' ? <p className="fs-meta">✓ Copied</p> : null}
         </label>
-        <label>
-          <span className="field-label">Join link</span>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
-            <input className="field-input" value={joinUrl} readOnly placeholder="" disabled={!joinUrl} />
-            <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>Copy</button>
+        <div>
+          <div className="ignite-link-row" style={{ justifyContent: 'space-between' }}>
+            <span className="field-label">Join QR</span>
+            <button className="fs-btn fs-btn-secondary fs-btn-icon" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>⧉</button>
           </div>
-          {copiedLink === 'join' ? <p className="fs-meta">Copied join link.</p> : null}
-        </label>
-        {joinUrl ? (
-          qrLoadFailed ? (
-            <p className="fs-meta">QR unavailable right now. Share the join link above.</p>
-          ) : (
-            <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} onError={() => setQrLoadFailed(true)} />
-          )
-        ) : null}
+          {copiedLink === 'join' ? <p className="fs-meta">✓ Copied</p> : null}
+          {joinUrl ? (
+            qrLoadFailed ? (
+              <p className="fs-meta">QR unavailable right now. Copy the join link and share it directly.</p>
+            ) : (
+              <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} onError={() => setQrLoadFailed(true)} />
+            )
+          ) : null}
+          {joinUrl ? (
+            <button className="fs-btn fs-btn-ghost" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
+              {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
+            </button>
+          ) : null}
+          {showJoinUrl && joinUrl ? <p className="ignite-link-text" title={joinUrl}>{joinUrl}</p> : null}
+        </div>
         <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
         <div className="join-actions">
-          <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Back to group</button>
           <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</button>
           <button className="fs-btn fs-btn-primary" type="button" onClick={() => { void startSession(); }}>Reopen</button>
         </div>
         <label>
-          <span className="field-label">Add/Update your photo</span>
+          <span className="field-label">Photo</span>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
-          <button className="fs-btn fs-btn-secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>📷 Add photo</button>
+          <button className="fs-btn fs-btn-secondary fs-btn-icon" type="button" title="Photo" aria-label="Add or update your photo" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>📷</button>
           {photoSelected ? <p className="fs-meta">Photo selected.</p> : null}
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>

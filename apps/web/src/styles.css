@@ -1501,3 +1501,22 @@ button.fs-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
     flex-wrap: wrap;
   }
 }
+
+.ignite-top-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ignite-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ignite-link-text {
+  display: inline-block;
+  max-width: min(100%, 420px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

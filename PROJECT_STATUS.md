@@ -1,3 +1,36 @@
+
+## 2026-02-23 17:24 UTC update (Ignite organizer UI: QR-primary, icon actions, header back)
+
+- Ignite organizer now hides the join URL by default and keeps QR as the primary join surface, with a copy-icon action and optional “Trouble scanning?” expander to reveal the raw join URL.
+- “Group link” is renamed to **Group home** and now includes the explainer text “Use this link to coordinate later.” plus static truncated URL text + icon-only copy action.
+- Replaced ignite copy text buttons with icon-only copy controls and short inline “✓ Copied” feedback.
+- Replaced “Add/Update your photo” button text with camera icon-only action (hidden file input + upload logic unchanged).
+- Moved back navigation to a top-left arrow button and removed the old bottom “Back to group” action.
+- Organizer header access copy is now contextual: OPEN => “Anyone with this QR can join while it’s open.”, CLOSED/CLOSING => “Closed. Reopen to allow new joins.”
+
+### Success criteria
+
+- QR remains visible/usable and join link text is hidden by default.
+- Copy join link and copy group home actions still write correct URLs to clipboard.
+- Group home explainer appears and URL is truncated instead of editable input.
+- Camera icon opens photo picker and existing upload path remains functional.
+- Top-left back arrow returns to `/#/g/<groupId>/app`.
+
+### Non-regressions
+
+- Ignite start/close/photo/meta networking and trace behavior remain unchanged.
+- Join URL is still computed for QR and copy flows.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run dev`.
+2. Open `/#/g/<groupId>/ignite`.
+3. Confirm join URL text is hidden initially, QR renders, and copy icon exists next to Join QR.
+4. Click “Trouble scanning?” and verify raw join URL appears and can be copied.
+5. Confirm Group home label + explainer text, truncated URL, and copy icon.
+6. Confirm top-left back arrow navigates back to group app with replace navigation behavior.
+7. Confirm camera icon opens file picker and selecting an image still triggers upload.
+
 ## 2026-02-23 08:50 UTC update (Breakout Group spinoff + ignite)
 
 - Added **Breakout Group** flow end-to-end: new backend `POST /api/ignite/spinoff` creates a spinoff group B from source group A and immediately opens an ignite session in group B for the organizer.

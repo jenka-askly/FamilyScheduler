@@ -13,6 +13,7 @@ type Props = {
   groupName?: string;
   groupId?: string;
   memberNames?: string[];
+  groupAccessNote?: string;
 };
 
 export function PageHeader({
@@ -21,6 +22,7 @@ export function PageHeader({
   groupName,
   groupId,
   memberNames,
+  groupAccessNote,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const groupLink = useMemo(() => {
@@ -105,7 +107,7 @@ export function PageHeader({
         {description && (
           <p className="fs-desc">{description}</p>
         )}
-        {groupId ? <div>Only listed phone numbers can access this group.</div> : null}
+        {groupId ? <div>{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</div> : null}
       </div>
     </div>
   );
