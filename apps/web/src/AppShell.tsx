@@ -1539,20 +1539,134 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
 
-      {proposalText ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(proposalText)} onClose={() => void sendMessage('cancel')} fullWidth maxWidth="sm">
+        <DialogTitle>Confirm this change?</DialogTitle>
+        <DialogContent>
+          <Typography>{proposalText}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => void sendMessage('cancel')}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => void sendMessage('confirm')}>Confirm</Button>
+        </DialogActions>
+      </Dialog>
 
       {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
 
 
       <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
-      {appointmentToDelete ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(appointmentToDelete)} onClose={() => setAppointmentToDelete(null)} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {appointmentToDelete ? `Delete ${appointmentToDelete.code} (${appointmentToDelete.desc || 'Untitled'})?` : 'Delete appointment?'}
+        </DialogTitle>
+        <DialogActions>
+          <Button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (!appointmentToDelete) return;
+              void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code });
+              setAppointmentToDelete(null);
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
 
-      {scanViewerAppointment ? <div className="overlayBackdrop"><div className="modal scanViewerModal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
+      <Dialog open={Boolean(scanViewerAppointment)} onClose={() => setScanViewerAppointment(null)} maxWidth="md" fullWidth>
+        <DialogTitle>{scanViewerAppointment ? `${scanViewerAppointment.code} scan` : 'Scan'}</DialogTitle>
+        <DialogContent>
+          {scanViewerAppointment ? (
+            <Box
+              component="img"
+              sx={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 1 }}
+              src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)}
+            />
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            type="button"
+            onClick={() => {
+              if (!scanViewerAppointment) return;
+              const appointmentId = scanViewerAppointment.id;
+              setScanViewerAppointment(null);
+              void openScanCapture(appointmentId);
+            }}
+          >
+            Rescan
+          </Button>
+          <Button
+            type="button"
+            color="error"
+            onClick={() => {
+              if (!scanViewerAppointment) return;
+              const appointmentId = scanViewerAppointment.id;
+              void fetch(apiUrl('/api/appointmentScanDelete'), {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ groupId, phone, appointmentId })
+              }).then(() => refreshSnapshot());
+              setScanViewerAppointment(null);
+            }}
+          >
+            Delete
+          </Button>
+          <Button type="button" onClick={() => setScanViewerAppointment(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
       {scanCaptureModal.useCameraPreview ? <div className="overlayBackdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
-      {personToDelete ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(personToDelete)} onClose={() => setPersonToDelete(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{personToDelete ? `Delete ${personToDelete.name || personToDelete.personId}?` : 'Delete person?'}</DialogTitle>
+        <DialogContent>
+          <Typography>This will remove this person from the active allowlist. Existing history and appointments are preserved.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => setPersonToDelete(null)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (!personToDelete) return;
+              void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId });
+              setPersonToDelete(null);
+              if (editingPersonId === personToDelete.personId) {
+                setEditingPersonId(null);
+                setPendingBlankPersonId(null);
+                setPersonEditError(null);
+              }
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {ruleToDelete ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(ruleToDelete)} onClose={() => setRuleToDelete(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{ruleToDelete ? `Delete rule ${ruleToDelete.code}?` : 'Delete rule?'}</DialogTitle>
+        <DialogContent>
+          <Typography>This removes the rule from this person.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => setRuleToDelete(null)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (!ruleToDelete) return;
+              void sendMessage(`Delete rule ${ruleToDelete.code}`);
+              setRuleToDelete(null);
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {rulePromptModal ? (
         <div className="overlayBackdrop">
@@ -1625,14 +1739,46 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
 
-      {selectedAppointment ? <div className="overlayBackdrop"><div className="dialog-modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="assigner-list">{activePeople.map((person, index) => {
-        const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
-        const isSelected = selectedAppointment.people.includes(person.personId);
-        return <div key={person.personId} className={`assigner-row ${index < activePeople.length - 1 ? 'assigner-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
-          <div className="assigner-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="assigner-name">{person.name}</span></div>
-          <div className="assigner-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
-        </div>;
-      })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
+      <Dialog open={Boolean(selectedAppointment)} onClose={() => setSelectedAppointment(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{selectedAppointment ? `Assign people for ${selectedAppointment.code}` : 'Assign people'}</DialogTitle>
+        <DialogContent>
+          <List disablePadding>
+            {selectedAppointment ? activePeople.map((person) => {
+              const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
+              const isSelected = selectedAppointment.people.includes(person.personId);
+              return (
+                <ListItemButton key={person.personId} divider onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
+                  <Checkbox
+                    checked={isSelected}
+                    onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)}
+                    onClick={(event) => event.stopPropagation()}
+                  />
+                  <ListItemText primary={person.name} />
+                  <Chip
+                    variant="outlined"
+                    color={status.status === 'no_conflict' ? 'success' : status.status === 'conflict' ? 'warning' : 'default'}
+                    label={status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}
+                  />
+                </ListItemButton>
+              );
+            }) : null}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => setSelectedAppointment(null)}>Close</Button>
+          <Button
+            type="button"
+            variant="contained"
+            onClick={() => {
+              if (!selectedAppointment) return;
+              void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`);
+              setSelectedAppointment(null);
+            }}
+          >
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Drawer open={editingTodo != null} title="Edit todo" onClose={closeTodoEditor}>
         {editingTodo ? (

@@ -6312,3 +6312,32 @@ Implement the requested single-run migration pass for route-level MUI forms and 
 
 - Run dependency-restored install (or pre-seeded node_modules) so `@mui/material` resolves, then rerun typecheck/build and complete full behavior smoke.
 - Finish any remaining AppShell overlay flows that should be fully dialog-native semantically (beyond grep-level scaffolding cleanup) if needed.
+
+## 2026-02-23 20:55 UTC (Fix weird inline overlays by converting AppShell overlays to MUI Dialogs)
+
+### Objective
+- Replace inline overlay-backdrop modal implementations in `apps/web/src/AppShell.tsx` for proposal confirm, appointment delete, scan viewer, person delete, rule delete, and assign-people picker with MUI `Dialog` implementations while preserving behavior.
+
+### Approach
+- Identified all target overlay state blocks via ripgrep for modal state vars and legacy class tokens.
+- Replaced each target overlay block with `Dialog` + `DialogTitle` + `DialogContent` + `DialogActions` using existing state and handlers.
+- Migrated assign-people picker UI to MUI `ListItemButton` + `Checkbox` + status `Chip` and preserved apply command payload format.
+- Re-ran grep acceptance check and web type/build checks.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `git checkout develop` ❌ failed (`develop` branch does not exist in this clone).
+- `git branch -a` ✅ only `work` present before creating feature branch.
+- `git checkout -b codex/appshell-dialogs-fix` ✅ created feature branch from current `work` state.
+- `rg -n 'proposalText|pendingQuestion|appointmentToDelete|scanViewerAppointment|personToDelete|ruleToDelete|selectedAppointment' apps/web/src/AppShell.tsx` ✅ located target blocks.
+- `rg -n 'overlay-backdrop|className="modal"|scan-viewer-modal|picker-list|picker-row' apps/web/src/AppShell.tsx && exit 1 || true` ✅ no matches after migration.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due environment/dependency baseline (`@mui/material` not found) and existing strict TypeScript errors in multiple files.
+- `pnpm -C apps/web run build` ⚠️ failed for same baseline reasons as typecheck.
+
+### Follow-ups
+- Install/restore web dependencies (including MUI packages) and resolve baseline TS strictness errors to get green typecheck/build in CI/local.
+- If requested, migrate remaining legacy non-target overlays (quick add / advanced / scan capture / rules prompt) in a separate change to reduce mixed modal implementations.
