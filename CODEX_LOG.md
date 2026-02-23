@@ -6162,3 +6162,46 @@ Complete MUI styling on Calendar page controls/table to eliminate plain HTML-loo
 
 - Re-run install/build/typecheck in an environment with npm registry access.
 - Capture a visual verification screenshot once browser tooling is stable in this environment.
+
+## 2026-02-23 19:58 UTC (UI polish after MUI migration: shell/nav/footer/diagnostics)
+
+### Objective
+
+Polish Calendar shell coherence by fixing sidebar navigation, aligning tabs/toolbars, removing duplicate help footer text, and hiding diagnostics outside DEV while preserving logic/API behavior.
+
+### Approach
+
+- Searched `apps/web/src` for support/footer/diagnostic and breakout touchpoints.
+- Updated `AppShell` sidebar from vertical tabs + extra button to MUI `ListItemButton` nav with only `Calendar` and `Members`.
+- Removed shell-level `Keep This Going` entry and retained breakout action only in `PageHeader` overflow menu.
+- Reworked calendar toolbar row to a single horizontal stack: tabs (left) + icon actions (right) with consistent `Tooltip` labels and aria labels.
+- Switched add icon to existing `addAppointment()` path (business logic unchanged).
+- Removed inline calendar `Need help?` text and kept one shared footer helper.
+- Guarded `Build/Usage` display behind `import.meta.env.DEV`.
+- Updated `FooterHelp` to MUI `Typography + Link` using `support@yapper-app.com`.
+- Reduced workspace content width in `Page` to `Container maxWidth="lg"`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/FooterHelp.tsx`
+- `apps/web/src/components/layout/Page.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Keep This Going|Need help\?|support@|Build:|Usage:|usageState|usageSummary|limit_reached|Diagnostics|debug" apps/web/src` ✅ located remaining diagnostics/help/nav strings.
+- `rg -n "activeSection|calendarView|Tabs|Tab|ListItemButton|IconButton|Tooltip" apps/web/src/AppShell.tsx` ✅ located shell nav + toolbar controls.
+- `rg -n "Break out|Breakout|spinoff|ignite" apps/web/src` ✅ located breakout entrypoints.
+- `pnpm -C apps/web run typecheck` ❌ fails in this environment due unresolved `@mui/material` dependency (pre-existing env/dependency issue).
+- `pnpm -C apps/web run build` ❌ fails in this environment due unresolved `@mui/material` dependency (same blocker).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ❌ vite starts but immediately errors on unresolved `@mui/material`; screenshot capture blocked.
+- `rg -n "Keep This Going" apps/web/src || true` ✅ no hits.
+- `rg -n "support@familyscheduler\.ai" apps/web/src || true` ✅ no hits.
+- `rg -n "support@yapper-app\.com" apps/web/src` ✅ single source in `FooterHelp`.
+- `rg -n "Build:|Usage:" apps/web/src` ✅ build label remains and is DEV-gated in `AppShell.tsx`.
+
+### Follow-ups
+
+- Install/restore `@mui/material` + related typings in this workspace to allow typecheck/build and enable screenshot-based visual verification.

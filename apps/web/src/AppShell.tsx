@@ -15,6 +15,9 @@ import {
   Button,
   Chip,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
   Link as MuiLink,
   Paper,
   Stack,
@@ -1087,42 +1090,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
       <div className="ui-shell">
         <aside className="ui-sidebar">
-          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
-            <Stack spacing={1}>
-              <Tabs
-                orientation="vertical"
-                value={activeSection}
-                onChange={(_event: SyntheticEvent, value: ShellSection) => setActiveSection(value)}
-                aria-label="Primary sections"
-                sx={{
-                  minHeight: 'auto',
-                  '& .MuiTabs-indicator': { display: 'none' },
-                  '& .MuiTab-root': {
-                    alignItems: 'flex-start',
-                    borderRadius: 1,
-                    minHeight: 40,
-                    textTransform: 'none',
-                    fontWeight: 600
-                  },
-                  '& .Mui-selected': {
-                    bgcolor: 'primary.main',
-                    color: 'primary.contrastText !important'
-                  }
-                }}
-              >
-                <Tab label="Calendar" value="calendar" />
-                <Tab label="Members" value="members" />
-              </Tabs>
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={() => { void createBreakoutGroup(); }}
-                disabled={isSpinningOff}
-                sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
-              >
-                Keep This Going
-              </Button>
-            </Stack>
+          <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
+            <List dense disablePadding>
+              <ListItemButton selected={activeSection === 'calendar'} onClick={() => setActiveSection('calendar')}>
+                <ListItemText primary="Calendar" />
+              </ListItemButton>
+              <ListItemButton selected={activeSection === 'members'} onClick={() => setActiveSection('members')}>
+                <ListItemText primary="Members" />
+              </ListItemButton>
+            </List>
           </Paper>
         </aside>
         <section className="ui-main">
@@ -1136,36 +1112,36 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <>
               <section className="panel ui-cal">
                 <Stack spacing={1.5} sx={{ mb: 2 }}>
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
                     <Tabs
                       value={calendarView}
                       onChange={(_event: SyntheticEvent, value: CalendarView) => setCalendarView(value)}
                       aria-label="Calendar views"
-                      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
+                      sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
                     >
                       <Tab label="List" value="list" />
                       <Tab label="Month" value="month" />
                       <Tab label="Week · Soon" value="week" disabled aria-disabled="true" />
                       <Tab label="Day · Soon" value="day" disabled aria-disabled="true" />
                     </Tabs>
-                    <Stack direction="row" spacing={0.5} aria-label="Calendar actions">
-                      <Tooltip title="Scan appointment">
+                    <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
+                      <Tooltip title="Scan">
                         <span>
-                          <IconButton size="small" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">
+                          <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">
                             <Camera />
                           </IconButton>
                         </span>
                       </Tooltip>
-                      <Tooltip title="Quick add">
+                      <Tooltip title="Add">
                         <span>
-                          <IconButton size="small" color="primary" onClick={() => setIsQuickAddOpen(true)} aria-label="Quick add" disabled={commandActionsDisabled}>
+                          <IconButton color="primary" onClick={() => { void addAppointment(); }} aria-label="Add appointment" disabled={commandActionsDisabled}>
                             <Plus />
                           </IconButton>
                         </span>
                       </Tooltip>
-                      <Tooltip title="Add or update (advanced)">
+                      <Tooltip title="More">
                         <span>
-                          <IconButton size="small" onClick={() => setIsAdvancedOpen(true)} aria-label="Advanced add or update" disabled={commandActionsDisabled}>
+                          <IconButton onClick={() => setIsAdvancedOpen(true)} aria-label="More actions" disabled={commandActionsDisabled}>
                             <MoreVertical />
                           </IconButton>
                         </span>
@@ -1349,9 +1325,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       </Table>
                     </TableContainer>
                   )}
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Need help? Contact <MuiLink href="mailto:support@familyscheduler.ai">support@familyscheduler.ai</MuiLink>.
-                  </Typography>
                 </section>
               ) : null}
             </>
@@ -1704,7 +1677,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         ) : null}
       </Drawer>
       <FooterHelp />
-      <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
+      {import.meta.env.DEV ? <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div> : null}
     </Page>
   );
 }

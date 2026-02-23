@@ -1342,3 +1342,37 @@ traces
 
 - Browser screenshot capture was attempted but the browser tool crashed in this environment (`SIGSEGV`) before rendering.
 - This workspace is currently blocked from package fetches (`ERR_PNPM_FETCH_403`), which prevents resolving installed dependencies for full local type/build pass.
+
+## 2026-02-23 19:58 UTC update (MUI calendar shell polish: nav/tabs/footer/diagnostics)
+
+- Replaced sidebar section control with a compact MUI `List` (`Calendar`, `Members`) and removed the legacy **Keep This Going** action entirely from the shell.
+- Kept breakout/spinoff entry point only in the header overflow menu (`⋯`) via existing `createBreakoutGroup()` wiring.
+- Aligned calendar view tabs and toolbar icon actions on one row with consistent icon hit targets, and kept existing handlers/state mapping (`openScanCapture`, `addAppointment`, advanced menu opener).
+- Removed duplicate inline calendar help text and standardized the single footer help contact to `support@yapper-app.com`.
+- Guarded build/usage diagnostics UI so `Build: ... · Usage: ...` only renders in `import.meta.env.DEV`.
+- Tightened workspace layout width by changing `Page` workspace container from `maxWidth="xl"` to `maxWidth="lg"` for more consistent rhythm.
+
+### Success criteria
+
+- Sidebar shows only **Calendar** and **Members** using MUI list navigation.
+- No **Keep This Going** trigger appears anywhere in the calendar shell.
+- Calendar tabs and action icons are visually aligned in a single toolbar row.
+- Exactly one `Need help?` line appears and uses `support@yapper-app.com`.
+- Build/usage diagnostics are hidden outside DEV.
+
+### Non-regressions
+
+- Existing appointment and scan business logic/API interactions remain unchanged.
+- Breakout creation still uses existing `createBreakoutGroup()` flow from header menu.
+- Existing calendar view state mapping (`list/month/week/day`) remains unchanged.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`
+4. Open the app and confirm sidebar/tabs/footer/diagnostics behavior above.
+
+### Environment note
+
+- This workspace currently cannot resolve `@mui/material` at build-time, so typecheck/build/dev fail before runtime verification in this environment.
