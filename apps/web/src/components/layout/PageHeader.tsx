@@ -52,7 +52,13 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
 
   const memberCount = memberNames?.length ?? 0;
   const membersSummary = memberCount > 0 ? `${memberCount} members • ${memberNames?.join(', ') ?? ''}` : '0 members';
-  const displayGroupTitle = groupId ? `Group ${groupId}` : (groupName ?? title);
+  const normalizedGroupName = groupName?.trim();
+  const shortGroupId = groupId ? groupId.slice(0, 8) : undefined;
+  const displayGroupTitle = normalizedGroupName
+    ? normalizedGroupName
+    : shortGroupId
+      ? `Group ${shortGroupId}`
+      : title;
   const hasMembersAction = typeof onMembersClick === 'function';
 
   const handleMembersKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
