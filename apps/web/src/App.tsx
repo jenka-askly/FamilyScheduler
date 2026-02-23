@@ -146,7 +146,7 @@ function CreateGroupPage() {
             <span className="field-help">Use a number you will use to sign into this group.</span>
           </label>
           <div className="join-actions">
-            <button className="fs-btn fs-btn-primary" type="submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create Group'}</button>
+            <button className="ui-btn ui-btn-primary" type="submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create Group'}</button>
           </div>
         </div>
         {error ? <p className="form-error">{error}</p> : null}
@@ -155,8 +155,8 @@ function CreateGroupPage() {
           <section className="share-link">
             <h2 style={{ marginTop: 24, marginBottom: 8, fontSize: 16, fontWeight: 600 }}>Your schedule is ready</h2>
             <div style={{ marginBottom: 16 }}>
-              <div className="fs-groupName">{createdGroupName}</div>
-              <div className="fs-meta">Group ID: {createdGroupId}</div>
+              <div className="ui-groupName">{createdGroupName}</div>
+              <div className="ui-meta">Group ID: {createdGroupId}</div>
             </div>
 
             <label>
@@ -164,15 +164,15 @@ function CreateGroupPage() {
             </label>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', maxWidth: 640 }}>
               <input type="text" value={shareUrl} readOnly className="field-input" />
-              <button className="fs-btn fs-btn-secondary" type="button" onClick={() => void copyShareLink()}>Copy</button>
+              <button className="ui-btn ui-btn-secondary" type="button" onClick={() => void copyShareLink()}>Copy</button>
             </div>
-            {copied ? <p className="fs-meta">Copied to clipboard.</p> : null}
+            {copied ? <p className="ui-meta">Copied to clipboard.</p> : null}
 
-            <p className="fs-desc" style={{ marginTop: 12 }}>
+            <p className="ui-desc" style={{ marginTop: 12 }}>
               Share this link with family members. They must enter a phone number that you add to the group.
             </p>
 
-            <div className="fs-alert" style={{ marginTop: 16 }}>
+            <div className="ui-alert" style={{ marginTop: 16 }}>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>Next steps</div>
               <ul style={{ margin: 0, paddingLeft: 18, color: '#64748b' }}>
                 <li>Add people who can access this schedule</li>
@@ -181,7 +181,7 @@ function CreateGroupPage() {
               </ul>
             </div>
             <div className="join-actions">
-              <button className="fs-btn fs-btn-primary" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
+              <button className="ui-btn ui-btn-primary" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</button>
             </div>
           </section>
         ) : null}
@@ -265,7 +265,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
             <input className="field-input" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="(425) 555-1234" />
           </label>
           <div className="join-actions">
-            <button className="fs-btn fs-btn-primary" type="submit">Join Group</button>
+            <button className="ui-btn ui-btn-primary" type="submit">Join Group</button>
           </div>
         </div>
         {error ? <p className="form-error">{error}</p> : null}
@@ -429,7 +429,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       <div className="join-form-wrap">
         <div className="ignite-top-row">
           <button
-            className="fs-btn fs-btn-secondary fs-btn-icon"
+            className="ui-btn ui-btn-secondary ui-btn-icon"
             type="button"
             title="Back to group"
             aria-label="Back to group"
@@ -440,28 +440,28 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         </div>
         <label>
           <span className="field-label">Group home</span>
-          <p className="fs-meta">Use this link to coordinate later.</p>
+          <p className="ui-meta">Use this link to coordinate later.</p>
           <div className="ignite-link-row">
             <span className="ignite-link-text" title={groupUrl}>{groupUrl}</span>
-            <button className="fs-btn fs-btn-secondary fs-btn-icon" type="button" title="Copy" aria-label="Copy group home link" onClick={() => { void copyLink('group', groupUrl); }}>⧉</button>
+            <button className="ui-btn ui-btn-secondary ui-btn-icon" type="button" title="Copy" aria-label="Copy group home link" onClick={() => { void copyLink('group', groupUrl); }}>⧉</button>
           </div>
-          {copiedLink === 'group' ? <p className="fs-meta">✓ Copied</p> : null}
+          {copiedLink === 'group' ? <p className="ui-meta">✓ Copied</p> : null}
         </label>
         <div>
           <div className="ignite-link-row" style={{ justifyContent: 'space-between' }}>
             <span className="field-label">Join QR</span>
-            <button className="fs-btn fs-btn-secondary fs-btn-icon" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>⧉</button>
+            <button className="ui-btn ui-btn-secondary ui-btn-icon" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>⧉</button>
           </div>
-          {copiedLink === 'join' ? <p className="fs-meta">✓ Copied</p> : null}
+          {copiedLink === 'join' ? <p className="ui-meta">✓ Copied</p> : null}
           {joinUrl ? (
             qrLoadFailed ? (
-              <p className="fs-meta">QR unavailable right now. Copy the join link and share it directly.</p>
+              <p className="ui-meta">QR unavailable right now. Copy the join link and share it directly.</p>
             ) : (
               <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} onError={() => setQrLoadFailed(true)} />
             )
           ) : null}
           {joinUrl ? (
-            <button className="fs-btn fs-btn-ghost" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
+            <button className="ui-btn ui-btn-ghost" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
               {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
             </button>
           ) : null}
@@ -469,14 +469,14 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         </div>
         <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
         <div className="join-actions">
-          <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</button>
-          <button className="fs-btn fs-btn-primary" type="button" onClick={() => { void startSession(); }}>Reopen</button>
+          <button className="ui-btn ui-btn-secondary" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</button>
+          <button className="ui-btn ui-btn-primary" type="button" onClick={() => { void startSession(); }}>Reopen</button>
         </div>
         <label>
           <span className="field-label">Photo</span>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
-          <button className="fs-btn fs-btn-secondary fs-btn-icon" type="button" title="Photo" aria-label="Add or update your photo" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>📷</button>
-          {photoSelected ? <p className="fs-meta">Photo selected.</p> : null}
+          <button className="ui-btn ui-btn-secondary ui-btn-icon" type="button" title="Photo" aria-label="Add or update your photo" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>📷</button>
+          {photoSelected ? <p className="ui-meta">Photo selected.</p> : null}
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
           {sessionId ? joinedPersonIds.map((personId) => (
@@ -551,11 +551,11 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
             <span className="field-label">Add a photo (optional)</span>
             <input className="field-input" type="file" accept="image/*" capture="environment" onChange={(e) => { void onImagePicked(e.currentTarget); }} />
           </label>
-          <div className="join-actions"><button className="fs-btn fs-btn-primary" type="submit">Join Session</button></div>
+          <div className="join-actions"><button className="ui-btn ui-btn-primary" type="submit">Join Session</button></div>
           {joined ? (
             <div className="join-actions" style={{ marginTop: 12 }}>
               <p>Joined. Opening group…</p>
-              <button className="fs-btn fs-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Open group</button>
+              <button className="ui-btn ui-btn-secondary" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Open group</button>
             </div>
           ) : null}
         </div>

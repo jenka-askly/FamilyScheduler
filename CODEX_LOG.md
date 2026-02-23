@@ -6086,3 +6086,39 @@ Fix Quick actions dropdown text contrast so `Break out` is readable in the menu.
 ### Follow-ups
 
 - Manual visual validation in browser: open Quick actions and confirm `Break out` is now visible with expected hover state.
+
+## 2026-02-23 19:12 UTC
+
+### Objective
+Implement MUI-based UI modernization scaffolding in `apps/web`, including light/dark theme persistence and migration of foundational layout/editor components.
+
+### Approach
+- Created theme factory + color mode context (`fs-color-mode` persistence and system-preference fallback).
+- Wrapped app root with MUI `ThemeProvider`/`CssBaseline` while preserving `React.StrictMode` and existing `App` hash-route entry flow.
+- Replaced legacy class-based `Page`, `PageHeader`, and `AppointmentEditorForm` component structures with MUI primitives.
+- Applied repo-wide rename away from `fs-*` class names and removed legacy CSS imports from `main.tsx`.
+- Attempted dependency installation with both `pnpm` and `npm`; both were blocked by 403 registry policy errors.
+
+### Files changed
+- `apps/web/package.json`
+- `apps/web/src/theme.ts`
+- `apps/web/src/colorMode.tsx`
+- `apps/web/src/main.tsx`
+- `apps/web/src/components/layout/Page.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- multiple `apps/web/src/*.tsx` files with `fs-*` class token replacement
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm install --filter @familyscheduler/web` ❌ blocked with `ERR_PNPM_FETCH_403` for `@mui/material`.
+- `cd apps/web && npm install` ❌ blocked with `npm ERR! 403` for `@emotion/react`.
+- `cd apps/web && npm run typecheck` ❌ fails because MUI dependencies are unresolved in this environment.
+- `cd apps/web && npm run build` ❌ fails for same unresolved MUI dependency issue.
+- `cd apps/web && npm run dev -- --host 0.0.0.0 --port 4173` ⚠️ Vite starts but immediately reports unresolved `@mui/material` imports due install block.
+- `rg -n "className=\"fs-|fs-btn|fs-cal|fs-shell|modal-backdrop|when-editor" apps/web/src` ✅ no matches.
+
+### Follow-ups
+- Re-run install (`pnpm install --filter @familyscheduler/web` or `npm install` in `apps/web`) once registry policy allows `@mui/*` and `@emotion/*` packages.
+- After install succeeds, rerun typecheck/build and complete visual smoke validation + screenshots.
