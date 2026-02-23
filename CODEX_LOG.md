@@ -5648,3 +5648,41 @@ Implement an alpha Ignite Session flow with organizer-controlled close/reopen, a
 
 - Human-run end-to-end validation against live API for organizer auth edge-cases and grace-window timing.
 - Optional hardening: server-side image transcode to JPEG to avoid client-side mime mismatch edge-cases.
+
+
+## 2026-02-23 05:57 UTC (QG/Ignition UX polish)
+
+### Objective
+
+Implement ignition UX polish: fix join-page copy, add optional photo capture/upload on join, and add obvious return-to-group navigation while preserving existing auth/SMS flows.
+
+### Approach
+
+- Located and edited the dedicated `IgniteJoinPage` in `apps/web/src/App.tsx` (no reuse from `JoinGroupPage` introduced).
+- Updated join copy and closed-session message to session-specific language.
+- Added optional file/camera input on ignite join (`image/*`, `capture="environment"`) and in-memory DataURL parsing to store `imageBase64` (prefix stripped) + `imageMime`.
+- After successful `POST /api/ignite/join`, wrote session and attempted a best-effort `POST /api/ignite/photo` with `{ groupId, sessionId, phone, imageBase64, imageMime, traceId }`; failure is non-fatal and redirect proceeds.
+- Added success fallback UI state with "Joined. Opening group…" and "Open group" button.
+- Added organizer "Back to group" button on ignition organizer screen.
+- Enhanced `ignitePhoto` API to support phone from body OR authenticated `x-ms-client-principal` (claims/userDetails), validate membership via normalized phone lookup, and preserve ignite session gating.
+- Added focused API tests covering MIME pass-through and principal-derived phone fallback.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `api/src/functions/ignitePhoto.ts`
+- `api/src/functions/ignitePhoto.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' "igniteJoin|IgniteJoin|Join session|Join Session|/#/s/|type: 'igniteJoin'" apps/web/src` ✅
+- `rg -n --hidden --glob '!**/node_modules/**' "ignite|IgniteOrganizer|Keep This Going|/#/g/.*/ignite|type: 'ignite'" apps/web/src` ✅
+- `rg -n --hidden --glob '!**/node_modules/**' "function ignitePhoto|ignite/photo" api/src` ✅
+- `pnpm --filter @familyscheduler/api test` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Human-run staging validation for camera capture behavior on iOS/Android browsers and end-to-end ignite join/photo flow using real QR sessions.
