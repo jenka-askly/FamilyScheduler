@@ -863,3 +863,12 @@ traces
 - Added namespaced drawer CSS classes under `apps/web/src/styles/ui.css` (`.fs-drawer-*`) to avoid table/button/input regressions.
 - Wired a non-functional `Drawer` mount in `AppShell` with `open={false}` and placeholder content, preserving the current inline `<tr>` appointment editor as active UI.
 - Current milestone: Phase 1 foundation work for future drawer-based editing (activation planned in Step 3).
+
+## 2026-02-23 update (Drawer-only editor + mobile schedule cards)
+
+- Appointment editing now uses the Drawer on all screen sizes (desktop + mobile); the inline schedule editor `<tr>` expansion was removed.
+- Preserved existing AppShell edit state/handlers (`whenEditorCode`, draft fields, preview/error handling, confirm/cancel) while moving rendering exclusively to `Drawer` + `AppointmentEditorForm`.
+- Added mobile schedule card rendering (`AppointmentCardList`) for `max-width: 768px`, while keeping desktop table rendering and existing sorted order behavior intact.
+- Mobile cards include: code, when, status, description, people, location + map link, notes, and edit/delete actions (plus scan-view icon when available).
+- Added namespaced `.fs-card*` styles in `apps/web/src/styles/ui.css` to support readable mobile cards and CTA actions without global selector changes.
+- Build status: `pnpm --filter @familyscheduler/web build` passes after this change.

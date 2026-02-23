@@ -5162,3 +5162,31 @@ Use Drawer-based appointment editing on mobile only while preserving the existin
 ### Follow-ups
 
 - Human verification in full local app context with seeded appointments to visually confirm mobile Drawer open/close behavior for each entry point.
+
+## 2026-02-23 01:43 UTC (drawer-only appointment editor + mobile schedule cards)
+
+### Objective
+Implement combined UI step: make Drawer the only appointment editor across all breakpoints and add a mobile card-based schedule layout while preserving existing behavior/state handlers/API flows.
+
+### Approach
+- Removed inline schedule editor `<tr>` rendering path from `AppShell` and kept `Drawer` editor mount always active when `whenEditorCode != null`.
+- Preserved AppShell-owned editor state and handlers (`openWhenEditor`, `closeWhenEditor`, draft fields, preview, confirm/cancel).
+- Replaced mobile schedule table rendering with new `AppointmentCardList` component fed by existing `sortedAppointments` list.
+- Kept desktop table rendering and row actions unchanged except for inline editor removal.
+- Added namespaced `.fs-card*` CSS styles for mobile cards + CTA row spacing.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx` (new)
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web build` ❌ initially failed (new card component appointment type was too narrow).
+- `pnpm --filter @familyscheduler/web build` ✅ passed after aligning `AppointmentCardList` appointment type with `TimeSpec` and required fields.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot attempt (terminated intentionally with SIGINT).
+- `mcp__browser_tools__run_playwright_script` ⚠️ failed due to browser container Chromium SIGSEGV (`TargetClosedError`) before capture.
+
+### Follow-ups
+- Human visual validation recommended in local browser for mobile card readability and Drawer entry points with seeded appointment data.
