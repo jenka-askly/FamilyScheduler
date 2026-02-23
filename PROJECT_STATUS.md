@@ -1,3 +1,12 @@
+## 2026-02-23 update (mobile appointment editor drawer)
+
+- Added responsive appointment editing behavior in the web app:
+  - Mobile (`max-width: 768px`): appointment editor now opens in the shared Drawer component.
+  - Desktop: existing inline table-row editor remains unchanged.
+- Added reusable `useMediaQuery` hook for client-side media query detection.
+- Preserved all existing editor entry points and confirm/cancel flows; no API or sorting behavior changes.
+- Debug/artifact switches unchanged (`./.artifacts/<traceId>/` remains the convention when enabled).
+
 ## 2026-02-22 update (environment topology documentation)
 
 - Formally documented production/staging environment topology in `docs/environments.md`, including resource mapping, isolation rules, deployment notes, and invariants.
