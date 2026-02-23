@@ -1,3 +1,9 @@
+## 2026-02-23 22:57 UTC update (MUI icons dependency alignment)
+
+- Added `@mui/icons-material` dependency in `apps/web/package.json` aligned to MUI v6 (`^6.4.7`) to support `Menu` and `RocketLaunch` icon imports.
+- No functional changes; dependency alignment only.
+- Note: package installation/build verification is currently blocked in this environment by registry `403 Forbidden` responses for npm fetches.
+
 ## 2026-02-24 00:05 UTC update (Header hamburger menu + emphasized breakout item)
 
 - Replaced header menu trigger icon from vertical-ellipsis to hamburger `Menu` icon with tooltip/aria label `Menu`.
