@@ -6377,3 +6377,44 @@ Implement the requested single-run migration pass for route-level MUI forms and 
 ### Follow-ups
 - Install/restore web dependencies (including MUI packages) and resolve baseline TS strictness errors to get green typecheck/build in CI/local.
 - If requested, migrate remaining legacy non-target overlays (quick add / advanced / scan capture / rules prompt) in a separate change to reduce mixed modal implementations.
+
+## 2026-02-23 21:47 UTC (Header/menu updates + scan icon differentiation)
+
+### Objective
+
+Apply requested UI changes for group header presentation, members-pane affordance, dark-mode placement, and scan icon differentiation using MUI-oriented patterns without changing routing or backend behavior.
+
+### Approach
+
+- Updated `PageHeader` to:
+  - remove `Group` overline label,
+  - render `Group <groupId>` title with inline copy icon,
+  - add a keyboard-accessible clickable members summary row with truncation,
+  - move dark mode into a `More` menu toggle.
+- Wired `PageHeader` members-line interaction from `AppShell` to existing `activeSection` state so it switches directly to Members pane.
+- Removed calendar-only helper descriptions by making the calendar section description/access note absent.
+- Updated scan icons in `AppShell`:
+  - toolbar scan action => document scanner icon,
+  - per-appointment scan viewer action => visibility icon.
+- Updated `AppointmentCardList` to accept/render a scan-view icon prop instead of the prior emoji camera.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ⚠️ no AGENTS.md discovered via rg in repo root path.
+- `find .. -name AGENTS.md -maxdepth 3` ⚠️ no AGENTS.md files found in available parent scopes.
+- `pnpm -C apps/web add @mui/icons-material` ⚠️ failed due registry access (`403 Forbidden`), so icons were implemented with local MUI `SvgIcon` components.
+- `pnpm -C apps/web run typecheck` ⚠️ failed because environment cannot fetch/install dependencies (`@mui/material` unresolved).
+- `pnpm install` ⚠️ failed due registry fetch restrictions (`403 Forbidden` on package tarballs).
+
+### Follow-ups
+
+- In a network-enabled/npm-authorized environment, run install + typecheck + build to complete programmatic verification.
+- Optional cleanup: replace local `SvgIcon` definitions with `@mui/icons-material` package imports once registry access is available.

@@ -35,6 +35,7 @@ type AppointmentCardListProps = {
   onDelete: (appointment: Appointment) => void;
   onSelectPeople: (appointment: Appointment) => void;
   onOpenScanViewer: (appointment: Appointment) => void;
+  scanViewIcon: ReactNode;
   editIcon: ReactNode;
   deleteIcon: ReactNode;
 };
@@ -47,6 +48,7 @@ export function AppointmentCardList({
   onDelete,
   onSelectPeople,
   onOpenScanViewer,
+  scanViewIcon,
   editIcon,
   deleteIcon
 }: AppointmentCardListProps) {
@@ -75,7 +77,7 @@ export function AppointmentCardList({
                     data-tooltip="View scan"
                     onClick={() => onOpenScanViewer(appointment)}
                   >
-                    📷
+                    {scanViewIcon}
                   </button>
                 ) : null}
                 <button type="button" className="icon-button" aria-label="Edit appointment" data-tooltip="Edit appointment" onClick={() => onEdit(appointment)}>{editIcon}</button>

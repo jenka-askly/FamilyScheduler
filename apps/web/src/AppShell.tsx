@@ -28,6 +28,7 @@ import {
   Link as MuiLink,
   Paper,
   Stack,
+  SvgIcon,
   Tab,
   Table,
   TableBody,
@@ -137,10 +138,11 @@ const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
-const Camera = () => <Icon><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
-const MoreVertical = () => <Icon><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></Icon>;
 const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
 const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
+const DocumentScannerIcon = () => <SvgIcon><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm8 1.5V8h4.5" /><path d="M8 13h8M8 17h8M8 9h3" /></SvgIcon>;
+const VisibilityIcon = () => <SvgIcon><path d="M12 5c5 0 9.27 3.11 11 7-1.73 3.89-6 7-11 7S2.73 15.89 1 12c1.73-3.89 6-7 11-7Z" /><circle cx="12" cy="12" r="3" /></SvgIcon>;
+const MoreVertIcon = () => <SvgIcon><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></SvgIcon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
@@ -787,7 +789,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         ? 'Overview is coming soon.'
         : activeSection === 'settings'
           ? 'Settings is coming soon.'
-          : 'Add, edit, and track upcoming appointments for this group.';
+          : undefined;
   const monthAnchor = monthCursor;
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthAnchor);
   const monthStartWeekday = monthAnchor.getDay();
@@ -1087,6 +1089,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupName={groupName}
         groupId={groupId}
         memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
+        onMembersClick={() => setActiveSection('members')}
+        showGroupAccessNote={activeSection !== 'calendar'}
         breakoutAction={(
           <button
             type="button"
@@ -1142,10 +1146,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       <Tab label="Day · Soon" value="day" disabled aria-disabled="true" />
                     </Tabs>
                     <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
-                      <Tooltip title="Scan">
+                      <Tooltip title="Scan to create appointment">
                         <span>
-                          <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">
-                            <Camera />
+                          <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan to create appointment">
+                            <DocumentScannerIcon />
                           </IconButton>
                         </span>
                       </Tooltip>
@@ -1159,7 +1163,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       <Tooltip title="More">
                         <span>
                           <IconButton onClick={() => setIsAdvancedOpen(true)} aria-label="More actions" disabled={commandActionsDisabled}>
-                            <MoreVertical />
+                            <MoreVertIcon />
                           </IconButton>
                         </span>
                       </Tooltip>
@@ -1240,6 +1244,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       onDelete={setAppointmentToDelete}
                       onSelectPeople={setSelectedAppointment}
                       onOpenScanViewer={setScanViewerAppointment}
+                      scanViewIcon={<VisibilityIcon />}
                       editIcon={<Pencil />}
                       deleteIcon={<Trash2 />}
                     />
@@ -1313,7 +1318,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                             setScanViewerAppointment(appointment);
                                           }}
                                         >
-                                          <Camera />
+                                          <VisibilityIcon />
                                         </IconButton>
                                       </Tooltip>
                                     ) : null}
