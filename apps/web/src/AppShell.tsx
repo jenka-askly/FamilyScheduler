@@ -1286,38 +1286,40 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
 
-      <Drawer open={isMobile && whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
-        {isMobile && editingAppointment ? (
-          <AppointmentEditorForm
-            appointmentCode={editingAppointment.code}
-            whenValue={whenDraftText}
-            descriptionValue={descDraftText}
-            locationValue={locationDraftText}
-            notesValue={notesDraftText}
-            onWhenChange={setWhenDraftText}
-            onWhenKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void previewWhenDraft(editingAppointment);
-              }
-            }}
-            onDescriptionChange={setDescDraftText}
-            onLocationChange={setLocationDraftText}
-            onNotesChange={setNotesDraftText}
-            onResolveDate={() => void previewWhenDraft(editingAppointment)}
-            errorText={whenDraftError}
-            previewContent={whenPreviewed ? (
-              <div>
-                <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
-                {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-              </div>
-            ) : null}
-            onConfirm={() => void confirmWhenDraft(editingAppointment)}
-            onCancel={closeWhenEditor}
-          />
-        ) : null}
-      </Drawer>
+      {isMobile ? (
+        <Drawer open={whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
+          {editingAppointment ? (
+            <AppointmentEditorForm
+              appointmentCode={editingAppointment.code}
+              whenValue={whenDraftText}
+              descriptionValue={descDraftText}
+              locationValue={locationDraftText}
+              notesValue={notesDraftText}
+              onWhenChange={setWhenDraftText}
+              onWhenKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void previewWhenDraft(editingAppointment);
+                }
+              }}
+              onDescriptionChange={setDescDraftText}
+              onLocationChange={setLocationDraftText}
+              onNotesChange={setNotesDraftText}
+              onResolveDate={() => void previewWhenDraft(editingAppointment)}
+              errorText={whenDraftError}
+              previewContent={whenPreviewed ? (
+                <div>
+                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
+                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+                </div>
+              ) : null}
+              onConfirm={() => void confirmWhenDraft(editingAppointment)}
+              onCancel={closeWhenEditor}
+            />
+          ) : null}
+        </Drawer>
+      ) : null}
       <FooterHelp />
       <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
     </Page>

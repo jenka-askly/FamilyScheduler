@@ -1,3 +1,11 @@
+## 2026-02-23 update (Phase 1 Step 3 mobile-only Drawer editor)
+
+- Finalized mobile-only appointment editing surface in `AppShell` using `useMediaQuery('(max-width: 768px)')`.
+- Mobile now renders appointment editing exclusively in `Drawer open={whenEditorCode != null}`; desktop preserves existing inline `<tr>` editor behavior.
+- Preserved all existing editor entry points (edit icon, When link, unreconcilable status button, add-appointment auto-open).
+- Drawer close behaviors remain intact via overlay click, `Escape`, and form cancel.
+- No API contract or appointment sorting behavior changed.
+
 ## 2026-02-23 update (mobile appointment editor drawer)
 
 - Added responsive appointment editing behavior in the web app:
