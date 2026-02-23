@@ -1376,3 +1376,38 @@ traces
 ### Environment note
 
 - This workspace currently cannot resolve `@mui/material` at build-time, so typecheck/build/dev fail before runtime verification in this environment.
+
+## 2026-02-23 20:02 UTC update (stabilization: restore legacy CSS imports for non-migrated routes)
+
+- Re-enabled legacy global stylesheet imports in `apps/web/src/main.tsx` so non-migrated hash routes render with the expected legacy layout/styling while keeping MUI providers in place.
+- Verified stylesheet import usage in `.tsx` files to ensure no duplicate/competing imports were introduced.
+- Checked support footer copy; it is already standardized and rendered from a single location (`support@yapper-app.com`).
+
+### Success criteria
+
+- `#/`, `#/g/:groupId`, `#/g/:groupId/ignite`, and `#/s/:groupId/:sessionId` use legacy CSS styling again.
+- `ThemeProvider`, `CssBaseline`, and `ColorModeProvider` remain intact in `main.tsx`.
+- `#/g/:groupId/app` AppShell route remains functional.
+- Light/dark mode remains MUI-driven.
+
+### Non-regressions
+
+- No component migration or redesign introduced.
+- No duplicate legacy stylesheet imports across `.tsx` entrypoints.
+- Support footer contact remains `support@yapper-app.com` from one component source.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`
+4. Open and smoke-test:
+   - `/#/`
+   - `/#/g/<groupId>`
+   - `/#/g/<groupId>/ignite`
+   - `/#/s/<groupId>/<sessionId>`
+   - `/#/g/<groupId>/app`
+
+### Environment note
+
+- In this workspace, typecheck/build are currently blocked by unresolved `@mui/material` dependencies, so runtime smoke validation must be completed in an environment with dependencies installed.

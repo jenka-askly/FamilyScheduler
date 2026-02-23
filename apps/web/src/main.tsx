@@ -5,6 +5,8 @@ import { App } from './App';
 import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';
+import './styles.css';
+import './styles/ui.css';
 import { ColorModeProvider, useColorMode } from './colorMode';
 import { getTheme } from './theme';
 

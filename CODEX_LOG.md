@@ -6205,3 +6205,36 @@ Polish Calendar shell coherence by fixing sidebar navigation, aligning tabs/tool
 ### Follow-ups
 
 - Install/restore `@mui/material` + related typings in this workspace to allow typecheck/build and enable screenshot-based visual verification.
+
+## 2026-02-23 20:02 UTC (stabilize non-migrated routes by restoring legacy CSS imports)
+
+### Objective
+
+Restore legacy styling on non-migrated routes (`CreateGroupPage`, `JoinGroupPage`, `IgniteOrganizerPage`, `IgniteJoinPage`) while retaining existing MUI theme scaffolding.
+
+### Approach
+
+- Confirmed legacy stylesheets exist at `apps/web/src/styles.css` and `apps/web/src/styles/ui.css`.
+- Added both stylesheet imports in `apps/web/src/main.tsx` directly after font imports.
+- Kept `ColorModeProvider`, `ThemeProvider`, and `CssBaseline` unchanged.
+- Searched for duplicate stylesheet imports in `.tsx` files to prevent competing global style entrypoints.
+- Checked support footer/help strings; no changes required because it is already standardized to `support@yapper-app.com` and rendered once.
+
+### Files changed
+
+- `apps/web/src/main.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `ls -la apps/web/src/styles.css apps/web/src/styles/ui.css` ✅ both legacy stylesheets present.
+- `rg -n "styles\\.css|styles/ui\\.css" apps/web/src -g '*.tsx'` ✅ only `main.tsx` imports both stylesheets.
+- `rg -n "Need help\\?|support@" apps/web/src` ✅ one footer help instance at `support@yapper-app.com`.
+- `pnpm -C apps/web run typecheck` ❌ failed due unresolved `@mui/material` and existing implicit-any errors in current workspace state.
+- `pnpm -C apps/web run build` ❌ failed for the same dependency/typecheck blockers.
+
+### Follow-ups
+
+- Run smoke-test route verification in a dependency-complete environment.
+- If desired, take route-level screenshots after `pnpm install`/dependency restoration succeeds.
