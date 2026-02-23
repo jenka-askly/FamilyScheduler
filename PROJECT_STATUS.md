@@ -1411,3 +1411,35 @@ traces
 ### Environment note
 
 - In this workspace, typecheck/build are currently blocked by unresolved `@mui/material` dependencies, so runtime smoke validation must be completed in an environment with dependencies installed.
+
+## 2026-02-23 20:15 UTC update (Restore global build indicator badge)
+
+- Restored a global build indicator badge by extending `FooterHelp` to render a fixed bottom-right `Paper` with caption/monospace text and non-interactive pointer behavior.
+- Reused existing `buildInfo` source and added a safe fallback label (`Build: unknown`) when build metadata is absent.
+- Wired `AppShell` to pass usage status into `FooterHelp`, and removed the previous DEV-only in-page build version line so the badge is visible outside DEV.
+- Badge content format is `Build: <build> · Usage: <state>` when usage is available and remains resilient with `Usage: unavailable` when usage fetch fails.
+
+### Success criteria
+
+- Build badge is visible in bottom-right on all routes that use shared layouts (create/join/ignite/session/app).
+- Badge text uses MUI caption typography with monospace font and outlined subtle Paper background.
+- Badge does not block clicks (`pointerEvents: none`).
+- Missing build metadata shows `Build: unknown`.
+- Existing help footer support email remains unchanged (`support@yapper-app.com`).
+
+### Non-regressions
+
+- No routing/auth/business logic changes.
+- Usage fetch flow remains unchanged; only rendering location/persistence changed.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run build`.
+3. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and visit:
+   - `/#/`
+   - `/#/g/<id>`
+   - `/#/g/<id>/ignite`
+   - `/#/s/<gid>/<sid>`
+   - `/#/g/<id>/app`
+4. Confirm badge appears bottom-right on each page in light/dark themes and doesn’t block UI interaction.
