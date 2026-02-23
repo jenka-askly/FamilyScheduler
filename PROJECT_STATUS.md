@@ -1,3 +1,31 @@
+## 2026-02-24 00:05 UTC update (Header hamburger menu + emphasized breakout item)
+
+- Replaced header menu trigger icon from vertical-ellipsis to hamburger `Menu` icon with tooltip/aria label `Menu`.
+- Updated header dropdown to place an emphasized top `Breakout Session` action with `RocketLaunch` icon (`color="primary"`), bold menu item weight, helper subtext, and divider separation.
+- Preserved existing breakout behavior by wiring the unchanged `createBreakoutGroup` handler into `PageHeader` as a callback and keeping in-flight disabled behavior.
+- Preserved existing dark mode toggle behavior and menu close behavior.
+- UI-only changes; no business logic, routing, or API modifications.
+
+### Success criteria
+
+- Hamburger icon appears at the header top-right and opens the menu.
+- The first menu item is `Breakout Session` with a primary RocketLaunch icon and slight emphasis.
+- Selecting `Breakout Session` still triggers the existing breakout flow.
+- Divider separates breakout from the dark-mode toggle section.
+- No routing/API contracts changed.
+
+### Non-regressions
+
+- Existing `/api/ignite/spinoff` flow, trace handling, session writes, and hash navigation remain unchanged.
+- Dark mode switch logic remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+2. Open `/#/g/<groupId>/app`.
+3. Click the header hamburger icon and verify menu ordering/styling (`Breakout Session` first, divider, dark mode).
+4. Click `Breakout Session` and confirm existing breakout navigation/error behavior is unchanged.
+
 ## 2026-02-23 22:31 UTC update (Header group title precedence tweak)
 
 - Header now prioritizes group name over groupId (GUID) for display; copy link unchanged.
