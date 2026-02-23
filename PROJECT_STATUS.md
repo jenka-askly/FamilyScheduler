@@ -1,3 +1,10 @@
+## 2026-02-23 05:03 UTC update (UEX polish: title section + nav cleanup)
+
+- Header polish: invite URL text is now smaller + muted, invite help line spacing is tightened, and the members line now renders names only (removed the `Members:` prefix).
+- Navigation cleanup: hid unimplemented Overview/Todos/Settings entries from the left nav; only Calendar and Members remain visible to avoid dead UI.
+- No backend/API/shared-package changes.
+- Production release via `develop -> main` merge is pending repository/hosting access outside this workspace.
+
 ## 2026-02-23 04:16 UTC update (UEX: remove list horizontal scroll)
 
 - List view: removed horizontal scroll; enforced fixed table layout and column constraints.
