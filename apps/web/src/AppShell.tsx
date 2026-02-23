@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
 import { AppointmentCardList } from './components/AppointmentCardList';
 import { Drawer } from './components/Drawer';
@@ -9,6 +9,26 @@ import { apiUrl } from './lib/apiUrl';
 import { buildInfo } from './lib/buildInfo';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  Link as MuiLink,
+  Paper,
+  Stack,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tabs,
+  Tooltip,
+  Typography
+} from '@mui/material';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -1067,8 +1087,43 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
       <div className="ui-shell">
         <aside className="ui-sidebar">
-          <button type="button" className={`ui-btn ${activeSection === 'calendar' ? 'ui-btn-primary' : 'ui-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
-          <button type="button" className={`ui-btn ${activeSection === 'members' ? 'ui-btn-primary' : 'ui-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
+          <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+            <Stack spacing={1}>
+              <Tabs
+                orientation="vertical"
+                value={activeSection}
+                onChange={(_event: SyntheticEvent, value: ShellSection) => setActiveSection(value)}
+                aria-label="Primary sections"
+                sx={{
+                  minHeight: 'auto',
+                  '& .MuiTabs-indicator': { display: 'none' },
+                  '& .MuiTab-root': {
+                    alignItems: 'flex-start',
+                    borderRadius: 1,
+                    minHeight: 40,
+                    textTransform: 'none',
+                    fontWeight: 600
+                  },
+                  '& .Mui-selected': {
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText !important'
+                  }
+                }}
+              >
+                <Tab label="Calendar" value="calendar" />
+                <Tab label="Members" value="members" />
+              </Tabs>
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={() => { void createBreakoutGroup(); }}
+                disabled={isSpinningOff}
+                sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+              >
+                Keep This Going
+              </Button>
+            </Stack>
+          </Paper>
         </aside>
         <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
@@ -1080,29 +1135,52 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           {activeSection === 'calendar' ? (
             <>
               <section className="panel ui-cal">
-                <div className="ui-calToolbar">
-                  <div className="ui-calToolbarRow">
-                    <div className="ui-calTabs" role="tablist" aria-label="Calendar views">
-                      <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`ui-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
-                      <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`ui-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
-                      <button type="button" role="tab" aria-selected="false" className="ui-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
-                      <button type="button" role="tab" aria-selected="false" className="ui-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
-                    </div>
-                    <div className="ui-calActions" aria-label="Calendar actions">
-                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment" title="Scan appointment"><Camera /></button>
-                      <button type="button" className="ui-btn ui-btn-primary ui-btn-icon" onClick={() => setIsQuickAddOpen(true)} aria-label="Quick add" title="Quick add" disabled={commandActionsDisabled}><Plus /></button>
-                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" onClick={() => setIsAdvancedOpen(true)} aria-label="Advanced add or update" title="Add or update (advanced)" disabled={commandActionsDisabled}><MoreVertical /></button>
-                    </div>
-                  </div>
+                <Stack spacing={1.5} sx={{ mb: 2 }}>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
+                    <Tabs
+                      value={calendarView}
+                      onChange={(_event: SyntheticEvent, value: CalendarView) => setCalendarView(value)}
+                      aria-label="Calendar views"
+                      sx={{ minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
+                    >
+                      <Tab label="List" value="list" />
+                      <Tab label="Month" value="month" />
+                      <Tab label="Week · Soon" value="week" disabled aria-disabled="true" />
+                      <Tab label="Day · Soon" value="day" disabled aria-disabled="true" />
+                    </Tabs>
+                    <Stack direction="row" spacing={0.5} aria-label="Calendar actions">
+                      <Tooltip title="Scan appointment">
+                        <span>
+                          <IconButton size="small" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment">
+                            <Camera />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title="Quick add">
+                        <span>
+                          <IconButton size="small" color="primary" onClick={() => setIsQuickAddOpen(true)} aria-label="Quick add" disabled={commandActionsDisabled}>
+                            <Plus />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title="Add or update (advanced)">
+                        <span>
+                          <IconButton size="small" onClick={() => setIsAdvancedOpen(true)} aria-label="Advanced add or update" disabled={commandActionsDisabled}>
+                            <MoreVertical />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
                   {calendarView === 'month' ? (
-                    <div className="ui-calMonthNav">
-                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></button>
-                      <div className="ui-calMonth">{monthLabel}</div>
-                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></button>
-                      <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
-                    </div>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <IconButton size="small" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></IconButton>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 150 }}>{monthLabel}</Typography>
+                      <IconButton size="small" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></IconButton>
+                      <Button size="small" variant="outlined" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</Button>
+                    </Stack>
                   ) : null}
-                </div>
+                </Stack>
                 {calendarView === 'month' ? (
                   <>
                     <div className="ui-cal-grid ui-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="ui-cal-cell ui-cal-weekday">{weekday}</div>)}</div>
@@ -1149,12 +1227,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               {calendarView === 'list' ? (
                 <section className="panel">
                   {sortedAppointments.length === 0 ? (
-                    <div className="ui-alert" style={{ maxWidth: 760 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
-                      <div style={{ color: 'var(--muted)' }}>
-                        Add your first event using + above.
-                      </div>
-                    </div>
+                    <Alert severity="info" sx={{ maxWidth: 760 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>No appointments yet</Typography>
+                      <Typography variant="body2">Add your first event using + above.</Typography>
+                    </Alert>
                   ) : null}
                   {isMobile ? (
                     <AppointmentCardList
@@ -1175,21 +1251,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       deleteIcon={<Trash2 />}
                     />
                   ) : (
-                    <div className="table-wrap ui-tableScroll ui-listContainer">
-                      <table className="data-table ui-listTable">
-                        <thead>
-                          <tr>
-                            <th className="ui-col-code">Code</th>
-                            <th className="ui-col-when">When</th>
-                            <th className="ui-col-status">Status</th>
-                            <th>Description</th>
-                            <th className="ui-col-people">People</th>
-                            <th>Location</th>
-                            <th>Notes</th>
-                            <th className="ui-col-actions">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                    <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
+                      <Table size="small" aria-label="Appointment list table">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>Code</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>When</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>People</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Location</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Notes</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {sortedAppointments.map((appointment) => {
                             const apptStatus = appointment.time?.intent?.status !== 'resolved'
                               ? 'unreconcilable'
@@ -1197,70 +1273,85 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 ? 'conflict'
                                 : 'no_conflict';
                             return (
-                              <tr key={appointment.code}>
-                                <td className="ui-codeCell ui-col-code"><code>{appointment.code}</code></td>
-                                <td className="ui-col-when">
-                                  <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
-                                    {appointment.time?.intent?.status !== 'resolved'
-                                      ? <span className='status-tag unknown'>Unresolved</span>
-                                      : formatAppointmentTime(appointment)}
-                                  </a>
-                                </td>
-                                <td className="ui-col-status">
+                              <TableRow hover key={appointment.code}>
+                                <TableCell><code>{appointment.code}</code></TableCell>
+                                <TableCell>
+                                  <MuiLink component="button" type="button" underline="hover" onClick={() => openWhenEditor(appointment)}>
+                                    {appointment.time?.intent?.status !== 'resolved' ? 'Unresolved' : formatAppointmentTime(appointment)}
+                                  </MuiLink>
+                                </TableCell>
+                                <TableCell>
                                   {apptStatus === 'unreconcilable' ? (
-                                    <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
-                                      <span className="status-tag unknown">Unreconcilable</span>
-                                    </button>
+                                    <Button variant="text" size="small" sx={{ textTransform: 'none', p: 0, minWidth: 0 }} onClick={() => openWhenEditor(appointment)}>
+                                      <Chip size="small" label="Unreconcilable" color="warning" />
+                                    </Button>
                                   ) : (
-                                    <span className={`status-tag ${apptStatus === 'conflict' ? 'unavailable' : 'available'}`}>
-                                      {apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
-                                    </span>
+                                    <Chip
+                                      size="small"
+                                      label={apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
+                                      color={apptStatus === 'conflict' ? 'error' : 'success'}
+                                      variant="outlined"
+                                    />
                                   )}
-                                </td>
-                                <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
-                                <td className="ui-col-people"><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
-                                <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview">{appointment.locationDisplay || '—'}</p>{appointment.locationMapQuery ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
-                                <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
-                                <td className="actions-cell ui-col-actions">
-                                  <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
+                                </TableCell>
+                                <TableCell><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></TableCell>
+                                <TableCell>
+                                  <Button type="button" variant="text" size="small" sx={{ textTransform: 'none', p: 0, minWidth: 0 }} onClick={() => setSelectedAppointment(appointment)}>
+                                    {appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}
+                                  </Button>
+                                </TableCell>
+                                <TableCell>
+                                  <Box className="location-preview-wrap">
+                                    <Typography className="location-preview" variant="body2">{appointment.locationDisplay || '—'}</Typography>
+                                    {appointment.locationMapQuery ? <MuiLink className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</MuiLink> : null}
+                                  </Box>
+                                </TableCell>
+                                <TableCell><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></TableCell>
+                                <TableCell align="right">
+                                  <Stack direction="row" justifyContent="flex-end" spacing={0.5} onClick={(event) => { event.stopPropagation(); }}>
                                     {appointment.scanImageKey ? (
-                                      <button
-                                        type="button"
-                                        className="icon-button"
-                                        aria-label="View appointment scan"
-                                        data-tooltip="View scan"
+                                      <Tooltip title="View scan">
+                                        <IconButton
+                                          size="small"
+                                          aria-label="View appointment scan"
+                                          onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            setScanViewerAppointment(appointment);
+                                          }}
+                                        >
+                                          <Camera />
+                                        </IconButton>
+                                      </Tooltip>
+                                    ) : null}
+                                    <Tooltip title="Edit appointment">
+                                      <IconButton
+                                        size="small"
+                                        aria-label="Edit appointment"
                                         onClick={(event) => {
                                           event.preventDefault();
                                           event.stopPropagation();
-                                          setScanViewerAppointment(appointment);
+                                          openWhenEditor(appointment);
                                         }}
                                       >
-                                        <Camera />
-                                      </button>
-                                    ) : null}
-                                    <button
-                                      type="button"
-                                      className="icon-button"
-                                      aria-label="Edit appointment"
-                                      data-tooltip="Edit appointment"
-                                      onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        openWhenEditor(appointment);
-                                      }}
-                                    >
-                                      <Pencil />
-                                    </button>
-                                    <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></button>
-                                  </div>
-                                </td>
-                              </tr>
+                                        <Pencil />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete appointment">
+                                      <IconButton size="small" aria-label="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></IconButton>
+                                    </Tooltip>
+                                  </Stack>
+                                </TableCell>
+                              </TableRow>
                             );
                           })}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   )}
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Need help? Contact <MuiLink href="mailto:support@familyscheduler.ai">support@familyscheduler.ai</MuiLink>.
+                  </Typography>
                 </section>
               ) : null}
             </>
@@ -1306,7 +1397,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             </div>
           ) : null}
           <div className="table-wrap ui-tableScroll">
-            <table className="data-table">
+            <table className="ui-membersTable">
               <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
               <tbody>
                 {peopleInView.map((person) => {

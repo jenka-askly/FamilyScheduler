@@ -1301,3 +1301,44 @@ traces
 - Migrated `AppointmentEditorForm` to MUI `TextField`, `Stack`, `Button`, and `Alert` composition.
 - Removed remaining `fs-*` class-name usage in `apps/web/src` and removed legacy stylesheet imports from the app entrypoint.
 - Verification status: dependency install for `@mui/material` and `@emotion/*` is currently blocked in this environment (403 from npm registry), so typecheck/build are failing on unresolved MUI modules until install access is restored.
+
+## 2026-02-23 19:42 UTC update (Calendar controls/list table MUI completion)
+
+- Replaced Calendar/Members sidebar plain buttons with MUI vertical Tabs and added a consistently styled **Keep This Going** Button that reuses existing breakout behavior.
+- Replaced calendar view switcher with MUI Tabs (`List`, `Month`, disabled `Week · Soon`, disabled `Day · Soon`) bound to existing `calendarView` state.
+- Replaced calendar toolbar action buttons with MUI `IconButton` + `Tooltip` for scan, quick add, and advanced actions.
+- Restyled month navigation controls with MUI `IconButton`, `Typography`, and `Button` while preserving existing month cursor behavior.
+- Replaced list empty state with MUI `Alert` + `Typography`, and added themed help text using MUI `Typography` + `Link`.
+- Converted desktop list table to MUI `TableContainer`/`Table` primitives and switched status pills to MUI `Chip` with conflict/no-conflict/unreconcilable mapping.
+- Removed remaining targeted legacy class dependencies from Calendar area (`fs-*`, `data-table`, `table-wrap` in the updated section).
+
+### Success criteria
+
+- Calendar/Members controls render as MUI tab controls with clear selected state in light/dark themes.
+- Calendar view tabs render as MUI tabs and keep disabled week/day placeholders.
+- Calendar toolbar actions render with consistent icon-button sizing/spacing.
+- Empty list state is readable and styled as a MUI info alert.
+- Desktop list view renders with a readable MUI table and status chips.
+- Existing state transitions, click actions, and network behavior are unchanged.
+
+### Non-regressions
+
+- Existing appointment editor open flows, delete flows, scan viewer flows, and people picker flows are preserved.
+- Existing month-grid rendering and day-level quick add affordance are unchanged.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`
+4. Open `/#/g/<groupId>/app` and verify:
+   - sidebar tabs + Keep This Going button styling
+   - list/month tabs styling and disabled week/day tabs
+   - toolbar icon action styling
+   - empty-state alert readability
+   - list table readability in dark mode
+
+### Debug/artifact notes
+
+- Browser screenshot capture was attempted but the browser tool crashed in this environment (`SIGSEGV`) before rendering.
+- This workspace is currently blocked from package fetches (`ERR_PNPM_FETCH_403`), which prevents resolving installed dependencies for full local type/build pass.
