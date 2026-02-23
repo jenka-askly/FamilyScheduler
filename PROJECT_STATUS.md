@@ -1,3 +1,31 @@
+## 2026-02-23 18:40 UTC update (Quick actions dropdown for breakout)
+
+- Replaced the group header **Breakout Group** button with a right-aligned **Quick actions** dropdown in `PageHeader`.
+- Moved breakout content to a compact menu item (`Break out`) while preserving existing `/api/ignite/spinoff` call, session write, hash navigation, and trace-aware error handling.
+- Kept breakout errors visible outside the dropdown so failures remain visible even when the menu is closed.
+- No backend/API contract changes.
+
+### Success criteria
+
+- Quick actions renders on the right side of the group header row.
+- Opening the menu reveals a single `Break out` action.
+- Breakout behavior remains unchanged end-to-end (same endpoint, trace handling, and navigation).
+- Mobile layout (`<=560px`) keeps dropdown usable and unclipped.
+
+### Non-regressions
+
+- Existing group header title/invite block behavior remains unchanged.
+- Existing ignite/spinoff backend flow remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm lint && pnpm typecheck && pnpm test`.
+2. Run `pnpm --filter @familyscheduler/web dev --host 0.0.0.0`.
+3. Open `/#/g/<groupId>/app`.
+4. Confirm Quick actions is right-aligned, opens/closes, and `Break out` is disabled while request is in flight.
+5. Trigger a failed spinoff and confirm breakout error is visible without reopening the dropdown.
+6. Resize to <=560px width and confirm dropdown remains usable/not clipped.
+
 ## 2026-02-23 18:05 UTC update (PageHeader layout inspection baseline)
 
 - Captured a read-only baseline of `PageHeader` group-header structure and related CSS hooks, including `fs-groupHeaderAction` usage and responsive wrapping behavior at the `560px` breakpoint.
