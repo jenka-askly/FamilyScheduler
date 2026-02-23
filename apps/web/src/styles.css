@@ -821,6 +821,74 @@ h2 {
 
 .fs-groupHeaderAction {
   flex-shrink: 0;
+  margin-left: auto;
+}
+
+.fs-quickActions {
+  position: relative;
+}
+
+.fs-quickActionsSummary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.fs-quickActionsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.fs-quickActionsSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.fs-quickActionsMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  min-width: 240px;
+  padding: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  z-index: 10;
+}
+
+.fs-quickActionItem {
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+}
+
+.fs-quickActionItem:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.fs-quickActionItem:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fs-quickActionItemTitle {
+  font-weight: 700;
+}
+
+.fs-quickActionItemHelp {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-top: 0.15rem;
 }
 
 .fs-groupLabel {
@@ -1502,6 +1570,12 @@ button.fs-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 
   .fs-inviteUrlRow {
     flex-wrap: wrap;
+  }
+
+  .fs-quickActionsMenu {
+    left: 0;
+    right: 0;
+    min-width: unset;
   }
 }
 

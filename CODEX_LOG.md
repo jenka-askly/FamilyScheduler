@@ -5988,3 +5988,38 @@ Record the latest PageHeader/group-header inspection outcome and keep continuity
 ### Follow-ups
 
 - If product requests layout changes next, use this baseline to keep diffs minimal and validate only the affected header selectors.
+
+## 2026-02-23 18:13 UTC (Quick actions dropdown replaces Breakout Group header button)
+
+### Objective
+
+Replace the group-header Breakout Group button with a right-aligned Quick actions dropdown while preserving existing spinoff behavior.
+
+### Approach
+
+- Updated `PageHeader` to wrap `breakoutAction` inside a semantic `details/summary` Quick actions dropdown and menu container.
+- Added Quick actions/menu-item styling and right-aligned action positioning in `styles.css`.
+- Replaced the AppShell breakout button content with the compact menu item markup (`Break out` + helper text) wired to the same `createBreakoutGroup()` function.
+- Kept breakout error rendering outside the dropdown so failure details remain visible after menu close.
+- Ran repository scripts and exercised the UI in a browser automation harness with mocked API responses for desktop + mobile screenshots.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm lint && pnpm typecheck && pnpm test` ✅ (repo scripts exist and report placeholder "no * yet" status with successful exit).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0` ✅ started Vite for browser validation; later terminated via SIGINT after capture.
+- Playwright browser-tool scripts ✅ captured:
+  - desktop quick actions open state,
+  - mobile quick actions open state,
+  - failed spinoff state showing visible breakout error while menu is closed.
+
+### Follow-ups
+
+- Validate against a real backend session to confirm live `/api/ignite/spinoff` response timing and disabled-state UX under actual network latency.

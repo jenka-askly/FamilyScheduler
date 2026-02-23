@@ -71,7 +71,18 @@ export function PageHeader({
                 ) : null}
               </div>
             </div>
-            {breakoutAction ? <div className="fs-groupHeaderAction">{breakoutAction}</div> : null}
+            {breakoutAction ? (
+              <div className="fs-groupHeaderAction">
+                <details className="fs-quickActions">
+                  <summary className="fs-quickActionsSummary" aria-label="Quick actions">
+                    Quick actions
+                  </summary>
+                  <div className="fs-quickActionsMenu" role="menu" aria-label="Quick actions menu">
+                    {breakoutAction}
+                  </div>
+                </details>
+              </div>
+            ) : null}
           </div>
 
           {groupId ? (
