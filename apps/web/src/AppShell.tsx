@@ -1115,10 +1115,19 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       deleteIcon={<Trash2 />}
                     />
                   ) : (
-                    <div className="table-wrap fs-tableScroll">
-                      <table className="data-table">
+                    <div className="table-wrap fs-tableScroll fs-listContainer">
+                      <table className="data-table fs-listTable">
                         <thead>
-                          <tr><th>Code</th><th>When</th><th>Status</th><th>Description</th><th>People</th><th>Location</th><th>Notes</th><th>Actions</th></tr>
+                          <tr>
+                            <th className="fs-col-code">Code</th>
+                            <th className="fs-col-when">When</th>
+                            <th className="fs-col-status">Status</th>
+                            <th>Description</th>
+                            <th className="fs-col-people">People</th>
+                            <th>Location</th>
+                            <th>Notes</th>
+                            <th className="fs-col-actions">Actions</th>
+                          </tr>
                         </thead>
                         <tbody>
                           {sortedAppointments.map((appointment) => {
@@ -1129,15 +1138,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 : 'no_conflict';
                             return (
                               <tr key={appointment.code}>
-                                <td className="fs-codeCell"><code>{appointment.code}</code></td>
-                                <td>
+                                <td className="fs-codeCell fs-col-code"><code>{appointment.code}</code></td>
+                                <td className="fs-col-when">
                                   <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
                                     {appointment.time?.intent?.status !== 'resolved'
                                       ? <span className='status-tag unknown'>Unresolved</span>
                                       : formatAppointmentTime(appointment)}
                                   </a>
                                 </td>
-                                <td>
+                                <td className="fs-col-status">
                                   {apptStatus === 'unreconcilable' ? (
                                     <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
                                       <span className="status-tag unknown">Unreconcilable</span>
@@ -1149,10 +1158,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                   )}
                                 </td>
                                 <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
-                                <td><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
+                                <td className="fs-col-people"><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
                                 <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview">{appointment.locationDisplay || '—'}</p>{appointment.locationMapQuery ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
                                 <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
-                                <td className="actions-cell">
+                                <td className="actions-cell fs-col-actions">
                                   <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
                                     {appointment.scanImageKey ? (
                                       <button
