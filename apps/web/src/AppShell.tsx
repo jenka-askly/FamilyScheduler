@@ -121,6 +121,21 @@ const QuestionDialog = ({
   </Dialog>
 );
 
+const AppointmentDialogContext = ({
+  title,
+  subtitle
+}: {
+  title: string;
+  subtitle: string;
+}) => (
+  <Box sx={{ mt: 0.5, mb: 1.5, pb: 1.5, borderBottom: (theme) => `1px solid ${theme.palette.divider}` }}>
+    <Stack spacing={0.25}>
+      <Typography variant="subtitle2" noWrap title={title}>{title}</Typography>
+      <Typography variant="body2" color="text.secondary" noWrap title={subtitle}>{subtitle}</Typography>
+    </Stack>
+  </Box>
+);
+
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
 
 const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
@@ -264,6 +279,13 @@ const formatAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
   const sameDay = dateFormatter.format(start) === dateFormatter.format(end);
   if (sameDay) return `${dateFormatter.format(start)} · ${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
   return `${dateTimeFormatter.format(start)} – ${dateTimeFormatter.format(end)}`;
+};
+
+const getAppointmentContext = (appointment: Snapshot['appointments'][0]) => {
+  const title = appointment.desc?.trim() || appointment.code;
+  const locationText = appointment.locationDisplay || appointment.location || appointment.locationRaw;
+  const subtitle = locationText ? `${formatAppointmentTime(appointment)} • ${locationText}` : formatAppointmentTime(appointment);
+  return { title, subtitle };
 };
 
 const formatMissingSummary = (missing?: string[]) => {
@@ -778,6 +800,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const editingAppointment = whenEditorCode
     ? sortedAppointments.find((appointment) => appointment.code === whenEditorCode) ?? null
     : null;
+  const scanCaptureAppointment = scanCaptureModal.appointmentId
+    ? sortedAppointments.find((appointment) => appointment.id === scanCaptureModal.appointmentId) ?? null
+    : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
   const headerTitle = activeSection === 'members' ? 'Members' : activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : 'Calendar';
@@ -1043,11 +1068,27 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   useEffect(() => {
     if (!scanCaptureModal.useCameraPreview) return;
-    const video = scanCaptureVideoRef.current;
-    const stream = scanCaptureStreamRef.current;
-    if (!video || !stream) return;
-    video.srcObject = stream;
-    void video.play().catch(() => undefined);
+    let frameId: number | null = null;
+    let attempts = 0;
+
+    const attachPreview = () => {
+      const video = scanCaptureVideoRef.current;
+      const stream = scanCaptureStreamRef.current;
+      if (!stream) return;
+      if (!video && attempts < 6) {
+        attempts += 1;
+        frameId = window.requestAnimationFrame(attachPreview);
+        return;
+      }
+      if (!video) return;
+      video.srcObject = stream;
+      void video.play().catch(() => undefined);
+    };
+
+    attachPreview();
+    return () => {
+      if (frameId != null) window.cancelAnimationFrame(frameId);
+    };
   }, [scanCaptureModal.useCameraPreview]);
 
   useEffect(() => () => {
@@ -1556,10 +1597,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
       <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
-      <Dialog open={Boolean(appointmentToDelete)} onClose={() => setAppointmentToDelete(null)} fullWidth maxWidth="sm">
-        <DialogTitle>
-          {appointmentToDelete ? `Delete ${appointmentToDelete.code} (${appointmentToDelete.desc || 'Untitled'})?` : 'Delete appointment?'}
-        </DialogTitle>
+      <Dialog open={Boolean(appointmentToDelete)} onClose={() => setAppointmentToDelete(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Delete appointment</DialogTitle>
+        <DialogContent>
+          {appointmentToDelete ? <AppointmentDialogContext {...getAppointmentContext(appointmentToDelete)} /> : null}
+        </DialogContent>
         <DialogActions>
           <Button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</Button>
           <Button
@@ -1579,8 +1621,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
       <Dialog open={Boolean(scanViewerAppointment)} onClose={() => setScanViewerAppointment(null)} maxWidth="md" fullWidth>
-        <DialogTitle>{scanViewerAppointment ? `${scanViewerAppointment.code} scan` : 'Scan'}</DialogTitle>
+        <DialogTitle>Scan</DialogTitle>
         <DialogContent>
+          {scanViewerAppointment ? <AppointmentDialogContext {...getAppointmentContext(scanViewerAppointment)} /> : null}
           {scanViewerAppointment ? (
             <Box
               component="img"
@@ -1623,8 +1666,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       <Dialog open={scanCaptureModal.useCameraPreview} onClose={closeScanCaptureModal} maxWidth="md" fullWidth>
         <DialogTitle>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</DialogTitle>
         <DialogContent>
+          {scanCaptureAppointment ? <AppointmentDialogContext {...getAppointmentContext(scanCaptureAppointment)} /> : null}
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', maxHeight: '60vh', borderRadius: 1 }} />
+            <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', minHeight: 320, maxHeight: '60vh', borderRadius: 1, objectFit: 'cover', backgroundColor: 'black' }} />
           </Box>
           <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
         </DialogContent>
@@ -1730,9 +1774,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(selectedAppointment)} onClose={() => setSelectedAppointment(null)} maxWidth="md" fullWidth>
-        <DialogTitle>{selectedAppointment ? `Assign people for ${selectedAppointment.code}` : 'Assign people'}</DialogTitle>
+      <Dialog open={Boolean(selectedAppointment)} onClose={() => setSelectedAppointment(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Assign people</DialogTitle>
         <DialogContent>
+          {selectedAppointment ? <AppointmentDialogContext {...getAppointmentContext(selectedAppointment)} /> : null}
           <FormGroup>
             {selectedAppointment ? activePeople.map((person, index) => {
               const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
@@ -1789,8 +1834,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       </Drawer>
 
       <Dialog open={whenEditorCode != null} onClose={closeWhenEditor} maxWidth="md" fullWidth>
-        <DialogTitle>{editingAppointment ? `Edit ${editingAppointment.code}` : 'Edit appointment'}</DialogTitle>
+        <DialogTitle>Edit appointment</DialogTitle>
         <DialogContent dividers>
+          {editingAppointment ? <AppointmentDialogContext {...getAppointmentContext(editingAppointment)} /> : null}
           {editingAppointment ? (
             <AppointmentEditorForm
               appointmentCode={editingAppointment.code}

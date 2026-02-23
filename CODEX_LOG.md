@@ -6418,3 +6418,37 @@ Apply requested UI changes for group header presentation, members-pane affordanc
 
 - In a network-enabled/npm-authorized environment, run install + typecheck + build to complete programmatic verification.
 - Optional cleanup: replace local `SvgIcon` definitions with `@mui/icons-material` package imports once registry access is available.
+
+## 2026-02-23 22:08 UTC (Appointment context block standardization + scan preview visibility fix)
+
+### Objective
+
+Implement a consistent appointment context block across appointment-scoped dialogs in `AppShell`, normalize dialog titles/sizing, and fix blank scan-capture preview rendering in dialog mode without changing business logic.
+
+### Approach
+
+- Added a reusable UI-only `AppointmentDialogContext` block in `AppShell` and a helper `getAppointmentContext(...)` that reuses existing `formatAppointmentTime(...)` output.
+- Applied the context block beneath action-only titles for appointment-scoped dialogs: assign people, delete appointment, scan viewer, scan capture/rescan (conditional on appointment availability), and edit appointment.
+- Standardized touched dialog widths per requirements (`Assign people` to `sm`; delete appointment to `xs`; scan/edit remain `md`, all `fullWidth`).
+- Updated scan capture preview rendering by:
+  - giving the video element a guaranteed visible surface (`minHeight`, `objectFit: cover`, black background),
+  - attaching stream/video playback in a mount-safe effect with a short `requestAnimationFrame` retry loop keyed to `scanCaptureModal.useCameraPreview`.
+- Preserved existing capture submission and stream cleanup logic (`stopScanCaptureStream`) unchanged.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed due environment baseline/dependency issue (`@mui/material` unresolved) plus pre-existing strict TS implicit-any errors.
+- `pnpm --filter @familyscheduler/web run build` ⚠️ failed for same baseline issues as typecheck.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ⚠️ starts Vite but runtime import resolution fails for missing `@mui/material` in this environment.
+- `run_playwright_script` ✅ produced screenshot artifact for current UI render path: `browser:/tmp/codex_browser_invocations/3390063b8bc3a280/artifacts/artifacts/appointment-context-dialogs.png`.
+
+### Follow-ups
+
+- Re-run typecheck/build/dev in an environment with restorable/installable MUI dependencies.
+- Perform interactive smoke of each appointment-scoped dialog against seeded app data to visually confirm all context blocks in live flows.
