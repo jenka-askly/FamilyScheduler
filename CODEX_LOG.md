@@ -5099,3 +5099,34 @@ Add a reusable drawer primitive and styles without changing active editing UX (i
 ### Follow-ups
 
 - Step 3: switch appointment editing trigger/state to open Drawer and host `AppointmentEditorForm` in the drawer panel.
+
+## 2026-02-23 01:29 UTC
+
+### Objective
+
+Implement Phase 1 Step 3: use Drawer-based appointment editing on mobile only while keeping desktop inline `<tr>` editor behavior intact.
+
+### Approach
+
+- Added a small reusable `useMediaQuery` hook with no dependencies.
+- Wired `AppShell` to detect mobile via `(max-width: 768px)`.
+- Kept existing edit entry points (`Edit` icon, `When` link, unreconcilable status button, add appointment flow) routed through the same `openWhenEditor` state path.
+- Rendered inline `<tr>` editor only on non-mobile; rendered Drawer editor only on mobile using the same draft state and handlers.
+- Ensured Drawer close path uses existing `closeWhenEditor` and relies on Drawer overlay/Escape handling.
+- Disabled desktop click-away inline-editor effect on mobile to avoid Drawer interaction conflicts.
+
+### Files changed
+
+- `apps/web/src/hooks/useMediaQuery.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `rg -n "useMediaQuery|isMobile|Drawer open=|!isMobile && isWhenEditing" apps/web/src/AppShell.tsx` ✅ verified responsive editor wiring.
+
+### Follow-ups
+
+- Human verification on a real mobile viewport is recommended to validate Drawer UX end-to-end (open/close/confirm/cancel across all entry points).

@@ -6,6 +6,7 @@ import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
 import { buildInfo } from './lib/buildInfo';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
@@ -258,6 +259,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [personDraft, setPersonDraft] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
   const editingAppointmentRowRef = useRef<HTMLTableRowElement | null>(null);
   const whenEditorRowRef = useRef<HTMLTableRowElement | null>(null);
@@ -650,6 +652,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (byEnd !== 0) return byEnd;
     return a.code.localeCompare(b.code);
   }), [snapshot.appointments]);
+  const editingAppointment = whenEditorCode
+    ? sortedAppointments.find((appointment) => appointment.code === whenEditorCode) ?? null
+    : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
   const headerTitle = view === 'appointments' ? 'Schedule' : 'People';
@@ -775,7 +780,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [groupId, phone]);
 
   useEffect(() => {
-    if (!whenEditorCode) return;
+    if (!whenEditorCode || isMobile) return;
     const exists = snapshot.appointments.some((appointment) => appointment.code === whenEditorCode);
     if (!exists) closeWhenEditor();
   }, [whenEditorCode, snapshot.appointments]);
@@ -840,7 +845,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [editingPersonId, cancelPersonEdit]);
 
   useEffect(() => {
-    if (!whenEditorCode) return;
+    if (!whenEditorCode || isMobile) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
@@ -853,7 +858,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [whenEditorCode]);
+  }, [whenEditorCode, isMobile]);
 
 
   useEffect(() => {
@@ -1014,7 +1019,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           </div>
                         </td>
                       </tr>
-                      {isWhenEditing ? (
+                      {!isMobile && isWhenEditing ? (
                         <tr ref={whenEditorRowRef}>
                           <td colSpan={8} className="when-editor-cell">
                             <AppointmentEditorForm
@@ -1281,8 +1286,37 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>;
       })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
 
-      <Drawer open={false} title="Edit appointment" onClose={() => {}}>
-        <p>Drawer editor placeholder</p>
+      <Drawer open={isMobile && whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
+        {isMobile && editingAppointment ? (
+          <AppointmentEditorForm
+            appointmentCode={editingAppointment.code}
+            whenValue={whenDraftText}
+            descriptionValue={descDraftText}
+            locationValue={locationDraftText}
+            notesValue={notesDraftText}
+            onWhenChange={setWhenDraftText}
+            onWhenKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void previewWhenDraft(editingAppointment);
+              }
+            }}
+            onDescriptionChange={setDescDraftText}
+            onLocationChange={setLocationDraftText}
+            onNotesChange={setNotesDraftText}
+            onResolveDate={() => void previewWhenDraft(editingAppointment)}
+            errorText={whenDraftError}
+            previewContent={whenPreviewed ? (
+              <div>
+                <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
+                {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
+              </div>
+            ) : null}
+            onConfirm={() => void confirmWhenDraft(editingAppointment)}
+            onCancel={closeWhenEditor}
+          />
+        ) : null}
       </Drawer>
       <FooterHelp />
       <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
