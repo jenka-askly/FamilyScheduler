@@ -1,3 +1,12 @@
+## 2026-02-23 04:10 UTC update (UEX: Title section restructure)
+
+- Header title section updated with a new `Group` label above the group name.
+- Member summary now appears directly below the group name as muted text (up to 4 names, then `+N`).
+- Invite link row reworked to a 2-column layout with URL input on the left and Copy button on the right.
+- Explainer text is now directly beneath the invite URL row with tighter spacing.
+- Removed the `Calendar` subtitle from the group title block.
+- Copy behavior remains unchanged and still copies the full invite URL.
+
 ## 2026-02-23 04:08 UTC update (UEX: header invite layout + calm accent + member chips)
 
 - Group header: invite link layout fixed (no overflow), calm accent styling added.
