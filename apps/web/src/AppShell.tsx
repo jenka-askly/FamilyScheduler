@@ -32,7 +32,13 @@ type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
 type CalendarView = 'month' | 'list' | 'week' | 'day';
 type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
 
+type Session = { groupId: string; phone: string; joinedAt: string };
+
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SESSION_KEY = 'familyscheduler.session';
+const writeSession = (session: Session): void => {
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+};
 
 const QuestionDialog = ({
   question,
@@ -288,6 +294,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [isConfirming, setIsConfirming] = useState(false);
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
+  const [breakoutError, setBreakoutError] = useState<string | null>(null);
+  const [isSpinningOff, setIsSpinningOff] = useState(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
@@ -981,6 +989,33 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     stopScanCaptureStream();
   }, []);
 
+  const createBreakoutGroup = async () => {
+    if (isSpinningOff) return;
+    setBreakoutError(null);
+    setIsSpinningOff(true);
+    const traceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    try {
+      const response = await fetch(apiUrl('/api/ignite/spinoff'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sourceGroupId: groupId, phone, traceId, groupName: '' })
+      });
+      const data = await response.json() as { ok?: boolean; newGroupId?: string; message?: string; traceId?: string };
+      if (!response.ok || !data.ok || !data.newGroupId) {
+        setBreakoutError(`${data.message ?? 'Unable to create breakout group.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
+        return;
+      }
+      writeSession({ groupId: data.newGroupId, phone, joinedAt: new Date().toISOString() });
+      window.location.hash = `/g/${data.newGroupId}/ignite`;
+    } catch {
+      setBreakoutError(`Unable to create breakout group. (trace: ${traceId})`);
+    } finally {
+      setIsSpinningOff(false);
+    }
+  };
+
   return (
     <Page variant="workspace">
       <PageHeader
@@ -990,6 +1025,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupId={groupId}
         memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
       />
+      <div className="fs-breakoutBar">
+        <button type="button" className="fs-breakoutAction" onClick={() => { void createBreakoutGroup(); }} disabled={isSpinningOff}>
+          <span className="fs-breakoutIcon" aria-hidden>↗</span>
+          <span>
+            <span className="fs-breakoutTitle">Breakout Group</span>
+            <span className="fs-breakoutSubtext">Start a new group from here</span>
+          </span>
+        </button>
+      </div>
+      {breakoutError ? (
+        <div className="fs-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Group</div>
+          <div style={{ color: 'var(--muted)' }}>{breakoutError}</div>
+        </div>
+      ) : null}
       <div className="fs-shell">
         <aside className="fs-sidebar">
           <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>

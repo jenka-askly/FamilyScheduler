@@ -1,3 +1,38 @@
+## 2026-02-23 08:50 UTC (Breakout Group spinoff + ignite)
+
+### Objective
+
+Implement breakout flow that spins off a new group from current group and immediately opens ignite in the new group.
+
+### Approach
+
+- Added new API function `igniteSpinoff` that validates source identity, verifies caller is active in source group, creates group B with cloned organizer phone and new person id, then opens ignite in group B.
+- Registered `POST /api/ignite/spinoff` in function index and startup expected-function list.
+- Added an isolated top-right app-shell action (`↗ Breakout Group`) with subtext and click handler.
+- Frontend handler now posts spinoff payload, writes session for new group id, and routes to `/#/g/<newGroupId>/ignite`; error renders via existing alert pattern.
+- Added styling for breakout action card-like control.
+
+### Files changed
+
+- `api/src/functions/igniteSpinoff.ts`
+- `api/src/index.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot capture ✅ succeeded.
+
+### Follow-ups
+
+- Staging manual acceptance A/B/C still required with deployed environment + real phones/incognito flow.
+
+
 ## 2026-02-23 07:20 UTC (Ignite organizer: session identity + meta POST + link/QR fixes)
 
 ### Objective
