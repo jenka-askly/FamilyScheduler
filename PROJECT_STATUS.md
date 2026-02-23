@@ -1148,3 +1148,24 @@ traces
 1. Run web app and open `/#/g/<id>/app`.
 2. Confirm Breakout Group appears at top-right inside the Group card (not as a separate bar below header).
 3. Click Breakout Group and confirm existing loading/error/navigation behavior remains unchanged.
+
+## 2026-02-23 17:33 UTC update (Breakout header move regen, smaller diff shape)
+
+- Regenerated the breakout-header placement change with a narrower integration surface: `PageHeader` now accepts breakout-specific handler/state props rather than a generic action node.
+- Breakout control remains top-right in the Group header card and still uses the same `createBreakoutGroup` behavior from `AppShell`.
+
+### Success criteria
+
+- Breakout Group renders in the Group card top-right on `/#/g/<id>/app`.
+- Clicking Breakout Group still follows existing spinoff API flow and navigation.
+
+### Non-regressions
+
+- Group title/members/link copy UI remains unchanged.
+- Breakout error panel behavior remains unchanged.
+
+### How to verify locally
+
+1. Run web app and open `/#/g/<id>/app`.
+2. Verify Breakout button is in the Group card top-right.
+3. Click it and verify existing loading/error/navigation behavior is unchanged.

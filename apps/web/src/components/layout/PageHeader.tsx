@@ -13,7 +13,8 @@ type Props = {
   groupName?: string;
   groupId?: string;
   memberNames?: string[];
-  breakoutAction?: React.ReactNode;
+  onBreakoutGroup?: () => void;
+  isSpinningOff?: boolean;
 };
 
 export function PageHeader({
@@ -22,7 +23,8 @@ export function PageHeader({
   groupName,
   groupId,
   memberNames,
-  breakoutAction,
+  onBreakoutGroup,
+  isSpinningOff = false,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const groupLink = useMemo(() => {
@@ -69,7 +71,17 @@ export function PageHeader({
                 ) : null}
               </div>
             </div>
-            {breakoutAction ? <div className="fs-groupHeaderAction">{breakoutAction}</div> : null}
+            {onBreakoutGroup ? (
+              <div className="fs-groupHeaderAction">
+                <button type="button" className="fs-breakoutAction" onClick={onBreakoutGroup} disabled={isSpinningOff}>
+                  <span className="fs-breakoutIcon" aria-hidden>↗</span>
+                  <span>
+                    <span className="fs-breakoutTitle">Breakout Group</span>
+                    <span className="fs-breakoutSubtext">Start a new group from here</span>
+                  </span>
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {groupId ? (

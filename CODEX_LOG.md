@@ -5925,3 +5925,32 @@ Move the Breakout Group control into the Group header card (top-right) while pre
 ### Follow-ups
 
 - Optional: verify with a real group id in connected staging/local API to exercise the full breakout API path interactively.
+
+## 2026-02-23 17:33 UTC
+
+### Objective
+
+Regenerate the breakout-header move with a smaller, more explicit diff shape.
+
+### Approach
+
+- Replaced `PageHeader` generic `breakoutAction` slot with explicit breakout props: `onBreakoutGroup` and `isSpinningOff`.
+- Kept the Breakout button markup in `PageHeader` so layout stays tied to the Group card header row.
+- Kept `AppShell` behavior unchanged by wiring existing `createBreakoutGroup` handler + `isSpinningOff` state into the new `PageHeader` props.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for visual validation.
+- Playwright screenshot capture against `http://127.0.0.1:4173/#/g/demo/app` ✅ artifact captured.
+
+### Follow-ups
+
+- Verify with a real group id + live API to confirm full click-through spinoff behavior end-to-end.
