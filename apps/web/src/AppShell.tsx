@@ -1,4 +1,5 @@
 import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { AppointmentEditorForm } from './components/AppointmentEditorForm';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
@@ -1015,67 +1016,34 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       {isWhenEditing ? (
                         <tr ref={whenEditorRowRef}>
                           <td colSpan={8} className="when-editor-cell">
-                            <div className="rule-draft-output when-editor">
-                              <div className="when-editor-input-row">
-                                <label htmlFor={`when-editor-${appointment.code}`}>When</label>
-                                <input
-                                  id={`when-editor-${appointment.code}`}
-                                  value={whenDraftText}
-                                  onChange={(event) => setWhenDraftText(event.target.value)}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                      void previewWhenDraft(appointment);
-                                    }
-                                  }}
-                                  placeholder="e.g. next Tuesday 8-9pm"
-                                />
-                                <button type="button" onClick={() => void previewWhenDraft(appointment)}>Resolve date</button>
-                              </div>
-                              <div className="when-editor-input-row">
-                                <label htmlFor={`desc-editor-${appointment.code}`}>Description</label>
-                                <input
-                                  id={`desc-editor-${appointment.code}`}
-                                  value={descDraftText}
-                                  onChange={(event) => setDescDraftText(event.target.value)}
-                                  placeholder="e.g. Follow-up visit"
-                                />
-                              </div>
-                              <div className="when-editor-input-row">
-                                <label htmlFor={`location-editor-${appointment.code}`}>Location</label>
-                                <input
-                                  id={`location-editor-${appointment.code}`}
-                                  value={locationDraftText}
-                                  onChange={(event) => setLocationDraftText(event.target.value)}
-                                  placeholder="e.g. Evergreen Health"
-                                />
-                              </div>
-                              <div className="when-editor-input-row">
-                                <label htmlFor={`notes-editor-${appointment.code}`}>Notes</label>
-                                <input
-                                  id={`notes-editor-${appointment.code}`}
-                                  value={notesDraftText}
-                                  onChange={(event) => setNotesDraftText(event.target.value)}
-                                  placeholder="Optional notes"
-                                />
-                              </div>
-                              <div className="when-editor-footer">
-                                <div className="when-editor-feedback">
-                                  {whenDraftError ? <p className="form-error">{whenDraftError}</p> : null}
-                                  {whenPreviewed ? (
-                                    <div>
-                                      <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
-                                      {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                                      {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-                                    </div>
-                                  ) : null}
+                            <AppointmentEditorForm
+                              appointmentCode={appointment.code}
+                              whenValue={whenDraftText}
+                              descriptionValue={descDraftText}
+                              locationValue={locationDraftText}
+                              notesValue={notesDraftText}
+                              onWhenChange={setWhenDraftText}
+                              onWhenKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault();
+                                  void previewWhenDraft(appointment);
+                                }
+                              }}
+                              onDescriptionChange={setDescDraftText}
+                              onLocationChange={setLocationDraftText}
+                              onNotesChange={setNotesDraftText}
+                              onResolveDate={() => void previewWhenDraft(appointment)}
+                              errorText={whenDraftError}
+                              previewContent={whenPreviewed ? (
+                                <div>
+                                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...appointment, time: whenDraftResult ?? appointment.time })}</p>
+                                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+                                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
                                 </div>
-                                <div className="modal-actions when-editor-actions">
-                                  <button type="button" onClick={() => void confirmWhenDraft(appointment)}>Confirm</button>
-                                  <button type="button" onClick={closeWhenEditor}>Cancel</button>
-                                </div>
-                              </div>
-                            </div>
+                              ) : null}
+                              onConfirm={() => void confirmWhenDraft(appointment)}
+                              onCancel={closeWhenEditor}
+                            />
                           </td>
                         </tr>
                       ) : null}
