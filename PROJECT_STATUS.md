@@ -1,3 +1,28 @@
+## 2026-02-23 08:50 UTC update (Breakout Group spinoff + ignite)
+
+- Added **Breakout Group** flow end-to-end: new backend `POST /api/ignite/spinoff` creates a spinoff group B from source group A and immediately opens an ignite session in group B for the organizer.
+- Added isolated top-right **Breakout Group** action in the app shell (`↗` + explainer text) that calls spinoff, updates local session to group B, and routes to `/#/g/<groupB>/ignite`.
+- Invite-to-this-group remains a separate path (no camera coupling); breakout remains the viral/social entry point for starting fresh groups.
+
+### Success criteria
+
+- Clicking Breakout Group from group A navigates organizer to group B ignite organizer page.
+- Group B has organizer membership cloned by phone (new personId in B) and ignite session starts successfully.
+- Group A membership remains unchanged.
+
+### Non-regressions
+
+- Existing ignite start/join/close/photo/meta endpoints remain unchanged.
+- Existing app header invite-link behavior remains unchanged.
+
+### How to verify locally/staging
+
+1. In group A app, click **Breakout Group**.
+2. Confirm route changes to `/#/g/<groupB>/ignite`.
+3. Confirm organizer ignite page loads and join URL includes group B + session id.
+4. Join via incognito and verify joiner lands in group B.
+5. Navigate back to group A and verify no new members were added there.
+
 ## 2026-02-23 08:20 UTC update (ignite/start 403 diagnostics instrumentation)
 
 - Added temporary, sanitized auth traces in `igniteStart` (behind `DEBUG_AUTH_LOGS=true`) to emit: request `hasPhone`, safe `rawGroupId`, validated `groupId` + normalized `phoneE164`, and caller lookup outcome (`callerFound`, `callerPersonId`).

@@ -750,6 +750,51 @@ h2 {
   min-width: 0;
 }
 
+.fs-breakoutBar {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 12px;
+}
+
+.fs-breakoutAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-breakoutAction:hover {
+  background: #f8fafc;
+}
+
+.fs-breakoutAction:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.fs-breakoutIcon {
+  font-size: 1rem;
+  color: #334155;
+}
+
+.fs-breakoutTitle {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.fs-breakoutSubtext {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
 .fs-groupHeaderCard {
   display: grid;
   gap: 0.65rem;
