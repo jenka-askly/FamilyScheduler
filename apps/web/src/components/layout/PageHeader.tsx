@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    {children}
+  </svg>
+);
+const Link2 = () => <HeaderIcon><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 5" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19" /></HeaderIcon>;
+const Copy = () => <HeaderIcon><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></HeaderIcon>;
+
 type Props = {
   title: string;
   description?: string;
@@ -69,21 +77,20 @@ export function PageHeader({
                     aria-label="Copy group link"
                     onClick={() => void copyGroupLink()}
                   >
-                    Copy link
+                    <Link2 />
+                    Invite
                   </button>
+                  <span className="fs-meta">Copies full invite URL</span>
                   {copied ? <span className="fs-meta">Copied</span> : null}
                 </div>
               ) : null}
               {groupId ? (
                 <div className="fs-groupIdRow">
                   <span className="fs-meta">Group ID: {shortGroupId}</span>
-                  <button type="button" className="icon-button" aria-label="Copy full group id" data-tooltip="Copy full ID" onClick={() => void copyGroupId()}>⧉</button>
+                  <button type="button" className="icon-button" aria-label="Copy full group id" data-tooltip="Copy full ID" onClick={() => void copyGroupId()}><Copy /></button>
                   {copiedId ? <span className="fs-meta">Copied</span> : null}
                 </div>
               ) : null}
-              <div className="fs-groupExplain">
-                This link is required to return to this group—save it.
-              </div>
             </div>
           ) : null}
         </div>
@@ -101,9 +108,7 @@ export function PageHeader({
         {description && (
           <p className="fs-desc">{description}</p>
         )}
-        {groupId ? (
-            <div>Only listed phone numbers can access this group.</div>
-        ) : null}
+        {groupId ? <div>Only listed phone numbers can access this group.</div> : null}
       </div>
     </div>
   );
