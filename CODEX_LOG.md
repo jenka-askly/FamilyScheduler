@@ -8073,3 +8073,46 @@ Implement Join Group email capture in web UI and trigger ACS email sending on su
 
 - Run `pnpm install` in an environment with npm registry access to refresh lockfile with `@azure/communication-email`.
 - Perform staging smoke test for outbound email and origin header behavior.
+
+## 2026-02-24 15:05 UTC (Magic-link auth endpoints + durable sessions + join hash-route link)
+
+### Objective
+
+Implement minimal backend magic-link auth endpoints and durable blob-backed sessions while keeping existing phone-based gates unchanged; fix join email links to hash route.
+
+### Approach
+
+- Updated join email URL path to `/#/join` in `groupJoin` without changing existing authorization flow.
+- Added `magicLink` helper with base64url payload/signature format and HMAC-SHA256 verification plus typed errors for invalid/expired/config-missing token states.
+- Added `sessions` helper using existing storage adapter `putBinary/getBinary`, `SESSION_BLOB_PREFIX` naming, and TTL expiry checks.
+- Implemented `authRequestLink` endpoint with non-enumerating 200 responses, provider send attempt/success/failure logs, and domain-only email logging.
+- Implemented `authConsumeLink` endpoint with token verification, durable session creation, and explicit invalid/expired error contracts.
+- Registered new functions in API entrypoint and added unit tests for token verification paths.
+- Updated docs (`email-env`, `AUTH_MODEL`) and project status continuity notes.
+
+### Files changed
+
+- `api/src/functions/groupJoin.ts`
+- `api/src/lib/auth/magicLink.ts`
+- `api/src/lib/auth/sessions.ts`
+- `api/src/functions/authRequestLink.ts`
+- `api/src/functions/authConsumeLink.ts`
+- `api/src/index.ts`
+- `api/src/lib/auth/magicLink.test.ts`
+- `docs/email-env.md`
+- `docs/AUTH_MODEL.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd; rg --files -g 'AGENTS.md'` ✅ repo cwd confirmed; no scoped AGENTS.md found via ripgrep pattern.
+- `git checkout develop && git pull && git status --short` ⚠️ failed because branch `develop` does not exist in this clone.
+- `git branch -a` ✅ confirmed only local branch `work` exists.
+- `pnpm -w install` ✅ workspace dependencies resolved; lockfile remained in sync.
+- `pnpm -w test` ✅ root test script completed (`no tests yet`).
+- `pnpm --filter @familyscheduler/api test` ✅ api build + node tests passed, including new magicLink tests.
+
+### Follow-ups
+
+- Add route-level endpoint tests for `auth/request-link` and `auth/consume-link` when lightweight function handler test harness is available.

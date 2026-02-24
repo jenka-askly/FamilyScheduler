@@ -14,6 +14,8 @@ import { scanAppointment } from './functions/scanAppointment.js';
 import { appointmentScanImage } from './functions/appointmentScanImage.js';
 import { appointmentScanDelete } from './functions/appointmentScanDelete.js';
 import { appointmentScanRescan } from './functions/appointmentScanRescan.js';
+import { authRequestLink } from './functions/authRequestLink.js';
+import { authConsumeLink } from './functions/authConsumeLink.js';
 import { igniteStart } from './functions/igniteStart.js';
 import { igniteClose } from './functions/igniteClose.js';
 import { igniteJoin } from './functions/igniteJoin.js';
@@ -26,7 +28,7 @@ const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -89,6 +91,9 @@ registerHttp('scanAppointment', 'scanAppointment', ['POST'], scanAppointment);
 registerHttp('appointmentScanImage', 'appointmentScanImage', ['GET'], appointmentScanImage);
 registerHttp('appointmentScanDelete', 'appointmentScanDelete', ['POST'], appointmentScanDelete);
 registerHttp('appointmentScanRescan', 'appointmentScanRescan', ['POST'], appointmentScanRescan);
+
+registerHttp('authRequestLink', 'auth/request-link', ['POST'], authRequestLink);
+registerHttp('authConsumeLink', 'auth/consume-link', ['POST'], authConsumeLink);
 
 registerHttp('igniteStart', 'ignite/start', ['POST'], igniteStart);
 registerHttp('igniteClose', 'ignite/close', ['POST'], igniteClose);

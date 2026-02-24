@@ -1,3 +1,34 @@
+## 2026-02-24 15:05 UTC update (magic-link auth endpoints + durable sessions + join hash-route link)
+
+- Fixed join email links in `groupJoin` to use hash routing (`/#/join?...`) to prevent direct-route 404s on SPA hosts.
+- Added backend magic-link token helpers (`api/src/lib/auth/magicLink.ts`) using `node:crypto` HMAC SHA-256 signing/verification with typed token errors.
+- Added durable blob-backed sessions (`api/src/lib/auth/sessions.ts`) with configurable prefix/TTL and `x-session-id` request extraction helper.
+- Added `POST /api/auth/request-link` and `POST /api/auth/consume-link` endpoints and registered both routes in the function host.
+- Added minimal unit tests for magic-link token validation paths.
+- Updated auth/email environment docs and auth model docs to describe implemented backend auth increment.
+
+### Success criteria
+
+- Emailed join links target `/#/join` and preserve `groupId` + `traceId`.
+- `POST /api/auth/request-link` always returns `200 { ok: true, traceId }` and attempts provider send when configured.
+- `POST /api/auth/consume-link` returns `sessionId` for valid tokens and returns `400 invalid_token|expired_token` for bad tokens.
+- Logs avoid full email addresses (domain-only logging).
+
+### Non-regressions
+
+- Existing phone-based join/group gating remains in place.
+- New auth endpoints do not flip existing route authorization behavior.
+
+### How to verify locally
+
+1. `pnpm -w install`
+2. `pnpm -w test`
+3. `pnpm --filter @familyscheduler/api test`
+4. POST `/api/auth/request-link` with `{ "email": "test@example.com" }` and confirm `200 { ok:true }`.
+5. POST `/api/auth/consume-link` with a valid token and confirm `{ ok:true, sessionId, expiresAt }`.
+6. Trigger `/api/group/join` email send and confirm the email URL path contains `/#/join`.
+
+
 ## 2026-02-24 14:20 UTC update (Join email capture + ACS send with origin-derived link)
 
 - Updated Join Group UI to collect a required email field and include it in `/api/group/join` payload.

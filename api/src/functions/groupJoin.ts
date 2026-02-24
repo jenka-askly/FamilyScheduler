@@ -72,7 +72,7 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
       if (!origin) {
         console.log({ event: 'email_send_skipped', reason: 'missing_origin', traceId, groupId: validated.groupId, toDomain: getEmailDomain(email) });
       } else {
-        const joinLink = `${origin}/join?groupId=${encodeURIComponent(validated.groupId)}&traceId=${encodeURIComponent(traceId)}`;
+        const joinLink = `${origin}/#/join?groupId=${encodeURIComponent(validated.groupId)}&traceId=${encodeURIComponent(traceId)}`;
         console.log({ event: 'email_send_attempt', origin_present: true, traceId, groupId: validated.groupId, toDomain: getEmailDomain(email), sender: process.env.EMAIL_SENDER_ADDRESS });
         try {
           const providerResult = await sendEmail({
