@@ -7877,3 +7877,39 @@ Apply the agreed UI-only layout fixes in AppShell/global styles: eliminate horiz
 
 - Install/restore missing MUI dependencies in this environment, then rerun dev server and capture final visual screenshot.
 
+
+
+## 2026-02-24 09:35 UTC (tab rail flatten + active seam blend + left-edge alignment)
+
+### Objective
+
+Implement top section tab rail visual behavior: page-bg inactive tabs, paper-bg active tab, active seam blend, left-edge alignment with content grid, and remove extra outer frame around tabs+content.
+
+### Approach
+
+- Introduced shared `BODY_PX` constant in `AppShell` and reused it for tab rail container alignment and section body wrappers.
+- Rebuilt top Schedule/Members strip as a standalone rail `Box` above content surface `Paper` (instead of embedding inside one framed wrapper).
+- Restyled section `Tabs`/`Tab` via `sx`: hidden indicator, square tabs, inactive `background.default`, selected `background.paper` with seam-cover positioning.
+- Set content surface to single `Paper variant="outlined"` with `borderTop: 'none'` and kept members table inside same padded body grid.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd; rg --files -g 'AGENTS.md'` ✅ confirmed repo path; no nested AGENTS files found by this query.
+- `sed -n '1,260p' apps/web/src/AppShell.tsx` ✅ reviewed existing shell/tab structure.
+- `rg -n "Tabs|membersTable|activeSection|Schedule|Members|workspace|Paper|Divider" apps/web/src/AppShell.tsx` ✅ located tab rail and content surface code paths.
+- `sed -n '1190,1675p' apps/web/src/AppShell.tsx` ✅ inspected detailed render tree before edits.
+- `rg -n "ui-membersTable|ui-sheetBody|membersTable" apps/web/src -g '*.css' -g '*.tsx'` ✅ located member table style definitions and related classes.
+- `sed -n '1240,1325p' apps/web/src/styles.css` ✅ verified members table width/collapse rules already present.
+- `rg -n "BODY_PX|ui-sheetBody|Section tabs|borderTop: 'none'|px: BODY_PX" apps/web/src/AppShell.tsx` ✅ validated updated alignment/seam styling locations.
+
+### Follow-ups
+
+- Run local UI verification and screenshot capture once dependencies allow app startup in this environment.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due unresolved `@mui/*` dependencies in this environment.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started, then dependency pre-bundle failed for unresolved `@mui/*`, blocking browser screenshot capture.
