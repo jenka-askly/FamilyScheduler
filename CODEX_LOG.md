@@ -6704,3 +6704,40 @@ Replace row-level expand/collapse in appointment list with an elastic always-vis
 ### Follow-ups
 
 - Once frontend dependencies are available in the environment, rerun build and do manual visual QA in browser for row density/expansion behavior.
+
+## 2026-02-24 00:12 UTC (UI-only: sidebar list style + remove calendar heading)
+
+### Objective
+
+Apply requested UI-only shell polish: convert left nav from boxed buttons to a simple list on subtle gray surface, rename visible `Calendar` label to `Schedule`, and remove redundant `Calendar` heading above main module.
+
+### Approach
+
+- Located left navigation render in `apps/web/src/AppShell.tsx` and replaced outlined `Paper` wrapper with `Box` using `action.hover` background.
+- Kept existing section state and handlers; only changed rendered label text and list item presentation.
+- Added selected left accent styling (`borderLeft`) for active sidebar item without altering selection logic.
+- Removed redundant calendar heading by setting calendar `headerTitle` to `undefined` and guarding title rendering in `PageHeader`.
+- Kept all routing/business logic unchanged.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Calendar\\b|Members\\b|<Button[^>]*>\\s*Calendar|<Button[^>]*>\\s*Members|variant=\"h6\"|Typography" apps/web/src/AppShell.tsx apps/web/src/components/layout -S` ✅ identified nav and heading locations.
+- `rg -n "ListItemText primary=\"Calendar\"|variant=\"h6\">\\{title\\}|title=\\{headerTitle\\}|headerTitle" apps/web/src/AppShell.tsx apps/web/src/components/layout/PageHeader.tsx` ✅ confirmed updated label/title wiring.
+- `pnpm -r --if-present build` ⏳ run after edits (see latest entry below).
+
+### Follow-ups
+
+- Visual smoke in browser for Schedule/Members switching and heading removal.
+
+### Validation addendum (same objective)
+
+- `pnpm -r --if-present build` ❌ fails in this environment due unresolved MUI packages (`@mui/material`, `@mui/icons-material/*`) and existing implicit-any diagnostics unrelated to this UI-only change.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ starts Vite, but app compile fails for same missing MUI deps when modules load.
+- Playwright screenshot capture ✅ produced artifact: `browser:/tmp/codex_browser_invocations/e8c749d7aefc77d0/artifacts/artifacts/sidebar-restyle.png`.

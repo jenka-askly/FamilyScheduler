@@ -798,7 +798,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
-  const headerTitle = activeSection === 'members' ? 'Members' : activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : 'Calendar';
+  const headerTitle = activeSection === 'members' ? 'Members' : activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : undefined;
   const headerDescription = activeSection === 'members'
     ? 'Manage who can access this schedule.'
     : activeSection === 'todos'
@@ -1136,16 +1136,24 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
       <div className="ui-shell">
         <aside className="ui-sidebar">
-          <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
-            <List dense disablePadding>
-              <ListItemButton selected={activeSection === 'calendar'} onClick={() => setActiveSection('calendar')}>
-                <ListItemText primary="Calendar" />
+          <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1 }}>
+            <List disablePadding>
+              <ListItemButton
+                selected={activeSection === 'calendar'}
+                onClick={() => setActiveSection('calendar')}
+                sx={{ borderRadius: 1, mb: 0.5, ...(activeSection === 'calendar' ? { borderLeft: 3, borderColor: 'primary.main', borderStyle: 'solid', borderRight: 0, borderTop: 0, borderBottom: 0, pl: 1.5 } : null) }}
+              >
+                <ListItemText primary="Schedule" />
               </ListItemButton>
-              <ListItemButton selected={activeSection === 'members'} onClick={() => setActiveSection('members')}>
+              <ListItemButton
+                selected={activeSection === 'members'}
+                onClick={() => setActiveSection('members')}
+                sx={{ borderRadius: 1, ...(activeSection === 'members' ? { borderLeft: 3, borderColor: 'primary.main', borderStyle: 'solid', borderRight: 0, borderTop: 0, borderBottom: 0, pl: 1.5 } : null) }}
+              >
                 <ListItemText primary="Members" />
               </ListItemButton>
             </List>
-          </Paper>
+          </Box>
         </aside>
         <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}

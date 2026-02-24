@@ -1740,3 +1740,28 @@ traces
 1. Run `pnpm -r --if-present build`.
 2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
 3. Open the appointment list and verify the elastic row behavior and inline notes expansion.
+
+## 2026-02-24 00:12 UTC update (Sidebar list restyle + remove redundant calendar heading)
+
+- Restyled the left navigation from outlined boxed buttons to a simple list on a subtle gray surface (`action.hover`) for a ChatGPT-like vertical nav feel.
+- Updated the calendar nav label from `Calendar` to `Schedule` while preserving the same `activeSection === 'calendar'` state key/behavior.
+- Added a selected-state left accent on active nav items while keeping MUI selected background behavior.
+- Removed the redundant `Calendar` section heading above the main module by suppressing the header title for calendar section.
+
+### Success criteria
+
+- Sidebar shows `Schedule` and `Members` as list items on a subtle gray background (no outlined outer card).
+- Clicking `Schedule`/`Members` continues to switch sections exactly as before.
+- No standalone `Calendar` heading appears above the calendar module.
+
+### Non-regressions
+
+- Routing, section state keys (`calendar`, `members`), and calendar module behavior remain unchanged.
+- Header group info/menu and description rendering for non-calendar sections remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open `/#/g/<groupId>/app`.
+4. Confirm left nav labels are `Schedule` and `Members`, and there is no `Calendar` heading above the main calendar module.

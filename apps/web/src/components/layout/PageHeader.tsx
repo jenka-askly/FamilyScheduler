@@ -12,7 +12,7 @@ const ContentCopyIcon = () => (
 );
 
 type Props = {
-  title: string;
+  title?: string;
   description?: string;
   groupName?: string;
   groupId?: string;
@@ -144,7 +144,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
           </MenuItem>
         </Menu>
       </Paper>
-      <Typography variant="h6">{title}</Typography>
+      {title ? <Typography variant="h6">{title}</Typography> : null}
       {description ? <Typography color="text.secondary">{description}</Typography> : null}
       {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</Typography> : null}
       {copied ? <Alert severity="success">Copied</Alert> : null}
