@@ -4,7 +4,12 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
-import { Alert, Box, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import EditIcon from '@mui/icons-material/Edit';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material';
 
 type Session = { groupId: string; phone: string; joinedAt: string };
 type AuthStatus = 'checking' | 'allowed' | 'denied';
@@ -265,35 +270,138 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
 type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string> };
 
-const beep = (): void => {
-  const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioCtor) return;
-  const ctx = new AudioCtor();
-  const oscillator = ctx.createOscillator();
-  const gain = ctx.createGain();
-  oscillator.type = 'sine';
-  oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-  gain.gain.setValueAtTime(0.15, ctx.currentTime);
-  oscillator.connect(gain);
-  gain.connect(ctx.destination);
-  oscillator.start();
-  oscillator.stop(ctx.currentTime + 0.12);
-  window.setTimeout(() => { void ctx.close(); }, 180);
-};
-
 function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
+  const [groupName, setGroupName] = useState<string>('Family Schedule');
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [isRenamePending, setIsRenamePending] = useState(false);
   const [joinedCount, setJoinedCount] = useState(0);
+  const [joinedBump, setJoinedBump] = useState(false);
+  const [joinSoundEnabled, setJoinSoundEnabled] = useState(false);
   const [joinedPersonIds, setJoinedPersonIds] = useState<string[]>([]);
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [photoSelected, setPhotoSelected] = useState(false);
-  const [showJoinUrl, setShowJoinUrl] = useState(false);
   const [copiedJoinLink, setCopiedJoinLink] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
+  const [scanCaptureOpen, setScanCaptureOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const scanCaptureVideoRef = useRef<HTMLVideoElement | null>(null);
+  const scanCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scanCaptureStreamRef = useRef<MediaStream | null>(null);
+  const prevJoinedRef = useRef(0);
+  const joinBumpTimeoutRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const lastChimeAtRef = useRef(0);
+
+  const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  const stopScanCaptureStream = () => {
+    if (!scanCaptureStreamRef.current) return;
+    scanCaptureStreamRef.current.getTracks().forEach((track) => track.stop());
+    scanCaptureStreamRef.current = null;
+  };
+
+  const closeScanCaptureModal = () => {
+    stopScanCaptureStream();
+    setScanCaptureOpen(false);
+  };
+
+  useEffect(() => () => {
+    stopScanCaptureStream();
+    if (joinBumpTimeoutRef.current != null) window.clearTimeout(joinBumpTimeoutRef.current);
+  }, []);
+
+  useEffect(() => {
+    const loadGroupMeta = async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
+        if (!response.ok) return;
+        const data = await response.json() as { ok?: boolean; groupName?: string };
+        if (data.ok && data.groupName) setGroupName(data.groupName);
+      } catch {
+        // Keep existing fallback title.
+      }
+    };
+    void loadGroupMeta();
+  }, [groupId]);
+
+  const renameGroupName = async () => {
+    const normalized = normalizeGroupName(groupNameDraft);
+    if (!normalized) {
+      setError('Group name is required.');
+      return;
+    }
+    if (normalized.length > 60) {
+      setError('Group name must be 60 characters or fewer.');
+      return;
+    }
+    setIsRenamePending(true);
+    setError(null);
+    const traceId = createTraceId();
+    try {
+      const response = await fetch(apiUrl('/api/group/rename'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, phone, groupName: normalized, traceId })
+      });
+      const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
+      if (!response.ok) {
+        setError(`${payload.message ?? 'Unable to rename group.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
+        return;
+      }
+      setGroupName(payload.groupName || normalized);
+      setIsEditingGroupName(false);
+      setGroupNameDraft('');
+    } catch {
+      setError('Unable to rename group.');
+    } finally {
+      setIsRenamePending(false);
+    }
+  };
+
+  const playJoinChime = () => {
+    try {
+      const AudioCtor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtor) return;
+      const now = Date.now();
+      if (now - lastChimeAtRef.current < 500) return;
+      const ctx = audioContextRef.current ?? new AudioCtor();
+      audioContextRef.current = ctx;
+      const t0 = ctx.currentTime + 0.01;
+
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(880, t0);
+      gain1.gain.setValueAtTime(0.0001, t0);
+      gain1.gain.exponentialRampToValueAtTime(0.09, t0 + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(t0);
+      osc1.stop(t0 + 0.08);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      const t1 = t0 + 0.1;
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(660, t1);
+      gain2.gain.setValueAtTime(0.0001, t1);
+      gain2.gain.exponentialRampToValueAtTime(0.08, t1 + 0.01);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, t1 + 0.08);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(t1);
+      osc2.stop(t1 + 0.08);
+      lastChimeAtRef.current = now;
+    } catch {
+      // Best-effort only; browsers may block until user gesture.
+    }
+  };
 
   const startSession = async () => {
     setError(null);
@@ -311,6 +419,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     setSessionId(data.sessionId);
     setStatus('OPEN');
     setJoinedCount(0);
+    prevJoinedRef.current = 0;
     setJoinedPersonIds([]);
     setPhotoUpdatedAtByPersonId({});
   };
@@ -322,7 +431,6 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       return;
     }
     let canceled = false;
-    let prevCount = joinedCount;
     const poll = async () => {
       const response = await fetch(apiUrl('/api/ignite/meta'), {
         method: 'POST',
@@ -332,8 +440,13 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       const data = await response.json() as IgniteMetaResponse;
       if (!response.ok || !data.ok || canceled) return;
       const nextCount = data.joinedCount ?? 0;
-      if (nextCount > prevCount) beep();
-      prevCount = nextCount;
+      if (nextCount > prevJoinedRef.current) {
+        setJoinedBump(true);
+        if (joinBumpTimeoutRef.current != null) window.clearTimeout(joinBumpTimeoutRef.current);
+        joinBumpTimeoutRef.current = window.setTimeout(() => setJoinedBump(false), 600);
+        if (joinSoundEnabled && document.visibilityState === 'visible') playJoinChime();
+      }
+      prevJoinedRef.current = nextCount;
       setStatus(data.status ?? 'OPEN');
       setJoinedCount(nextCount);
       setJoinedPersonIds(data.joinedPersonIds ?? []);
@@ -342,7 +455,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     void poll();
     const interval = window.setInterval(() => { void poll(); }, 2500);
     return () => { canceled = true; window.clearInterval(interval); };
-  }, [groupId, phone, sessionId]);
+  }, [groupId, phone, sessionId, joinSoundEnabled]);
 
   const closeSession = async () => {
     if (!sessionId) return;
@@ -355,13 +468,28 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     setStatus(data.status ?? 'CLOSING');
   };
 
+  const uploadPhotoBase64 = async (base64: string) => {
+    if (!sessionId || !base64) return;
+    setError(null);
+    setIsUploading(true);
+    try {
+      const response = await fetch(apiUrl('/api/ignite/photo'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
+      const data = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) setError(data.message ?? 'Unable to upload photo');
+      else setPhotoSelected(true);
+    } catch {
+      setError('Unable to upload photo');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const uploadPhoto = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
     if (!file || !sessionId) {
       setPhotoSelected(false);
       return;
     }
-    setPhotoSelected(true);
     setError(null);
     setIsUploading(true);
     try {
@@ -372,16 +500,77 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         reader.readAsDataURL(file);
       });
       const [, base64 = ''] = dataUrl.split(',', 2);
-      const response = await fetch(apiUrl('/api/ignite/photo'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
-      const data = await response.json() as { ok?: boolean; message?: string };
-      if (!response.ok || !data.ok) setError(data.message ?? 'Unable to upload photo');
+      await uploadPhotoBase64(base64);
     } catch {
       setError('Unable to upload photo');
     } finally {
-      setIsUploading(false);
       input.value = '';
     }
   };
+
+  const openCapture = async () => {
+    if (!sessionId || isUploading) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      scanCaptureStreamRef.current = stream;
+      setScanCaptureOpen(true);
+    } catch {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const capturePhoto = async () => {
+    const video = scanCaptureVideoRef.current;
+    const canvas = scanCaptureCanvasRef.current;
+    if (!video || !canvas) return;
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.drawImage(video, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    if (!blob) return;
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(new Error('read_failed'));
+      reader.readAsDataURL(blob);
+    });
+    const [, base64 = ''] = dataUrl.split(',', 2);
+    closeScanCaptureModal();
+    await uploadPhotoBase64(base64);
+  };
+
+  useEffect(() => {
+    if (!scanCaptureOpen) return;
+    let frameId: number | null = null;
+    let attempts = 0;
+
+    const attachPreview = () => {
+      const video = scanCaptureVideoRef.current;
+      const stream = scanCaptureStreamRef.current;
+      if (!stream) return;
+      if (!video && attempts < 6) {
+        attempts += 1;
+        frameId = window.requestAnimationFrame(attachPreview);
+        return;
+      }
+      if (!video) return;
+      video.srcObject = stream;
+      void video.play().catch(() => undefined);
+    };
+
+    attachPreview();
+    return () => {
+      if (frameId != null) window.cancelAnimationFrame(frameId);
+    };
+  }, [scanCaptureOpen]);
 
   const base = `${window.location.origin}${window.location.pathname}${window.location.search}#`;
   const joinUrl = sessionId ? `${base}/s/${groupId}/${sessionId}` : '';
@@ -409,91 +598,118 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         title="Ignition Session"
         description="QR join for quick onboarding with live count and photos."
         groupId={groupId}
-        groupAccessNote={status === 'OPEN' ? "Anyone with this QR can join while it's open." : 'Closed. Reopen to allow new joins.'}
       />
       {error ? <Alert severity="error">{error}</Alert> : null}
-      <Stack spacing={2}>
-        <div className="ignite-top-row">
-          <button
-            
-            type="button"
-            title="Back to group"
-            aria-label="Back to group"
-            onClick={() => { nav(`/g/${groupId}/app`, { replace: true }); }}
-          >
-            ←
-          </button>
-        </div>
-        <div className="ui-igniteHeader ui-igniteSection">
-          <Typography variant="h6">Organizer view</Typography>
-          <div className="ui-igniteMeta">
-            <span className="ui-chip">{status}</span>
-            <Typography variant="body2">Joined: {joinedCount}</Typography>
-          </div>
-        </div>
-        {!sessionId ? (
+      <div className="ui-igniteOrg">
+        <div className="ui-igniteOrgInner">
           <div className="ui-igniteSection">
-            <Typography className="ui-meta">No active session right now.</Typography>
-            <div className="ui-igniteActions">
-              <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
+            <Typography variant="overline" color="text.secondary">Group</Typography>
+            {isEditingGroupName ? (
+              <div className="ui-igniteGroupEditRow">
+                <TextField
+                  size="small"
+                  value={groupNameDraft}
+                  onChange={(event) => setGroupNameDraft(event.target.value)}
+                  inputProps={{ maxLength: 60, 'aria-label': 'Group name' }}
+                />
+                <Button variant="contained" size="small" onClick={() => { void renameGroupName(); }} disabled={isRenamePending}>Save</Button>
+                <Button variant="text" size="small" onClick={() => setIsEditingGroupName(false)} disabled={isRenamePending}>Cancel</Button>
+              </div>
+            ) : (
+              <div className="ui-igniteGroupTitleRow">
+                <Typography variant="h5" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupName}</Typography>
+                <IconButton
+                  size="small"
+                  aria-label="Rename group"
+                  title="Rename group"
+                  onClick={() => {
+                    setGroupNameDraft(groupName);
+                    setIsEditingGroupName(true);
+                  }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </div>
+            )}
+            <div className="ui-igniteJoinedRow">
+              <Typography variant="body2">Joined <span className={`ui-igniteJoinedBadge ${joinedBump ? 'ui-igniteJoinedBump' : ''}`}>{joinedCount}</span></Typography>
+              <IconButton
+                size="small"
+                aria-label="Join sound"
+                title={`Join sound ${joinSoundEnabled ? 'on' : 'off'}`}
+                onClick={() => setJoinSoundEnabled((current) => !current)}
+              >
+                {joinSoundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+              </IconButton>
             </div>
           </div>
-        ) : (
-          <>
-            <div className="ui-igniteShareCard ui-igniteSection">
-              <div className="ui-igniteQrCol">
-                <div className="ui-igniteLabel">Scan to join</div>
-                {qrLoadFailed ? (
-                  <div>
-                    <p className="ui-meta">QR unavailable right now.</p>
-                    <TextField value={joinUrl} InputProps={{ readOnly: true }} fullWidth />
-                    <div className="ui-igniteInlineActions">
-                      <Button variant="outlined" type="button" onClick={() => { void copyJoinLink(joinUrl); }}>Copy</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <img className="ui-igniteQrImg" src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
-                )}
-              </div>
-              <div className="ui-igniteLinkCol">
-                <div className="ui-igniteLabel">Join link</div>
-                <p className="ui-meta">Share this with anyone joining this session.</p>
-                <div className="ignite-link-row">
-                  <TextField value={joinUrl} InputProps={{ readOnly: true }} fullWidth />
-                  <Button variant="outlined" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>Copy</Button>
-                </div>
-                {copiedJoinLink ? <p className="ui-meta">✓ Copied</p> : null}
-                <Button variant="text" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
-                  {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
-                </Button>
-                {showJoinUrl ? <p className="ignite-link-text" title={joinUrl}>{joinUrl}</p> : null}
-              </div>
+
+          {!sessionId ? (
+            <div className="ui-igniteSection">
+              <Typography className="ui-meta">No active session right now.</Typography>
             </div>
-            <div className="ui-igniteActions ui-igniteSection">
-              {status === 'OPEN' ? (
-                <Button variant="contained" type="button" onClick={() => { void closeSession(); }} disabled={status !== 'OPEN'}>Close</Button>
+          ) : (
+            <div className="ui-igniteSection ui-igniteQrWrap">
+              <Typography variant="subtitle2">Scan to join</Typography>
+              {qrLoadFailed ? (
+                <Typography className="ui-meta">QR unavailable — use the join link.</Typography>
               ) : (
-                <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
+                <img className="ui-igniteQrImg" src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
               )}
             </div>
-          </>
-        )}
-        <div className="ui-igniteSection">
-          <div className="ui-igniteHeader">
-            <Typography variant="subtitle2">Photos</Typography>
+          )}
+
+          {sessionId ? (
+            <div className="ui-igniteSection">
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Join link</Typography>
+              <div className="ui-igniteJoinLinkRow">
+                <code className="ui-igniteJoinLinkText" title={joinUrl}>{joinUrl}</code>
+                <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </div>
+              {copiedJoinLink ? <Typography className="ui-meta">✓ Copied</Typography> : null}
+            </div>
+          ) : null}
+
+          <div className="ui-igniteSection ui-igniteActions">
+            {status === 'OPEN' && sessionId ? (
+              <Button variant="contained" type="button" onClick={() => { void closeSession(); }}>Close</Button>
+            ) : (
+              <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
+            )}
           </div>
-          <div className="ui-igniteActions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
-            <Button variant="outlined" type="button" title="Photo" aria-label="Add or update your photo" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>Add photo</Button>
-          </div>
-          {photoSelected ? <p className="ui-meta">Photo selected.</p> : null}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
-            {sessionId ? joinedPersonIds.map((personId) => (
-              <img key={personId} src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, background: '#f1f5f9' }} />
-            )) : null}
+
+          <div className="ui-igniteSection">
+            <div className="ui-igniteHeader">
+              <Typography variant="subtitle2">Photos</Typography>
+            </div>
+            <div className="ui-igniteActions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
+              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
+              <IconButton type="button" title="Add or update your photo" aria-label="Add or update your photo" onClick={() => { void openCapture(); }} disabled={!sessionId || isUploading}>
+                <CameraAltIcon />
+              </IconButton>
+            </div>
+            {photoSelected ? <p className="ui-meta">Photo selected.</p> : null}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
+              {sessionId ? joinedPersonIds.map((personId) => (
+                <img key={personId} src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, background: '#f1f5f9' }} />
+              )) : null}
+            </div>
           </div>
         </div>
-      </Stack>
+      </div>
+      <Dialog open={scanCaptureOpen} onClose={closeScanCaptureModal} maxWidth="sm" fullWidth>
+        <DialogTitle>Capture photo</DialogTitle>
+        <DialogContent>
+          <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', minHeight: 280, borderRadius: 1, objectFit: 'cover', backgroundColor: 'black' }} />
+          <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeScanCaptureModal}>Cancel</Button>
+          <Button variant="contained" onClick={() => { void capturePhoto(); }}>Capture</Button>
+        </DialogActions>
+      </Dialog>
       <FooterHelp />
     </Page>
   );
