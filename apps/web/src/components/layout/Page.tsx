@@ -19,7 +19,7 @@ export function Page({ children, variant = 'workspace' }: PageProps) {
 
   return (
     <Box sx={{ minHeight: '100vh', py: 3 }}>
-      <Container maxWidth="lg">{children}</Container>
+      <Container maxWidth="xl" sx={{ width: '100%' }}>{children}</Container>
     </Box>
   );
 }

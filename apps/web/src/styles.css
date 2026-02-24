@@ -1188,14 +1188,12 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 
 .ui-shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 .ui-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: none;
 }
 
 .ui-leftNavItem {
@@ -1294,6 +1292,7 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 .ui-membersTable td {
   padding: 10px 12px;
   text-align: left;
+  vertical-align: middle;
 }
 
 .ui-membersTable th:last-child,

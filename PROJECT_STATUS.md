@@ -1,3 +1,32 @@
+## 2026-02-24 09:18 UTC update (UI sheet tab polish + workspace width + scrollbar stability)
+
+- Moved Schedule/Members tab rail into the shared top sheet header inside the workspace `Paper` and normalized the attached-tab styling.
+- Stabilized horizontal layout by forcing a persistent vertical scrollbar gutter at the root (`html`).
+- Widened workspace layout container from `maxWidth="lg"` to `maxWidth="xl"` with explicit full width.
+- Removed the empty reserved sidebar column so the main sheet uses available horizontal space.
+- Unified Schedule and Members body padding and aligned members table cell spacing/actions column.
+- Moved Schedule/Members to top sheet tabs; stabilized scrollbar; widened workspace; aligned surfaces.
+
+### Success criteria
+
+- No horizontal jump when toggling Schedule/Members.
+- On wide screens, main workspace uses more width with no dead left gutter.
+- Sheet tabs are visually attached to a single surface (no double seam directly under tab rail).
+- Members table aligns with the Schedule content edge.
+
+### Non-regressions
+
+- Existing calendar view tabs and actions still render in Schedule.
+- Existing people add/edit/delete/rules flows remain wired as before.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck` (currently fails in this environment due unresolved `@mui/*` deps).
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` after restoring deps.
+3. Toggle Schedule/Members repeatedly and confirm no horizontal page jump.
+4. Verify tab rail is attached to the surface and members table edges align with schedule content.
+
+
 ## 2026-02-24 09:00 UTC update (Shared sheet surface + members table alignment)
 
 - Introduced a single shared `Paper` surface in `ui-main` that now contains both the Schedule/Members sheet tabs and the active section body.

@@ -1234,55 +1234,55 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
           <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Tabs
-              value={activeSection === 'members' ? 'members' : 'calendar'}
-              onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
-              aria-label="Section tabs"
-              sx={{
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                px: 2,
-                minHeight: 40,
-                '& .MuiTabs-indicator': { display: 'none' }
-              }}
-            >
-              <Tab
-                value="calendar"
-                label="Schedule"
+            <Box sx={{ px: 2, pt: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Tabs
+                value={activeSection === 'members' ? 'members' : 'calendar'}
+                onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
+                aria-label="Section tabs"
                 sx={{
-                  textTransform: 'none',
                   minHeight: 32,
-                  minWidth: 0,
-                  px: 2,
-                  mr: 1,
-                  borderTopLeftRadius: 1.25,
-                  borderTopRightRadius: 1.25,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderBottom: 'none',
-                  backgroundColor: 'action.hover',
-                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
+                  '& .MuiTabs-flexContainer': { gap: 1 },
+                  '& .MuiTabs-indicator': { display: 'none' }
                 }}
-              />
-              <Tab
-                value="members"
-                label="Members"
-                sx={{
-                  textTransform: 'none',
-                  minHeight: 32,
-                  minWidth: 0,
-                  px: 2,
-                  mr: 1,
-                  borderTopLeftRadius: 1.25,
-                  borderTopRightRadius: 1.25,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderBottom: 'none',
-                  backgroundColor: 'action.hover',
-                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
-                }}
-              />
-            </Tabs>
+              >
+                <Tab
+                  value="calendar"
+                  label="Schedule"
+                  sx={{
+                    textTransform: 'none',
+                    minHeight: 28,
+                    minWidth: 0,
+                    px: 2,
+                    borderTopLeftRadius: 10,
+                    borderTopRightRadius: 10,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderBottom: 'none',
+                    backgroundColor: 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
+                  }}
+                />
+                <Tab
+                  value="members"
+                  label="Members"
+                  sx={{
+                    textTransform: 'none',
+                    minHeight: 28,
+                    minWidth: 0,
+                    px: 2,
+                    borderTopLeftRadius: 10,
+                    borderTopRightRadius: 10,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderBottom: 'none',
+                    backgroundColor: 'transparent',
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
+                  }}
+                />
+              </Tabs>
+            </Box>
 
             <div className="ui-sheetBody">
 
@@ -1292,8 +1292,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'calendar' ? (
             <>
+              <Box sx={{ px: 2, pb: 2, pt: 1 }}>
               <section className="ui-cal">
-                  <Box sx={{ p: 2 }}>
+                  <Box>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
                       <Tabs
                         value={calendarView}
@@ -1332,7 +1333,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </Stack>
                   </Box>
                   <Divider />
-                  <Box sx={{ p: 2 }}>
+                  <Box sx={{ pt: 2 }}>
                     {calendarView === 'month' ? (
                       <>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -1513,6 +1514,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     ) : null}
                   </Box>
               </section>
+            </Box>
             </>
           ) : null}
 
@@ -1546,29 +1548,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
 
           {activeSection === 'members' ? (
-            <section>
-              <Box sx={{ p: 2 }}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" aria-label="People actions">
-                      <Tooltip title="Add person">
-                        <span>
-                          <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person">
-                            <Plus />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </Stack>
-                  </Stack>
-                </Box>
-                <Divider />
-                <Box sx={{ p: 2 }}>
-                  {peopleInView.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      No people added yet.
-                    </Typography>
-                  ) : null}
-                  <div className="ui-membersTableWrap">
+            <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
+                <Tooltip title="Add person">
+                  <span>
+                    <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person">
+                      <Plus />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+              {peopleInView.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  No people added yet.
+                </Typography>
+              ) : null}
+              <div className="ui-membersTableWrap">
                     <table className="ui-membersTable">
                       <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
                       <tbody>
@@ -1658,8 +1654,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       </tbody>
                     </table>
                   </div>
-                </Box>
-            </section>
+            </Box>
           ) : null}
           </div>
           </Paper>

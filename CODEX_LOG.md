@@ -7840,3 +7840,40 @@ Fix visual seams and width drift by placing Schedule/Members tabs + body on one 
 ### Follow-ups
 
 - Restore/install missing `@mui/*` dependencies in the environment to validate runtime UI and enable screenshot capture.
+
+
+## 2026-02-24 09:18 UTC (UI fixes: scrollbar gutter, workspace width, sheet tab attachment)
+
+### Objective
+
+Apply the agreed UI-only layout fixes in AppShell/global styles: eliminate horizontal jump, remove dead left space, attach sheet tabs to surface, and align members table/surfaces.
+
+### Approach
+
+- Updated workspace container sizing in `Page` to `maxWidth="xl"` + `width: '100%'` for broader desktop utilization.
+- Added root scrollbar stabilization in `apps/web/src/styles/ui.css` using `html { overflow-y: scroll; scrollbar-gutter: stable; }`.
+- Updated `AppShell` sheet rail to a `Box` + MUI `Tabs` configuration attached to shared `Paper`, with unselected transparent tabs and selected attached style.
+- Removed reserved empty sidebar width by collapsing `.ui-shell` to a single column and hiding `.ui-sidebar`.
+- Unified Schedule/Members content body spacing with `px:2, pt:1, pb:2` wrappers and simplified members header row alignment.
+- Kept behaviors intact; no API or domain logic changes.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/Page.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "ui-main|ui-sidebar|activeSection|members|Tabs|maxWidth|ui-membersTable" apps/web/src/AppShell.tsx apps/web/src/components/layout/Page.tsx apps/web/src/styles/ui.css apps/web/src/styles.css` ✅ located all relevant UI surfaces.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing environment dependency resolution (`@mui/material` and `@mui/icons-material` unavailable).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts but runtime module resolution fails for missing `@mui/*` dependencies.
+- `run_playwright_script` ⚠️ unable to capture screenshot because app endpoint returned `ERR_EMPTY_RESPONSE` after failed dependency resolution.
+
+### Follow-ups
+
+- Install/restore missing MUI dependencies in this environment, then rerun dev server and capture final visual screenshot.
+
