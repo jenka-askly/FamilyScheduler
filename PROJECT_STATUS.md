@@ -2851,3 +2851,22 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 6. After consuming magic link:
    - App routes load normally.
    - Authenticated requests include `x-session-id` header (handled via existing `apiFetch`).
+
+## 2026-02-24 23:35 UTC update (Breakout QR join provisional sessions + closed-session enforcement)
+
+- Updated `POST /api/ignite/join` to support two modes:
+  - authenticated callers auto-join with existing API session (no name/email required),
+  - unauthenticated callers require name+email, are added to members, receive immediate magic-link dispatch, and get a provisional API session.
+- Enforced invite/session open-state checks in ignite join (`status === OPEN`); closed sessions now reject new joins with stable `IGNITE_CLOSED` semantics.
+- Added provisional session support in auth session storage/validation with env TTL (`PROVISIONAL_SESSION_TTL_SECONDS`, default 1800) and explicit expiry code payload (`code: AUTH_PROVISIONAL_EXPIRED`) on 401.
+- Added web-side handling for expired provisional sessions in central `apiFetch`: clears `fs.sessionId` and redirects to `/#/login?m=Please verify your email to continue`.
+- Updated `IgniteJoinPage` behavior:
+  - with API session: auto-join with a minimal joining state,
+  - without API session: name+email form, join immediately into group app, stores server-issued provisional `fs.sessionId`, and shows closed-session message when applicable.
+
+### Key files touched
+
+- `api/src/functions/igniteJoin.ts`
+- `api/src/lib/auth/sessions.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/lib/apiUrl.ts`

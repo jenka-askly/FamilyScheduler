@@ -4,6 +4,7 @@ const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 
 const apiBaseUrl = configuredApiBaseUrl ? trimTrailingSlash(configuredApiBaseUrl) : '';
 const SESSION_ID_KEY = 'fs.sessionId';
+const PROVISIONAL_EXPIRED_NOTICE = 'Please verify your email to continue';
 const warnedUnauthorizedTraceIds = new Set<string>();
 
 export const apiUrl = (path: string): string => {
@@ -15,6 +16,18 @@ export const getSessionId = (): string | null => {
   if (typeof window === 'undefined') return null;
   const sessionId = window.localStorage.getItem(SESSION_ID_KEY);
   return sessionId && sessionId.trim() ? sessionId : null;
+};
+
+
+const handleProvisionalExpiry = (path: string, payload: { error?: string; code?: string }): void => {
+  if (typeof window === 'undefined') return;
+  const code = payload.code ?? payload.error;
+  if (code !== 'AUTH_PROVISIONAL_EXPIRED') return;
+  window.localStorage.removeItem(SESSION_ID_KEY);
+  const currentHash = window.location.hash || '';
+  if (currentHash.startsWith('#/login')) return;
+  console.warn(`[apiFetch] provisional_session_expired path=${path}`);
+  window.location.replace(`${window.location.pathname}${window.location.search}#/login?m=${encodeURIComponent(PROVISIONAL_EXPIRED_NOTICE)}`);
 };
 
 const warnMissingSession = (path: string, traceId?: string): void => {
@@ -32,10 +45,11 @@ export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Re
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
     try {
-      const payload = await response.clone().json() as { ok?: boolean; error?: string; message?: string; traceId?: string };
+      const payload = await response.clone().json() as { ok?: boolean; error?: string; code?: string; message?: string; traceId?: string };
       if (payload.ok === false && payload.error === 'unauthorized' && payload.message === 'Missing session') {
         warnMissingSession(path, payload.traceId);
       }
+      handleProvisionalExpiry(path, payload);
     } catch {
       // Ignore parse errors.
     }
