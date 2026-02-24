@@ -133,10 +133,10 @@ export const AppointmentEditorForm = ({
       maxRows={3}
     />
     <Stack direction="row" spacing={1} justifyContent="flex-end">
-      <Button onClick={onConfirm}>Confirm</Button>
       <Button variant="outlined" onClick={onCancel}>
         Cancel
       </Button>
+      <Button variant="contained" onClick={onConfirm}>Confirm</Button>
     </Stack>
   </Stack>
   );
