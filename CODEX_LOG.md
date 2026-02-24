@@ -8229,3 +8229,37 @@ Fix runtime auth failure (`unauthorized: Missing session`) occurring immediately
 ### Follow-ups
 
 - Manual browser verification in DevTools Network to confirm `x-session-id` present on `group/meta` and mutating calls in real auth session.
+
+## 2026-02-24 19:42 UTC (Unauthenticated landing at `/#/` + protected-route redirect)
+
+### Objective
+
+Implement a non-blank unauthenticated root landing (`/#/`) with magic-link request UX, enforce protected route redirects to sign-in when session is missing, and add top-level crash visibility.
+
+### Approach
+
+- Located hash-router parsing and auth gating in `apps/web/src/App.tsx`.
+- Added route query support (`m`) for sign-in notice messaging and helper to build root sign-in route.
+- Added `LandingSignInPage` with email form posting to `/api/auth/request-link` and success feedback (`Check your email`).
+- Added `RedirectToSignInPage` for protected routes without session to avoid render-phase navigation and ensure a visible interim state.
+- Updated `GroupAuthGate` missing-session redirect to root sign-in route with a user message.
+- Added `FatalErrorBoundary` in `apps/web/src/main.tsx` to surface fatal render errors as `App error — open console`.
+- Updated `PROJECT_STATUS.md` with bug/fix/verification notes for this issue.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/main.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "sessionId|/#/|groupId|request-link|HashRouter|window.onerror|ErrorBoundary|localStorage" apps packages -S` ✅ located routing/session/auth touchpoints.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local web for visual verification.
+- Browser screenshot capture via Playwright ✅ artifact generated at `browser:/tmp/codex_browser_invocations/5ae9de5c966a14d9/artifacts/artifacts/landing-signin.png`.
+
+### Follow-ups
+
+- Human/browser-side staging verification still needed for end-to-end magic-link consumption and `x-session-id` confirmation on authenticated calls after link consumption.
