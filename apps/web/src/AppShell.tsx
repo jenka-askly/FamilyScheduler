@@ -1156,7 +1156,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'calendar' ? (
             <>
-              <section className="panel ui-cal">
+              <section className="ui-cal">
                 <Paper variant="outlined" sx={{ borderRadius: 2 }}>
                   <Box sx={{ px: 2, pt: 1 }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>

@@ -1,3 +1,28 @@
+## 2026-02-24 01:10 UTC update (Single-surface calendar module: remove nested panel border)
+
+- Removed the nested `.panel` frame around the calendar module so the unified outer `Paper variant="outlined"` is now the single border/radius surface for calendar views.
+- Preserved internal content structure for List/Month rendering (row dividers and calendar grid lines remain).
+- No API or behavior changes; visual containment only.
+- Removed nested outlined wrappers in List/Month so the view module uses a single framed surface (no double borders).
+
+### Success criteria
+
+- In List view, only one rounded outer border is visible around tabs + list content.
+- In Month view, only one rounded outer border is visible around tabs + month grid content.
+- No box-inside-box framing remains in the calendar section.
+
+### Non-regressions
+
+- Calendar tabs/actions behavior is unchanged.
+- Appointment list row separators and month-day grid lines remain visible.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open `/#/g/<groupId>/app` and switch between List and Month tabs.
+4. Confirm there is exactly one outer rounded border around the whole calendar module in both views.
+
 ## 2026-02-23 22:57 UTC update (MUI icons dependency alignment)
 
 - Added `@mui/icons-material` dependency in `apps/web/package.json` aligned to MUI v6 (`^6.4.7`) to support `Menu` and `RocketLaunch` icon imports.
