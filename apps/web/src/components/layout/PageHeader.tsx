@@ -30,22 +30,50 @@ type Props = {
   titleOverride?: string;
   subtitleOverride?: string;
   subtitlePulse?: boolean;
+  hasApiSession?: boolean;
+  onSignOut?: () => void;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, onSignOut }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
   const [groupNameDraft, setGroupNameDraft] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isRenamePending, setIsRenamePending] = useState(false);
+  const [detectedApiSession, setDetectedApiSession] = useState<boolean>(() => Boolean(window.localStorage.getItem('fs.sessionId')));
   const { mode, toggleMode } = useColorMode();
+
+  const signOut = () => {
+    window.localStorage.removeItem('fs.sessionId');
+    window.sessionStorage.removeItem('familyscheduler.session');
+    window.sessionStorage.removeItem('fs.pendingAuth');
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith('fs.authComplete.'))
+      .forEach((key) => window.localStorage.removeItem(key));
+    if (onSignOut) {
+      onSignOut();
+      return;
+    }
+    const next = `${window.location.pathname}${window.location.search}#/`;
+    window.location.replace(next);
+  };
+
 
   useEffect(() => {
     if (!copied) return;
     const timer = window.setTimeout(() => setCopied(false), 1200);
     return () => window.clearTimeout(timer);
   }, [copied]);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'fs.sessionId') setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
+    };
+    window.addEventListener('storage', onStorage);
+    setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const copyGroupLink = async () => {
     if (!groupId || typeof window === 'undefined') return;
@@ -239,6 +267,19 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </MenuItem>
           ) : null}
           {onBreakoutClick ? <Divider /> : null}
+          {(hasApiSession ?? detectedApiSession) ? (
+            <MenuItem
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setAnchorEl(null);
+                signOut();
+              }}
+            >
+              <ListItemText primary="Sign out" />
+            </MenuItem>
+          ) : null}
+          {(hasApiSession ?? detectedApiSession) ? <Divider /> : null}
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
               <Typography>Dark mode</Typography>

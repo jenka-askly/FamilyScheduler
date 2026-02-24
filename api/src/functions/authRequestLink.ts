@@ -5,7 +5,23 @@ import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { sign, type MagicLinkPayload } from '../lib/auth/magicLink.js';
 
-type AuthRequestLinkBody = { email?: unknown; traceId?: unknown; returnTo?: unknown };
+type AuthRequestLinkBody = { email?: unknown; traceId?: unknown; returnTo?: unknown; attemptId?: unknown };
+
+const isSafeReturnTo = (value: string): boolean => value.startsWith('/') && !value.startsWith('//') && !value.includes('://');
+
+const toSafeReturnTo = (value: unknown): string => {
+  if (typeof value !== 'string') return '/';
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 200 || !isSafeReturnTo(trimmed)) return '/';
+  return trimmed;
+};
+
+const toAttemptId = (value: unknown): string => {
+  if (typeof value !== 'string') return randomUUID();
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 120) return randomUUID();
+  return trimmed;
+};
 
 const resolveOrigin = (request: HttpRequest): string | null => {
   const origin = request.headers.get('origin');
@@ -52,7 +68,8 @@ export async function authRequestLink(request: HttpRequest, _context: Invocation
   const secret = process.env.MAGIC_LINK_SECRET!.trim();
   const now = Math.floor(Date.now() / 1000);
   const exp = now + (15 * 60);
-  const returnTo = typeof body.returnTo === 'string' && body.returnTo.length <= 200 ? body.returnTo : undefined;
+  const returnTo = toSafeReturnTo(body.returnTo);
+  const attemptId = toAttemptId(body.attemptId);
 
   const payload: MagicLinkPayload = {
     v: 1,
@@ -61,7 +78,7 @@ export async function authRequestLink(request: HttpRequest, _context: Invocation
     purpose: 'login',
     iat: now,
     exp,
-    ...(returnTo ? { returnTo } : {})
+    returnTo
   };
 
   const token = sign(payload, secret);
@@ -71,15 +88,15 @@ export async function authRequestLink(request: HttpRequest, _context: Invocation
     return errorResponse(500, 'CONFIG_MISSING', 'Required configuration is missing.', traceId, { missing: ['WEB_BASE_URL'] });
   }
 
-  const link = `${base}/#/auth/consume?token=${encodeURIComponent(token)}`;
+  const link = `${base}/#/auth/consume?token=${encodeURIComponent(token)}&attemptId=${encodeURIComponent(attemptId)}&returnTo=${encodeURIComponent(returnTo)}`;
   console.log(JSON.stringify({ event: 'auth_link_attempt', traceId, toDomain: getEmailDomain(email), sender: process.env.EMAIL_SENDER_ADDRESS }));
 
   try {
     const providerResult = await sendEmail({
       to: email,
-      subject: 'Your sign-in link',
-      plainText: `Use this sign-in link: ${link}`,
-      html: `<p>Use this sign-in link: <a href="${link}">Sign in</a></p>`
+      subject: 'Sign in to Family Scheduler',
+      plainText: `Click to sign in to Family Scheduler:\n${link}\n\nIf you don’t see this email, check your Junk/Spam folder.`,
+      html: `<p>Click to sign in to Family Scheduler: <a href="${link}">Sign in</a></p><p>If you don’t see this email, check your Junk/Spam folder.</p>`
     });
     console.log(JSON.stringify({ event: 'auth_link_success', traceId, operationId: providerResult.id }));
   } catch (error) {
