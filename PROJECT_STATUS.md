@@ -1,3 +1,22 @@
+## 2026-02-24 22:53 UTC update (Breakout handoff guard + Yapper login cleanup + verification branding)
+
+- Confirmed/kept `/#/handoff` route parsing for both `email` and `phone`, with `groupId` and optional `next` passthrough.
+- Updated `HandoffPage` guard to allow handoff when either identity is present (`email` OR `phone`) and keep redirect target behavior (`next` constrained to `/g/...`, fallback `/g/<id>/ignite`).
+- Cleaned up login page UI to a focused single-card sign-in flow: removed group summary context block, updated brand header to **Yapper**, added warm subtle radial tint, tightened hierarchy and helper copy, and added muted support line.
+- Updated verified-email completion success text to **Signed in to Yapper**.
+
+### Files touched
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm -w lint`
+2. `pnpm --filter @familyscheduler/web build`
+3. Manual staging smoke pending for: `/#/login` visual cleanup, Breakout Session → Ignite QR handoff, and verified-email Yapper copy.
+
 ## 2026-02-24 23:05 UTC update (Breakout handoff phone/email compatibility + auth done Yapper branding)
 
 - Updated web hash route parsing for `/#/handoff` to accept both identity query params: `email` (existing) and `phone` (breakout flow), preserving prior email behavior.

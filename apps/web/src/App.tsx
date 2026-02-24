@@ -241,13 +241,23 @@ function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPa
 
   return (
     <Page variant="form">
-      <PageHeader title="Sign in" description="Use your email to get a magic sign-in link." />
-      <Stack component="form" spacing={2} onSubmit={submit} sx={{ maxWidth: 520, mx: 'auto' }}>
+      <Box sx={{ maxWidth: 640, mx: 'auto', p: { xs: 1, sm: 2 }, borderRadius: 3, background: 'radial-gradient(circle at 20% -10%, rgba(255, 183, 77, 0.14), transparent 45%)' }}>
+        <PageHeader
+          title="Yapper"
+          description="Smart coordination for modern groups"
+          showGroupSummary={false}
+        />
+      </Box>
+      <Stack component="form" spacing={2.5} onSubmit={submit} sx={{ maxWidth: 560, mx: 'auto', mt: 1 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>Sign in</Typography>
+        <Typography variant="body2" color="text.secondary">Secure passwordless access via email link.</Typography>
         {notice ? <Alert severity="warning">{notice}</Alert> : null}
-        <TextField label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth helperText="If you don’t see our message, check Junk/Spam." />
-        <Button variant="contained" type="submit" disabled={requesting}>{requesting ? 'Sending…' : 'Send sign-in link'}</Button>
+        <TextField label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth />
+        <Button variant="contained" type="submit" disabled={requesting} sx={{ transition: 'background-color 120ms ease, box-shadow 120ms ease' }}>{requesting ? 'Sending…' : 'Send sign-in link'}</Button>
+        <Typography variant="body2" color="text.secondary">If you don’t see it, check your spam folder.</Typography>
         {successState ? <Alert severity="success">Email sent. Check your inbox (and Junk/Spam). After you click the link, come back here — we’ll continue automatically.</Alert> : null}
         {error ? <Alert severity="error">{error}</Alert> : null}
+        <Typography variant="body2" color="text.secondary">Need help? support@yapper-app.com</Typography>
       </Stack>
       <FooterHelp />
     </Page>
@@ -598,7 +608,7 @@ function AuthDonePage({ returnTo }: { returnTo?: string }) {
   return (
     <Page variant="form">
       <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
-        <Alert severity="success">Signed in.</Alert>
+        <Alert severity="success">Signed in to Yapper.</Alert>
         <Typography>This tab can close now. Return to Yapper to continue.</Typography>
         {showCloseHint ? <Typography variant="body2" color="text.secondary">You can close this tab.</Typography> : null}
         <Button variant="contained" onClick={returnToApp}>Return to Yapper</Button>
@@ -1238,7 +1248,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
 function HandoffPage({ groupId, email, phone, next }: { groupId: string; email?: string; phone?: string; next?: string }) {
   useEffect(() => {
     const identity = email?.trim() || phone?.trim() || '';
-    if (!groupId || !identity) {
+    if (!groupId || (!email && !phone)) {
       nav('/');
       return;
     }

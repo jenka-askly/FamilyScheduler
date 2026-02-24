@@ -8462,3 +8462,34 @@ Fix Breakout Session burger-menu handoff so `/#/handoff?...&phone=...` routes to
 ### Follow-ups
 
 - Human/manual staging smoke required for burger → Breakout tab flow and ignite QR visibility.
+
+## 2026-02-24 22:53 UTC (Breakout handoff guard + branded login cleanup + verification copy)
+
+### Objective
+
+Implement a focused web-only bundle: fix breakout handoff routing edge case, apply Yapper branding to verification success UI, and simplify/brand the login page.
+
+### Approach
+
+- Verified route parser for `/#/handoff` includes both `email` and `phone` query params and leaves existing email flow intact.
+- Updated `HandoffPage` precondition to redirect home only when `groupId` is missing or both identity values are absent.
+- Refreshed `LandingSignInPage` to remove group-context block and present a cleaner branded sign-in hierarchy with subtle warm background tint.
+- Updated auth-done success alert copy to include product name Yapper.
+- Updated continuity docs with behavior and file changes.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files apps/web/src | head -n 200` ✅ inspected web source files.
+- `rg -n "function HandoffPage|type: 'handoff'|case 'handoff'|IgniteOrganizerPage\(" apps/web/src/App.tsx` ✅ located handoff parser + handler.
+- `pnpm -w lint` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+
+- Manual staging smoke: verify burger Breakout Session opens `/#/g/<newGroupId>/ignite` and shows QR without home fallback.
