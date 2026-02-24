@@ -8007,3 +8007,31 @@ Add an authoritative auth model doc that separates current vs planned behavior, 
 ### Follow-ups
 
 - If/when auth implementation changes, update `docs/AUTH_MODEL.md` in the same PR to keep it authoritative.
+
+## 2026-02-24 13:13 UTC (Members/Rules icon actions -> MUI IconButton)
+
+### Objective
+
+Fix blue-filled Members and Rules row action icons by replacing legacy `.icon-button` HTML buttons with MUI `IconButton` so global `ui.css` button styles no longer apply.
+
+### Approach
+
+- Replaced Members row actions (`Rules`, `Edit/Save`, `Delete`) with `Tooltip`-wrapped MUI `IconButton` controls inside a `Stack`.
+- Preserved original click-handler logic for edit/save toggle and delete/rules actions.
+- Replaced Rules-row edit/delete icon buttons with MUI `IconButton` + `Tooltip` controls.
+- Verified no remaining `className="icon-button"` usage in TSX files under `apps/web/src`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n 'className="icon-button"|action-icons|Edit rule|Delete rule' apps/web/src/AppShell.tsx` ✅ located target icon-button usages before patch.
+- `rg -n 'className="icon-button"' apps/web/src --glob='*.tsx'` ✅ no remaining TSX `icon-button` usages after patch.
+
+### Follow-ups
+
+- Run the web app locally and visually verify Members/Rules action icon styling and interaction states.

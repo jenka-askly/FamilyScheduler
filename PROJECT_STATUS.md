@@ -1,3 +1,29 @@
+## 2026-02-24 13:13 UTC update (members/rules icon action normalization)
+
+- Converted Members table row action controls (Rules/Edit/Delete) from plain `<button className="icon-button">` to MUI `IconButton` wrapped in `Tooltip`.
+- Converted Rules list row action controls (Edit/Delete) from plain icon buttons to MUI `IconButton` + `Tooltip`.
+- Kept new-row Accept/Cancel (`ui-btn`) behavior unchanged.
+- Converted members/rules row action icons to MUI IconButton to avoid global button styling.
+
+### Success criteria
+
+- Members row action icons render as neutral MUI icon buttons (not blue filled blocks).
+- Rules row action icons render with matching MUI icon button styling.
+- Edit/save/delete/rules click handlers retain existing behavior.
+
+### Non-regressions
+
+- New-row `Accept`/`Cancel` actions remain as existing `ui-btn` controls.
+- Members editing flow and rules prompt/delete flows remain wired to existing handlers.
+
+### How to verify locally
+
+1. Run `rg -n 'className="icon-button"' apps/web/src --glob='*.tsx'` and confirm no results.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open Members tab and confirm row action icons are no longer blue blocks.
+4. Expand rules rows and confirm rule edit/delete icons match MUI icon action styling.
+
+
 ## 2026-02-24 11:47 UTC update (auth model documentation alignment)
 
 - Added a new authoritative auth model spec at `docs/AUTH_MODEL.md` with explicit separation of **Current (Implemented)** and **Planned (Not Implemented Yet)** behavior.
