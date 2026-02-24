@@ -1345,7 +1345,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'members' ? (
             <section className="panel">
-              <Paper variant="outlined" sx={{ borderRadius: 2 }}>
+              <Box>
                 <Box sx={{ px: 2, pt: 1 }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
@@ -1458,7 +1458,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </table>
                   </div>
                 </Box>
-              </Paper>
+              </Box>
             </section>
           ) : null}
         </section>
