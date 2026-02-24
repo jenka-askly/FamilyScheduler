@@ -596,8 +596,6 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   return (
     <Page variant="form">
       <PageHeader
-        title="Ignition Session"
-        description="QR join for quick onboarding with live count and photos."
         titleOverride={groupName}
         subtitleOverride={`Joined: ${joinedCount}`}
         subtitlePulse={joinedBump}
@@ -613,7 +611,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
               <IconButton type="button" title="Add optional photo" aria-label="Add optional photo" onClick={() => { void openCapture(); }} disabled={!sessionId || isUploading}>
                 <CameraAltIcon />
               </IconButton>
-              <Typography className="ui-igniteOptionalLabel">Optional</Typography>
+              <Typography className="ui-igniteOptionalLabel">Add photo (optional)</Typography>
             </div>
             <Typography variant="h6" className="ui-igniteCardTitle">Ignition Session</Typography>
             <div className="ui-igniteHeaderRight">
@@ -663,7 +661,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
           <div className="ui-igniteSection">
             <div className="ui-igniteHeader">
-              <Typography variant="subtitle2">Joined folks</Typography>
+              <Typography variant="subtitle2">Joined folks ({joinedPersonIds.length})</Typography>
             </div>
             {!sessionId || joinedPersonIds.length === 0 ? <Typography className="ui-meta">No one joined yet.</Typography> : null}
             <div className="ui-igniteFolksList">
@@ -671,8 +669,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
                 const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
                 return (
                   <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
-                    {hasPhoto ? <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} /> : null}
-                    <Typography variant="caption" className="ui-ignitePersonName">{personId}</Typography>
+                    {hasPhoto ? <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} /> : <Typography variant="caption" className="ui-ignitePersonName">{personId}</Typography>}
                   </div>
                 );
               }) : null}

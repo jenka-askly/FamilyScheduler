@@ -7345,3 +7345,35 @@ Implement Ignite organizer UX cleanup: stable in-card header row, sound default/
 ### Follow-ups
 
 - Validate visually in staging/local browser for exact header alignment (camera/sound/close row), live joined subtitle updates in banner, and joined-folks thumbnails/name fallback behavior.
+
+## 2026-02-24 04:50 UTC (Ignite QR organizer UX cleanup pass)
+
+### Objective
+
+Implement requested Ignite/Breakout organizer QR-page UX cleanup: ignite-mode banner joined subtitle, static constrained join link row, cleaned organizer header layout, joined-folks section behavior, and documentation updates.
+
+### Approach
+
+- Updated Ignite route `PageHeader` usage to suppress duplicate ignite body heading text by removing extra title/description lines while keeping group-name override + joined subtitle pulse.
+- Updated organizer header left label text to `Add photo (optional)` and kept 3-column card-header structure (left camera control, centered title, right sound + close/reopen).
+- Kept join link as static non-input text with copy action and reinforced width constraints (`min-width: 0`, `max-width: 100%`, ellipsis) to prevent long-link layout expansion.
+- Updated joined section header to `Joined folks (N)` and rendered cards so photo joiners display thumbnail while non-photo joiners display name text only.
+- Added internal overflow controls on joined-folks list (`max-height`, vertical scroll, hidden horizontal overflow, contained overscroll).
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ✅ confirmed repo root; no AGENTS.md surfaced by ripgrep path listing in repo scope.
+- `rg -n "IgniteOrganizerPage|PageHeader|Joined|Photos|Photo selected|Ignition Session|join link|igniteSound|members|GROUP" ...` ✅ located relevant ignite/header code paths.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing dependency gaps (`@mui/material`, `@mui/icons-material`) in this container.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started but runtime dependency resolution failed for missing MUI packages; UI screenshot capture blocked in this environment.
+
+### Follow-ups
+
+- Run staging browser verification on develop deployment using the checklist in `PROJECT_STATUS.md` once environment has required frontend dependencies installed.
