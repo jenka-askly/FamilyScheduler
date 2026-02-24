@@ -8301,3 +8301,34 @@ Implement attemptId-based cross-tab magic-link completion, add an auth-done dest
 
 - Staging dogfood verification for full two-tab magic-link flow and no duplicate create page in tab B.
 - Optional: add targeted unit tests for `parseHashRoute` auth consume/done query handling.
+
+## 2026-02-24 21:05 UTC (Cross-tab auth success sync + callback tab UX + auth email polish)
+
+### Objective
+
+Implement bundled magic-link UX improvements: cross-tab auth propagation from consume tab, callback-style signed-in page behavior, and improved auth email legitimacy/copy.
+
+### Approach
+
+- Updated web auth channel to `fs-auth` and emitted `AUTH_SUCCESS` with `sessionId` after successful consume.
+- Added main app listeners for both `BroadcastChannel` (`AUTH_SUCCESS`) and `storage` key `fs.sessionId` to refresh auth state without manual reload.
+- Reworked auth done screen into callback-tab UX with explicit “Return to FamilyScheduler” CTA, close/focus attempt, and safe fallback link.
+- Updated auth request email subject + HTML/plain-text bodies with secure-link explanation, fallback link text, ignore-if-not-requested notice, and token-expiration messaging aligned to shared TTL constant.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `api/src/functions/authRequestLink.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git branch -a` ✅ only `work` branch exists in this environment.
+- `pnpm -r --if-present build` ✅ passed.
+- `pnpm --filter @familyscheduler/web test --if-present` ✅ passed.
+- `pnpm --filter @familyscheduler/api test --if-present` ❌ failed due pre-existing chat/storage test failures (`storage_get_binary_not_supported`).
+
+### Follow-ups
+
+- Manual staging smoke still recommended for end-to-end mail provider rendering and browser-specific `window.close()` behavior.

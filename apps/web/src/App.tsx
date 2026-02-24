@@ -17,7 +17,7 @@ type AuthError = 'no_session' | 'group_mismatch' | 'not_allowed' | 'group_not_fo
 const SESSION_KEY = 'familyscheduler.session';
 const ROOT_SIGN_IN_MESSAGE = 'Please sign in to continue.';
 const PENDING_AUTH_KEY = 'fs.pendingAuth';
-const AUTH_CHANNEL_NAME = 'familyscheduler-auth';
+const AUTH_CHANNEL_NAME = 'fs-auth';
 
 
 const readSession = (): Session | null => {
@@ -442,6 +442,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
 function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attemptId?: string; returnTo?: string }) {
   const [error, setError] = useState<string | null>(null);
+  const nextPath = sanitizeReturnTo(returnTo);
 
   useEffect(() => {
     if (!token) return;
@@ -461,6 +462,11 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
         }
         if (!canceled) {
           window.localStorage.setItem('fs.sessionId', data.sessionId);
+          if (typeof window.BroadcastChannel === 'function') {
+            const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+            channel.postMessage({ type: 'AUTH_SUCCESS', sessionId: data.sessionId, ts: Date.now() });
+            channel.close();
+          }
           if (attemptId) {
             const key = `fs.authComplete.${attemptId}`;
             const marker = String(Date.now());
@@ -471,7 +477,7 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
               channel.close();
             }
           }
-          nav(`/auth/done?returnTo=${encodeURIComponent(sanitizeReturnTo(returnTo))}`, { replace: true });
+          nav(`/auth/done?returnTo=${encodeURIComponent(nextPath)}`, { replace: true });
         }
       } catch {
         if (!canceled) setError('Unable to sign in with this link.');
@@ -482,7 +488,7 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
     return () => {
       canceled = true;
     };
-  }, [token, attemptId, returnTo]);
+  }, [token, attemptId, nextPath]);
 
   if (!token) {
     return (
@@ -522,12 +528,27 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
 function AuthDonePage({ returnTo }: { returnTo?: string }) {
   const nextPath = sanitizeReturnTo(returnTo);
 
+  const returnToApp = () => {
+    try {
+      if (typeof window.opener !== 'undefined' && window.opener) window.opener.focus();
+    } catch {
+      // noop
+    }
+    try {
+      window.close();
+    } catch {
+      // noop
+    }
+    window.location.href = nextPath === '/' ? '/#/' : `/#${nextPath}`;
+  };
+
   return (
     <Page variant="form">
       <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
-        <Alert severity="success">Signed in. Return to the previous tab to continue.</Alert>
-        <Typography>If nothing happens, click “Continue” below.</Typography>
-        <Button variant="contained" onClick={() => nav(nextPath, { replace: true })}>Continue</Button>
+        <Alert severity="success">Signed in.</Alert>
+        <Typography>This tab can close now. Return to FamilyScheduler to continue.</Typography>
+        <Button variant="contained" onClick={returnToApp}>Return to FamilyScheduler</Button>
+        <Button component="a" href={nextPath === '/' ? '/#/' : `/#${nextPath}`} variant="text">Go to FamilyScheduler</Button>
       </Stack>
       <FooterHelp />
     </Page>
@@ -1186,11 +1207,28 @@ export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getSessionId()));
   useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === 'fs.sessionId') setHasApiSession(Boolean(getSessionId()));
+    const refreshAuth = () => {
+      setHasApiSession(Boolean(getSessionId()));
+      setHash(window.location.hash || '#/');
     };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'fs.sessionId' && event.newValue) refreshAuth();
+    };
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof window.BroadcastChannel === 'function') {
+      channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+      channel.onmessage = (event: MessageEvent<{ type?: string }>) => {
+        if (event.data?.type === 'AUTH_SUCCESS') refreshAuth();
+      };
+    }
+
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      channel?.close();
+    };
   }, []);
   useEffect(() => {
     const onChange = () => setHash(window.location.hash || '#/');
