@@ -22,6 +22,11 @@
   --ui-table-cell-x: 8px;
 }
 
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 html,
 body {
   font-family: var(--ui-font-family);
