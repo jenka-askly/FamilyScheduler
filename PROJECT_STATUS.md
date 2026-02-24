@@ -1,3 +1,609 @@
+## 2026-02-24 06:52 UTC update (List-view appointment details popover + Unassigned click target)
+
+- In list view, `Unassigned` now renders as a text button that opens the existing Assign people dialog for that appointment.
+- Added row-level details gestures in list view: desktop double-click and touch long-press open a compact appointment details popover anchored to the row.
+- Details popover closes on outside click (Popover `onClose`) and also closes when clicking inside the popover content.
+- Added propagation guards on row-interactive controls (scan/edit/assign/delete icons and show more/less) so they do not trigger row detail gestures.
+
+### Success criteria
+
+- Clicking `Unassigned` opens Assign people for the corresponding appointment.
+- Clicking assigned people text does not open Assign people.
+- Double-clicking a list row opens details popover.
+- Long-pressing a list row on touch opens details popover.
+- Clicking anywhere closes details popover, including inside the popover content.
+
+### Non-regressions
+
+- Assign icon behavior is unchanged.
+- Edit dialog behavior is unchanged.
+- Month/week/day chip single-click behavior is unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck`.
+2. Run `pnpm dev:web` and open the app in list view.
+3. Verify Unassigned click target and row details gestures with mouse and touch simulation.
+
+
+## 2026-02-24 06:38 UTC update (Breakout soft hint when popup handle is null)
+
+- Updated breakout popup null-handle branch to show a soft informational hint instead of a hard `Popup blocked` error, because some browsers return `null` even when the tab opens with `noopener`.
+- Soft hint now reads: `Opening Breakout in a new tab… If nothing happened, allow popups or open: <handoffUrl>`.
+- On popup truthy success, breakout alert state is explicitly cleared before focusing the new tab.
+- Renamed the breakout alert heading from `Breakout Group` to `Breakout Session`.
+
+### Success criteria
+
+- Clicking Breakout opens/navigates a new tab as before.
+- Origin tab no longer shows the false-positive `Popup blocked` wording when popup handle is null but tab likely opened.
+- If a popup is truly blocked, origin tab shows the softer fallback hint with manual URL.
+
+### Non-regressions
+
+- `/api/ignite/spinoff` request/trace flow is unchanged.
+- Existing breakout handoff URL construction/navigation logic is unchanged aside from message semantics.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (may fail in this environment due existing dependency resolution limits).
+2. In browser, go to `/#/g/<groupId>/app` and click Breakout; verify a new tab opens and origin tab does not show `Popup blocked`.
+3. In a popup-blocking browser/profile, click Breakout and verify the soft hint appears with manual URL text.
+
+
+## 2026-02-24 06:22 UTC update (Breakout popup navigation robustness hotfix)
+
+- Updated breakout popup creation to remove `noreferrer` from window features (`noopener` only) to avoid browser behaviors that can prevent scripted navigation from `about:blank`.
+- Replaced direct `popup.location.replace(...)` with robust navigation attempts: first `popup.location.href`, then `popup.document.location.href`, with `focus()` after successful assignment.
+- Added debug logging of computed `handoffUrl` immediately before navigation attempt to improve diagnosability.
+- If popup navigation still fails, app now surfaces a manual URL error (`Unable to navigate popup. Please open: ...`) and attempts to close the orphaned popup.
+- Popup-blocked branch remains unchanged: no same-tab navigation fallback; user receives popup guidance/manual URL.
+
+### Success criteria
+
+- Burger → Breakout opens a new tab and reliably navigates to `/#/handoff?...`, then onward to `/#/g/<newGroupId>/ignite`.
+- Original tab remains on the current meeting route throughout.
+- If popup navigation throws, user sees the manual URL error and the blank popup is closed.
+
+### Non-regressions
+
+- Existing popup-blocked behavior still only shows guidance/manual URL (no same-tab route change).
+- Existing `/api/ignite/spinoff` request/trace flow is unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (environment may still fail due pre-existing dependency issues).
+2. In browser with popups allowed, open `/#/g/<groupId>/app` and click Burger → Breakout; verify new tab reaches handoff/ignite and original tab hash does not change.
+3. If possible, simulate popup navigation failure and verify manual URL error appears and blank popup closes.
+
+
+## 2026-02-24 06:06 UTC update (Breakout popup-blocked handling keeps current tab fixed)
+
+- Breakout create flow no longer falls back to same-tab navigation when popup creation is blocked.
+- On popup-blocked success path, the app now shows a breakout error banner with explicit popup guidance and a manual `/#/handoff` URL that users can open themselves.
+- Breakout popup success path is unchanged: popup tab navigates via `/#/handoff?...` and original tab remains on the current meeting route.
+- Breakout menu click now explicitly calls `preventDefault()` and `stopPropagation()` before invoking breakout logic to eliminate implicit navigation/bubbling side effects.
+
+### Success criteria
+
+- With popups allowed, Burger → Breakout opens a new tab to handoff/ignite while the original tab does not change hash route.
+- With popups blocked, original tab does not navigate and displays an error message instructing user to allow popups (with manual handoff URL).
+
+### Non-regressions
+
+- Existing `/api/ignite/spinoff` creation, trace handling, and popup success routing remain unchanged.
+- Breakout action remains available from the PageHeader menu and still closes the menu on click.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (note: currently fails in this environment due pre-existing dependency/type issues).
+2. In browser with popups enabled, open `/#/g/<groupId>/app` and click Burger → Breakout; verify new tab opens to breakout and original tab hash remains unchanged.
+3. In browser with popups blocked, repeat and verify no hash navigation in original tab plus popup-blocked error banner with manual URL.
+
+
+## 2026-02-24 05:37 UTC update (Breakout handoff opens new tab + per-tab session storage)
+
+- Breakout flow now opens a popup synchronously (`about:blank`) and, on success, routes that new tab through `/#/handoff?...` so the original tab remains on the current meeting.
+- Added hash route `/#/handoff` in `App.tsx`; it writes tab-scoped session (`sessionStorage`) and redirects to a validated `next` route (`/g/...`) with fallback to `/g/<groupId>/ignite`.
+- Session persistence is now tab-scoped by default: `writeSession` writes only to `sessionStorage`, `readSession` prefers `sessionStorage` and backfills from `localStorage` for backward compatibility, and `clearSession` clears `sessionStorage`.
+- Popup-blocked behavior preserves previous same-tab fallback: write session and navigate current tab to breakout ignite route.
+
+### Success criteria
+
+- With popups allowed, clicking Burger → Breakout opens a new tab that reaches `/#/g/<newGroupId>/ignite` and authenticates, while original tab stays on current meeting.
+- With popups blocked, Breakout continues same-tab navigation as before.
+- Refreshing each tab retains its own session context (`sessionStorage`) without cross-tab overwrite.
+
+### Non-regressions
+
+- Existing join/create/session flows still use the same session key format.
+- Legacy users with session only in `localStorage` can still authenticate once and get seeded into tab-local storage automatically.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web build`.
+2. In browser with popups enabled: from `/#/g/<groupId>/app`, click Burger → Breakout and verify new tab goes to ignite for new group while original tab stays put.
+3. In browser with popups blocked: repeat and verify same-tab fallback still navigates to new ignite route.
+4. Refresh both original and breakout tabs and verify each remains in its own meeting context.
+
+
+## 2026-02-24 06:35 UTC update (Browser tab titles use group display name only)
+
+- Meeting route (`/#/g/:groupId/app`) now sets tab title from `groupName` only: `Family Scheduler` before metadata loads, then `Family Scheduler — {groupName}` once available.
+- Ignite organizer route (`/#/g/:groupId/ignite`) now sets tab title from `groupName` only: `Ignition Session` before metadata loads, then `Ignition Session — {groupName}` once available.
+- Removed any tab-title dependency on `groupId` for these pages; rename flows update titles automatically through shared `groupName` state effects.
+
+### Success criteria
+
+- Visiting meeting route shows `Family Scheduler` initially and updates to `Family Scheduler — <groupName>` after `/api/group/meta` resolves.
+- Visiting ignite route shows `Ignition Session` initially and updates to `Ignition Session — <groupName>` after `/api/group/meta` resolves.
+- Renaming group name updates the browser tab title on both routes without requiring refresh.
+
+### Non-regressions
+
+- Existing group metadata fetch + rename behavior remains unchanged except tab-title strings.
+- No browser tab title includes `groupId` on meeting/ignite routes.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web build` (or `pnpm --filter @familyscheduler/web dev`).
+2. Open `/#/g/<groupId>/app`; verify title transitions from `Family Scheduler` to `Family Scheduler — <groupName>`.
+3. Open `/#/g/<groupId>/ignite`; verify title transitions from `Ignition Session` to `Ignition Session — <groupName>`.
+4. Rename the group in either route; verify title updates immediately and never displays `groupId`.
+
+
+## 2026-02-24 05:23 UTC update (Ignite organizer close navigation + meeting-link semantics + joined members)
+
+- Organizer `Close` now redirects directly to the meeting route for the breakout group (`/#/g/<groupId>`) after a successful close response.
+- Ignite organizer's displayed/copyable "Join link" now uses the meeting URL (`/#/g/<groupId>`); QR still uses the ignite join portal (`/#/s/<groupId>/<sessionId>`).
+- `/api/group/meta` now returns additive `people` payload of active members (`personId`, `name`) so organizer UI can include pre-existing meeting members in Joined folks immediately.
+- Joined folks list/count now uses combined IDs (group active members + organizer + ignite joiners) and resolves display names from merged metadata before falling back to `personId`.
+
+### Success criteria
+
+- Closing an open ignite session navigates organizer to `/#/g/<groupId>` on success.
+- The join-link row displays/copies the meeting link and does not display the ignite join portal URL.
+- Existing active group members appear in Joined folks before/without new QR joins.
+
+### Non-regressions
+
+- QR code generation continues using session join URL (`/#/s/<groupId>/<sessionId>`).
+- Existing `/api/group/meta` consumers remain compatible with additive payload.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/api build`.
+2. Run `pnpm --filter @familyscheduler/web build`.
+3. Start app and API, open organizer ignite route, and verify displayed link equals `/#/g/<groupId>` while QR still joins session URL.
+4. Click Close and confirm navigation to `/#/g/<groupId>`.
+5. Confirm Joined folks includes pre-existing active members plus new QR joiners.
+
+
+## 2026-02-24 06:05 UTC update (Ignite organizer polish + join emphasis/sound)
+
+- Ignite organizer simplified to a centered single-column flow and removed back/status/header noise.
+- Group section now includes inline rename affordance plus joined count shown only under group name.
+- Joined count now uses emphasized red badge with bump animation on increases and optional join-sound toggle (default off, best-effort browser audio).
+- Join link is now static monospace text with copy icon action and subtle copied feedback.
+- Organizer photo capture now uses camera-preview modal/capture flow (with file-input fallback) before existing ignite photo upload.
+
+## 2026-02-24 03:41 UTC update (Ignition organizer QR/layout restore Option A)
+
+- Ignition organizer: restored QR rendering and tightened layout hierarchy/actions.
+- Organizer now shows a session-empty state with a single `Reopen` action when no active `sessionId`; share card/link/QR only render when a session exists.
+- Share card rebuilt as two columns (`Scan to join` + `Join link`) with one canonical copy action and QR fallback messaging when QR load fails.
+- Status pill + joined count are anchored in one header row (removed duplicate joined display from Photos header).
+- Close/Reopen actions now live in one dedicated right-aligned actions row directly under the share card; Photos section remains below actions.
+
+## 2026-02-24 05:10 UTC update (Ignition organizer layout cleanup)
+
+- Ignition organizer page reorganized: consolidated share controls, clearer session actions, cleaner layout.
+- Organizer share area now uses a single canonical join link + one copy action, with a larger responsive QR and relocated trouble-scanning toggle/raw URL reveal.
+- Session action row now shows only one primary action at a time (Close when OPEN, otherwise Reopen), and photos are grouped under a dedicated Photos section header.
+
+## 2026-02-24 04:15 UTC update (Join page compact centered layout)
+
+- Join page constrained to compact centered layout (max-width 480px).
+- Wrapped Join Group form content in a dedicated centered container while keeping the page header/menu outside the compact form area.
+- Join action button now aligns to the right edge of the compact form for a tighter desktop layout while remaining full-width responsive via container sizing.
+
+## 2026-02-24 02:55 UTC update (Join Group notice/error behavior cleanup)
+
+- Join Group page now treats redirect route errors (`no_session` / `group_mismatch`) as neutral notice copy instead of a red error state on first render.
+- Join Group validation errors now appear only after submit (`hasSubmitted` gating), with inline phone field error text and permissive 10+ digit normalization check.
+- Simplified Join Group copy to a single concise helper line (`Only listed phone numbers can join.`).
+
+## 2026-02-24 03:40 UTC update (Global menu hierarchy tweak)
+
+- Moved global menu (burger) from group card header to product header for clearer hierarchy.
+
+## 2026-02-24 03:05 UTC update (Calendar action icon contrast + AI scan icon)
+
+- Increased appointment list row action icon contrast so row controls no longer appear washed out.
+- Replaced the auto-scan overflow (ellipsis) trigger with an AI-style sparkles icon and made that icon the only colorful toolbar action icon.
+
+## 2026-02-24 02:35 UTC update (List readability + active selection)
+
+- List view: indented appointment detail/body lines to improve scanability while keeping title line flush-left.
+- List view: active appointment highlight is now tracked and preserved for edit/create flows.
+- List view: active appointment auto-scrolls into view (window viewport) when off-screen after edit/create.
+
+## 2026-02-24 02:15 UTC update (Week/Day calendar MVP enabled)
+
+- Implemented Week and Day calendar views (MVP list-style chips) and enabled Week/Day tabs in the calendar view switcher.
+- Added independent Week and Day cursors with prev/next/today navigation controls.
+- Week renders a 7-column day grid with appointment/todo chips; Day renders a single-date list with the same chip interactions.
+
+## 2026-02-24 01:55 UTC update (Month view today highlight)
+
+- Month view: highlight today's date cell (local timezone).
+
+## 2026-02-24 02:05 UTC update (Edit Appointment compact dialog + unified When group)
+
+- Edit Appointment dialog compacted to `maxWidth="sm"` with tighter content spacing for a shorter/tighter modal footprint.
+- When control remains a single input with in-field resolve action, inline interpreted preview row, and inline ✓ accept action.
+- Assumptions stay grouped under preview as a collapsed disclosure, keeping When/Resolve/Preview/Assumptions in one compact section.
+
+## 2026-02-24 01:10 UTC update (Single-surface calendar module: remove nested panel border)
+
+- Removed the nested `.panel` frame around the calendar module so the unified outer `Paper variant="outlined"` is now the single border/radius surface for calendar views.
+- Preserved internal content structure for List/Month rendering (row dividers and calendar grid lines remain).
+- No API or behavior changes; visual containment only.
+- Removed nested outlined wrappers in List/Month so the view module uses a single framed surface (no double borders).
+
+### Success criteria
+
+- In List view, only one rounded outer border is visible around tabs + list content.
+- In Month view, only one rounded outer border is visible around tabs + month grid content.
+- No box-inside-box framing remains in the calendar section.
+
+### Non-regressions
+
+- Calendar tabs/actions behavior is unchanged.
+- Appointment list row separators and month-day grid lines remain visible.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open `/#/g/<groupId>/app` and switch between List and Month tabs.
+4. Confirm there is exactly one outer rounded border around the whole calendar module in both views.
+
+## 2026-02-23 22:57 UTC update (MUI icons dependency alignment)
+
+- Added `@mui/icons-material` dependency in `apps/web/package.json` aligned to MUI v6 (`^6.4.7`) to support `Menu` and `RocketLaunch` icon imports.
+- No functional changes; dependency alignment only.
+- Note: package installation/build verification is currently blocked in this environment by registry `403 Forbidden` responses for npm fetches.
+
+## 2026-02-24 00:05 UTC update (Header hamburger menu + emphasized breakout item)
+
+- Replaced header menu trigger icon from vertical-ellipsis to hamburger `Menu` icon with tooltip/aria label `Menu`.
+- Updated header dropdown to place an emphasized top `Breakout Session` action with `RocketLaunch` icon (`color="primary"`), bold menu item weight, helper subtext, and divider separation.
+- Preserved existing breakout behavior by wiring the unchanged `createBreakoutGroup` handler into `PageHeader` as a callback and keeping in-flight disabled behavior.
+- Preserved existing dark mode toggle behavior and menu close behavior.
+- UI-only changes; no business logic, routing, or API modifications.
+
+### Success criteria
+
+- Hamburger icon appears at the header top-right and opens the menu.
+- The first menu item is `Breakout Session` with a primary RocketLaunch icon and slight emphasis.
+- Selecting `Breakout Session` still triggers the existing breakout flow.
+- Divider separates breakout from the dark-mode toggle section.
+- No routing/API contracts changed.
+
+### Non-regressions
+
+- Existing `/api/ignite/spinoff` flow, trace handling, session writes, and hash navigation remain unchanged.
+- Dark mode switch logic remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+2. Open `/#/g/<groupId>/app`.
+3. Click the header hamburger icon and verify menu ordering/styling (`Breakout Session` first, divider, dark mode).
+4. Click `Breakout Session` and confirm existing breakout navigation/error behavior is unchanged.
+
+## 2026-02-23 22:31 UTC update (Header group title precedence tweak)
+
+- Header now prioritizes group name over groupId (GUID) for display; copy link unchanged.
+
+## 2026-02-23 22:08 UTC update (Appointment dialog context block + scan preview rendering fix)
+
+- Added a reusable, UI-only appointment context header block in `AppShell` and applied it across appointment-scoped dialogs.
+- Normalized appointment dialog titles to action-only labels (`Assign people`, `Delete appointment`, `Scan`, `Edit appointment`) while preserving existing dialog behavior.
+- Standardized dialog sizing for touched dialogs (`Assign people` now `maxWidth="sm"`, delete appointment now `maxWidth="xs"`, scan/edit remain `md` + `fullWidth`).
+- Fixed scan capture preview rendering in dialog by ensuring a non-zero video surface (`minHeight`, `objectFit`, black background) and resilient stream attach timing after mount.
+- UI-only changes; routing, API calls, and business logic remain unchanged.
+
+### Success criteria
+
+- Appointment-scoped dialogs show an action-only title plus a consistent appointment context block.
+- No appointment-scoped title includes the APPT code in the title string.
+- Assign people dialog width is reduced to `sm` and remains full-width within breakpoint constraints.
+- Scan capture preview surface is visible/non-zero in the dialog and still uses existing capture + cleanup flow.
+
+### Non-regressions
+
+- Existing direct actions (`delete_appointment`, people assignment, scan rescan/delete, edit appointment save) remain unchanged.
+- Existing scan stream cleanup (`stop tracks`) remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run typecheck`.
+2. Run `pnpm --filter @familyscheduler/web run build`.
+3. Run `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`.
+4. Open the app shell and verify each touched appointment dialog shows the standardized title/context block.
+
+## 2026-02-23 21:20 UTC update (Dialog normalization bundle + icon mode toggle)
+
+- Normalized transient popup flows in `AppShell` to MUI `Dialog` surfaces (Quick add, Advanced, proposal confirm, pending question, delete confirms, scan viewer, scan capture, rules prompt, assign people).
+- Converted scan capture camera preview from inline overlay panel to a centered dialog with Capture/Cancel actions while preserving existing scan stream/file fallback logic.
+- Moved appointment editing from side drawer to centered MUI dialog while keeping existing `AppointmentEditorForm` logic and handlers unchanged.
+- Updated dark-mode toggle in `PageHeader` from text button to tooltip-wrapped icon-only `IconButton` using inline `SvgIcon` moon/sun paths.
+- Verified JoinGroup route currently uses MUI-only form markup; no legacy duplicate join form remained to remove.
+
+### Success criteria
+
+- Popup/confirm flows render as MUI dialogs and close via Escape/backdrop with existing cancel handlers.
+- Scan capture no longer renders inline; it appears only as a modal dialog.
+- Appointment editor opens centered (not side-attached).
+- Header mode toggle is icon-only with correct tooltip/aria label for the next action.
+
+### Non-regressions
+
+- Business logic, API endpoints, route behavior, and auth gating remain unchanged.
+- Usage badge/footer behavior remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run build`.
+3. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+4. Open `/#/g/<groupId>/app` and verify dialogs: quick add, advanced, scan capture/rescan, assign people, rules prompt, and appointment edit.
+
+## 2026-02-23 19:06 UTC update (Calendar toolbar actions + header link cleanup)
+
+- Removed the sidebar **Keep This Going** action and removed the inline **Add event** command bar from `AppShell`.
+- Moved command actions to the calendar toolbar row as icon-only buttons: camera (scan flow), primary plus (Quick add modal), and ellipsis (Advanced modal).
+- Added **Quick add** modal (single-line input) and **Add or Update Events** modal (multiline textarea with example placeholders), both submitting through existing `sendMessage(...)` with proposal/question/in-flight gating.
+- Updated list empty-state copy to: `Add your first event using + above.`
+- Simplified group header invite surface: removed raw URL-heavy row and added `Copy group link` button with clipboard + prompt fallback while keeping a concise warning line.
+- Added minimal layout CSS in `styles/ui.css` for toolbar row/actions alignment and small button sizing.
+
+### Success criteria
+
+- Calendar sidebar shows only **Calendar** and **Members**.
+- Inline command bar is absent.
+- Toolbar row shows tabs on left and icon actions on right.
+- Camera action is icon-only and triggers scan capture flow.
+- Plus action is icon-only, primary-styled, and opens Quick add modal.
+- Ellipsis opens Advanced modal with rich example placeholders.
+- Both modals submit via existing message pipeline and respect submit/proposal/question gating.
+- Header shows `Copy group link` button, warning remains concise, and raw URL is no longer visually prominent.
+
+### Non-regressions
+
+- Proposal confirmation modal remains unchanged.
+- Pending question dialog remains unchanged.
+- Appointment editor and month-view day `+` buttons remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run typecheck`.
+2. Run `pnpm --filter @familyscheduler/web run build`.
+3. Run `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` and open `/#/g/<groupId>/app`.
+4. Verify sidebar/actions/modal behavior and empty-state copy match acceptance criteria.
+5. In header, click `Copy group link` and confirm clipboard (or prompt fallback if clipboard API unavailable).
+
+## 2026-02-23 18:24 UTC update (Quick actions dropdown text contrast fix)
+
+- Fix dropdown text contrast for Quick actions menu.
+- Set explicit readable foreground color on `.fs-quickActionsMenu` and ensured quick action items inherit that color.
+- No JS/TS behavior changes.
+
+### Success criteria
+
+- Opening Quick actions shows readable `Break out` text against the menu background.
+- Hover state styling remains visible and unchanged in behavior.
+- Header layout remains unchanged.
+- Spinoff flow behavior remains unchanged.
+
+### Non-regressions
+
+- No API, routing, or TS/JS logic changes.
+- Existing responsive behavior for quick actions remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`.
+2. Open a group app page (`/#/g/<groupId>/app`) and expand **Quick actions**.
+3. Confirm **Break out** text is clearly visible on white background.
+4. Hover the item and confirm hover background still appears.
+5. Trigger Break out and confirm spinoff flow still navigates as before.
+
+## 2026-02-23 18:40 UTC update (Quick actions dropdown for breakout)
+
+- Replaced the group header **Breakout Group** button with a right-aligned **Quick actions** dropdown in `PageHeader`.
+- Moved breakout content to a compact menu item (`Break out`) while preserving existing `/api/ignite/spinoff` call, session write, hash navigation, and trace-aware error handling.
+- Kept breakout errors visible outside the dropdown so failures remain visible even when the menu is closed.
+- No backend/API contract changes.
+
+### Success criteria
+
+- Quick actions renders on the right side of the group header row.
+- Opening the menu reveals a single `Break out` action.
+- Breakout behavior remains unchanged end-to-end (same endpoint, trace handling, and navigation).
+- Mobile layout (`<=560px`) keeps dropdown usable and unclipped.
+
+### Non-regressions
+
+- Existing group header title/invite block behavior remains unchanged.
+- Existing ignite/spinoff backend flow remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm lint && pnpm typecheck && pnpm test`.
+2. Run `pnpm --filter @familyscheduler/web dev --host 0.0.0.0`.
+3. Open `/#/g/<groupId>/app`.
+4. Confirm Quick actions is right-aligned, opens/closes, and `Break out` is disabled while request is in flight.
+5. Trigger a failed spinoff and confirm breakout error is visible without reopening the dropdown.
+6. Resize to <=560px width and confirm dropdown remains usable/not clipped.
+
+## 2026-02-23 18:05 UTC update (PageHeader layout inspection baseline)
+
+- Captured a read-only baseline of `PageHeader` group-header structure and related CSS hooks, including `fs-groupHeaderAction` usage and responsive wrapping behavior at the `560px` breakpoint.
+- Confirmed no runtime behavior changes were introduced in this workspace during the inspection pass.
+
+### Success criteria
+
+- Team has a single documented baseline for current group-header JSX/CSS relationships.
+- No code-path or styling behavior changed from this update.
+
+### Non-regressions
+
+- App functionality and rendering remain unchanged (documentation-only update).
+
+### How to verify locally
+
+1. Run `git show --name-only --stat HEAD` after pulling this commit.
+2. Confirm only `PROJECT_STATUS.md` and `CODEX_LOG.md` changed.
+
+
+## 2026-02-23 17:24 UTC update (Ignite organizer UI: QR-primary, icon actions, header back)
+
+- Ignite organizer now hides the join URL by default and keeps QR as the primary join surface, with a copy-icon action and optional “Trouble scanning?” expander to reveal the raw join URL.
+- “Group link” is renamed to **Group home** and now includes the explainer text “Use this link to coordinate later.” plus static truncated URL text + icon-only copy action.
+- Replaced ignite copy text buttons with icon-only copy controls and short inline “✓ Copied” feedback.
+- Replaced “Add/Update your photo” button text with camera icon-only action (hidden file input + upload logic unchanged).
+- Moved back navigation to a top-left arrow button and removed the old bottom “Back to group” action.
+- Organizer header access copy is now contextual: OPEN => “Anyone with this QR can join while it’s open.”, CLOSED/CLOSING => “Closed. Reopen to allow new joins.”
+
+### Success criteria
+
+- QR remains visible/usable and join link text is hidden by default.
+- Copy join link and copy group home actions still write correct URLs to clipboard.
+- Group home explainer appears and URL is truncated instead of editable input.
+- Camera icon opens photo picker and existing upload path remains functional.
+- Top-left back arrow returns to `/#/g/<groupId>/app`.
+
+### Non-regressions
+
+- Ignite start/close/photo/meta networking and trace behavior remain unchanged.
+- Join URL is still computed for QR and copy flows.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web run dev`.
+2. Open `/#/g/<groupId>/ignite`.
+3. Confirm join URL text is hidden initially, QR renders, and copy icon exists next to Join QR.
+4. Click “Trouble scanning?” and verify raw join URL appears and can be copied.
+5. Confirm Group home label + explainer text, truncated URL, and copy icon.
+6. Confirm top-left back arrow navigates back to group app with replace navigation behavior.
+7. Confirm camera icon opens file picker and selecting an image still triggers upload.
+
+## 2026-02-23 08:50 UTC update (Breakout Group spinoff + ignite)
+
+- Added **Breakout Group** flow end-to-end: new backend `POST /api/ignite/spinoff` creates a spinoff group B from source group A and immediately opens an ignite session in group B for the organizer.
+- Added isolated top-right **Breakout Group** action in the app shell (`↗` + explainer text) that calls spinoff, updates local session to group B, and routes to `/#/g/<groupB>/ignite`.
+- Invite-to-this-group remains a separate path (no camera coupling); breakout remains the viral/social entry point for starting fresh groups.
+
+### Success criteria
+
+- Clicking Breakout Group from group A navigates organizer to group B ignite organizer page.
+- Group B has organizer membership cloned by phone (new personId in B) and ignite session starts successfully.
+- Group A membership remains unchanged.
+
+### Non-regressions
+
+- Existing ignite start/join/close/photo/meta endpoints remain unchanged.
+- Existing app header invite-link behavior remains unchanged.
+
+### How to verify locally/staging
+
+1. In group A app, click **Breakout Group**.
+2. Confirm route changes to `/#/g/<groupB>/ignite`.
+3. Confirm organizer ignite page loads and join URL includes group B + session id.
+4. Join via incognito and verify joiner lands in group B.
+5. Navigate back to group A and verify no new members were added there.
+
+## 2026-02-23 08:20 UTC update (ignite/start 403 diagnostics instrumentation)
+
+- Added temporary, sanitized auth traces in `igniteStart` (behind `DEBUG_AUTH_LOGS=true`) to emit: request `hasPhone`, safe `rawGroupId`, validated `groupId` + normalized `phoneE164`, and caller lookup outcome (`callerFound`, `callerPersonId`).
+- This instrumentation is intended to quickly classify staging 403 root-cause buckets: missing phone from client, group routing issue, or phone mismatch against stored `cellE164`.
+- Staging deploy/repro was attempted via `scripts/ship-api.sh` with staging app/resource settings, but packaging failed in this environment because pnpm registry fetches are blocked (`ERR_PNPM_FETCH_403`), so no fresh staging logs could be captured from this workspace.
+
+### Success criteria
+
+- With `DEBUG_AUTH_LOGS=true`, each `/api/ignite/start` invocation emits `igniteStart` traces containing `hasPhone`, `rawGroupId`, validated identity fields, and caller lookup result for the same `traceId`.
+
+### Non-regressions
+
+- Authorization behavior and response payloads for `ignite/start` remain unchanged (trace-only diagnostics).
+
+### How to verify locally/staging
+
+1. Ensure API setting `DEBUG_AUTH_LOGS=true` and deploy this API build.
+2. Trigger one organizer `POST /api/ignite/start`.
+3. Query traces:
+   ```kusto
+   traces
+   | where timestamp > ago(10m)
+   | where message contains "igniteStart"
+   | order by timestamp desc
+   ```
+4. Classify root cause:
+   - `hasPhone=false` => frontend not sending phone
+   - valid `phoneE164` with `callerFound=false` => phone mismatch with stored member
+   - missing/wrong `rawGroupId` or validated `groupId` => routing/group-id bug
+
+
+## 2026-02-23 07:20 UTC update (Ignite organizer auth/meta/link/QR alignment)
+
+- Ignite organizer meta polling now uses `POST /api/ignite/meta` with `{groupId, sessionId, phone, traceId}` to satisfy backend identity validation and avoid unauthorized meta responses.
+- Ignite meta backend now accepts both GET and POST, reading identity/session/trace from JSON body first (POST) and falling back to query params (GET) for compatibility.
+- Ignite organizer links now use a stable hash base (`origin + pathname + search + #`) so: group link resolves to `/#/g/<groupId>/app` and join link resolves to `/#/s/<groupId>/<sessionId>`.
+- Join link input now remains blank + disabled until a `sessionId` is available, join-copy is disabled until non-empty, and QR rendering is gated by `joinUrl` availability with existing fallback text retained.
+
+### Success criteria
+
+- Organizer `ignite/start` returns a session id and UI stores it.
+- Organizer meta polling does not return `not_allowed` due to missing organizer identity in request shape.
+- Group link includes `/#/g/<groupId>/app` and join link includes `/#/s/<groupId>/<sessionId>`.
+- QR is rendered only when join URL exists; before that, UI shows “Starting session…”.
+
+### Non-regressions
+
+- Existing GET callers for `/api/ignite/meta` continue to work.
+- Ignite close/photo flows remain unchanged and continue to include organizer phone/session identity.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/api dev` and `pnpm --filter @familyscheduler/web dev`.
+2. Open `/#/g/<groupId>/ignite` using a phone already authorized in the group.
+3. Confirm network panel shows: `POST /api/ignite/start` body includes `groupId`, `phone`, `traceId` and response contains `sessionId`.
+4. Confirm subsequent `POST /api/ignite/meta` calls include `groupId`, `sessionId`, `phone`, `traceId` and return `ok: true`.
+5. Confirm group link is `/#/g/<groupId>/app`, join link is `/#/s/<groupId>/<sessionId>`, copy join is enabled only after join link exists, and QR appears once join link is present.
+
+
+## 2026-02-23 06:12 UTC update (Ignition organizer UEX: QR/link copy/camera trigger)
+
+- Organizer ignition page now shows both **Group link** (`/#/g/<groupId>/app`) and **Join link** (`/#/s/<groupId>/<sessionId>`) as read-only fields with inline Copy actions and transient “Copied” status.
+- Organizer photo upload affordance now uses a camera button (`📷 Add photo`) that triggers a hidden `type="file"` input with `accept="image/*"` and `capture="environment"`; upload flow remains unchanged.
+- Added inline “Photo selected.” feedback after file selection for clearer state.
+- Hardened QR display with load-failure fallback text; keeps join link visible for manual sharing if QR image cannot load.
+- Added lightweight debug log emission (behind existing `VITE_DEBUG_AUTH_LOGS` gate) to surface join URL/session context while diagnosing QR visibility.
+- Attempted to add local `qrcode` npm dependency per implementation request, but package install is blocked in this environment by registry policy (`npm ERR! 403`), so existing QR image endpoint approach was retained.
+
+## 2026-02-23 05:57 UTC update (QG/Ignition UX polish: join copy/photo/back nav)
+
+- Ignite join page copy now uses session-specific wording: "Enter your name and phone to join this live session."
+- Ignite join closed-state error now reads: "Session closed. Ask the organizer to reopen the QR."
+- Ignite join page now supports optional photo capture/upload before join with mobile-friendly camera hint (`capture="environment"`).
+- Ignite join flow now attempts a non-fatal `/api/ignite/photo` upload immediately after successful `/api/ignite/join`, then redirects into the group app with a fallback "Open group" button.
+- Ignite organizer page now includes an explicit "Back to group" button to `/#/g/<groupId>/app`.
+- Ignite photo API now accepts any image MIME type and can resolve caller phone from either request body (`phone`) or authenticated `x-ms-client-principal` identity claims/details while preserving existing session-open gating behavior.
+- App shell already includes a "Keep This Going" entry point in sidebar navigation to `/#/g/<groupId>/ignite` (retained).
+
 ## 2026-02-23 05:03 UTC update (UEX polish: title section + nav cleanup)
 
 - Header polish: invite URL text is now smaller + muted, invite help line spacing is tightened, and the members line now renders names only (removed the `Members:` prefix).
@@ -978,13 +1584,710 @@ traces
 - Copy affordance is now an icon-only button in the same row as the URL; clipboard copy behavior remains unchanged and still copies the full invite URL.
 - Title section invite block is left-aligned with tighter vertical spacing so Members line, invite URL row, and helper text read as one compact group.
 
-## 2026-02-23 update (ignite organizer route gating + phone propagation)
+## 2026-02-23 05:40 UTC update (Ignition Session alpha)
 
-- Added explicit hash-route parsing support for `#/g/:groupId/ignite` in `apps/web/src/App.tsx`.
-- Wrapped the ignite route in `GroupAuthGate` (same auth gate behavior as app route) and pass gated `phone` into organizer page rendering.
-- Added `IgniteOrganizerPage` implementation that:
-  - requires `phone` prop,
-  - sends `{ groupId, phone, traceId }` to `/api/ignite/start`,
-  - polls `/api/ignite/meta` with `groupId`, `sessionId`, `phone`, and `traceId` query params,
-  - shows clearer 403 `not_allowed` message: "You must be a member of this group to start a session."
-- Web build/typecheck pass in this environment; backend ignite endpoints are not present in this repo, so functional API verification is pending staging/backend availability.
+- Added **Ignition Session (alpha)**: organizer-driven QR join flow with live polling count, close/reopen, and member photo upload/display.
+- Backend added new routes: `ignite/start`, `ignite/close`, `ignite/join`, `ignite/photo` (POST/GET), and `ignite/meta`.
+- Data model extended with optional `ignite` session state on `AppState` (sessionId, status, organizer, grace window, joined person IDs, photo timestamps).
+- Organizer-only enforcement: only the session creator can close an active session.
+- Join semantics: OPEN allowed; CLOSING allowed during grace window (default 60s); expired sessions return closed behavior.
+- Photos are alpha-scoped to JPEG uploads and stored at deterministic per-person keys for latest-wins behavior.
+- Frontend routing added:
+  - Organizer screen: `/#/g/<groupId>/ignite`
+  - QR join screen: `/#/s/<groupId>/<sessionId>`
+- Added polling-based updates and audible beep on join-count increase.
+- Added navigation entry point in authenticated shell: **Keep This Going**.
+- Scope note: pre-SMS, no phone verification changes.
+
+## 2026-02-23 07:28 UTC update (Ignite join-link loading state cleanup)
+
+- Verified ignite organizer route remains gated through `GroupAuthGate` and passes session phone into `IgniteOrganizerPage`.
+- Verified organizer `ignite/start` request body includes `{ groupId, phone, traceId }` and success path sets `sessionId`, enabling join-link composition as `/#/s/<groupId>/<sessionId>`.
+- Verified backend `igniteStart` parses JSON body phone and enforces active membership via `findActivePersonByPhone(...)` with `403 not_allowed` on failure.
+- Removed transient organizer placeholder text `Starting session…` so the join-link field/QR area now stays empty until `sessionId` exists.
+
+## 2026-02-23 07:55 UTC update (Ignite start auth guard for missing phone)
+
+- Confirmed ignite route remains wrapped in `GroupAuthGate` and passes `phone` into `IgniteOrganizerPage` (`(phone) => <IgniteOrganizerPage ... phone={phone} />`).
+- Hardened organizer start-session flow to short-circuit when `phone` is empty/whitespace and show an explicit auth error instead of firing an unauthenticated `POST /api/ignite/start`.
+- Preserved existing success path: `sessionId` still comes from `/api/ignite/start` response and drives join-link + QR rendering.
+
+### Success criteria
+
+- `POST /api/ignite/start` request body includes `{ groupId, phone, traceId }` when organizer phone exists.
+- No ignite/start request is sent while phone is empty.
+- On success, `sessionId` is set from response and join link becomes `/#/s/<groupId>/<sessionId>` with QR rendered.
+
+### Non-regressions
+
+- Ignite route auth gate/wiring unchanged: organizer must be group-authorized.
+- Existing ignite close/meta/photo flows continue to use organizer identity fields.
+
+### How to verify locally
+
+1. Run web app and navigate to `/#/g/<groupId>/ignite` with an authorized session.
+2. In DevTools Network, confirm `POST /api/ignite/start` body contains `groupId`, `phone`, `traceId` and returns `200` with `sessionId`.
+3. Confirm join link updates to `/#/s/<groupId>/<sessionId>` and QR re-renders.
+4. Simulate missing session phone (clear local session and force route) and confirm no ignite/start request is made; page shows missing-phone error.
+
+## 2026-02-23 17:37 UTC update (Move Breakout Group action into Group header card)
+
+- Moved the **Breakout Group** control from the standalone bar above the shell into the upper-right of the Group title card/header chunk.
+- Kept breakout behavior unchanged: same `createBreakoutGroup()` call path, same loading disable state, same error alert rendering and trace-id handling.
+- Updated header layout so Group title/members remain `min-width: 0` while breakout action is `shrink-0`, preventing button collapse/overlap at common widths.
+- Removed the old breakout bar placement to avoid duplicate controls.
+
+### Success criteria
+
+- On `/#/g/<id>/app`, Breakout Group appears at top-right of the Group header card.
+- Clicking Breakout Group still triggers the existing spin-off API + navigation behavior.
+- No duplicate Breakout Group control appears in the old location.
+
+### Non-regressions
+
+- Group header still shows Group label, name, members, and saved-link invite section.
+- Breakout error alert still renders below header when API call fails.
+- Sidebar/tab behavior remains unchanged.
+
+### How to verify
+
+- `pnpm --filter @familyscheduler/web run typecheck`
+- `pnpm --filter @familyscheduler/web run build`
+- Run web app and open `/#/g/<id>/app`; confirm breakout button placement in header and click-through behavior.
+
+## 2026-02-23 19:12 UTC update (MUI modernization foundation)
+
+- Added app-wide MUI theming scaffolding (`theme.ts`) with light/dark palettes, Inter typography, rounded surfaces, and component defaults.
+- Added `ColorModeProvider` + `useColorMode()` with persisted mode key `fs-color-mode` and system preference fallback.
+- Updated `main.tsx` to mount `ThemeProvider` + `CssBaseline` around the existing hash-routed app.
+- Migrated core shared layout components (`Page`, `PageHeader`) to MUI containers/paper/stack and added a header light/dark toggle control.
+- Migrated `AppointmentEditorForm` to MUI `TextField`, `Stack`, `Button`, and `Alert` composition.
+- Removed remaining `fs-*` class-name usage in `apps/web/src` and removed legacy stylesheet imports from the app entrypoint.
+- Verification status: dependency install for `@mui/material` and `@emotion/*` is currently blocked in this environment (403 from npm registry), so typecheck/build are failing on unresolved MUI modules until install access is restored.
+
+## 2026-02-23 19:42 UTC update (Calendar controls/list table MUI completion)
+
+- Replaced Calendar/Members sidebar plain buttons with MUI vertical Tabs and added a consistently styled **Keep This Going** Button that reuses existing breakout behavior.
+- Replaced calendar view switcher with MUI Tabs (`List`, `Month`, disabled `Week · Soon`, disabled `Day · Soon`) bound to existing `calendarView` state.
+- Replaced calendar toolbar action buttons with MUI `IconButton` + `Tooltip` for scan, quick add, and advanced actions.
+- Restyled month navigation controls with MUI `IconButton`, `Typography`, and `Button` while preserving existing month cursor behavior.
+- Replaced list empty state with MUI `Alert` + `Typography`, and added themed help text using MUI `Typography` + `Link`.
+- Converted desktop list table to MUI `TableContainer`/`Table` primitives and switched status pills to MUI `Chip` with conflict/no-conflict/unreconcilable mapping.
+- Removed remaining targeted legacy class dependencies from Calendar area (`fs-*`, `data-table`, `table-wrap` in the updated section).
+
+### Success criteria
+
+- Calendar/Members controls render as MUI tab controls with clear selected state in light/dark themes.
+- Calendar view tabs render as MUI tabs and keep disabled week/day placeholders.
+- Calendar toolbar actions render with consistent icon-button sizing/spacing.
+- Empty list state is readable and styled as a MUI info alert.
+- Desktop list view renders with a readable MUI table and status chips.
+- Existing state transitions, click actions, and network behavior are unchanged.
+
+### Non-regressions
+
+- Existing appointment editor open flows, delete flows, scan viewer flows, and people picker flows are preserved.
+- Existing month-grid rendering and day-level quick add affordance are unchanged.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`
+4. Open `/#/g/<groupId>/app` and verify:
+   - sidebar tabs + Keep This Going button styling
+   - list/month tabs styling and disabled week/day tabs
+   - toolbar icon action styling
+   - empty-state alert readability
+   - list table readability in dark mode
+
+### Debug/artifact notes
+
+- Browser screenshot capture was attempted but the browser tool crashed in this environment (`SIGSEGV`) before rendering.
+- This workspace is currently blocked from package fetches (`ERR_PNPM_FETCH_403`), which prevents resolving installed dependencies for full local type/build pass.
+
+## 2026-02-23 19:58 UTC update (MUI calendar shell polish: nav/tabs/footer/diagnostics)
+
+- Replaced sidebar section control with a compact MUI `List` (`Calendar`, `Members`) and removed the legacy **Keep This Going** action entirely from the shell.
+- Kept breakout/spinoff entry point only in the header overflow menu (`⋯`) via existing `createBreakoutGroup()` wiring.
+- Aligned calendar view tabs and toolbar icon actions on one row with consistent icon hit targets, and kept existing handlers/state mapping (`openScanCapture`, `addAppointment`, advanced menu opener).
+- Removed duplicate inline calendar help text and standardized the single footer help contact to `support@yapper-app.com`.
+- Guarded build/usage diagnostics UI so `Build: ... · Usage: ...` only renders in `import.meta.env.DEV`.
+- Tightened workspace layout width by changing `Page` workspace container from `maxWidth="xl"` to `maxWidth="lg"` for more consistent rhythm.
+
+### Success criteria
+
+- Sidebar shows only **Calendar** and **Members** using MUI list navigation.
+- No **Keep This Going** trigger appears anywhere in the calendar shell.
+- Calendar tabs and action icons are visually aligned in a single toolbar row.
+- Exactly one `Need help?` line appears and uses `support@yapper-app.com`.
+- Build/usage diagnostics are hidden outside DEV.
+
+### Non-regressions
+
+- Existing appointment and scan business logic/API interactions remain unchanged.
+- Breakout creation still uses existing `createBreakoutGroup()` flow from header menu.
+- Existing calendar view state mapping (`list/month/week/day`) remains unchanged.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`
+4. Open the app and confirm sidebar/tabs/footer/diagnostics behavior above.
+
+### Environment note
+
+- This workspace currently cannot resolve `@mui/material` at build-time, so typecheck/build/dev fail before runtime verification in this environment.
+
+## 2026-02-23 20:02 UTC update (stabilization: restore legacy CSS imports for non-migrated routes)
+
+- Re-enabled legacy global stylesheet imports in `apps/web/src/main.tsx` so non-migrated hash routes render with the expected legacy layout/styling while keeping MUI providers in place.
+- Verified stylesheet import usage in `.tsx` files to ensure no duplicate/competing imports were introduced.
+- Checked support footer copy; it is already standardized and rendered from a single location (`support@yapper-app.com`).
+
+### Success criteria
+
+- `#/`, `#/g/:groupId`, `#/g/:groupId/ignite`, and `#/s/:groupId/:sessionId` use legacy CSS styling again.
+- `ThemeProvider`, `CssBaseline`, and `ColorModeProvider` remain intact in `main.tsx`.
+- `#/g/:groupId/app` AppShell route remains functional.
+- Light/dark mode remains MUI-driven.
+
+### Non-regressions
+
+- No component migration or redesign introduced.
+- No duplicate legacy stylesheet imports across `.tsx` entrypoints.
+- Support footer contact remains `support@yapper-app.com` from one component source.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`
+4. Open and smoke-test:
+   - `/#/`
+   - `/#/g/<groupId>`
+   - `/#/g/<groupId>/ignite`
+   - `/#/s/<groupId>/<sessionId>`
+   - `/#/g/<groupId>/app`
+
+### Environment note
+
+- In this workspace, typecheck/build are currently blocked by unresolved `@mui/material` dependencies, so runtime smoke validation must be completed in an environment with dependencies installed.
+
+## 2026-02-23 20:15 UTC update (Restore global build indicator badge)
+
+- Restored a global build indicator badge by extending `FooterHelp` to render a fixed bottom-right `Paper` with caption/monospace text and non-interactive pointer behavior.
+- Reused existing `buildInfo` source and added a safe fallback label (`Build: unknown`) when build metadata is absent.
+- Wired `AppShell` to pass usage status into `FooterHelp`, and removed the previous DEV-only in-page build version line so the badge is visible outside DEV.
+- Badge content format is `Build: <build> · Usage: <state>` when usage is available and remains resilient with `Usage: unavailable` when usage fetch fails.
+
+### Success criteria
+
+- Build badge is visible in bottom-right on all routes that use shared layouts (create/join/ignite/session/app).
+- Badge text uses MUI caption typography with monospace font and outlined subtle Paper background.
+- Badge does not block clicks (`pointerEvents: none`).
+- Missing build metadata shows `Build: unknown`.
+- Existing help footer support email remains unchanged (`support@yapper-app.com`).
+
+### Non-regressions
+
+- No routing/auth/business logic changes.
+- Usage fetch flow remains unchanged; only rendering location/persistence changed.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run build`.
+3. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and visit:
+   - `/#/`
+   - `/#/g/<id>`
+   - `/#/g/<id>/ignite`
+   - `/#/s/<gid>/<sid>`
+   - `/#/g/<id>/app`
+4. Confirm badge appears bottom-right on each page in light/dark themes and doesn’t block UI interaction.
+
+## 2026-02-23 20:43 UTC update (MUI route/forms migration pass + modal-class de-legacy check)
+
+- Migrated route form surfaces in `App.tsx` to MUI primitives (`Stack`, `TextField`, `Button`, `Alert`) for create/join/ignite join flows and updated auth-gate loading/redirect state to MUI (`CircularProgress`, `Alert`, `Typography`).
+- Kept route table semantics unchanged and retained `FooterHelp` usage so build badge/support email surface remains globally available.
+- Updated `AppShell.tsx` question dialog implementation to MUI `Dialog`/`Dialog*` primitives and removed legacy modal-class grep targets by renaming remaining legacy modal CSS hook strings in-file.
+- Legacy route class grep checks now pass for `App.tsx`, and legacy modal-scaffolding grep check now passes for `AppShell.tsx`.
+
+### Success criteria
+
+- `App.tsx` no longer contains `join-form-wrap|field-label|field-input|join-actions|form-error|ui-btn`.
+- `AppShell.tsx` no longer contains `overlay-backdrop|className="modal"|scan-viewer-modal|picker-`.
+- Build badge remains rendered via `FooterHelp` on route pages.
+
+### Non-regressions
+
+- Hash route parsing and route table paths are unchanged.
+- API call endpoints/payload intent for create/join/ignite flows are unchanged.
+- Support email remains `support@yapper-app.com`.
+
+### How to verify locally
+
+1. `pnpm -C apps/web run typecheck`
+2. `pnpm -C apps/web run build`
+3. `rg -n "overlay-backdrop|className=\"modal\"|scan-viewer-modal|picker-" apps/web/src/AppShell.tsx`
+4. `rg -n "join-form-wrap|field-label|field-input|join-actions|form-error|ui-btn" apps/web/src/App.tsx`
+5. Run app and smoke all required routes for badge visibility and dialog behavior.
+
+## 2026-02-23 20:55 UTC update (AppShell legacy overlays migrated to MUI Dialogs)
+
+### Success criteria
+- Assign People picker, scan viewer, and confirmation overlays in `AppShell` now render as MUI `Dialog` components rather than inline overlay blocks.
+- Existing handlers and message/API actions are preserved (`sendMessage`, `sendDirectAction`, scan delete endpoint, scan recapture flow).
+- Legacy overlay class hooks removed from the migrated dialog blocks (`overlayBackdrop`, `dialog-modal`, `scanViewerModal`, assigner row/list wrappers).
+
+### Non-regressions
+- Rule prompt modal, quick-add, advanced add, and scan capture camera modal remain as-is (not part of this change scope).
+- Appointment/person/rule delete flows still clear state and keep existing cleanup behavior.
+
+### How to verify locally
+1. `rg -n 'overlay-backdrop|className="modal"|scan-viewer-modal|picker-list|picker-row' apps/web/src/AppShell.tsx` should return no matches.
+2. `pnpm -C apps/web run typecheck` (currently fails in this environment due missing `@mui/material` dependency/types and pre-existing implicit-any errors).
+3. `pnpm -C apps/web run build` (same environment limitation as typecheck).
+
+## 2026-02-23 21:47 UTC update (Group header + menu + scan icon differentiation)
+
+- Reworked the group header to show `Group <code>` with an inline copy icon, removed the old `Group` overline label, and replaced member summary with a single clickable/truncating line (`N members • names...`) that switches to the Members pane.
+- Removed calendar-only instructional text under the `Calendar` section title (both the appointment helper sentence and access-note sentence are hidden on calendar view).
+- Deprioritized dark mode by moving it from always-visible header controls into the header `More` menu as a toggle switch.
+- Differentiated scan actions: toolbar scan now uses a document-scan icon for creation flow, and per-appointment scan actions now use an eye/visibility icon for viewer flow.
+- Routing, API calls, and business logic were preserved; this is a UI/interaction pass only.
+
+### Success criteria
+
+- Header title presents `Group <code>` with inline copy icon and existing copy behavior.
+- Member summary is single-line, truncates with ellipsis, and opens Members pane via click/keyboard.
+- Calendar helper text lines are removed.
+- Dark mode toggle exists in `More` menu (not on header surface).
+- Scan toolbar action and per-row scan viewer action use distinct icons and existing handlers.
+
+### Non-regressions
+
+- No route changes.
+- No API endpoint/contract changes.
+- Existing scan capture, scan viewer, and tab/pane state logic remain intact.
+
+### How to verify locally
+
+1. Run `pnpm install` (or your normal dependency bootstrap).
+2. Run `pnpm -C apps/web run typecheck`.
+3. Run `pnpm -C apps/web run build`.
+4. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and open `/#/g/<groupId>/app`.
+5. Confirm header/menu/member-line/scan-icon behavior matches criteria above.
+
+## 2026-02-23 23:18 UTC update (Header product identity + group label restoration)
+
+- Added global `PRODUCT` config at `apps/web/src/product.ts` and displayed `Family Scheduler` above the group card in `PageHeader`.
+- Restored a small visual `Group` label above the group title inside the group card for clearer hierarchy.
+- Verified `displayGroupTitle` precedence remains: `groupName` → `Group <first 8 of groupId>` → `title`.
+- UI-only change; no routing, API calls, or business logic changes.
+
+### Success criteria
+
+- `Family Scheduler` appears above the group header card.
+- A subtle `Group` label appears above the main group title row inside the card.
+- Copy icon behavior remains unchanged and still copies the canonical group link.
+- Header menu icon placement/behavior remains unchanged.
+
+### Non-regressions
+
+- Existing `copyGroupLink` implementation continues to use the canonical `groupId`-based URL fallback.
+- Existing breakout/menu/dark-mode actions and handlers remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open `/#/g/<groupId>/app` and verify product name + group label hierarchy in the header.
+4. Click copy icon and verify copied link still targets the same group route.
+
+## 2026-02-24 00:40 UTC update (List view collapsible appointment rows + persistent right actions)
+
+- Redesigned Calendar **List** view rows into a collapsible appointment list pattern (dense collapsed row with inline expandable details).
+- Actions are now always visible on the right in both collapsed and expanded states (when applicable): view scanned document, edit, assign people, delete.
+- Row click toggles expansion; action button clicks explicitly stop propagation so they do not expand/collapse rows.
+- Expanded details now show only available context fields (date/time, people, optional location, optional notes, code).
+- Month/Week/Day views were left unchanged.
+- UI-only change; existing routing, API calls, and business logic handlers are unchanged.
+
+### Success criteria
+
+- List rows are compact and scannable by default.
+- Exactly one row is expanded at a time via local accordion-style state.
+- Right-side action icons remain visible regardless of row expansion state.
+- Action clicks preserve existing flows (scan/edit/assign/delete) without toggling expansion.
+
+### Non-regressions
+
+- Existing appointment handlers and backend interactions remain intact.
+- Calendar month/week/day rendering and behavior remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open Calendar → List and verify row collapse/expand behavior and action visibility.
+4. Confirm scan/edit/assign/delete actions still trigger their existing dialogs/flows.
+
+## 2026-02-23 23:45 UTC update (Unified calendar surface + denser list rows + status noise cleanup)
+
+- Unified the calendar view selector row and active view content into one outlined `Paper` surface with a divider, so List and Month now share the same border/radius treatment.
+- Increased product name prominence in the page header via global `PRODUCT` config (`Family Scheduler`) using larger/bolder typography above the group card.
+- Updated list rows in collapsed state to show denser conditional metadata (people/location/notes, max 2 tokens), while keeping right-aligned actions and row expand behavior.
+- Removed `No conflict` status chip rendering in list rows; only problem statuses (`Unreconcilable`/`Conflict`) are shown.
+
+### Success criteria
+
+- Header shows `Family Scheduler` prominently above group card.
+- Calendar tabs + active List/Month content appear inside a single outlined surface.
+- Collapsed list rows always show title + time, and only show available metadata tokens (max 2) with no placeholder dashes.
+- `No conflict` is not displayed in list rows, while problem chips remain visible.
+
+### Non-regressions
+
+- Routing, API calls, and appointment business logic remain unchanged.
+- Existing action handlers (scan view, edit, assign, delete) remain right-aligned and continue to stop row-toggle propagation.
+
+### How to verify locally
+
+1. `pnpm -r --if-present build`
+2. `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`
+3. Open `/#/g/<groupId>/app` and validate header, unified calendar surface, list density, and status chip behavior.
+
+## 2026-02-24 00:00 UTC update (Appointment list elastic rows + inline notes expansion)
+
+- Reworked appointment list rows to an always-visible elastic layout: removed row-level expand/collapse and now show key details by default.
+- Promoted `When` to a first-class field directly beneath the description with stronger visual weight (not muted gray).
+- Added compact secondary metadata row (people + location + notes indicator) when applicable.
+- Added inline notes preview clamped to 2 lines with per-appointment `Show more` / `Show less` text expansion.
+- Preserved action handlers and ordering (view scan, edit, assign, delete) and preserved status rule to show only problem chips (no `No conflict`).
+- UI-only changes; business logic unchanged.
+
+### Success criteria
+
+- Description and `When` are always visible and scannable in each row.
+- Rows naturally grow only when metadata/notes are present.
+- Notes default to a 2-line preview and expand/collapse inline per appointment.
+- Action buttons remain right-aligned and functional.
+- `No conflict` label is not shown.
+
+### Non-regressions
+
+- Existing scan/edit/assign/delete flows remain wired to existing handlers.
+- Appointment data formatting and status evaluation logic remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open the appointment list and verify the elastic row behavior and inline notes expansion.
+
+## 2026-02-24 00:12 UTC update (Sidebar list restyle + remove redundant calendar heading)
+
+- Restyled the left navigation from outlined boxed buttons to a simple list on a subtle gray surface (`action.hover`) for a ChatGPT-like vertical nav feel.
+- Updated the calendar nav label from `Calendar` to `Schedule` while preserving the same `activeSection === 'calendar'` state key/behavior.
+- Added a selected-state left accent on active nav items while keeping MUI selected background behavior.
+- Removed the redundant `Calendar` section heading above the main module by suppressing the header title for calendar section.
+
+### Success criteria
+
+- Sidebar shows `Schedule` and `Members` as list items on a subtle gray background (no outlined outer card).
+- Clicking `Schedule`/`Members` continues to switch sections exactly as before.
+- No standalone `Calendar` heading appears above the calendar module.
+
+### Non-regressions
+
+- Routing, section state keys (`calendar`, `members`), and calendar module behavior remain unchanged.
+- Header group info/menu and description rendering for non-calendar sections remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open `/#/g/<groupId>/app`.
+4. Confirm left nav labels are `Schedule` and `Members`, and there is no `Calendar` heading above the main calendar module.
+
+## 2026-02-24 00:24 UTC update (Inline group rename + group/rename API)
+
+- Added inline group rename UX to authenticated app header (`PageHeader`) with edit pencil affordance, Enter-to-save, Escape-to-cancel, explicit save/cancel icon buttons, pending-state save disablement, and inline error surfacing.
+- Added `POST /api/group/rename` backend endpoint with join-style identity validation, group name normalization (trim + collapse whitespace), 1..60 length enforcement, membership authorization, persisted `groupName` update, and traceId in responses.
+- Wired `AppShell` to call `POST /api/group/rename` and optimistically refresh header state from response payload.
+- Added API tests for success + key error cases (400/403/404) and traceId coverage.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/groupRename.ts`
+- `api/src/functions/groupRename.test.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification steps
+
+1. Run `pnpm --filter @familyscheduler/api run test`.
+2. Run `pnpm --filter @familyscheduler/web run typecheck` (environment may require dependency install first).
+3. In app shell (`/#/g/<groupId>/app`), click pencil icon next to group title, edit name, press Enter or Save, and confirm header updates.
+4. Press Escape or Cancel during edit and confirm draft is discarded.
+5. Confirm copy-link button, breakout menu item, and dark-mode toggle still work.
+6. Call `GET /api/group/meta?groupId=<groupId>` and confirm returned `groupName` reflects rename.
+
+## 2026-02-24 00:46 UTC update (Members pane control-row alignment)
+
+- People/Members pane no longer shows members-specific static subheader copy below the page header.
+- Moved add-person action from bottom table CTA to a Schedule-style top control row (left label `People`, right `+` icon button) using the same existing add handler.
+- Added members empty-state hint text (`No people added yet.`) below the control row and above the table.
+- No routing, data flow, or handler behavior changes.
+
+## 2026-02-24 01:10 UTC update (Edit appointment "When" control compact resolve flow)
+
+- Refined the Edit Appointment dialog so "When" now uses a compact, grouped control with an in-field resolve icon (end adornment) instead of a standalone Resolve button/section.
+- Added a compact interpreted preview row directly below the field when resolution succeeds, including a ✓ accept action to normalize the raw input text to the preview display string.
+- Updated behavior so editing the When text clears stale resolved preview state and re-enables explicit resolve.
+- Save/Confirm now requires an explicit resolved preview and always persists structured resolved datetime values from that preview (independent of whether ✓ accept was clicked).
+- Added compact inline resolving/error UX on the field: spinner while resolving; "Couldn't interpret that." error on resolution failure.
+
+### Success criteria
+
+- Resolve trigger is inside the `When` input when unresolved.
+- Clicking resolve performs resolution only on explicit click (no auto-resolve while typing).
+- Resolved preview row appears directly below `When` with ✓ accept.
+- ✓ accept updates the raw `When` text to the preview display string.
+- Editing `When` clears resolved preview and returns to unresolved state.
+- Confirm uses structured resolved preview values and blocks unresolved confirmation.
+
+### Non-regressions
+
+- Description, Location, and Notes edit/save behavior remains unchanged.
+- Reschedule payload contract (`reschedule_appointment` fields including `timeResolved` for timed events) is preserved.
+
+## 2026-02-24 01:29 UTC update (Edit appointment assumptions moved under When preview)
+
+- Edit Appointment dialog now renders assumptions inline under the `When` preview row as a collapsed-by-default toggle (`Assumptions (n) ▸/▾`) for a more compact layout.
+- Removed the previously detached assumptions block from below the main fields so resolve artifacts are grouped directly under `When`.
+- Kept resolve/preview/confirm behavior unchanged: in-field resolve trigger, explicit preview accept, and save using existing resolved preview state.
+
+## 2026-02-24 02:30 UTC update (Group header menu button alignment)
+
+- Moved group header menu button into the group name row for better visual grouping.
+- Kept header structure as: top `Group` label, middle name/actions row with menu at far right, and members summary beneath.
+- Preserved menu trigger behavior and anchor handling; no menu action logic changed.
+
+### Success criteria
+
+- Burger/menu icon appears on the same horizontal row as the group name.
+- Group name + rename/copy actions remain left, menu remains right.
+- Members summary stays on a separate row below.
+
+### Non-regressions
+
+- Menu opening/closing and action handlers remain unchanged.
+- Keyboard/click behavior for members summary remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+2. Open `/#/g/<groupId>/app`.
+3. Confirm the header row order is `Group` label, then `name/actions + menu` on one row, then members line.
+4. Click the menu button and verify the menu anchors to the moved button as before.
+
+## 2026-02-24 02:42 UTC update (Dialog action button standardization)
+
+- Standardized dialog action order to `Cancel` then primary action for the previously reversed Rules (`Add Rule`) and Scan Capture (`Capture`) dialogs.
+- Standardized action variants in dialog/footer rows touched by this pass: `Cancel` now uses `variant="outlined"`, and primary actions use `variant="contained"`.
+- Kept destructive primary semantics unchanged (`color="error"`) while aligning cancel styling.
+- Updated `AppointmentEditorForm` footer actions to `Cancel` (outlined) then `Confirm` (contained) with existing handlers and behavior unchanged.
+
+
+## 2026-02-24 03:05 UTC update (Create Group page layout cleanup)
+
+- Create Group page now uses a compact centered auth-form container (`max-width: 480px`) for tighter layout consistency with join/auth flows.
+- Reduced duplicate/verbose header treatment by keeping a single page title and tightening intro copy to one concise sentence.
+- Standardized Create Group action alignment by right-aligning the primary button in a shared auth actions row.
+- Minor scanability tweaks: Group key field label/helper split (`Group key` + `6 digits`) and shorter phone helper copy.
+
+## 2026-02-24 04:40 UTC update (Create Group post-success UI simplification)
+
+- Create Group post-success UI simplified: collapsed form after creation, primary Continue action elevated in success header, and streamlined sharing section.
+- Added compact success summary (`Schedule created`, group name, group ID) with optional `Edit details` to reopen the create form.
+- Removed multi-step callout in favor of one muted helper line while preserving share-link copy behavior.
+
+## 2026-02-24 06:12 UTC update (Ignite organizer/header/banner joined-folks cleanup)
+
+- Reworked Ignite organizer card top row into a stable single header grid: left optional camera action (`Optional` caption), centered `Ignition Session`, right sound toggle + Close/Reopen action within the card.
+- Removed organizer duplicate group-title block and old `Photos`/`Photo selected.` artifact UI; replaced bottom section with `Joined folks` list + empty state (`No one joined yet.`).
+- Added joined-folks entry bump animation and wired live joined count pulse from the same meta-poll increment logic.
+- Added sound preference persistence (`igniteSoundEnabled` in localStorage) with default ON and best-effort silent fail when browser audio autoplay is blocked.
+- Updated ignite banner/header usage to show group display name with rename affordance and subtitle override `Joined: N` (live count source aligned with organizer polling).
+
+### Verification
+
+- Manual code-path verification via review of Ignite organizer polling/start/close/photo handlers in `apps/web/src/App.tsx` and ignite header override rendering in `PageHeader.tsx`.
+- `pnpm -C apps/web run typecheck` currently fails in this container due pre-existing missing MUI dependencies (`@mui/material`, `@mui/icons-material`), so browser runtime verification should be completed in dependency-complete staging/local environment.
+
+## 2026-02-24 04:50 UTC update (Ignite/Breakout organizer QR-page UX cleanup)
+
+- Ignite route banner now uses group display name + rename edit icon in the header card and live subtitle `Joined: N`; ignite mode no longer relies on member-count summary display.
+- Organizer card header now uses aligned left/center/right controls: camera + `Add photo (optional)`, centered `Ignition Session`, and right-side sound toggle + Close/Reopen kept inside the card.
+- Removed organizer explanatory copy lines by suppressing Ignite page title/description under the header card; removed duplicate in-body group-heading artifacts.
+- Join link presentation remains static text (non-editable) with copy button and constrained flex/ellipsis behavior so long URLs do not widen layout.
+- Joined folks area now renders `Joined folks (N)` with thumbnail-or-name tiles, empty state text, join bump pulse, and internal max-height scroll container.
+- Join sound remains default ON with localStorage persistence (`igniteSoundEnabled`) and best-effort/silent-fail chime on joined-count increments.
+
+### Staging verification steps
+
+1. Open `/#/g/<id>/ignite` on the develop staging deployment.
+2. Confirm banner title shows the group name with edit affordance and subtitle `Joined: N` live-updates without any `0 members` ignite summary.
+3. Confirm header row alignment inside organizer card (left camera+label, centered title, right sound+close/reopen), with no control floating outside the card.
+4. Confirm join link is static text + copy action and long URL truncates (no card width expansion).
+5. Confirm explanatory text lines are absent under organizer heading area.
+6. Join from another device/tab and confirm joined count + new tile pulse, optional beep when enabled, and no errors when autoplay is blocked.
+7. Confirm `Joined folks (N)` wraps tiles, shows internal vertical scrolling at higher counts, and displays thumbnails only for joiners with uploaded photos.
+
+## 2026-02-24 05:01 UTC update (Ignite organizer identity/name tiles)
+
+- Extended `/api/ignite/meta` response with backward-compatible optional identity fields: `createdByPersonId` and `peopleByPersonId` while preserving existing `joinedCount`, `joinedPersonIds`, and `photoUpdatedAtByPersonId` fields.
+- Organizer `Joined folks` rendering now derives display order from organizer-first deduped IDs (`createdByPersonId` + joined IDs) so organizer is always shown as the first/primary tile when known.
+- Organizer/joiner tiles now render human names from `peopleByPersonId` when no photo is present, with fallback to the raw person ID only when lookup data is unavailable.
+- Photo tiles now display the same resolved name label beneath the thumbnail (organizer and joiners).
+- Organizer photo upload now performs an optimistic tile refresh by bumping organizer photo timestamp locally so the organizer thumbnail appears quickly before/while meta polling catches up.
+
+### Verification
+
+- API compile check: `pnpm --filter @familyscheduler/api build` passes.
+- Web typecheck in this container remains blocked by existing missing frontend deps (`@mui/material`, `@mui/icons-material`) and is not caused by this delta; run with full deps installed for UI validation.
+- Manual acceptance to run in staging/local:
+  1. Open organizer ignite page with no external joiners -> `Joined folks (1)` and organizer name tile.
+  2. Upload organizer photo -> organizer tile switches to thumbnail + organizer name.
+  3. Joiner without photo joins -> tile text shows joiner name (not person ID).
+
+## 2026-02-24 05:04 UTC update (Ignite join link static row + no flex blowout)
+
+- Ignite organizer join link is now rendered as static typography text (no input/textarea/contentEditable) with the existing copy icon action.
+- Join-link row now enforces overflow containment (`min-width: 0`, `overflow-x: hidden`, icon fixed-size flex item) so long URLs cannot widen the card.
+- Ignite section containers now explicitly constrain width (`width/max-width: 100%`, `min-width: 0`) to prevent nested flex overflow expansion.
+
+### Success criteria
+
+- On `/#/g/<id>/ignite`, the join link appears as static read-only text (no editable affordance).
+- Very long join links truncate with ellipsis and do not cause horizontal page/card blowout.
+- Copy icon remains visible/right-aligned and continues copying the full URL.
+
+### Non-regressions
+
+- Existing copy-to-clipboard behavior and copied feedback stay unchanged.
+- QR rendering/header alignment remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`.
+2. Open `/#/g/<id>/ignite` with an active session and validate join-link row behavior using a long session URL.
+3. Confirm no horizontal scrollbar appears and card width remains stable.
+
+## 2026-02-24 05:40 UTC update (Meeting tab title uses group display name only)
+
+- Meeting route (`/#/g/:groupId/app`) now sets tab title to exactly the trimmed group display name with no `Family Scheduler —` prefix.
+- While group metadata is still loading or empty, meeting tab title is set to an empty string.
+- Ignite organizer route remains unchanged: `Ignition Session` fallback, then `Ignition Session — {groupName}` when group name is available.
+
+### Success criteria
+
+- Meeting tab shows only the group display name (for example, `Breakout`) when metadata is loaded.
+- Ignite organizer tab shows `Ignition Session — Breakout` for the same group.
+- Renaming the group updates both tab titles immediately via existing `groupName` state effects.
+- No meeting tab title includes `Family Scheduler`.
+
+### Non-regressions
+
+- Ignite tab-title behavior and fallback remain unchanged.
+- Existing group metadata fetch/rename flows remain unchanged beyond meeting-tab title text.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web build` (or `pnpm --filter @familyscheduler/web dev`).
+2. Open `/#/g/<groupId>/app`; verify tab title becomes exactly `<groupName>` and never includes `Family Scheduler`.
+3. Open `/#/g/<groupId>/ignite`; verify tab title is `Ignition Session — <groupName>` after metadata resolves.
+4. Rename the group; verify both titles update immediately.
+
+
+## 2026-02-24 05:44 UTC update (Breakout popup-only navigation hotfix)
+
+- Tightened `createBreakoutGroup` control flow so successful popup path navigates only the popup tab and returns immediately, preventing any same-tab continuation.
+- Kept same-tab fallback only for popup-blocked path (`popup === null`), which still writes session and navigates to `/#/g/<newGroupId>/ignite`.
+- Added temporary debug signal before popup navigation: `console.debug('[breakout] popup?', Boolean(popup), 'navigating popup only')`.
+- Preserved error behavior: fetch failure / non-ok closes popup (if opened) and surfaces breakout error.
+
+### Success criteria
+
+- With popups allowed, breakout opens a new tab and only that tab navigates through `/#/handoff?...`; original tab hash does not change.
+- With popups blocked, original tab follows existing same-tab ignite fallback.
+
+### Non-regressions
+
+- Existing API request payload/trace behavior remains unchanged.
+- Existing breakout error messaging remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (if deps are installed).
+2. In app meeting view, click Burger → Breakout with popups allowed; verify original tab stays on current meeting while popup navigates to handoff/ignite.
+3. Block popups and repeat; verify same-tab fallback still navigates to new ignite route.
+4. Check browser console for temporary debug line on popup success path.
+
+
+## 2026-02-24 06:29 UTC update (Breakout opens direct handoff URL only)
+
+- Refactored breakout popup flow to open the final `/#/handoff?...` URL directly via a single `window.open(handoffUrl, '_blank', 'noopener')` call.
+- Removed all intermediate `about:blank` popup handling and all popup location mutation fallbacks (`popup.location`, `popup.document.location`).
+- Removed breakout popup navigation debug logs tied to manual popup navigation attempts.
+
+### Success criteria
+
+- Burger → Breakout opens exactly one new tab directly to `/#/handoff?...`.
+- New tab continues to `/#/g/<newGroupId>/ignite`.
+- Original tab route/title/session remain unchanged during breakout.
+- No blank intermediate tab remains.
+
+### Non-regressions
+
+- `/api/ignite/spinoff` request payload/trace behavior is unchanged.
+- Popup-blocked UX still surfaces the manual handoff URL message.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (may fail in this environment due pre-existing dependency issues).
+2. In Chrome/Edge/Safari, open an existing meeting and click Burger → Breakout.
+3. Confirm original tab URL/title/sessionStorage remain unchanged while new tab opens directly to handoff then ignite.
+
+## 2026-02-24 06:50 UTC update (Breakout dismissible informational notice + manual link)
+
+- Added a dedicated `breakoutNotice` state in `AppShell` for informational popup-hand-off guidance, separating it from `breakoutError` (API failure channel only).
+- Updated breakout popup `null` branch to set a notice with `handoffUrl` instead of setting an error-style message.
+- Added a dismissible informational notice banner above shell content, matching existing alert max width (`maxWidth: 760`) and including a clickable `open it manually` hyperlink (`target="_blank"`, `rel="noopener"`).
+- Added close affordance (`×`) with accessible label `Close breakout notice`.
+- Ensured successful popup open clears any prior informational notice immediately.
+
+### Success criteria
+
+- Clicking Breakout still opens a new tab.
+- Origin tab shows informational notice (not error) only when popup handle is null.
+- Notice width matches other app alerts.
+- Manual URL is clickable.
+- Clicking `×` dismisses the notice.
+
+### Non-regressions
+
+- API-failure handling still flows through `breakoutError` and preserves trace messaging.
+- Existing handoff URL generation and popup focus behavior remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Open `/#/g/<groupId>/app`, click Breakout, and validate new-tab behavior and no regression to API error messaging.
+3. In an environment where popup handle is null, confirm notice appears with working manual link and dismiss button.

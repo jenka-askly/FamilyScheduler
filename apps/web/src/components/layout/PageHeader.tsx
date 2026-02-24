@@ -1,33 +1,45 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from 'react';
+import { Alert, Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import TextField from '@mui/material/TextField';
+import { useColorMode } from '../../colorMode';
+import { PRODUCT } from '../../product';
 
-const HeaderIcon = ({ children }: { children: React.ReactNode }) => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    {children}
-  </svg>
+const ContentCopyIcon = () => (
+  <SvgIcon fontSize="small">
+    <path d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z" />
+  </SvgIcon>
 );
-const CopyIcon = () => <HeaderIcon><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 5" /><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19" /></HeaderIcon>;
 
 type Props = {
-  title: string;
+  title?: string;
   description?: string;
   groupName?: string;
   groupId?: string;
   memberNames?: string[];
+  groupAccessNote?: string;
+  onMembersClick?: () => void;
+  showGroupAccessNote?: boolean;
+  onBreakoutClick?: () => void;
+  breakoutDisabled?: boolean;
+  onRenameGroupName?: (nextName: string) => Promise<void>;
+  titleOverride?: string;
+  subtitleOverride?: string;
+  subtitlePulse?: boolean;
 };
 
-export function PageHeader({
-  title,
-  description,
-  groupName,
-  groupId,
-  memberNames,
-}: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false }: Props) {
   const [copied, setCopied] = useState(false);
-  const groupLink = useMemo(() => {
-    if (!groupId) return null;
-    if (typeof window === 'undefined') return null;
-    return `${window.location.origin}/#/g/${groupId}/app`;
-  }, [groupId]);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [isRenamePending, setIsRenamePending] = useState(false);
+  const { mode, toggleMode } = useColorMode();
 
   useEffect(() => {
     if (!copied) return;
@@ -36,77 +48,215 @@ export function PageHeader({
   }, [copied]);
 
   const copyGroupLink = async () => {
-    if (!groupLink) return;
+    if (!groupId || typeof window === 'undefined') return;
+    const shareLink = window.location.href || `${window.location.origin}/#/g/${groupId}/app`;
     try {
-      await navigator.clipboard.writeText(groupLink);
+      await navigator.clipboard.writeText(shareLink);
       setCopied(true);
     } catch {
       setCopied(false);
     }
   };
 
-  const visibleMembers = (memberNames ?? []).slice(0, 4);
-  const remainingMemberCount = Math.max(0, (memberNames ?? []).length - visibleMembers.length);
-  const membersLine = visibleMembers.length > 0
-    ? `${visibleMembers.join(', ')}${remainingMemberCount > 0 ? ` +${remainingMemberCount}` : ''}`
-    : null;
+  const memberCount = memberNames?.length ?? 0;
+  const membersSummary = memberCount > 0 ? `${memberCount} members • ${memberNames?.join(', ') ?? ''}` : '0 members';
+  const normalizedGroupName = groupName?.trim();
+  const shortGroupId = groupId ? groupId.slice(0, 8) : undefined;
+  const defaultGroupTitle = normalizedGroupName
+    ? normalizedGroupName
+    : shortGroupId
+      ? `Group ${shortGroupId}`
+      : title;
+  const displayGroupTitle = titleOverride?.trim() || defaultGroupTitle;
+  const hasMembersAction = typeof onMembersClick === 'function';
+  const canRenameGroup = Boolean(groupId && displayGroupTitle && typeof onRenameGroupName === 'function');
+
+  const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  const beginRename = () => {
+    if (!canRenameGroup) return;
+    setRenameError(null);
+    setGroupNameDraft(normalizedGroupName || displayGroupTitle || '');
+    setIsEditingGroupName(true);
+  };
+
+  const cancelRename = () => {
+    if (isRenamePending) return;
+    setRenameError(null);
+    setIsEditingGroupName(false);
+    setGroupNameDraft('');
+  };
+
+  const saveRename = async () => {
+    if (!onRenameGroupName) return;
+    const nextName = normalizeGroupName(groupNameDraft);
+    if (!nextName) {
+      setRenameError('Group name is required.');
+      return;
+    }
+    if (nextName.length > 60) {
+      setRenameError('Group name must be 60 characters or fewer.');
+      return;
+    }
+
+    setIsRenamePending(true);
+    setRenameError(null);
+    try {
+      await onRenameGroupName(nextName);
+      setIsEditingGroupName(false);
+      setGroupNameDraft('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to rename group.';
+      setRenameError(message);
+    } finally {
+      setIsRenamePending(false);
+    }
+  };
+
+  const handleMembersKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!hasMembersAction) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onMembersClick();
+  };
 
   return (
-    <div className="fs-pageHeader">
-      {groupName ? (
-        <div className="fs-groupHeaderCard">
-          <div className="fs-groupHeaderTop">
-            <div className="fs-groupTitleBlock">
-              <div className="fs-groupLabel">Group</div>
-              <h1 className="fs-groupTitle">{groupName}</h1>
-              {membersLine ? (
-                <div className="fs-groupMembersLine" aria-label="Members in this group">
-                  {membersLine}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {groupId ? (
-            <div className="fs-inviteBlock">
-              {groupLink ? (
-                <>
-                  <div className="fs-inviteUrlRow">
-                    <span className="fs-inviteUrlText">{groupLink}</span>
-                    <button
-                      type="button"
-                      className="fs-copyIconBtn"
-                      aria-label="Copy invite link"
-                      onClick={() => void copyGroupLink()}
-                    >
-                      <CopyIcon />
-                    </button>
-                  </div>
-                  <div className="fs-inviteHelp">
-                    Save this link — it’s the only way to return to this group.
-                  </div>
-                  {copied ? <span className="fs-meta">Copied</span> : null}
-                </>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <h1 className="fs-h1">{title}</h1>
-      )}
-
-      {groupName ? (
-        <p className="fs-groupName fs-pageTitle">
-          {title}
-        </p>
-      ) : null}
-
-      <div className="fs-meta fs-headerMeta">
-        {description && (
-          <p className="fs-desc">{description}</p>
-        )}
-        {groupId ? <div>Only listed phone numbers can access this group.</div> : null}
+    <Stack spacing={2} sx={{ mb: 2 }}>
+      <div className="ui-productHeader">
+        <Typography className="ui-productTitle" variant="h5" sx={{ fontWeight: 700 }}>{PRODUCT.name}</Typography>
+        <Tooltip title="Menu">
+          <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
+            <MenuIcon />
+          </IconButton>
+        </Tooltip>
       </div>
-    </div>
+      <Paper>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="overline" color="text.secondary" sx={{ opacity: 0.8, display: 'block', lineHeight: 1.2 }}>
+              Group
+            </Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+                {isEditingGroupName ? (
+                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+                    <TextField
+                      size="small"
+                      value={groupNameDraft}
+                      onChange={(event) => {
+                        setGroupNameDraft(event.target.value);
+                        if (renameError) setRenameError(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          void saveRename();
+                        }
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      inputProps={{ maxLength: 60, 'aria-label': 'Group name' }}
+                      sx={{ minWidth: 220 }}
+                    />
+                    <Tooltip title="Save group name">
+                      <span>
+                        <IconButton size="small" onClick={() => void saveRename()} disabled={isRenamePending} aria-label="Save group name">
+                          <CheckIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Cancel rename">
+                      <span>
+                        <IconButton size="small" onClick={cancelRename} disabled={isRenamePending} aria-label="Cancel rename">
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                ) : (
+                  <>
+                    <Typography variant="h5" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayGroupTitle}</Typography>
+                    {canRenameGroup ? (
+                      <Tooltip title="Rename group">
+                        <IconButton size="small" onClick={beginRename} aria-label="Rename group">
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+                  </>
+                )}
+                {groupId ? (
+                  <Tooltip title="Copy group link">
+                    <IconButton size="small" onClick={() => void copyGroupLink()} aria-label="Copy group link">
+                      <ContentCopyIcon />
+                    </IconButton>
+                  </Tooltip>
+                ) : null}
+            </Stack>
+            <Box
+              component="div"
+              role={hasMembersAction ? 'button' : undefined}
+              tabIndex={hasMembersAction ? 0 : undefined}
+              aria-label={hasMembersAction ? `View members (${memberCount})` : undefined}
+              onClick={hasMembersAction ? onMembersClick : undefined}
+              onKeyDown={handleMembersKeyDown}
+              sx={{
+                mt: 0.25,
+                borderRadius: 1,
+                cursor: hasMembersAction ? 'pointer' : 'default',
+                '&:hover': hasMembersAction ? { textDecoration: 'underline' } : undefined,
+                '&:focus-visible': hasMembersAction ? { outline: '2px solid', outlineColor: 'primary.main' } : undefined
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {subtitleOverride ? (
+                  <span className={subtitlePulse ? 'ui-igniteJoinedBump' : undefined}>{subtitleOverride}</span>
+                ) : membersSummary}
+              </Typography>
+            </Box>
+          </Box>
+        </Stack>
+        <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+          {onBreakoutClick ? (
+            <MenuItem
+              sx={{ fontWeight: 600 }}
+              disabled={breakoutDisabled}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setAnchorEl(null);
+                onBreakoutClick();
+              }}
+            >
+              <ListItemIcon>
+                <RocketLaunchIcon color="primary" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Breakout Session"
+                secondary={<Typography variant="body2" color="text.secondary">Create a live coordination session</Typography>}
+              />
+            </MenuItem>
+          ) : null}
+          {onBreakoutClick ? <Divider /> : null}
+          <MenuItem>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+              <Typography>Dark mode</Typography>
+              <Switch
+                checked={mode === 'dark'}
+                onClick={(event) => event.stopPropagation()}
+                onChange={() => toggleMode()}
+                inputProps={{ 'aria-label': 'Toggle dark mode' }}
+              />
+            </Stack>
+          </MenuItem>
+        </Menu>
+      </Paper>
+      {title ? <Typography variant="h6">{title}</Typography> : null}
+      {description ? <Typography color="text.secondary">{description}</Typography> : null}
+      {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</Typography> : null}
+      {copied ? <Alert severity="success">Copied</Alert> : null}
+      {renameError ? <Alert severity="error">{renameError}</Alert> : null}
+    </Stack>
   );
 }

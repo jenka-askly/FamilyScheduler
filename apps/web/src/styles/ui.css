@@ -112,31 +112,31 @@ th {
   border-top: 0;
 }
 
-.fs-workspaceWrap {
+.ui-workspaceWrap {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 32px;
 }
 
 @media (max-width: 640px) {
-  .fs-workspaceWrap {
+  .ui-workspaceWrap {
     padding: 16px;
   }
 }
 
-.fs-tableScroll {
+.ui-tableScroll {
   overflow-x: auto;
 }
 
-.fs-tableScroll table {
+.ui-tableScroll table {
   min-width: 900px;
 }
 
 
-.fs-drawer {
+.ui-drawer {
   overflow-x: hidden;
 }
-.fs-drawer-overlay {
+.ui-drawer-overlay {
   position: fixed;
   inset: 0;
   z-index: 1100;
@@ -145,7 +145,7 @@ th {
   background: rgb(17 24 39 / 0.45);
 }
 
-.fs-drawer-panel {
+.ui-drawer-panel {
   overflow-x: hidden;
   height: 100%;
   width: min(480px, 100%);
@@ -156,7 +156,7 @@ th {
   flex-direction: column;
 }
 
-.fs-drawer-header {
+.ui-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -165,17 +165,17 @@ th {
   border-bottom: 1px solid #e5e7eb;
 }
 
-.fs-drawer-title {
+.ui-drawer-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
 }
 
-.fs-drawer-titleSpacer {
+.ui-drawer-titleSpacer {
   min-height: 1px;
 }
 
-.fs-drawer-closeButton {
+.ui-drawer-closeButton {
   min-width: 36px;
   min-height: 36px;
   padding: 0;
@@ -188,29 +188,29 @@ th {
   line-height: 1;
 }
 
-.fs-drawer-closeButton:hover {
+.ui-drawer-closeButton:hover {
   background: #f9fafb;
 }
 
-.fs-drawer-content {
+.ui-drawer-content {
   padding: var(--ui-space-4);
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.fs-cardList {
+.ui-cardList {
   display: grid;
   gap: 12px;
 }
 
-.fs-card {
+.ui-card {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #fff;
   padding: 12px;
 }
 
-.fs-cardHeader {
+.ui-cardHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -218,31 +218,55 @@ th {
   margin-bottom: 8px;
 }
 
-.fs-cardRow {
+.ui-cardRow {
   display: grid;
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 8px;
   padding: 3px 0;
 }
 
-.fs-cardLabel {
+.ui-cardLabel {
   color: var(--ui-text-muted);
   font-weight: 600;
 }
 
-.fs-cardValue {
+.ui-cardValue {
   min-width: 0;
   word-break: break-word;
 }
 
-.fs-cardValueButton {
+.ui-cardValueButton {
   justify-self: start;
   padding: 0;
   min-height: 0;
 }
 
-.fs-cardCtaWrap {
+.ui-cardCtaWrap {
   display: flex;
   gap: 12px;
   padding: 10px 0 4px;
+}
+
+.ui-calToolbarRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ui-calActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-btn-small {
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  font-size: 0.82rem;
+}
+
+.ui-calActions .ui-btn-primary.ui-btn-icon svg {
+  transform: scale(1.05);
 }

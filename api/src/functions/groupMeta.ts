@@ -18,7 +18,10 @@ export async function groupMeta(request: HttpRequest, _context: InvocationContex
       jsonBody: {
         ok: true,
         groupId: loaded.state.groupId,
-        groupName: loaded.state.groupName
+        groupName: loaded.state.groupName,
+        people: loaded.state.people
+          .filter((person) => person.status === 'active')
+          .map((person) => ({ personId: person.personId, name: person.name }))
       }
     };
   } catch (error) {

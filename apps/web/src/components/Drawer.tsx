@@ -30,21 +30,21 @@ export function Drawer({ open, title, onClose, children }: DrawerProps) {
   if (!open) return null;
 
   return (
-    <div className="fs-drawer-overlay" onClick={onClose} role="presentation">
+    <div className="ui-drawer-overlay" onClick={onClose} role="presentation">
       <aside
-        className="fs-drawer-panel"
+        className="ui-drawer-panel"
         aria-modal="true"
         role="dialog"
         aria-label={title ?? 'Drawer'}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="fs-drawer-header">
-          {title ? <h2 className="fs-drawer-title">{title}</h2> : <div className="fs-drawer-titleSpacer" />}
-          <button type="button" className="fs-drawer-closeButton" onClick={onClose} aria-label="Close drawer">
+        <div className="ui-drawer-header">
+          {title ? <h2 className="ui-drawer-title">{title}</h2> : <div className="ui-drawer-titleSpacer" />}
+          <button type="button" className="ui-drawer-closeButton" onClick={onClose} aria-label="Close drawer">
             ×
           </button>
         </div>
-        <div className="fs-drawer-content">{children}</div>
+        <div className="ui-drawer-content">{children}</div>
       </aside>
     </div>
   );

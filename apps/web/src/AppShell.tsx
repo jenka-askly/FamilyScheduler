@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
 import { AppointmentCardList } from './components/AppointmentCardList';
 import { Drawer } from './components/Drawer';
@@ -6,9 +6,38 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
-import { buildInfo } from './lib/buildInfo';
-import { useMediaQuery } from './hooks/useMediaQuery';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  FormGroup,
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
+  Link as MuiLink,
+  Paper,
+  Popover,
+  Stack,
+  SvgIcon,
+  Tab,
+  TextField,
+  Tabs,
+  Tooltip,
+  Typography
+} from '@mui/material';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -32,7 +61,17 @@ type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
 type CalendarView = 'month' | 'list' | 'week' | 'day';
 type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
 
+type Session = { groupId: string; phone: string; joinedAt: string };
+
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SESSION_KEY = 'familyscheduler.session';
+const createTraceId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+const writeSession = (session: Session): void => {
+  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+};
 
 const QuestionDialog = ({
   question,
@@ -49,29 +88,53 @@ const QuestionDialog = ({
   onSubmitText: () => void;
   onClose: () => void;
 }) => (
-  <div className="modal-backdrop">
-    <div className="modal">
-      <h3>Question</h3>
-      <p>{question.message}</p>
-      {question.options.length > 0 ? (
-        <div className="question-options">
-          {question.options.map((option, index) => (
-            <button key={`${option.label}-${index}`} type="button" className={`question-option ${option.style ?? 'secondary'}`} onClick={() => onOptionSelect(option.value)}>{option.label}</button>
-          ))}
-        </div>
-      ) : null}
-      {question.allowFreeText ? (
-        <form onSubmit={(event) => { event.preventDefault(); onSubmitText(); }}>
-          <label htmlFor="question-input">Your response</label>
-          <div className="input-row">
-            <input id="question-input" value={value} onChange={(event) => onValueChange(event.target.value)} autoComplete="off" />
-            <button type="submit" disabled={!value.trim()}>Send</button>
-          </div>
-        </form>
-      ) : null}
-      <div className="modal-actions"><button type="button" onClick={onClose}>Close</button></div>
-    </div>
-  </div>
+  <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+    <DialogTitle>Question</DialogTitle>
+    <DialogContent>
+      <Stack spacing={2} sx={{ mt: 0.5 }}>
+        <Typography>{question.message}</Typography>
+        {question.options.length > 0 ? (
+          <Stack direction="row" spacing={1} flexWrap="wrap">
+            {question.options.map((option, index) => (
+              <Button
+                key={`${option.label}-${index}`}
+                type="button"
+                variant={option.style === 'primary' ? 'contained' : 'outlined'}
+                color={option.style === 'danger' ? 'error' : option.style === 'secondary' ? 'secondary' : 'primary'}
+                onClick={() => onOptionSelect(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </Stack>
+        ) : null}
+        {question.allowFreeText ? (
+          <Stack component="form" spacing={1} onSubmit={(event) => { event.preventDefault(); onSubmitText(); }}>
+            <TextField label="Your response" value={value} onChange={(event) => onValueChange(event.target.value)} autoComplete="off" fullWidth />
+            <Stack direction="row" justifyContent="flex-end">
+              <Button type="submit" disabled={!value.trim()} variant="contained">Send</Button>
+            </Stack>
+          </Stack>
+        ) : null}
+      </Stack>
+    </DialogContent>
+    <DialogActions><Button type="button" onClick={onClose}>Close</Button></DialogActions>
+  </Dialog>
+);
+
+const AppointmentDialogContext = ({
+  title,
+  subtitle
+}: {
+  title: string;
+  subtitle: string;
+}) => (
+  <Box sx={{ mt: 0.5, mb: 1.5, pb: 1.5, borderBottom: (theme) => `1px solid ${theme.palette.divider}` }}>
+    <Stack spacing={0.25}>
+      <Typography variant="subtitle2" noWrap title={title}>{title}</Typography>
+      <Typography variant="body2" color="text.secondary" noWrap title={subtitle}>{subtitle}</Typography>
+    </Stack>
+  </Box>
 );
 
 const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
@@ -91,9 +154,9 @@ const Pencil = () => <Icon><path d="M12 20h9" /><path d="m16.5 3.5 4 4L7 21l-4 1
 const Trash2 = () => <Icon><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></Icon>;
 const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
-const Camera = () => <Icon><path d="M4 7h3l2-2h6l2 2h3v12H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
 const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
 const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
+const DocumentScannerIcon = () => <SvgIcon><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm8 1.5V8h4.5" /><path d="M8 13h8M8 17h8M8 9h3" /></SvgIcon>;
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
@@ -217,6 +280,13 @@ const formatAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
   return `${dateTimeFormatter.format(start)} – ${dateTimeFormatter.format(end)}`;
 };
 
+const getAppointmentContext = (appointment: Snapshot['appointments'][0]) => {
+  const title = appointment.desc?.trim() || appointment.code;
+  const locationText = appointment.locationDisplay || appointment.location || appointment.locationRaw;
+  const subtitle = locationText ? `${formatAppointmentTime(appointment)} • ${locationText}` : formatAppointmentTime(appointment);
+  return { title, subtitle };
+};
+
 const formatMissingSummary = (missing?: string[]) => {
   if (!missing?.length) return null;
   return `Missing: ${missing.join(', ')}`;
@@ -253,6 +323,30 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
+  const [weekCursor, setWeekCursor] = useState<Date>(() => new Date());
+  const [dayCursor, setDayCursor] = useState<Date>(() => new Date());
+
+  const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  async function renameGroupName(nextName: string): Promise<void> {
+    const normalized = normalizeGroupName(nextName);
+    const traceId = createTraceId();
+    if (!normalized) throw new Error('Group name is required.');
+    if (normalized.length > 60) throw new Error('Group name must be 60 characters or fewer.');
+
+    const response = await fetch(apiUrl('/api/group/rename'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, phone, groupName: normalized, traceId })
+    });
+
+    const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
+    if (!response.ok) {
+      throw new Error(`${payload.message ?? 'Unable to rename group.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
+    }
+
+    setGroupName(payload.groupName || normalized);
+  }
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [todoDraft, setTodoDraft] = useState<{ text: string; dueDate: string; assignee: string; done: boolean }>({ text: '', dueDate: '', assignee: '', done: false });
@@ -263,21 +357,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [whenEditorCode, setWhenEditorCode] = useState<string | null>(null);
+  const [activeAppointmentCode, setActiveAppointmentCode] = useState<string | null>(null);
   const [whenDraftText, setWhenDraftText] = useState('');
   const [descDraftText, setDescDraftText] = useState('');
   const [locationDraftText, setLocationDraftText] = useState('');
   const [notesDraftText, setNotesDraftText] = useState('');
   const [whenDraftResult, setWhenDraftResult] = useState<TimeSpec | null>(null);
   const [whenDraftError, setWhenDraftError] = useState<string | null>(null);
-  const [whenPreviewed, setWhenPreviewed] = useState(false);
+  const [isWhenResolving, setIsWhenResolving] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [detailsAppointment, setDetailsAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [detailsAnchorEl, setDetailsAnchorEl] = useState<HTMLElement | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [personDraft, setPersonDraft] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
-  const isMobile = useMediaQuery('(max-width: 768px)');
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
@@ -288,6 +384,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [isConfirming, setIsConfirming] = useState(false);
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
+  const [breakoutError, setBreakoutError] = useState<string | null>(null);
+  const [breakoutNotice, setBreakoutNotice] = useState<string | null>(null);
+  const [isSpinningOff, setIsSpinningOff] = useState(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
@@ -301,6 +400,20 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [scanTargetAppointmentId, setScanTargetAppointmentId] = useState<string | null>(null);
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [quickAddText, setQuickAddText] = useState('');
+  const [advancedText, setAdvancedText] = useState('');
+
+  function openAppointmentDetails(appt: Snapshot['appointments'][0], anchorEl: HTMLElement) {
+    setDetailsAppointment(appt);
+    setDetailsAnchorEl(anchorEl);
+  }
+
+  function closeAppointmentDetails() {
+    setDetailsAppointment(null);
+    setDetailsAnchorEl(null);
+  }
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -363,7 +476,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const result = await sendDirectAction({ type: 'create_blank_appointment' });
     if (!result.ok) return;
     const created = result.snapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
-    if (created) openWhenEditor(created);
+    if (created) {
+      setActiveAppointmentCode(created.code);
+      openWhenEditor(created);
+    }
   };
 
   const openTodoEditor = (todo: TodoItem) => {
@@ -402,6 +518,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
   const openWhenEditor = (appointment: Snapshot['appointments'][0]) => {
+    setActiveAppointmentCode(appointment.code);
     setWhenEditorCode(appointment.code);
     setWhenDraftText(appointment.time?.intent?.originalText ?? '');
     setDescDraftText(appointment.desc ?? '');
@@ -409,7 +526,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setNotesDraftText(appointment.notes ?? '');
     setWhenDraftResult(null);
     setWhenDraftError(null);
-    setWhenPreviewed(false);
+    setIsWhenResolving(false);
   };
 
   const closeWhenEditor = () => {
@@ -420,18 +537,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setNotesDraftText('');
     setWhenDraftResult(null);
     setWhenDraftError(null);
-    setWhenPreviewed(false);
+    setIsWhenResolving(false);
   };
 
   const previewWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
     const whenText = whenDraftText.trim();
     if (!whenText) {
       setWhenDraftResult(null);
-      setWhenPreviewed(false);
       setWhenDraftError('Enter a date/time to resolve.');
       return;
     }
     const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+    setIsWhenResolving(true);
     try {
       const response = await fetch(apiUrl('/api/direct'), {
         method: 'POST',
@@ -448,21 +565,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         })
       });
       const json = await response.json() as { ok?: boolean; time?: TimeSpec; message?: string };
-      if (!response.ok || !json.ok || !json.time) {
+      if (!response.ok || !json.ok || !json.time || json.time.intent.status !== 'resolved' || !json.time.resolved) {
         setWhenDraftResult(null);
-        setWhenDraftError(json.message ?? 'Unable to resolve date.');
-        setWhenPreviewed(false);
+        setWhenDraftError("Couldn't interpret that.");
         return;
       }
       setWhenDraftResult(json.time);
       setWhenDraftError(null);
-      setWhenPreviewed(true);
     } catch (_error) {
       setWhenDraftResult(null);
-      setWhenDraftError('Unable to resolve date.');
-      setWhenPreviewed(false);
+      setWhenDraftError("Couldn't interpret that.");
+    } finally {
+      setIsWhenResolving(false);
     }
   };
+
 
   const confirmWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
     if (descDraftText !== (appointment.desc ?? '')) {
@@ -486,50 +603,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         return;
       }
     }
-    let resolvedDraft = whenDraftResult;
-    if (!resolvedDraft || resolvedDraft.intent.originalText !== whenDraftText.trim()) {
-      const whenText = whenDraftText.trim();
-      if (!whenText) {
-        setWhenDraftError('Enter a date/time to resolve.');
-        return;
-      }
-      const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
-      const response = await fetch(apiUrl('/api/direct'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          groupId,
-          phone,
-          action: {
-            type: 'resolve_appointment_time',
-            appointmentId: appointment.code,
-            whenText,
-            timezone
-          }
-        })
-      });
-      const json = await response.json() as { ok?: boolean; time?: TimeSpec; message?: string };
-      if (!response.ok || !json.ok || !json.time) {
-        setWhenDraftError(json.message ?? 'Unable to resolve date.');
-        return;
-      }
-      resolvedDraft = json.time;
-      setWhenDraftResult(json.time);
-      setWhenPreviewed(true);
-    }
-    if (resolvedDraft.intent.status !== 'resolved' || !resolvedDraft.resolved) {
-      const response = await fetch(apiUrl('/api/chat'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: `Reschedule appointment ${appointment.code} to ${whenDraftText.trim()}`, groupId, phone })
-      });
-      const json = await response.json() as ChatResponse;
-      if (json.snapshot) setSnapshot(json.snapshot);
-      if (!response.ok) {
-        setWhenDraftError('Unable to confirm unresolved time.');
-        return;
-      }
-      closeWhenEditor();
+    const resolvedDraft = whenDraftResult;
+    if (!resolvedDraft || resolvedDraft.intent.status !== 'resolved' || !resolvedDraft.resolved) {
+      setWhenDraftError('Resolve the appointment time before confirming.');
       return;
     }
     const start = new Date(resolvedDraft.resolved.startUtc);
@@ -690,6 +766,24 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     await sendMessage(out);
   };
 
+  const submitQuickAdd = async () => {
+    const out = quickAddText.trim();
+    if (!out || isSubmitting || proposalText || pendingQuestion) return;
+    setQuickAddText('');
+    setIsQuickAddOpen(false);
+    await sendMessage(out);
+  };
+
+  const submitAdvanced = async () => {
+    const out = advancedText.trim();
+    if (!out || isSubmitting || proposalText || pendingQuestion) return;
+    setAdvancedText('');
+    setIsAdvancedOpen(false);
+    await sendMessage(out);
+  };
+
+  const commandActionsDisabled = isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion);
+
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => {
     const aUnresolved = a.time?.intent?.status !== 'resolved';
     const bUnresolved = b.time?.intent?.status !== 'resolved';
@@ -705,20 +799,32 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const editingAppointment = whenEditorCode
     ? sortedAppointments.find((appointment) => appointment.code === whenEditorCode) ?? null
     : null;
+  const scanCaptureAppointment = scanCaptureModal.appointmentId
+    ? sortedAppointments.find((appointment) => appointment.id === scanCaptureModal.appointmentId) ?? null
+    : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
-  const headerTitle = activeSection === 'members' ? 'Members' : activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : 'Calendar';
-  const headerDescription = activeSection === 'members'
-    ? 'Manage who can access this schedule.'
-    : activeSection === 'todos'
+  const headerTitle = activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : undefined;
+  const headerDescription = activeSection === 'todos'
       ? 'Track personal and family todos.'
       : activeSection === 'overview'
         ? 'Overview is coming soon.'
         : activeSection === 'settings'
           ? 'Settings is coming soon.'
-          : 'Add, edit, and track upcoming appointments for this group.';
+          : undefined;
   const monthAnchor = monthCursor;
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthAnchor);
+  const localDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const isSameLocalDay = (a: Date, b: Date) => (
+    a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate()
+  );
   const monthStartWeekday = monthAnchor.getDay();
   const monthGridStart = new Date(monthAnchor);
   monthGridStart.setDate(monthAnchor.getDate() - monthStartWeekday);
@@ -750,6 +856,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
     return `${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
   };
+  const weekAnchor = weekCursor;
+  const weekStart = new Date(weekAnchor);
+  weekStart.setDate(weekAnchor.getDate() - weekAnchor.getDay());
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + i);
+    return day;
+  });
+  const weekLabel = `Week of ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(weekStart)}`;
+  const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(dayCursor);
 
   const openRulePromptModal = (person: Snapshot['people'][0]) => {
     setRulePromptModal({ person });
@@ -875,6 +991,17 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [whenEditorCode, snapshot.appointments]);
 
   useEffect(() => {
+    if (!activeAppointmentCode) return;
+    if (calendarView !== 'list') return;
+    const element = document.querySelector(`[data-appt-code="${activeAppointmentCode}"]`) as HTMLElement | null;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (fullyVisible) return;
+    element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [activeAppointmentCode, calendarView, sortedAppointments]);
+
+  useEffect(() => {
     if (!editingPersonId) return;
     const exists = snapshot.people.some((person) => person.personId === editingPersonId && person.status === 'active');
     if (!exists) {
@@ -883,6 +1010,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       setPersonEditError(null);
     }
   }, [editingPersonId, snapshot.people]);
+
+  useEffect(() => {
+    const name = (groupName ?? '').trim();
+    document.title = name || '';
+  }, [groupName]);
 
   useEffect(() => {
     if (!editingPersonId) return;
@@ -970,16 +1102,71 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   useEffect(() => {
     if (!scanCaptureModal.useCameraPreview) return;
-    const video = scanCaptureVideoRef.current;
-    const stream = scanCaptureStreamRef.current;
-    if (!video || !stream) return;
-    video.srcObject = stream;
-    void video.play().catch(() => undefined);
+    let frameId: number | null = null;
+    let attempts = 0;
+
+    const attachPreview = () => {
+      const video = scanCaptureVideoRef.current;
+      const stream = scanCaptureStreamRef.current;
+      if (!stream) return;
+      if (!video && attempts < 6) {
+        attempts += 1;
+        frameId = window.requestAnimationFrame(attachPreview);
+        return;
+      }
+      if (!video) return;
+      video.srcObject = stream;
+      void video.play().catch(() => undefined);
+    };
+
+    attachPreview();
+    return () => {
+      if (frameId != null) window.cancelAnimationFrame(frameId);
+    };
   }, [scanCaptureModal.useCameraPreview]);
 
   useEffect(() => () => {
     stopScanCaptureStream();
   }, []);
+
+  const createBreakoutGroup = async () => {
+    if (isSpinningOff) return;
+    setBreakoutError(null);
+    setIsSpinningOff(true);
+    const traceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    try {
+      const response = await fetch(apiUrl('/api/ignite/spinoff'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sourceGroupId: groupId, phone, traceId, groupName: '' })
+      });
+      const data = await response.json() as { ok?: boolean; newGroupId?: string; message?: string; traceId?: string };
+      if (!response.ok || !data.ok || !data.newGroupId) {
+        setBreakoutError(`${data.message ?? 'Unable to create breakout group.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
+        return;
+      }
+
+      const nextHash = `/g/${data.newGroupId}/ignite`;
+      const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextHash)}`;
+      const handoffUrl = `${window.location.origin}${handoffPath}`;
+
+      const popup = window.open(handoffUrl, '_blank', 'noopener');
+      if (!popup) {
+        setBreakoutNotice(handoffUrl);
+        return;
+      }
+      setBreakoutNotice(null);
+      setBreakoutError(null);
+      popup.focus?.();
+      return;
+    } catch {
+      setBreakoutError(`Unable to create breakout group. (trace: ${traceId})`);
+    } finally {
+      setIsSpinningOff(false);
+    }
+  };
 
   return (
     <Page variant="workspace">
@@ -989,33 +1176,86 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupName={groupName}
         groupId={groupId}
         memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
+        onMembersClick={() => setActiveSection('members')}
+        showGroupAccessNote={activeSection !== 'calendar' && activeSection !== 'members'}
+        onBreakoutClick={() => { void createBreakoutGroup(); }}
+        breakoutDisabled={isSpinningOff}
+        onRenameGroupName={renameGroupName}
       />
-      <div className="fs-shell">
-        <aside className="fs-sidebar">
-          <button type="button" className={`fs-btn ${activeSection === 'calendar' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('calendar')}>Calendar</button>
-          <button type="button" className={`fs-btn ${activeSection === 'members' ? 'fs-btn-primary' : 'fs-btn-secondary'}`} onClick={() => setActiveSection('members')}>Members</button>
+      {breakoutNotice ? (
+        <div
+          className="ui-alert"
+          style={{
+            maxWidth: 760,
+            marginBottom: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start'
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              Breakout Session
+            </div>
+            <div style={{ color: 'var(--muted)' }}>
+              Opening Breakout in a new tab.
+              If nothing happened,&nbsp;
+              <a
+                href={breakoutNotice}
+                target="_blank"
+                rel="noopener"
+                style={{ textDecoration: 'underline' }}
+              >
+                open it manually
+              </a>.
+            </div>
+          </div>
+          <button
+            onClick={() => setBreakoutNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: 16,
+              cursor: 'pointer',
+              marginLeft: 12
+            }}
+            aria-label="Close breakout notice"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+      {breakoutError ? (
+        <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Session</div>
+          <div style={{ color: 'var(--muted)' }}>{breakoutError}</div>
+        </div>
+      ) : null}
+      <div className="ui-shell">
+        <aside className="ui-sidebar">
+          <Box>
+            <List disablePadding>
+              <ListItemButton
+                className="ui-leftNavItem"
+                selected={activeSection === 'calendar'}
+                onClick={() => setActiveSection('calendar')}
+                sx={{ mb: 0.5, borderRadius: 0 }}
+              >
+                <ListItemText primary="Schedule" />
+              </ListItemButton>
+              <ListItemButton
+                className="ui-leftNavItem"
+                selected={activeSection === 'members'}
+                onClick={() => setActiveSection('members')}
+                sx={{ borderRadius: 0 }}
+              >
+                <ListItemText primary="Members" />
+              </ListItemButton>
+            </List>
+          </Box>
         </aside>
-        <section className="fs-main">
+        <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
-
-          <form onSubmit={onSubmit}>
-            <section className="panel fs-commandBar" aria-label="Command bar">
-                <div className="fs-commandHeader">
-                  <div>
-                    <h2>Add event</h2>
-                    <p className="prompt-tip">Type details or scan an image.</p>
-                  </div>
-                  <div className="fs-commandActions">
-                  <button type="button" className="fs-btn fs-btn-primary" onClick={() => { void openScanCapture(null); }} aria-label="Scan appointment"><Camera />Scan</button>
-                  <button type="button" className="fs-btn fs-btn-secondary" onClick={() => { void addAppointment(); }} disabled={isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion)}><Plus />Add</button>
-                  </div>
-                </div>
-              <div className="input-row fs-commandInputRow">
-                <input id="prompt" aria-label="Command input" value={message} onChange={(event) => setMessage(event.target.value)} autoComplete="off" disabled={Boolean(proposalText) || Boolean(pendingQuestion)} placeholder={'e.g. Dentist Tue 3pm, Flight to Seattle Friday 8am'} />
-              </div>
-              <p className="prompt-tip">Examples: add/update appointments, assign APPT codes, or paste screenshot text for parsing.</p>
-            </section>
-          </form>
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
@@ -1023,53 +1263,89 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'calendar' ? (
             <>
-              <section className="panel fs-cal">
-                <div className="fs-calToolbar">
-                  <div className="fs-calTabs" role="tablist" aria-label="Calendar views">
-                    <button type="button" role="tab" aria-selected={calendarView === 'list'} className={`fs-calTab ${calendarView === 'list' ? 'is-active' : ''}`} onClick={() => setCalendarView('list')}>List</button>
-                    <button type="button" role="tab" aria-selected={calendarView === 'month'} className={`fs-calTab ${calendarView === 'month' ? 'is-active' : ''}`} onClick={() => setCalendarView('month')}>Month</button>
-                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Week · Soon</button>
-                    <button type="button" role="tab" aria-selected="false" className="fs-calTab is-soon" disabled aria-disabled="true">Day · Soon</button>
-                  </div>
-                  {calendarView === 'month' ? (
-                    <div className="fs-calMonthNav">
-                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></button>
-                      <div className="fs-calMonth">{monthLabel}</div>
-                      <button type="button" className="fs-btn fs-btn-ghost fs-btn-icon" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></button>
-                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
-                    </div>
-                  ) : null}
-                </div>
-                {calendarView === 'month' ? (
-                  <>
-                    <div className="fs-cal-grid fs-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="fs-cal-cell fs-cal-weekday">{weekday}</div>)}</div>
-                    <div className="fs-cal-grid">
+              <section className="ui-cal">
+                <Paper variant="outlined" sx={{ borderRadius: 2 }}>
+                  <Box sx={{ px: 2, pt: 1 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
+                      <Tabs
+                        value={calendarView}
+                        onChange={(_event: SyntheticEvent, value: CalendarView) => setCalendarView(value)}
+                        aria-label="Calendar views"
+                        sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
+                      >
+                        <Tab label="List" value="list" />
+                        <Tab label="Month" value="month" />
+                        <Tab label="Week" value="week" />
+                        <Tab label="Day" value="day" />
+                      </Tabs>
+                      <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
+                        <Tooltip title="Scan to create appointment">
+                          <span>
+                            <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan to create appointment">
+                              <DocumentScannerIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="Add">
+                          <span>
+                            <IconButton color="primary" onClick={() => { void addAppointment(); }} aria-label="Add appointment" disabled={commandActionsDisabled}>
+                              <Plus />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                        <Tooltip title="AI scan">
+                          <span>
+                            <IconButton className="ui-aiAction" onClick={() => setIsAdvancedOpen(true)} aria-label="AI scan" title="AI scan" disabled={commandActionsDisabled}>
+                              <AutoAwesomeIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </Stack>
+                    </Stack>
+                  </Box>
+                  <Divider />
+                  <Box sx={{ p: 2 }}>
+                    {calendarView === 'month' ? (
+                      <>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                          <IconButton size="small" aria-label="Previous month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}><ChevronLeft /></IconButton>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 150 }}>{monthLabel}</Typography>
+                          <IconButton size="small" aria-label="Next month" onClick={() => setMonthCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}><ChevronRight /></IconButton>
+                          <Button size="small" variant="outlined" onClick={() => setMonthCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</Button>
+                        </Stack>
+                    <div className="ui-cal-grid ui-cal-gridHeader">{calendarWeekdays.map((weekday) => <div key={weekday} className="ui-cal-cell ui-cal-weekday">{weekday}</div>)}</div>
+                    <div className="ui-cal-grid">
                       {monthDays.map((day) => {
                         const dateKey = day.toISOString().slice(0, 10);
                         const dayAppointments = appointmentsByDate[dateKey] ?? [];
                         const dayTodos = todosByDate[dateKey] ?? [];
                         const inMonth = day.getMonth() === monthAnchor.getMonth();
+                        const now = new Date();
+                        const isToday =
+                          day.getFullYear() === now.getFullYear() &&
+                          day.getMonth() === now.getMonth() &&
+                          day.getDate() === now.getDate();
                         return (
-                          <div key={dateKey} className={`fs-cal-cell ${inMonth ? '' : 'fs-cal-outside'}`}>
-                            <div className="fs-cal-dateRow">
+                          <div key={dateKey} className={`ui-cal-cell ${inMonth ? '' : 'ui-cal-outside'} ${isToday ? 'ui-cal-today' : ''}`}>
+                            <div className="ui-cal-dateRow">
                               <span>{day.getDate()}</span>
-                              <button type="button" className="fs-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                              <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
                             </div>
-                            <div className="fs-cal-items">
+                            <div className="ui-cal-items">
                               {dayAppointments.map((appointment) => (
                                 <button
                                   key={appointment.code}
                                   type="button"
-                                  className="fs-chip"
+                                  className="ui-chip"
                                   onClick={() => openWhenEditor(appointment)}
                                   title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
                                 >
-                                  <span className="fs-chipTitle">{appointment.desc || appointment.code}</span>
-                                  <span className="fs-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                  <span className="ui-chipTitle">{appointment.desc || appointment.code}</span>
+                                  <span className="ui-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
                                 </button>
                               ))}
                               {dayTodos.map((todo) => (
-                                <button key={todo.id} type="button" className={`fs-chip fs-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                <button key={todo.id} type="button" className={`ui-chip ui-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
                                   📝 {todo.text}
                                 </button>
                               ))}
@@ -1079,173 +1355,197 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                         );
                       })}
                     </div>
-                  </>
-                ) : null}
-              </section>
+                      </>
+                    ) : null}
 
-              {calendarView === 'list' ? (
-                <section className="panel">
-                  {sortedAppointments.length === 0 ? (
-                    <div className="fs-alert" style={{ maxWidth: 760 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 6 }}>No appointments yet</div>
-                      <div style={{ color: 'var(--muted)' }}>
-                        Use the add row at the bottom of the table to create the first entry.
-                      </div>
-                    </div>
-                  ) : null}
-                  {isMobile ? (
-                    <AppointmentCardList
-                      appointments={sortedAppointments}
-                      getStatus={(appointment) => (
-                        appointment.time?.intent?.status !== 'resolved'
-                          ? 'unreconcilable'
-                          : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
-                            ? 'conflict'
-                            : 'no_conflict'
-                      )}
-                      formatWhen={formatAppointmentTime}
-                      onEdit={openWhenEditor}
-                      onDelete={setAppointmentToDelete}
-                      onSelectPeople={setSelectedAppointment}
-                      onOpenScanViewer={setScanViewerAppointment}
-                      editIcon={<Pencil />}
-                      deleteIcon={<Trash2 />}
-                    />
-                  ) : (
-                    <div className="table-wrap fs-tableScroll fs-listContainer">
-                      <table className="data-table fs-listTable">
-                        <thead>
-                          <tr>
-                            <th className="fs-col-code">Code</th>
-                            <th className="fs-col-when">When</th>
-                            <th className="fs-col-status">Status</th>
-                            <th>Description</th>
-                            <th className="fs-col-people">People</th>
-                            <th>Location</th>
-                            <th>Notes</th>
-                            <th className="fs-col-actions">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortedAppointments.map((appointment) => {
-                            const apptStatus = appointment.time?.intent?.status !== 'resolved'
+                    {calendarView === 'list' ? (
+                      <>
+                        {sortedAppointments.length === 0 ? (
+                          <Alert severity="info" sx={{ maxWidth: 760 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>No appointments yet</Typography>
+                            <Typography variant="body2">Add your first event using + above.</Typography>
+                          </Alert>
+                        ) : null}
+                        <AppointmentCardList
+                          appointments={sortedAppointments}
+                          getStatus={(appointment) => (
+                            appointment.time?.intent?.status !== 'resolved'
                               ? 'unreconcilable'
                               : appointment.people.some((personId) => computePersonStatusForInterval(personId, appointment, snapshot.rules).status === 'conflict')
                                 ? 'conflict'
-                                : 'no_conflict';
+                                : 'no_conflict'
+                          )}
+                          formatWhen={formatAppointmentTime}
+                          onEdit={openWhenEditor}
+                          onDelete={setAppointmentToDelete}
+                          onSelectPeople={setSelectedAppointment}
+                          onOpenScanViewer={setScanViewerAppointment}
+                          onOpenDetails={(appointment, anchorEl) => openAppointmentDetails(appointment, anchorEl)}
+                          activeAppointmentCode={activeAppointmentCode}
+                          scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
+                          editIcon={<Pencil />}
+                          assignIcon={<GroupOutlinedIcon fontSize="small" />}
+                          deleteIcon={<Trash2 />}
+                        />
+                      </>
+                    ) : null}
+
+                    {calendarView === 'week' ? (
+                      <>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                          <IconButton size="small" aria-label="Previous week" onClick={() => setWeekCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() - 7); return next; })}><ChevronLeft /></IconButton>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 170 }}>{weekLabel}</Typography>
+                          <IconButton size="small" aria-label="Next week" onClick={() => setWeekCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() + 7); return next; })}><ChevronRight /></IconButton>
+                          <Button size="small" variant="outlined" onClick={() => setWeekCursor(new Date())}>Today</Button>
+                        </Stack>
+                        <div className="ui-week-grid">
+                          {weekDays.map((day) => {
+                            const dateKey = localDateKey(day);
+                            const dayAppointments = appointmentsByDate[dateKey] ?? [];
+                            const dayTodos = todosByDate[dateKey] ?? [];
+                            const isToday = isSameLocalDay(day, new Date());
                             return (
-                              <tr key={appointment.code}>
-                                <td className="fs-codeCell fs-col-code"><code>{appointment.code}</code></td>
-                                <td className="fs-col-when">
-                                  <a href="#" className="when-link" onClick={(event) => { event.preventDefault(); openWhenEditor(appointment); }}>
-                                    {appointment.time?.intent?.status !== 'resolved'
-                                      ? <span className='status-tag unknown'>Unresolved</span>
-                                      : formatAppointmentTime(appointment)}
-                                  </a>
-                                </td>
-                                <td className="fs-col-status">
-                                  {apptStatus === 'unreconcilable' ? (
-                                    <button type="button" className="linkish" onClick={() => openWhenEditor(appointment)}>
-                                      <span className="status-tag unknown">Unreconcilable</span>
-                                    </button>
-                                  ) : (
-                                    <span className={`status-tag ${apptStatus === 'conflict' ? 'unavailable' : 'available'}`}>
-                                      {apptStatus === 'conflict' ? 'Conflict' : 'No Conflict'}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="multiline-cell"><span className="line-clamp" title={appointment.desc || ''}>{appointment.desc || (appointment.scanStatus === 'pending' ? 'Scanning…' : appointment.scanStatus === 'parsed' ? 'Scanned appointment' : '—')}</span></td>
-                                <td className="fs-col-people"><button type="button" className="linkish" onClick={() => setSelectedAppointment(appointment)}>{appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned'}</button></td>
-                                <td className="multiline-cell"><div className="location-preview-wrap"><p className="location-preview">{appointment.locationDisplay || '—'}</p>{appointment.locationMapQuery ? <a className="location-map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.locationMapQuery)}`} target="_blank" rel="noreferrer">Map</a> : null}</div></td>
-                                <td className="multiline-cell"><span className="line-clamp" title={appointment.notes}>{appointment.notes || '—'}</span></td>
-                                <td className="actions-cell fs-col-actions">
-                                  <div className="action-icons" onClick={(event) => { event.stopPropagation(); }}>
-                                    {appointment.scanImageKey ? (
-                                      <button
-                                        type="button"
-                                        className="icon-button"
-                                        aria-label="View appointment scan"
-                                        data-tooltip="View scan"
-                                        onClick={(event) => {
-                                          event.preventDefault();
-                                          event.stopPropagation();
-                                          setScanViewerAppointment(appointment);
-                                        }}
-                                      >
-                                        <Camera />
-                                      </button>
-                                    ) : null}
-                                    <button
-                                      type="button"
-                                      className="icon-button"
-                                      aria-label="Edit appointment"
-                                      data-tooltip="Edit appointment"
-                                      onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        openWhenEditor(appointment);
-                                      }}
-                                    >
-                                      <Pencil />
-                                    </button>
-                                    <button type="button" className="icon-button" aria-label="Delete appointment" data-tooltip="Delete appointment" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAppointmentToDelete(appointment); }}><Trash2 /></button>
+                              <div key={dateKey} className={`ui-week-col ${isToday ? 'ui-cal-today' : ''}`}>
+                                <div className="ui-week-colHeader">
+                                  <div className="ui-week-colHeaderTop">
+                                    <span className="ui-week-dow">{new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(day)}</span>
+                                    <span className="ui-week-dateNum">{day.getDate()}</span>
                                   </div>
-                                </td>
-                              </tr>
+                                  <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                                </div>
+                                <div className="ui-week-items">
+                                  {dayAppointments.map((appointment) => (
+                                    <button
+                                      key={appointment.code}
+                                      type="button"
+                                      className="ui-chip"
+                                      onClick={() => openWhenEditor(appointment)}
+                                      title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
+                                    >
+                                      <span className="ui-chipTitle">{appointment.desc || appointment.code}</span>
+                                      <span className="ui-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                    </button>
+                                  ))}
+                                  {dayTodos.map((todo) => (
+                                    <button key={todo.id} type="button" className={`ui-chip ui-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                      📝 {todo.text}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             );
                           })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </section>
-              ) : null}
+                        </div>
+                      </>
+                    ) : null}
+
+                    {calendarView === 'day' ? (
+                      <>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                          <IconButton size="small" aria-label="Previous day" onClick={() => setDayCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() - 1); return next; })}><ChevronLeft /></IconButton>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 220 }}>{dayLabel}</Typography>
+                          <IconButton size="small" aria-label="Next day" onClick={() => setDayCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() + 1); return next; })}><ChevronRight /></IconButton>
+                          <Button size="small" variant="outlined" onClick={() => setDayCursor(new Date())}>Today</Button>
+                        </Stack>
+                        {(() => {
+                          const dateKey = localDateKey(dayCursor);
+                          const dayAppointments = appointmentsByDate[dateKey] ?? [];
+                          const dayTodos = todosByDate[dateKey] ?? [];
+                          const isToday = isSameLocalDay(dayCursor, new Date());
+                          return (
+                            <div className="ui-day">
+                              <div className={`ui-dayHeader ${isToday ? 'ui-cal-today' : ''}`}>
+                                <div className="ui-dayHeaderTitle">{dayLabel}</div>
+                                <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                              </div>
+                              <div className="ui-dayItems">
+                                {dayAppointments.map((appointment) => (
+                                  <button
+                                    key={appointment.code}
+                                    type="button"
+                                    className="ui-chip"
+                                    onClick={() => openWhenEditor(appointment)}
+                                    title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
+                                  >
+                                    <span className="ui-chipTitle">{appointment.desc || appointment.code}</span>
+                                    <span className="ui-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                  </button>
+                                ))}
+                                {dayTodos.map((todo) => (
+                                  <button key={todo.id} type="button" className={`ui-chip ui-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                    📝 {todo.text}
+                                  </button>
+                                ))}
+                                {dayAppointments.length === 0 && dayTodos.length === 0 ? <Typography variant="body2" color="text.secondary">No items for this day.</Typography> : null}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    ) : null}
+                  </Box>
+                </Paper>
+              </section>
             </>
           ) : null}
 
           {activeSection === 'todos' ? (
-            <section className="panel fs-todo">
+            <section className="panel ui-todo">
               <div className="panel-header">
                 <h2>Todos</h2>
-                <button type="button" className="fs-btn fs-btn-primary" onClick={createTodo}>+ Add todo</button>
+                <button type="button" className="ui-btn ui-btn-primary" onClick={createTodo}>+ Add todo</button>
               </div>
-              <p className="fs-meta">TODO: wire todo persistence to backend in a follow-up pass.</p>
-              <div className="fs-todo-list">
+              <p className="ui-meta">TODO: wire todo persistence to backend in a follow-up pass.</p>
+              <div className="ui-todo-list">
                 {todos.map((todo) => (
-                  <div key={todo.id} className="fs-todo-item">
+                  <div key={todo.id} className="ui-todo-item">
                     <label>
                       <input type="checkbox" checked={todo.done} onChange={() => toggleTodo(todo.id)} />
                       <span>{todo.text}</span>
                     </label>
-                    <div className="fs-todo-meta">
+                    <div className="ui-todo-meta">
                       {todo.dueDate ? <span>Due: {todo.dueDate}</span> : null}
                       {todo.assignee ? <span>Assignee: {todo.assignee}</span> : null}
                     </div>
                     <div className="action-buttons">
-                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => openTodoEditor(todo)}>Edit</button>
-                      <button type="button" className="fs-btn fs-btn-secondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
+                      <button type="button" className="ui-btn ui-btn-secondary" onClick={() => openTodoEditor(todo)}>Edit</button>
+                      <button type="button" className="ui-btn ui-btn-secondary" onClick={() => deleteTodo(todo.id)}>Delete</button>
                     </div>
                   </div>
                 ))}
-                {todos.length === 0 ? <p className="fs-meta">No todos yet.</p> : null}
+                {todos.length === 0 ? <p className="ui-meta">No todos yet.</p> : null}
               </div>
             </section>
           ) : null}
 
           {activeSection === 'members' ? (
-        <section className="panel"> 
-          {peopleInView.length === 0 ? (
-            <div className="fs-alert" style={{ maxWidth: 760 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>No people added yet</div>
-              <div style={{ color: 'var(--muted)' }}>
-                Add at least one person to allow them to access this group.
-              </div>
-            </div>
-          ) : null}
-          <div className="table-wrap fs-tableScroll">
-            <table className="data-table">
-              <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
-              <tbody>
+            <section className="panel">
+              <Box>
+                <Box sx={{ px: 2, pt: 1 }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" aria-label="People actions">
+                      <Tooltip title="Add person">
+                        <span>
+                          <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person">
+                            <Plus />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+                </Box>
+                <Divider />
+                <Box sx={{ p: 2 }}>
+                  {peopleInView.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      No people added yet.
+                    </Typography>
+                  ) : null}
+                  <div className="table-wrap ui-tableScroll">
+                    <table className="ui-membersTable">
+                      <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
+                      <tbody>
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                   const isEditingPerson = editingPersonId === person.personId;
@@ -1264,8 +1564,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <td className="actions-cell">
                             {isNewRowEditing ? (
                               <div className="action-buttons">
-                                <button type="button" className="fs-btn fs-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
-                                <button type="button" className="fs-btn fs-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
+                                <button type="button" className="ui-btn ui-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
+                                <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
                               </div>
                             ) : (
                               <div className="action-icons"> 
@@ -1329,68 +1629,232 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </Fragment>
                   );
                 })}
-                <tr className="fs-tableCtaRow">
-                  <td colSpan={4}>
-                    <button type="button" className="fs-tableCtaBtn" onClick={() => void addPerson()} aria-label="Add person">
-                      {peopleInView.length > 0 ? '+ Add another person' : '+ Add a person'}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+                      </tbody>
+                    </table>
+                  </div>
+                </Box>
+              </Box>
+            </section>
           ) : null}
         </section>
       </div>
 
-      {proposalText ? <div className="modal-backdrop"><div className="modal"><h3>Confirm this change?</h3><p>{proposalText}</p><div className="modal-actions"><button type="button" onClick={() => void sendMessage('confirm')}>Confirm</button><button type="button" onClick={() => void sendMessage('cancel')}>Cancel</button></div></div></div> : null}
+      <Dialog open={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Quick add</DialogTitle>
+        <DialogContent>
+          <Stack component="form" spacing={2} onSubmit={(event) => { event.preventDefault(); void submitQuickAdd(); }}>
+            <TextField
+              label="Event"
+              value={quickAddText}
+              onChange={(event) => setQuickAddText(event.target.value)}
+              autoComplete="off"
+              placeholder="e.g. Dentist Tue 2pm"
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setIsQuickAddOpen(false)}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void submitQuickAdd(); }} disabled={commandActionsDisabled || !quickAddText.trim()}>Add</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={isAdvancedOpen} onClose={() => setIsAdvancedOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add or Update Events</DialogTitle>
+        <DialogContent>
+          <Stack component="form" spacing={2} onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
+            <TextField
+              label="Details"
+              multiline
+              minRows={5}
+              value={advancedText}
+              onChange={(event) => setAdvancedText(event.target.value)}
+              placeholder={[
+                'Add dentist appointment Tuesday at 2pm',
+                'Move flight to 8am',
+                'Assign APPT-3 to John',
+                'Paste an email confirmation',
+                'Paste CSV rows'
+              ].join('\n')}
+              fullWidth
+            />
+            <Typography className="prompt-tip">Describe a change or paste schedule text. We’ll extract the events.</Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setIsAdvancedOpen(false)}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void submitAdvanced(); }} disabled={commandActionsDisabled || !advancedText.trim()}>Process</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(proposalText)} onClose={() => void sendMessage('cancel')} fullWidth maxWidth="sm">
+        <DialogTitle>Confirm this change?</DialogTitle>
+        <DialogContent>
+          <Typography>{proposalText}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => void sendMessage('cancel')}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => void sendMessage('confirm')}>Confirm</Button>
+        </DialogActions>
+      </Dialog>
 
       {pendingQuestion ? <QuestionDialog question={pendingQuestion} value={questionInput} onValueChange={setQuestionInput} onOptionSelect={(reply) => { setPendingQuestion(null); setQuestionInput(''); void sendMessage(reply); }} onSubmitText={() => { const out = questionInput.trim(); if (!out) return; setPendingQuestion(null); setQuestionInput(''); void sendMessage(out); }} onClose={() => { setPendingQuestion(null); setQuestionInput(''); }} /> : null}
 
 
       <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
-      {appointmentToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {appointmentToDelete.code} ({appointmentToDelete.desc || 'Untitled'})?</h3><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code }); setAppointmentToDelete(null); }}>Confirm</button><button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(appointmentToDelete)} onClose={() => setAppointmentToDelete(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Delete appointment</DialogTitle>
+        <DialogContent>
+          {appointmentToDelete ? <AppointmentDialogContext {...getAppointmentContext(appointmentToDelete)} /> : null}
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setAppointmentToDelete(null)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (!appointmentToDelete) return;
+              void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code });
+              setAppointmentToDelete(null);
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
 
-      {scanViewerAppointment ? <div className="modal-backdrop"><div className="modal scan-viewer-modal"><h3>{scanViewerAppointment.code} scan</h3><div className="scan-viewer-content"><img className="scan-full" src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)} /></div><div className="modal-actions"><button type="button" onClick={() => { setScanViewerAppointment(null); void openScanCapture(scanViewerAppointment.id); }}>Rescan</button><button type="button" onClick={() => { void fetch(apiUrl('/api/appointmentScanDelete'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, appointmentId: scanViewerAppointment.id }) }).then(() => refreshSnapshot()); setScanViewerAppointment(null); }}>Delete</button><button type="button" onClick={() => setScanViewerAppointment(null)}>Close</button></div></div></div> : null}
-      {scanCaptureModal.useCameraPreview ? <div className="modal-backdrop"><div className="modal scan-capture-modal"><h3>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</h3><div className="scan-capture-preview"><video ref={scanCaptureVideoRef} autoPlay playsInline muted /></div><canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} /><div className="modal-actions"><button type="button" onClick={() => { void captureScanFrame(); }}>Capture</button><button type="button" onClick={closeScanCaptureModal}>Cancel</button></div></div></div> : null}
-      {personToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete {personToDelete.name || personToDelete.personId}?</h3><p>This will remove this person from the active allowlist. Existing history and appointments are preserved.</p><div className="modal-actions"><button type="button" onClick={() => { void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId }); setPersonToDelete(null); if (editingPersonId === personToDelete.personId) { setEditingPersonId(null); setPendingBlankPersonId(null); setPersonEditError(null); } }}>Confirm</button><button type="button" onClick={() => setPersonToDelete(null)}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(scanViewerAppointment)} onClose={() => setScanViewerAppointment(null)} maxWidth="md" fullWidth>
+        <DialogTitle>Scan</DialogTitle>
+        <DialogContent>
+          {scanViewerAppointment ? <AppointmentDialogContext {...getAppointmentContext(scanViewerAppointment)} /> : null}
+          {scanViewerAppointment ? (
+            <Box
+              component="img"
+              sx={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 1 }}
+              src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)}
+            />
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            type="button"
+            onClick={() => {
+              if (!scanViewerAppointment) return;
+              const appointmentId = scanViewerAppointment.id;
+              setScanViewerAppointment(null);
+              void openScanCapture(appointmentId);
+            }}
+          >
+            Rescan
+          </Button>
+          <Button
+            type="button"
+            color="error"
+            onClick={() => {
+              if (!scanViewerAppointment) return;
+              const appointmentId = scanViewerAppointment.id;
+              void fetch(apiUrl('/api/appointmentScanDelete'), {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ groupId, phone, appointmentId })
+              }).then(() => refreshSnapshot());
+              setScanViewerAppointment(null);
+            }}
+          >
+            Delete
+          </Button>
+          <Button type="button" onClick={() => setScanViewerAppointment(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={scanCaptureModal.useCameraPreview} onClose={closeScanCaptureModal} maxWidth="md" fullWidth>
+        <DialogTitle>{scanCaptureModal.appointmentId ? 'Rescan appointment' : 'Scan appointment'}</DialogTitle>
+        <DialogContent>
+          {scanCaptureAppointment ? <AppointmentDialogContext {...getAppointmentContext(scanCaptureAppointment)} /> : null}
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', minHeight: 320, maxHeight: '60vh', borderRadius: 1, objectFit: 'cover', backgroundColor: 'black' }} />
+          </Box>
+          <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={closeScanCaptureModal}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }}>Capture</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={Boolean(personToDelete)} onClose={() => setPersonToDelete(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{personToDelete ? `Delete ${personToDelete.name || personToDelete.personId}?` : 'Delete person?'}</DialogTitle>
+        <DialogContent>
+          <Typography>This will remove this person from the active allowlist. Existing history and appointments are preserved.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setPersonToDelete(null)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (!personToDelete) return;
+              void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId });
+              setPersonToDelete(null);
+              if (editingPersonId === personToDelete.personId) {
+                setEditingPersonId(null);
+                setPendingBlankPersonId(null);
+                setPersonEditError(null);
+              }
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {ruleToDelete ? <div className="modal-backdrop"><div className="modal"><h3>Delete rule {ruleToDelete.code}?</h3><p>This removes the rule from this person.</p><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Delete rule ${ruleToDelete.code}`); setRuleToDelete(null); }}>Confirm</button><button type="button" onClick={() => setRuleToDelete(null)}>Cancel</button></div></div></div> : null}
+      <Dialog open={Boolean(ruleToDelete)} onClose={() => setRuleToDelete(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{ruleToDelete ? `Delete rule ${ruleToDelete.code}?` : 'Delete rule?'}</DialogTitle>
+        <DialogContent>
+          <Typography>This removes the rule from this person.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setRuleToDelete(null)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (!ruleToDelete) return;
+              void sendMessage(`Delete rule ${ruleToDelete.code}`);
+              setRuleToDelete(null);
+            }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {rulePromptModal ? (
-        <div className="modal-backdrop">
-          <div className="modal rules-modal">
-            <div className="rules-modal-section rules-modal-header">
-              <h3>Rules</h3>
-            </div>
-            <div className="rules-modal-section rules-prompt-section">
-              <div className="rules-composer">
-                <label htmlFor="rule-prompt-input">Availability rule</label>
-                <textarea
-                  ref={rulePromptTextareaRef}
-                  id="rule-prompt-input"
-                  rows={4}
-                  value={rulePrompt}
-                  onChange={(event) => setRulePrompt(event.target.value)}
-                  placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
-                />
-                <div className="rules-composer-actions">
-                  <button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft Rule'}</button>
-                </div>
-              </div>
-            </div>
-
+      <Dialog open={Boolean(rulePromptModal)} onClose={closeRulePromptModal} fullWidth maxWidth="md">
+        <DialogTitle>Rules</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <TextField
+              inputRef={rulePromptTextareaRef}
+              label="Availability rule"
+              multiline
+              minRows={4}
+              value={rulePrompt}
+              onChange={(event) => setRulePrompt(event.target.value)}
+              placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
+            />
+            <Stack direction="row" justifyContent="flex-end">
+              <Button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft Rule'}</Button>
+            </Stack>
             {ruleDraftError ? (
-              <div className="rules-modal-section">
-                <p>{ruleDraftError}</p>
-                {ruleDraftErrorMeta?.code || ruleDraftErrorMeta?.traceId ? <p><small>{ruleDraftErrorMeta?.code ? `code=${ruleDraftErrorMeta.code} ` : ''}{ruleDraftErrorMeta?.traceId ? `traceId=${ruleDraftErrorMeta.traceId}` : ''}</small></p> : null}
-              </div>
+              <Alert severity="error">
+                {ruleDraftError}
+                {ruleDraftErrorMeta?.code || ruleDraftErrorMeta?.traceId ? <><br /><small>{ruleDraftErrorMeta?.code ? `code=${ruleDraftErrorMeta.code} ` : ''}{ruleDraftErrorMeta?.traceId ? `traceId=${ruleDraftErrorMeta.traceId}` : ''}</small></> : null}
+              </Alert>
             ) : null}
-
-            <div className="rules-modal-section rule-draft-output">
-              <p>Preview</p>
+            <Box>
+              <Typography variant="subtitle2">Preview</Typography>
               {hasProposedRules ? (
                 <ul className="rule-preview-list">
                   {ruleDraft?.draftRules.map((rule, i) => (
@@ -1402,42 +1866,91 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   ))}
                 </ul>
               ) : (
-                <p className="muted-empty">No proposed changes yet. Click Draft to preview.</p>
+                <Typography className="muted-empty">No proposed changes yet. Click Draft to preview.</Typography>
               )}
-              {ruleDraft ? (
-                <>
-                {ruleDraft.assumptions.length > 0 ? (
-                  <>
-                    <p>Assumptions</p>
-                    <ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul>
-                  </>
-                ) : null}
-                {ruleDraft.warnings.length > 0 ? (
-                  <>
-                    <p>Warnings</p>
-                    <ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul>
-                  </>
-                ) : null}
-                </>
+              {ruleDraft?.assumptions.length ? <><Typography variant="subtitle2" sx={{ mt: 1 }}>Assumptions</Typography><ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
+              {ruleDraft?.warnings.length ? <><Typography variant="subtitle2" sx={{ mt: 1 }}>Warnings</Typography><ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul></> : null}
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={closeRulePromptModal}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(selectedAppointment)} onClose={() => setSelectedAppointment(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Assign people</DialogTitle>
+        <DialogContent>
+          {selectedAppointment ? <AppointmentDialogContext {...getAppointmentContext(selectedAppointment)} /> : null}
+          <FormGroup>
+            {selectedAppointment ? activePeople.map((person, index) => {
+              const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
+              const isSelected = selectedAppointment.people.includes(person.personId);
+              return (
+                <Box key={person.personId}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
+                    <FormControlLabel
+                      control={<Checkbox checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} />}
+                      label={person.name}
+                    />
+                    <Chip
+                      variant="outlined"
+                      color={status.status === 'no_conflict' ? 'success' : status.status === 'conflict' ? 'warning' : 'default'}
+                      label={status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}
+                    />
+                  </Box>
+                  {index < activePeople.length - 1 ? <Divider /> : null}
+                </Box>
+              );
+            }) : null}
+          </FormGroup>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => setSelectedAppointment(null)}>Close</Button>
+          <Button
+            type="button"
+            variant="contained"
+            onClick={() => {
+              if (!selectedAppointment) return;
+              void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`);
+              setSelectedAppointment(null);
+            }}
+          >
+            Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Popover
+        open={Boolean(detailsAppointment && detailsAnchorEl)}
+        anchorEl={detailsAnchorEl}
+        onClose={closeAppointmentDetails}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        {detailsAppointment ? (
+          <Box sx={{ p: 2, maxWidth: 420 }} onClick={closeAppointmentDetails}>
+            <Stack spacing={0.75}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsAppointment.desc || 'Appointment'}</Typography>
+              <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsAppointment)}</Typography>
+              {detailsAppointment.locationDisplay || detailsAppointment.location ? (
+                <Typography variant="body2" color="text.secondary">📍 {detailsAppointment.locationDisplay || detailsAppointment.location}</Typography>
               ) : null}
-            </div>
-
-            <div className="modal-actions rules-actions-row">
-              <button type="button" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming} aria-disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</button>
-              <button type="button" onClick={closeRulePromptModal}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {selectedAppointment ? <div className="modal-backdrop"><div className="modal"><h3>Assign people for {selectedAppointment.code}</h3><div className="picker-list">{activePeople.map((person, index) => {
-        const status = computePersonStatusForInterval(person.personId, selectedAppointment, snapshot.rules);
-        const isSelected = selectedAppointment.people.includes(person.personId);
-        return <div key={person.personId} className={`picker-row ${index < activePeople.length - 1 ? 'picker-row-divider' : ''}`} onClick={() => toggleAppointmentPerson(selectedAppointment, person.personId)}>
-          <div className="picker-left"><input type="checkbox" checked={isSelected} onChange={() => toggleAppointmentPerson(selectedAppointment, person.personId)} onClick={(event) => event.stopPropagation()} /><span className="picker-name">{person.name}</span></div>
-          <div className="picker-status-wrap"><span className={`status-tag ${status.status === 'no_conflict' ? 'available' : status.status === 'conflict' ? 'unavailable' : 'unknown'}`}>{status.status === 'no_conflict' ? 'No Conflict' : status.status === 'conflict' ? 'Conflict' : 'Unreconcilable'}</span></div>
-        </div>;
-      })}</div><div className="modal-actions"><button type="button" onClick={() => { void sendMessage(`Replace people on appointment code=${selectedAppointment.code} people=${selectedAppointment.people.join(',')}`); setSelectedAppointment(null); }}>Apply</button><button type="button" onClick={() => setSelectedAppointment(null)}>Close</button></div></div></div> : null}
+              <Typography variant="body2" color="text.secondary">👤 {detailsAppointment.peopleDisplay.length ? detailsAppointment.peopleDisplay.join(', ') : 'Unassigned'}</Typography>
+              {detailsAppointment.notes?.trim() ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' }}
+                >
+                  📝 {detailsAppointment.notes.trim()}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Box>
+        ) : null}
+      </Popover>
 
       <Drawer open={editingTodo != null} title="Edit todo" onClose={closeTodoEditor}>
         {editingTodo ? (
@@ -1446,49 +1959,60 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <label>Due date<input type="date" value={todoDraft.dueDate} onChange={(event) => setTodoDraft((prev) => ({ ...prev, dueDate: event.target.value }))} /></label>
             <label>Assignee<input value={todoDraft.assignee} onChange={(event) => setTodoDraft((prev) => ({ ...prev, assignee: event.target.value }))} placeholder="Name" /></label>
             <label className="switch-row"><input type="checkbox" checked={todoDraft.done} onChange={(event) => setTodoDraft((prev) => ({ ...prev, done: event.target.checked }))} />Done</label>
-            <div className="modal-actions">
-              <button type="button" onClick={saveTodo} disabled={!todoDraft.text.trim()}>Save</button>
-              <button type="button" onClick={() => deleteTodo(editingTodo.id)}>Delete</button>
-              <button type="button" onClick={closeTodoEditor}>Cancel</button>
-            </div>
+            <Stack direction="row" spacing={1}>
+              <Button type="button" variant="contained" onClick={saveTodo} disabled={!todoDraft.text.trim()}>Save</Button>
+              <Button type="button" color="error" onClick={() => deleteTodo(editingTodo.id)}>Delete</Button>
+              <Button type="button" variant="outlined" onClick={closeTodoEditor}>Cancel</Button>
+            </Stack>
           </div>
         ) : null}
       </Drawer>
 
-      <Drawer open={whenEditorCode != null} title="Edit appointment" onClose={closeWhenEditor}>
-        {editingAppointment ? (
-          <AppointmentEditorForm
-            appointmentCode={editingAppointment.code}
-            whenValue={whenDraftText}
-            descriptionValue={descDraftText}
-            locationValue={locationDraftText}
-            notesValue={notesDraftText}
-            onWhenChange={setWhenDraftText}
-            onWhenKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void previewWhenDraft(editingAppointment);
-              }
-            }}
-            onDescriptionChange={setDescDraftText}
-            onLocationChange={setLocationDraftText}
-            onNotesChange={setNotesDraftText}
-            onResolveDate={() => void previewWhenDraft(editingAppointment)}
-            errorText={whenDraftError}
-            previewContent={whenPreviewed ? (
-              <div>
-                <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
-                {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-              </div>
-            ) : null}
-            onConfirm={() => void confirmWhenDraft(editingAppointment)}
-            onCancel={closeWhenEditor}
-          />
-        ) : null}
-      </Drawer>
-      <FooterHelp />
-      <div className="build-version">Build: {buildInfo.sha.slice(0, 7)} {buildInfo.time} · {usageLabel}</div>
+      <Dialog open={whenEditorCode != null} onClose={closeWhenEditor} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit appointment</DialogTitle>
+        <DialogContent dividers sx={{ py: 2 }}>
+          {editingAppointment ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {editingAppointment.code} · {editingAppointment.time?.intent?.status === 'resolved' ? 'Resolved' : 'Unresolved'}
+            </Typography>
+          ) : null}
+          {editingAppointment ? (
+            <AppointmentEditorForm
+              whenValue={whenDraftText}
+              descriptionValue={descDraftText}
+              locationValue={locationDraftText}
+              notesValue={notesDraftText}
+              onWhenChange={(next) => {
+                setWhenDraftText(next);
+                setWhenDraftResult(null);
+                setWhenDraftError(null);
+              }}
+              onWhenKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void previewWhenDraft(editingAppointment);
+                }
+              }}
+              onDescriptionChange={setDescDraftText}
+              onLocationChange={setLocationDraftText}
+              onNotesChange={setNotesDraftText}
+              onResolveDate={() => void previewWhenDraft(editingAppointment)}
+              onAcceptPreview={() => {
+                if (!whenDraftResult || whenDraftResult.intent.status !== 'resolved') return;
+                setWhenDraftText(formatAppointmentTime({ ...editingAppointment, time: whenDraftResult }));
+              }}
+              isResolving={isWhenResolving}
+              canResolve={!whenDraftResult}
+              previewDisplayText={whenDraftResult?.intent.status === 'resolved' ? formatAppointmentTime({ ...editingAppointment, time: whenDraftResult }) : null}
+              errorText={whenDraftError}
+              assumptions={whenDraftResult?.intent?.assumptions ?? []}
+              onConfirm={() => void confirmWhenDraft(editingAppointment)}
+              onCancel={closeWhenEditor}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <FooterHelp usageLabel={usageLabel} />
     </Page>
   );
 }

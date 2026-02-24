@@ -1,66 +1,31 @@
-import {
-  KeyboardEvent as ReactKeyboardEvent,
-  ReactNode,
-  TextareaHTMLAttributes,
-  useCallback,
-  useLayoutEffect,
-  useRef
-} from 'react';
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useState } from 'react';
+import { Box, Button, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import CheckIcon from '@mui/icons-material/Check';
+import CircularProgress from '@mui/material/CircularProgress';
 
 type AppointmentEditorFormProps = {
-  appointmentCode: string;
   whenValue: string;
   descriptionValue: string;
   locationValue: string;
   notesValue: string;
   onWhenChange: (next: string) => void;
-  onWhenKeyDown: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => void;
+  onWhenKeyDown: (event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onDescriptionChange: (next: string) => void;
   onLocationChange: (next: string) => void;
   onNotesChange: (next: string) => void;
   onResolveDate: () => void;
+  onAcceptPreview: () => void;
+  isResolving: boolean;
+  canResolve: boolean;
+  previewDisplayText: string | null;
   errorText: string | null;
-  previewContent: ReactNode;
+  assumptions: string[];
   onConfirm: () => void;
   onCancel: () => void;
 };
 
-type AutoGrowTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
-  value: string;
-};
-
-const AutoGrowTextarea = ({ value, onInput, ...props }: AutoGrowTextareaProps) => {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const resize = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  }, []);
-
-  useLayoutEffect(() => {
-    resize();
-  }, [resize, value]);
-
-  return (
-    <textarea
-      {...props}
-      ref={textareaRef}
-      value={value}
-      onInput={(event) => {
-        resize();
-        onInput?.(event);
-      }}
-    />
-  );
-};
-
 export const AppointmentEditorForm = ({
-  appointmentCode,
   whenValue,
   descriptionValue,
   locationValue,
@@ -71,63 +36,108 @@ export const AppointmentEditorForm = ({
   onLocationChange,
   onNotesChange,
   onResolveDate,
+  onAcceptPreview,
+  isResolving,
+  canResolve,
+  previewDisplayText,
   errorText,
-  previewContent,
+  assumptions,
   onConfirm,
   onCancel
-}: AppointmentEditorFormProps) => (
-  <div className="rule-draft-output when-editor">
-    <div className="when-editor-input-row">
-      <label htmlFor={`when-editor-${appointmentCode}`}>When</label>
-      <AutoGrowTextarea
-        id={`when-editor-${appointmentCode}`}
-        value={whenValue}
-        onChange={(event) => onWhenChange(event.target.value)}
-        onKeyDown={onWhenKeyDown}
-        placeholder="e.g. next Tuesday 8–9pm"
-        rows={1}
-      />
-      <button type="button" className="fs-btn fs-btn-secondary" onClick={onResolveDate}>Resolve date</button>
-    </div>
-    <div className="when-editor-input-row">
-      <label htmlFor={`desc-editor-${appointmentCode}`}>Description</label>
-      <AutoGrowTextarea
-        id={`desc-editor-${appointmentCode}`}
-        value={descriptionValue}
-        onChange={(event) => onDescriptionChange(event.target.value)}
-        placeholder="e.g. Follow-up visit"
-        rows={1}
-      />
-    </div>
-    <div className="when-editor-input-row">
-      <label htmlFor={`location-editor-${appointmentCode}`}>Location</label>
-      <AutoGrowTextarea
-        id={`location-editor-${appointmentCode}`}
-        value={locationValue}
-        onChange={(event) => onLocationChange(event.target.value)}
-        placeholder="e.g. Evergreen Health"
-        rows={1}
-      />
-    </div>
-    <div className="when-editor-input-row">
-      <label htmlFor={`notes-editor-${appointmentCode}`}>Notes</label>
-      <AutoGrowTextarea
-        id={`notes-editor-${appointmentCode}`}
-        value={notesValue}
-        onChange={(event) => onNotesChange(event.target.value)}
-        placeholder="Optional notes"
-        rows={2}
-      />
-    </div>
-    <div className="when-editor-footer">
-      <div className="when-editor-feedback">
-        {errorText ? <p className="form-error">{errorText}</p> : null}
-        {previewContent}
-      </div>
-      <div className="modal-actions when-editor-actions">
-        <button type="button" className="fs-btn fs-btn-primary" onClick={onConfirm}>Confirm</button>
-        <button type="button" className="fs-btn fs-btn-secondary" onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  </div>
-);
+}: AppointmentEditorFormProps) => {
+  const [showAssumptions, setShowAssumptions] = useState(false);
+
+  useEffect(() => {
+    setShowAssumptions(false);
+  }, [previewDisplayText, assumptions.length]);
+
+  return (
+    <Stack spacing={2}>
+    <TextField
+      fullWidth
+      label="When"
+      value={whenValue}
+      onChange={(event) => onWhenChange(event.target.value)}
+      placeholder="e.g. next Tuesday 8–9pm"
+      inputProps={{ onKeyDown: onWhenKeyDown }}
+      error={Boolean(errorText)}
+      helperText={errorText ?? undefined}
+      InputProps={{
+        endAdornment: canResolve ? (
+          <InputAdornment position="end">
+            <Tooltip title="Resolve">
+              <span>
+                <IconButton size="small" onClick={onResolveDate} disabled={isResolving} aria-label="Resolve">
+                  {isResolving ? <CircularProgress size={18} /> : <AutoFixHighIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </InputAdornment>
+        ) : undefined
+      }}
+    />
+
+    {previewDisplayText ? (
+      <Box sx={{ mt: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="body2" color="text.secondary">Interpreted as: {previewDisplayText}</Typography>
+        <Tooltip title="Accept">
+          <IconButton size="small" onClick={onAcceptPreview} aria-label="Accept interpreted time">
+            <CheckIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        </Box>
+        {assumptions.length ? (
+          <>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ cursor: 'pointer', mt: 0.5 }}
+              onClick={() => setShowAssumptions((prev) => !prev)}
+            >
+              Assumptions ({assumptions.length}) {showAssumptions ? '▾' : '▸'}
+            </Typography>
+            {showAssumptions ? (
+              <Box sx={{ mt: 0.5, pl: 2 }}>
+                {assumptions.map((assumption, index) => (
+                  <Typography key={`${assumption}-${index}`} variant="caption" component="div" color="text.secondary">• {assumption}</Typography>
+                ))}
+              </Box>
+            ) : null}
+          </>
+        ) : null}
+      </Box>
+    ) : null}
+
+    <TextField
+      fullWidth
+      label="Description"
+      value={descriptionValue}
+      onChange={(event) => onDescriptionChange(event.target.value)}
+    />
+
+    <TextField
+      fullWidth
+      label="Location"
+      value={locationValue}
+      onChange={(event) => onLocationChange(event.target.value)}
+    />
+
+    <TextField
+      fullWidth
+      label="Notes"
+      value={notesValue}
+      onChange={(event) => onNotesChange(event.target.value)}
+      multiline
+      minRows={3}
+      maxRows={3}
+    />
+    <Stack direction="row" spacing={1} justifyContent="flex-end">
+      <Button variant="outlined" onClick={onCancel}>
+        Cancel
+      </Button>
+      <Button variant="contained" onClick={onConfirm}>Confirm</Button>
+    </Stack>
+  </Stack>
+  );
+};
