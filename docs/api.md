@@ -1,3 +1,6 @@
+> **Legacy / stale doc:** This file describes `/api/auth/login` token flows that are not implemented in the current codebase.
+> See `docs/AUTH_MODEL.md` for the authoritative current/planned auth model.
+
 # API Contract Specification
 
 Base API style: JSON over HTTPS.

@@ -7974,3 +7974,36 @@ Fix Schedule/Members and mobile calendar control appearance by preventing global
 ### Follow-ups
 
 - None.
+
+## 2026-02-24 11:47 UTC (Auth spec doc + README/doc drift links)
+
+### Objective
+
+Add an authoritative auth model doc that separates current vs planned behavior, link it from README, and flag stale API auth docs.
+
+### Approach
+
+- Created `docs/AUTH_MODEL.md` with explicit sections for implemented v1 phone/group membership behavior and planned email/magic-link/QR provisional model.
+- Updated `README.md` to prominently link to `docs/AUTH_MODEL.md`.
+- Prepended a legacy/stale notice to `docs/api.md` directing readers to `docs/AUTH_MODEL.md`.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`) for this documentation-only change.
+
+### Files changed
+
+- `docs/AUTH_MODEL.md`
+- `README.md`
+- `docs/api.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --porcelain=v1; git branch --show-current` ✅ captured clean starting state on branch `work`.
+- `sed -n '1,120p' README.md; sed -n '1,80p' docs/api.md` ✅ inspected current docs before edits.
+- `test -f docs/AUTH_MODEL.md` ✅ confirmed new auth model doc exists.
+- `rg -n "AUTH_MODEL\.md|Auth model|Legacy / stale doc" README.md docs/AUTH_MODEL.md docs/api.md` ✅ confirmed README link and stale-doc banner references.
+- `git diff --stat; git diff` ✅ reviewed documentation diffs.
+
+### Follow-ups
+
+- If/when auth implementation changes, update `docs/AUTH_MODEL.md` in the same PR to keep it authoritative.

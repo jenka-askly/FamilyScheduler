@@ -39,6 +39,7 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 
 
 ## Specifications
+- **Auth model (current + planned):** [`docs/AUTH_MODEL.md`](docs/AUTH_MODEL.md)
 
 - [Time & Date Specification](docs/TIME_DATE_SPEC.md)
 
