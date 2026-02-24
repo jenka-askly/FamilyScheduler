@@ -1,3 +1,32 @@
+## 2026-02-24 09:00 UTC update (Shared sheet surface + members table alignment)
+
+- Introduced a single shared `Paper` surface in `ui-main` that now contains both the Schedule/Members sheet tabs and the active section body.
+- Replaced custom sheet-tab buttons with MUI `Tabs`/`Tab` in an Excel-like style (indicator hidden, inactive muted tabs, selected tab visually connected to body).
+- Removed the extra calendar outer `Paper` so the content no longer renders as nested/double-bordered surfaces.
+- Updated Members section to render directly inside the shared sheet body with consistent content padding and no panel wrapper border.
+- Tightened members table layout: explicit `width: 100%`, cell padding parity for `th/td`, fixed/right-aligned actions column, and mobile-only horizontal overflow wrapper.
+
+### Success criteria
+
+- Schedule/Members tabs render inside the same outlined surface as section content.
+- Calendar content no longer shows an extra outer border seam.
+- Members table aligns with section content edge and keeps Actions column stable.
+- Switching Schedule/Members does not shift width or padding unexpectedly.
+
+### Non-regressions
+
+- Internal calendar List/Month/Week/Day tabs and toolbar actions still render inside the calendar section.
+- Existing member row actions (rules/edit/delete) remain in the same table row/action areas.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck` (environment may fail if `@mui/*` deps are unavailable).
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Confirm top sheet tabs (Schedule/Members) are inside one outlined card with no detached/floating seam.
+4. Confirm Schedule tab content has no double border and Members table left edge aligns with content body.
+5. Resize to narrow width and confirm table only scrolls horizontally on small screens.
+
+
 ## 2026-02-24 08:55 UTC update (Schedule/Members moved to top sheet tabs)
 
 - Replaced sidebar section navigation for `Schedule`/`Members` with a top-mounted sheet-style tab strip in the main content area.

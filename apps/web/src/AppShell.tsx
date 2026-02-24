@@ -1233,30 +1233,58 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
-          <div className="ui-sheetTabs" role="tablist" aria-label="Section tabs">
-            <button
-              type="button"
-              className={`ui-sheetTab ${activeSection === 'calendar' ? 'is-active' : ''}`}
-              role="tab"
-              aria-selected={activeSection === 'calendar'}
-              tabIndex={activeSection === 'calendar' ? 0 : -1}
-              onClick={() => setActiveSection('calendar')}
+          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            <Tabs
+              value={activeSection === 'members' ? 'members' : 'calendar'}
+              onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
+              aria-label="Section tabs"
+              sx={{
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                px: 2,
+                minHeight: 40,
+                '& .MuiTabs-indicator': { display: 'none' }
+              }}
             >
-              Schedule
-            </button>
-            <button
-              type="button"
-              className={`ui-sheetTab ${activeSection === 'members' ? 'is-active' : ''}`}
-              role="tab"
-              aria-selected={activeSection === 'members'}
-              tabIndex={activeSection === 'members' ? 0 : -1}
-              onClick={() => setActiveSection('members')}
-            >
-              Members
-            </button>
-          </div>
+              <Tab
+                value="calendar"
+                label="Schedule"
+                sx={{
+                  textTransform: 'none',
+                  minHeight: 32,
+                  minWidth: 0,
+                  px: 2,
+                  mr: 1,
+                  borderTopLeftRadius: 1.25,
+                  borderTopRightRadius: 1.25,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderBottom: 'none',
+                  backgroundColor: 'action.hover',
+                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
+                }}
+              />
+              <Tab
+                value="members"
+                label="Members"
+                sx={{
+                  textTransform: 'none',
+                  minHeight: 32,
+                  minWidth: 0,
+                  px: 2,
+                  mr: 1,
+                  borderTopLeftRadius: 1.25,
+                  borderTopRightRadius: 1.25,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderBottom: 'none',
+                  backgroundColor: 'action.hover',
+                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
+                }}
+              />
+            </Tabs>
 
-          <div className="ui-sheetBody">
+            <div className="ui-sheetBody">
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
@@ -1265,8 +1293,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           {activeSection === 'calendar' ? (
             <>
               <section className="ui-cal">
-                <Paper variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Box sx={{ px: 2, pt: 1 }}>
+                  <Box sx={{ p: 2 }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
                       <Tabs
                         value={calendarView}
@@ -1485,7 +1512,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       </>
                     ) : null}
                   </Box>
-                </Paper>
               </section>
             </>
           ) : null}
@@ -1520,9 +1546,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
 
           {activeSection === 'members' ? (
-            <section className="panel">
-              <Box>
-                <Box sx={{ px: 2, pt: 1 }}>
+            <section>
+              <Box sx={{ p: 2 }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
                     <Stack direction="row" spacing={1} alignItems="center" aria-label="People actions">
@@ -1543,7 +1568,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       No people added yet.
                     </Typography>
                   ) : null}
-                  <div className="table-wrap ui-tableScroll">
+                  <div className="ui-membersTableWrap">
                     <table className="ui-membersTable">
                       <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
                       <tbody>
@@ -1634,10 +1659,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </table>
                   </div>
                 </Box>
-              </Box>
             </section>
           ) : null}
           </div>
+          </Paper>
         </section>
       </div>
 
