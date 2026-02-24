@@ -1,3 +1,19 @@
+## 2026-02-24 23:05 UTC update (Breakout handoff phone/email compatibility + auth done Yapper branding)
+
+- Updated web hash route parsing for `/#/handoff` to accept both identity query params: `email` (existing) and `phone` (breakout flow), preserving prior email behavior.
+- Updated `HandoffPage` guard to require `groupId` + (`email` OR `phone`) before writing session and redirecting; this unblocks Breakout Session burger-menu handoff from falling back home.
+- Updated auth completion (verified email) UI copy in `AuthDonePage` to use product branding **Yapper** (`Return to Yapper` / `Go to Yapper`).
+
+### Key files touched
+
+- `apps/web/src/App.tsx`
+
+### Verification run
+
+1. `pnpm -w lint`
+2. `pnpm --filter @familyscheduler/web build`
+3. Manual staging smoke still required: Breakout Session burger flow to ignite QR + auth-done branding text.
+
 ## 2026-02-24 22:37 UTC update (Yapper marketing home + layout split + visual polish)
 
 - Added a dedicated `MarketingLayout` for marketing surfaces with a prominent Yapper wordmark, utility burger menu (dark mode), generous spacing, and inline muted footer links (`Privacy`, `Terms`, `Contact`).
