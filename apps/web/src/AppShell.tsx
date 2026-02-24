@@ -21,9 +21,6 @@ import {
   FormControlLabel,
   FormGroup,
   IconButton,
-  List,
-  ListItemButton,
-  ListItemText,
   Link as MuiLink,
   Paper,
   Popover,
@@ -1232,30 +1229,34 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         </div>
       ) : null}
       <div className="ui-shell">
-        <aside className="ui-sidebar">
-          <Box>
-            <List disablePadding>
-              <ListItemButton
-                className="ui-leftNavItem"
-                selected={activeSection === 'calendar'}
-                onClick={() => setActiveSection('calendar')}
-                sx={{ mb: 0.5, borderRadius: 0 }}
-              >
-                <ListItemText primary="Schedule" />
-              </ListItemButton>
-              <ListItemButton
-                className="ui-leftNavItem"
-                selected={activeSection === 'members'}
-                onClick={() => setActiveSection('members')}
-                sx={{ borderRadius: 0 }}
-              >
-                <ListItemText primary="Members" />
-              </ListItemButton>
-            </List>
-          </Box>
-        </aside>
+        <aside className="ui-sidebar" aria-hidden="true" />
         <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
+
+          <div className="ui-sheetTabs" role="tablist" aria-label="Section tabs">
+            <button
+              type="button"
+              className={`ui-sheetTab ${activeSection === 'calendar' ? 'is-active' : ''}`}
+              role="tab"
+              aria-selected={activeSection === 'calendar'}
+              tabIndex={activeSection === 'calendar' ? 0 : -1}
+              onClick={() => setActiveSection('calendar')}
+            >
+              Schedule
+            </button>
+            <button
+              type="button"
+              className={`ui-sheetTab ${activeSection === 'members' ? 'is-active' : ''}`}
+              role="tab"
+              aria-selected={activeSection === 'members'}
+              tabIndex={activeSection === 'members' ? 0 : -1}
+              onClick={() => setActiveSection('members')}
+            >
+              Members
+            </button>
+          </div>
+
+          <div className="ui-sheetBody">
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
@@ -1636,6 +1637,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               </Box>
             </section>
           ) : null}
+          </div>
         </section>
       </div>
 
