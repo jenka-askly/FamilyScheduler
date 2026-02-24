@@ -1,3 +1,9 @@
+## 2026-02-24 04:15 UTC update (Join page compact centered layout)
+
+- Join page constrained to compact centered layout (max-width 480px).
+- Wrapped Join Group form content in a dedicated centered container while keeping the page header/menu outside the compact form area.
+- Join action button now aligns to the right edge of the compact form for a tighter desktop layout while remaining full-width responsive via container sizing.
+
 ## 2026-02-24 02:55 UTC update (Join Group notice/error behavior cleanup)
 
 - Join Group page now treats redirect route errors (`no_session` / `group_mismatch`) as neutral notice copy instead of a red error state on first render.

@@ -7123,3 +7123,34 @@ Clean up Join Group messaging so redirect route errors are not shown as red erro
 ### Follow-ups
 
 - Re-run web typecheck/build and manual join-flow checks in a dependency-complete environment.
+
+## 2026-02-24 04:15 UTC (Join page compact centered layout)
+
+### Objective
+
+Make the Join Group page form area visually compact and centered on desktop while preserving mobile responsiveness and existing join behavior.
+
+### Approach
+
+- Wrapped the Join Group form stack in `ui-joinContainer` + `ui-joinForm` so the page header remains outside and the form content is width-constrained.
+- Replaced the inline join action row with a dedicated `ui-joinActions` wrapper for right-aligned submit action.
+- Added new layout CSS classes in `styles.css` to center content and cap width at `480px`.
+- Updated `PROJECT_STATUS.md` with the compact join layout status note.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found.
+- `pnpm -C apps/web run build` ⚠️ failed due existing environment dependency/module-resolution issues for MUI imports.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite startup blocked by unresolved MUI imports in this environment.
+- `run_playwright_script` ✅ screenshot captured at `browser:/tmp/codex_browser_invocations/beaa46653b8a537c/artifacts/artifacts/join-page-layout.png`.
+
+### Follow-ups
+
+- Re-run UI verification in a local environment with dependencies fully installed to confirm final spacing/alignment polish.

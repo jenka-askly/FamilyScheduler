@@ -233,25 +233,27 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
         groupId={groupId}
       />
 
-      <Stack component="form" spacing={2} onSubmit={submit}>
-        {routeNotice ? <Typography className="ui-joinNotice">{routeNotice}</Typography> : null}
-        <TextField
-          label="Phone number"
-          value={phone}
-          onChange={(e) => {
-            setPhone(e.target.value);
-            if (hasSubmitted) setFormError(null);
-          }}
-          required
-          error={Boolean(formError) && hasSubmitted}
-          helperText={hasSubmitted ? formError || 'Only listed phone numbers can join.' : 'Only listed phone numbers can join.'}
-          placeholder="(425) 555-1234"
-          fullWidth
-        />
-        <Stack direction="row" spacing={1}>
-          <Button variant="contained" type="submit">Join Group</Button>
+      <div className="ui-joinContainer">
+        <Stack className="ui-joinForm" component="form" spacing={2} onSubmit={submit}>
+          {routeNotice ? <Typography className="ui-joinNotice">{routeNotice}</Typography> : null}
+          <TextField
+            label="Phone number"
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              if (hasSubmitted) setFormError(null);
+            }}
+            required
+            error={Boolean(formError) && hasSubmitted}
+            helperText={hasSubmitted ? formError || 'Only listed phone numbers can join.' : 'Only listed phone numbers can join.'}
+            placeholder="(425) 555-1234"
+            fullWidth
+          />
+          <div className="ui-joinActions">
+            <Button variant="contained" type="submit">Join Group</Button>
+          </div>
         </Stack>
-      </Stack>
+      </div>
       <FooterHelp />
     </Page>
   );

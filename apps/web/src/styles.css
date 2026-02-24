@@ -28,6 +28,24 @@
   margin: 0;
 }
 
+.ui-joinContainer {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.ui-joinForm {
+  width: 100%;
+  max-width: 480px;
+  display: grid;
+  gap: 12px;
+}
+
+.ui-joinActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 body {
   margin: 0;
   font-size: 1rem;
