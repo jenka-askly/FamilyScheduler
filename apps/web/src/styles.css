@@ -1668,23 +1668,37 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   }
 }
 
-.ignite-top-row {
+.ui-igniteOrg {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
+  padding: 16px;
 }
 
-.ignite-link-row {
+.ui-igniteOrgInner {
+  width: 100%;
+  max-width: 520px;
+  display: grid;
+  gap: 14px;
+}
+
+.ui-igniteGroupTitleRow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6px;
 }
 
-.ignite-link-text {
-  display: inline-block;
-  max-width: min(100%, 420px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ui-igniteGroupEditRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ui-igniteJoinedRow {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .ui-igniteHeader {
@@ -1725,8 +1739,58 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   height: 280px;
   max-width: 100%;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
+}
+
+.ui-igniteQrWrap {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.ui-igniteJoinLinkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ui-igniteJoinLinkText {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.ui-igniteJoinedBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.14);
+  color: rgb(220, 38, 38);
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.ui-igniteJoinedBump {
+  animation: ui-ignite-bump 450ms ease-out;
+}
+
+@keyframes ui-ignite-bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18); }
+  100% { transform: scale(1); }
 }
 
 .ui-igniteInlineActions {
@@ -1749,6 +1813,13 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
     grid-template-columns: 1fr;
   }
 
+  .ui-igniteQrImg {
+    width: 240px;
+    height: 240px;
+  }
+}
+
+@media (max-width: 520px) {
   .ui-igniteQrImg {
     width: 240px;
     height: 240px;

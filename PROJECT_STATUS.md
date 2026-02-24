@@ -1,3 +1,11 @@
+## 2026-02-24 06:05 UTC update (Ignite organizer polish + join emphasis/sound)
+
+- Ignite organizer simplified to a centered single-column flow and removed back/status/header noise.
+- Group section now includes inline rename affordance plus joined count shown only under group name.
+- Joined count now uses emphasized red badge with bump animation on increases and optional join-sound toggle (default off, best-effort browser audio).
+- Join link is now static monospace text with copy icon action and subtle copied feedback.
+- Organizer photo capture now uses camera-preview modal/capture flow (with file-input fallback) before existing ignite photo upload.
+
 ## 2026-02-24 03:41 UTC update (Ignition organizer QR/layout restore Option A)
 
 - Ignition organizer: restored QR rendering and tightened layout hierarchy/actions.

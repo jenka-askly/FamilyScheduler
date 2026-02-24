@@ -7277,3 +7277,37 @@ Restore missing organizer QR rendering and align Ignite organizer layout with th
 ### Follow-ups
 
 - Run local browser validation with dependencies installed to verify QR visibility and responsive layout behavior end-to-end.
+
+## 2026-02-24 04:10 UTC (Ignite organizer polish + joined emphasis + join sound)
+
+### Objective
+
+Implement approved Ignite organizer UX polish: single-column layout, group rename affordance, joined emphasis + pulse + optional sound, static join link with copy icon, and camera-preview photo capture flow.
+
+### Approach
+
+- Reworked `IgniteOrganizerPage` layout to a centered single-column organizer container and removed back button, OPEN badge/status text noise, and trouble-scanning toggle.
+- Added group section rename affordance with inline edit/save/cancel flow calling existing `/api/group/rename` behavior.
+- Added joined-count emphasis under group name with red badge, bump animation on count increases, and optional join-sound toggle (default OFF).
+- Implemented best-effort join chime using Web Audio API two-tone oscillator in a guarded `try/catch` with visibility check + per-poll-ish rate limiting.
+- Updated join link rendering to static monospace/truncated text with copy icon button and existing copied feedback.
+- Replaced organizer photo trigger with camera icon; implemented camera preview modal/capture using `getUserMedia` + `video/canvas/toBlob` + existing ignite photo upload payload, with file-input fallback preserved.
+- Added/updated Ignite-specific styles for centered layout, joined badge bump animation, and join-link/QR presentation.
+- Updated `PROJECT_STATUS.md` with concise feature bullets.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no nested AGENTS instructions discovered in repo tree.
+- `rg -n "IgniteOrganizerPage|ignite|Trouble scanning|Add photo|scan capture|group name|joined" apps/web/src/App.tsx` ✅ located organizer implementation.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed due pre-existing environment dependency issues (`@mui/material`/`@mui/icons-material` unresolved in this container).
+
+### Follow-ups
+
+- Manual local browser verification is still recommended for camera permission + join-sound gesture behavior across target browsers.
