@@ -1136,15 +1136,14 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         return;
       }
 
-      if (!popup) {
-        writeSession({ groupId: data.newGroupId, phone, joinedAt: new Date().toISOString() });
-        window.location.hash = `/g/${data.newGroupId}/ignite`;
-        return;
-      }
-
       const nextHash = `/g/${data.newGroupId}/ignite`;
       const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextHash)}`;
       const handoffUrl = `${window.location.origin}${handoffPath}`;
+      if (!popup) {
+        setBreakoutError(`Popup blocked. Please allow popups, then try again. You can also open: ${handoffUrl}`);
+        return;
+      }
+
       console.debug('[breakout] popup?', Boolean(popup), 'navigating popup only');
       popup.location.replace(handoffUrl);
       return;

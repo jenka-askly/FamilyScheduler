@@ -1,3 +1,27 @@
+## 2026-02-24 06:06 UTC update (Breakout popup-blocked handling keeps current tab fixed)
+
+- Breakout create flow no longer falls back to same-tab navigation when popup creation is blocked.
+- On popup-blocked success path, the app now shows a breakout error banner with explicit popup guidance and a manual `/#/handoff` URL that users can open themselves.
+- Breakout popup success path is unchanged: popup tab navigates via `/#/handoff?...` and original tab remains on the current meeting route.
+- Breakout menu click now explicitly calls `preventDefault()` and `stopPropagation()` before invoking breakout logic to eliminate implicit navigation/bubbling side effects.
+
+### Success criteria
+
+- With popups allowed, Burger → Breakout opens a new tab to handoff/ignite while the original tab does not change hash route.
+- With popups blocked, original tab does not navigate and displays an error message instructing user to allow popups (with manual handoff URL).
+
+### Non-regressions
+
+- Existing `/api/ignite/spinoff` creation, trace handling, and popup success routing remain unchanged.
+- Breakout action remains available from the PageHeader menu and still closes the menu on click.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (note: currently fails in this environment due pre-existing dependency/type issues).
+2. In browser with popups enabled, open `/#/g/<groupId>/app` and click Burger → Breakout; verify new tab opens to breakout and original tab hash remains unchanged.
+3. In browser with popups blocked, repeat and verify no hash navigation in original tab plus popup-blocked error banner with manual URL.
+
+
 ## 2026-02-24 05:37 UTC update (Breakout handoff opens new tab + per-tab session storage)
 
 - Breakout flow now opens a popup synchronously (`about:blank`) and, on success, routes that new tab through `/#/handoff?...` so the original tab remains on the current meeting.

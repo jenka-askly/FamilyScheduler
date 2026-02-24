@@ -222,7 +222,9 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             <MenuItem
               sx={{ fontWeight: 600 }}
               disabled={breakoutDisabled}
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 setAnchorEl(null);
                 onBreakoutClick();
               }}
