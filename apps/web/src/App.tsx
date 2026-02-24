@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'reac
 import { AppShell } from './AppShell';
 import { ProductHomePage } from './components/ProductHomePage';
 import { FooterHelp } from './components/layout/FooterHelp';
+import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, getSessionId } from './lib/apiUrl';
@@ -1297,7 +1298,7 @@ export function App() {
   }, [hash]);
 
   if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
-  if (route.type === 'home') return <ProductHomePage onCreateGroup={() => nav('/create')} onSignIn={() => nav('/login')} />;
+  if (route.type === 'home') return <MarketingLayout onSignIn={() => nav('/login')}><ProductHomePage onCreateGroup={() => nav('/create')} onSignIn={() => nav('/login')} /></MarketingLayout>;
   if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
   if (route.type === 'create' && !hasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;
