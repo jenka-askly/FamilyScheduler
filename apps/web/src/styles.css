@@ -1008,6 +1008,12 @@ h2 {
   color: #475569;
 }
 
+.ui-joinNotice {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
 .join-form-wrap {
   max-width: 420px;
   display: grid;

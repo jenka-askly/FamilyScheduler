@@ -7091,3 +7091,35 @@ Standardize dialog/footer action button order and variants across targeted UI fl
 
 - Re-run frontend typecheck/build in a dependency-complete local environment and visually verify all dialog action rows.
 - `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts, but runtime immediately fails due unresolved `@mui/*` dependencies; could not capture a meaningful UI screenshot in this container.
+
+## 2026-02-24 02:55 UTC (Join Group notice/error behavior cleanup)
+
+### Objective
+
+Clean up Join Group messaging so redirect route errors are not shown as red errors on initial render, while keeping submit/server errors visible only after submit.
+
+### Approach
+
+- Refactored `JoinGroupPage` error state into route-level neutral notice + submit/server `formError` state.
+- Added `hasSubmitted` gating and permissive phone normalization validation (`10+` characters after stripping non-digits/non-`+`).
+- Moved validation/server errors to inline `TextField` error/helper text instead of unconditional page-level error alert.
+- Simplified page copy to one concise helper line and added subtle `.ui-joinNotice` styling.
+- Added status note in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing unresolved `@mui/*` dependency/modules and baseline TS errors in this environment.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts but fails to resolve `@mui/*` imports; runtime validation blocked.
+- `run_playwright_script` ✅ captured screenshot artifact at `browser:/tmp/codex_browser_invocations/d3dc89ed281d3659/artifacts/artifacts/join-group-page.png`.
+
+### Follow-ups
+
+- Re-run web typecheck/build and manual join-flow checks in a dependency-complete environment.
