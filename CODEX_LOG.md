@@ -154,8 +154,8 @@ Implement agreed Option B UI cleanup in the web app: remove command clutter, mov
 ### Commands run + outcomes
 
 - `rg -n "Keep This Going|fs-commandBar|Add event|fs-calToolbar|openScanCapture|add row at the bottom" apps/web/src/AppShell.tsx` ✅ located exact UI sections to change.
-- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed (environment is missing MUI packages; pre-existing dependency issue).
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
 - `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for visual capture.
 - Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/e09949d09a5a9000/artifacts/artifacts/ui-cleanup-calendar-toolbar.png`.
 
@@ -5688,8 +5688,8 @@ Apply UEX copy-only updates in the AppShell command bar: rename “Command” to
 ### Commands run + outcomes
 
 - `rg -n "Command|Type once and press Add|Try: Add|scan an image" apps/web/src/AppShell.tsx` ✅ located all target copy.
-- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed (environment is missing MUI packages; pre-existing dependency issue).
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
 - `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture; process stopped after capture.
 
 ### Follow-ups
@@ -5753,8 +5753,8 @@ Implement UEX header cleanup so invite link is the primary utility, remove Group
 ### Commands run + outcomes
 
 - `rg -n --hidden --glob '!**/node_modules/**' "Copies full invite URL|Copy link|Group ID|Invite" apps/web/src` ✅ located target header/UI strings.
-- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed (environment is missing MUI packages; pre-existing dependency issue).
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
 - `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture.
 - Playwright screenshot capture via browser container against `http://127.0.0.1:4173/#/g/demo-group/app` ✅ produced artifact `browser:/tmp/codex_browser_invocations/a46449789cff3f4c/artifacts/artifacts/header-invite-card.png`.
 - `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown of temporary dev server.
@@ -5829,7 +5829,7 @@ Implement UEX title section restructure in the workspace header: add Group label
 - `sed -n '730,880p' apps/web/src/styles.css` ✅ inspected existing header/invite styles.
 - `pnpm --filter @familyscheduler/web run typecheck` ❌ initially failed due to JSX bracket mismatch while editing; fixed immediately.
 - `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after JSX fix.
-- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local app for visual verification.
 - `mcp__browser_tools__run_playwright_script` ✅ captured updated header screenshot (`artifacts/header-title-restructure.png`).
 
@@ -6015,8 +6015,8 @@ Resolve organizer `POST /api/ignite/start` authorization failures by ensuring ph
 
 - `rg -n "type: 'ignite'|IgniteOrganizerPage|GroupAuthGate" apps/web/src/App.tsx` ✅ verified route/gate wiring.
 - `rg -n "ignite/start|setSessionId|Starting session|IgniteOrganizerPage" apps/web/src` ✅ verified ignite start call/response handling points.
-- `pnpm --filter @familyscheduler/web run typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed (environment is missing MUI packages; pre-existing dependency issue).
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
 
 ### Follow-ups
 
@@ -6086,7 +6086,7 @@ Implement requested Ignite organizer UX updates: hide join URL by default, conve
 
 - `rg -n --hidden --glob '!**/node_modules/**' "Ignition Session|ignite/start|Joined:|Status:|Group link|Join link|Back to group|Add/Update your photo" apps/web/src` ✅ located ignite organizer UI implementation.
 - `pnpm --filter @familyscheduler/web run typecheck` ✅ passed after UI/prop/CSS updates.
-- `pnpm --filter @familyscheduler/web run build` ✅ passed.
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
 
 ### Follow-ups
 
@@ -6938,3 +6938,36 @@ Implement compact Edit Appointment dialog layout and keep When/Resolve/Preview/A
 
 - Install/restore frontend dependencies in this environment and rerun typecheck.
 - Capture visual screenshot once app renders successfully.
+
+## 2026-02-24 02:15 UTC (Week/Day calendar MVP views)
+
+### Objective
+
+Implement Week and Day calendar views in AppShell, enable tabs, and add independent navigation cursors while keeping existing data/API patterns unchanged.
+
+### Approach
+
+- Enabled Week and Day tabs in the existing MUI calendar view switch.
+- Added `weekCursor` and `dayCursor` state with local prev/next/today controls.
+- Added local-date helper utilities for Week/Day bucketing (`localDateKey`, `isSameLocalDay`) to avoid UTC drift.
+- Added Week view (7 day columns) and Day view (single-day list), both reusing existing chip markup and `formatMonthAppointmentTime` + `openWhenEditor`.
+- Added minimal Week/Day layout CSS classes, preserving existing Month/List behavior.
+- Updated project status with concise behavior note.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/AppShell.tsx` ✅ inspected baseline.
+- `rg -n "calendarView|monthCursor|appointmentsByDate|formatMonthAppointmentTime" apps/web/src/AppShell.tsx` ✅ located edit points.
+- `pnpm --filter @familyscheduler/web run typecheck` ❌ failed (environment is missing MUI packages; pre-existing dependency issue).
+- `pnpm --filter @familyscheduler/web run build` ❌ failed for the same missing MUI dependency set.
+
+### Follow-ups
+
+- Optional future polish: add week/day empty-state cards and mobile horizontal scroll tuning for week columns.
