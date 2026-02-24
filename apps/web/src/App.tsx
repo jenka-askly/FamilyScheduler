@@ -1084,55 +1084,63 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 }
 
 function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
+  const hasApiSession = Boolean(getSessionId());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [imageBase64, setImageBase64] = useState<string>('');
-  const [imageMime, setImageMime] = useState<string>('');
-  const [joined, setJoined] = useState(false);
+  const [joining, setJoining] = useState(false);
 
-  const onImagePicked = async (input: HTMLInputElement) => {
-    const file = input.files?.[0];
-    if (!file) {
-      setImageBase64('');
-      setImageMime('');
-      return;
+  const join = async (payload: { name?: string; email?: string }) => {
+    setError(null);
+    setJoining(true);
+    try {
+      const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
+      const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string };
+      if (!response.ok || !data.ok || !data.breakoutGroupId) {
+        if ((data.code ?? data.error) === 'IGNITE_CLOSED') {
+          setError('This session is closed.');
+          return;
+        }
+        setError(data.message ?? 'Unable to join session');
+        return;
+      }
+      if (data.sessionId) window.localStorage.setItem('fs.sessionId', data.sessionId);
+      writeSession({ groupId: data.breakoutGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
+      nav(`/g/${data.breakoutGroupId}/app`);
+    } catch {
+      setError('Unable to join session');
+    } finally {
+      setJoining(false);
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => reject(new Error('read_failed'));
-      reader.readAsDataURL(file);
-    });
-    const [, base64 = ''] = dataUrl.split(',', 2);
-    setImageBase64(base64);
-    setImageMime(file.type || 'image/jpeg');
   };
+
+  useEffect(() => {
+    if (!hasApiSession) return;
+    if (joining) return;
+    void join({});
+  }, [hasApiSession]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
-    const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, email, traceId: createTraceId() }) });
-    const data = await response.json() as { ok?: boolean; error?: string; emailE164?: string; message?: string };
-    if (!response.ok || !data.ok) {
-      setError(data.error === 'ignite_closed' ? 'Session closed. Ask the organizer to reopen the QR.' : (data.message ?? 'Unable to join session'));
+    if (!name.trim() || !email.trim()) {
+      setError('Name and email are required.');
       return;
     }
-    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
-    if (imageBase64) {
-      try {
-        await apiFetch('/api/ignite/photo', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ groupId, sessionId, email, imageBase64, imageMime: imageMime || 'image/jpeg', traceId: createTraceId() })
-        });
-      } catch {
-        // Non-fatal: continue into the group even if photo upload fails.
-      }
-    }
-    setJoined(true);
-    window.setTimeout(() => { nav(`/g/${groupId}/app`); }, 500);
+    await join({ name, email });
   };
+
+  if (hasApiSession) {
+    return (
+      <Page variant="form">
+        <PageHeader title="Join session" description="Joining…" groupId={groupId} />
+        <Stack spacing={2}>
+          <CircularProgress size={24} />
+          {error ? <Alert severity="error">{error}</Alert> : null}
+        </Stack>
+        <FooterHelp />
+      </Page>
+    );
+  }
 
   return (
     <Page variant="form">
@@ -1140,17 +1148,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       <Stack component="form" spacing={2} onSubmit={submit}>
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth />
         <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
-        <Button variant="outlined" component="label">
-          Add a photo (optional)
-          <input hidden type="file" accept="image/*" capture="environment" onChange={(e) => { void onImagePicked(e.currentTarget); }} />
-        </Button>
-        <Stack direction="row" spacing={1}><Button variant="contained" type="submit">Join Session</Button></Stack>
-        {joined ? (
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography>Joined. Opening group…</Typography>
-            <Button variant="outlined" type="button" onClick={() => { nav(`/g/${groupId}/app`); }}>Open group</Button>
-          </Stack>
-        ) : null}
+        <Stack direction="row" spacing={1}><Button variant="contained" type="submit" disabled={joining}>{joining ? 'Joining…' : 'Join meeting'}</Button></Stack>
         {error ? <Alert severity="error">{error}</Alert> : null}
       </Stack>
       <FooterHelp />

@@ -8493,3 +8493,39 @@ Implement a focused web-only bundle: fix breakout handoff routing edge case, app
 ### Follow-ups
 
 - Manual staging smoke: verify burger Breakout Session opens `/#/g/<newGroupId>/ignite` and shows QR without home fallback.
+
+## 2026-02-24 23:35 UTC (Breakout QR join: authed auto-join + unauthed provisional sessions)
+
+### Objective
+
+Implement breakout QR join contract so authenticated users auto-join immediately, unauthenticated users receive immediate magic-link email + provisional 30-minute API session, closed invites block new joins, and expired provisional sessions force login redirect messaging.
+
+### Approach
+
+- Updated ignite join API to branch by request auth presence (`x-session-id`) and enforce ignite session open-state before join.
+- Added provisional session model in auth session storage (`kind` + dedicated provisional TTL env), plus stable 401 expiry code payload for expired provisional sessions.
+- Reused magic-link request endpoint from ignite join path for unauthenticated flows while not blocking join on email delivery failures.
+- Updated web ignite-join route UX:
+  - authenticated users: auto-submit and navigate directly to breakout app,
+  - unauthenticated users: required name/email form, persists returned provisional session, then navigates immediately.
+- Added centralized client handling for `AUTH_PROVISIONAL_EXPIRED` to clear local API session and redirect to login with verification prompt.
+
+### Files changed
+
+- `api/src/functions/igniteJoin.ts`
+- `api/src/lib/auth/sessions.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg "ignite/join|igniteJoin|IgniteJoin|authRequestLink|sessionId|AUTH_PROVISIONAL" -n api apps/web/src` ✅ located implementation touchpoints.
+- `pnpm -w lint` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/api build` ✅
+
+### Follow-ups
+
+- Human staging smoke still required for organizer QR and mailbox delivery confirmation end-to-end.
