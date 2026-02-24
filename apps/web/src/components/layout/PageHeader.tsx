@@ -118,15 +118,21 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
 
   return (
     <Stack spacing={2} sx={{ mb: 2 }}>
-      <Typography variant="h5" sx={{ fontWeight: 700, mb: 1.5 }}>{PRODUCT.name}</Typography>
+      <div className="ui-productHeader">
+        <Typography className="ui-productTitle" variant="h5" sx={{ fontWeight: 700 }}>{PRODUCT.name}</Typography>
+        <Tooltip title="Menu">
+          <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
+            <MenuIcon />
+          </IconButton>
+        </Tooltip>
+      </div>
       <Paper>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="overline" color="text.secondary" sx={{ opacity: 0.8, display: 'block', lineHeight: 1.2 }}>
               Group
             </Typography>
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ width: '100%', gap: 1 }}>
-              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
                 {isEditingGroupName ? (
                   <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
                     <TextField
@@ -183,12 +189,6 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
                     </IconButton>
                   </Tooltip>
                 ) : null}
-              </Stack>
-              <Tooltip title="Menu">
-                <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
-                  <MenuIcon />
-                </IconButton>
-              </Tooltip>
             </Stack>
             <Box
               component="div"
