@@ -18,21 +18,31 @@ const SESSION_KEY = 'familyscheduler.session';
 
 const readSession = (): Session | null => {
   if (typeof window === 'undefined') return null;
+  const sessionRaw = window.sessionStorage.getItem(SESSION_KEY);
+  if (sessionRaw) {
+    try {
+      return JSON.parse(sessionRaw) as Session;
+    } catch {
+      return null;
+    }
+  }
   const raw = window.localStorage.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as Session;
+    const parsed = JSON.parse(raw) as Session;
+    window.sessionStorage.setItem(SESSION_KEY, raw);
+    return parsed;
   } catch {
     return null;
   }
 };
 
 const writeSession = (session: Session): void => {
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
 };
 
 const clearSession = (): void => {
-  window.localStorage.removeItem(SESSION_KEY);
+  window.sessionStorage.removeItem(SESSION_KEY);
 };
 
 const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
@@ -45,7 +55,7 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } => {
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; phone: string; next?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -56,6 +66,14 @@ const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'ap
   if (igniteMatch) return { type: 'ignite', groupId: igniteMatch[1] };
   const sessionMatch = path.match(/^\/s\/([^/]+)\/([^/]+)$/);
   if (sessionMatch) return { type: 'igniteJoin', groupId: sessionMatch[1], sessionId: sessionMatch[2] };
+  if (path === '/handoff') {
+    return {
+      type: 'handoff',
+      groupId: query.get('groupId') ?? '',
+      phone: query.get('phone') ?? '',
+      next: query.get('next') ?? undefined
+    };
+  }
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
   if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined, traceId: query.get('trace') ?? undefined };
   return { type: 'create' };
@@ -884,6 +902,28 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (phon
   return <>{children(phone)}</>;
 }
 
+function HandoffPage({ groupId, phone, next }: { groupId: string; phone: string; next?: string }) {
+  useEffect(() => {
+    if (!groupId || !phone) {
+      nav('/');
+      return;
+    }
+    const safeNext = typeof next === 'string' && next.startsWith('/g/') ? next : `/g/${groupId}/ignite`;
+    writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
+    nav(safeNext, { replace: true });
+  }, [groupId, phone, next]);
+
+  return (
+    <Page variant="form">
+      <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+        <CircularProgress size={32} />
+        <Typography>Redirecting…</Typography>
+      </Stack>
+      <FooterHelp />
+    </Page>
+  );
+}
+
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   useEffect(() => {
@@ -894,6 +934,7 @@ export function App() {
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
+  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} phone={route.phone} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
   if (route.type === 'igniteJoin') return <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
   if (route.type === 'ignite') {

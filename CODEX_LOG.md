@@ -1,3 +1,40 @@
+## 2026-02-24 05:37 UTC (Breakout new-tab handoff + per-tab session isolation)
+
+### Objective
+
+Ensure Breakout opens reliably in a new tab without stealing/overwriting the current meeting tab session.
+
+### Approach
+
+- Added `handoff` hash route parsing (`/#/handoff`) that captures `groupId`, `phone`, and optional `next`.
+- Implemented `HandoffPage` to write session in the new tab and redirect to validated next route (`/g/...` only) with safe fallback.
+- Updated app-level session storage behavior:
+  - `readSession`: sessionStorage first, then localStorage seed into sessionStorage.
+  - `writeSession`: sessionStorage only.
+  - `clearSession`: sessionStorage only.
+- Updated breakout handler in `AppShell`:
+  - opens popup synchronously before async fetch,
+  - on success routes popup to handoff URL,
+  - does not mutate original tab session on popup path,
+  - keeps existing same-tab fallback when popup is blocked,
+  - closes popup when API call fails.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed due pre-existing missing `@mui/*` dependencies in this environment.
+
+### Follow-ups
+
+- Human verification needed on staging for popup-allowed and popup-blocked acceptance scenarios.
+
+
 ## 2026-02-24 01:55 UTC (Month view today highlight MVP)
 
 ### Objective
