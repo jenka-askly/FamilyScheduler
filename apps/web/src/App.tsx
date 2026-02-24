@@ -267,7 +267,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 }
 
 
-type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string> };
+type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string>; createdByPersonId?: string; peopleByPersonId?: Record<string, { name?: string }> };
 const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
 
 function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: string }) {
@@ -280,6 +280,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const [joinedPersonIds, setJoinedPersonIds] = useState<string[]>([]);
   const [newlyJoinedPersonIds, setNewlyJoinedPersonIds] = useState<string[]>([]);
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
+  const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
+  const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [copiedJoinLink, setCopiedJoinLink] = useState(false);
@@ -416,6 +418,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     setJoinedPersonIds([]);
     setNewlyJoinedPersonIds([]);
     setPhotoUpdatedAtByPersonId({});
+    setCreatedByPersonId('');
+    setPeopleByPersonId({});
   };
 
   useEffect(() => {
@@ -454,6 +458,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       setJoinedCount(nextCount);
       setJoinedPersonIds(incomingIds);
       setPhotoUpdatedAtByPersonId(data.photoUpdatedAtByPersonId ?? {});
+      setCreatedByPersonId(data.createdByPersonId ?? '');
+      setPeopleByPersonId(data.peopleByPersonId ?? {});
     };
     void poll();
     const interval = window.setInterval(() => { void poll(); }, 2500);
@@ -478,7 +484,14 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     try {
       const response = await fetch(apiUrl('/api/ignite/photo'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
       const data = await response.json() as { ok?: boolean; message?: string };
-      if (!response.ok || !data.ok) setError(data.message ?? 'Unable to upload photo');
+      if (!response.ok || !data.ok) {
+        setError(data.message ?? 'Unable to upload photo');
+      } else {
+        const organizerId = createdByPersonId || joinedPersonIds[0];
+        if (organizerId) {
+          setPhotoUpdatedAtByPersonId((existing) => ({ ...existing, [organizerId]: new Date().toISOString() }));
+        }
+      }
     } catch {
       setError('Unable to upload photo');
     } finally {
@@ -593,6 +606,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     }
   };
 
+  const displayedPersonIds = Array.from(new Set([createdByPersonId, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
+
   return (
     <Page variant="form">
       <PageHeader
@@ -661,15 +676,21 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
           <div className="ui-igniteSection">
             <div className="ui-igniteHeader">
-              <Typography variant="subtitle2">Joined folks ({joinedPersonIds.length})</Typography>
+              <Typography variant="subtitle2">Joined folks ({displayedPersonIds.length})</Typography>
             </div>
-            {!sessionId || joinedPersonIds.length === 0 ? <Typography className="ui-meta">No one joined yet.</Typography> : null}
+            {!sessionId || displayedPersonIds.length === 0 ? <Typography className="ui-meta">No one joined yet.</Typography> : null}
             <div className="ui-igniteFolksList">
-              {sessionId ? joinedPersonIds.map((personId) => {
+              {sessionId ? displayedPersonIds.map((personId) => {
                 const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
+                const personName = peopleByPersonId[personId]?.name || personId;
                 return (
                   <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
-                    {hasPhoto ? <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} /> : <Typography variant="caption" className="ui-ignitePersonName">{personId}</Typography>}
+                    {hasPhoto
+                      ? <>
+                          <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personName} />
+                          <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
+                        </>
+                      : <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>}
                   </div>
                 );
               }) : null}
@@ -871,3 +892,4 @@ export function App() {
     </GroupAuthGate>
   );
 }
+

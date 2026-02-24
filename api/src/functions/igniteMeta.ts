@@ -36,6 +36,19 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
   if (!loaded.state.ignite || loaded.state.ignite.sessionId !== sessionId) return errorResponse(404, 'ignite_not_found', 'Ignite session not found', traceId);
 
   const ignite = loaded.state.ignite;
+  const relevantPersonIds = new Set<string>([
+    ignite.createdByPersonId,
+    ...ignite.joinedPersonIds
+  ]);
+  const peopleByPersonId: Record<string, { name: string }> = {};
+  relevantPersonIds.forEach((personId) => {
+    const person = loaded.state.people.find((candidate) => candidate.personId === personId);
+    if (person?.name) {
+      peopleByPersonId[personId] = { name: person.name };
+      return;
+    }
+    peopleByPersonId[personId] = { name: personId };
+  });
   const status = igniteEffectiveStatus(ignite);
   return {
     status: 200,
@@ -47,6 +60,8 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
       joinedCount: ignite.joinedPersonIds.length,
       joinedPersonIds: ignite.joinedPersonIds,
       photoUpdatedAtByPersonId: ignite.photoUpdatedAtByPersonId ?? {},
+      createdByPersonId: ignite.createdByPersonId,
+      peopleByPersonId,
       serverTime: new Date().toISOString(),
       traceId
     }
