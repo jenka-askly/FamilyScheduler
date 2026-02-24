@@ -4,6 +4,7 @@ const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 
 const apiBaseUrl = configuredApiBaseUrl ? trimTrailingSlash(configuredApiBaseUrl) : '';
 const SESSION_ID_KEY = 'fs.sessionId';
+const warnedUnauthorizedTraceIds = new Set<string>();
 
 export const apiUrl = (path: string): string => {
   if (!path.startsWith('/')) throw new Error(`apiUrl path must start with '/'. Received: ${path}`);
@@ -16,10 +17,28 @@ export const getSessionId = (): string | null => {
   return sessionId && sessionId.trim() ? sessionId : null;
 };
 
-export const apiFetch = (path: string, init: RequestInit = {}): Promise<Response> => {
+const warnMissingSession = (path: string, traceId?: string): void => {
+  if (!traceId || warnedUnauthorizedTraceIds.has(traceId)) return;
+  warnedUnauthorizedTraceIds.add(traceId);
+  console.warn(`[apiFetch] unauthorized_missing_session path=${path} traceId=${traceId} hasSession=${Boolean(getSessionId())}`);
+};
+
+export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Response> => {
   const headers = new Headers(init.headers);
   if (init.body != null && !headers.has('content-type')) headers.set('content-type', 'application/json');
   const sessionId = getSessionId();
   if (sessionId && !headers.has('x-session-id')) headers.set('x-session-id', sessionId);
-  return fetch(apiUrl(path), { ...init, headers });
+  const response = await fetch(apiUrl(path), { ...init, headers });
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    try {
+      const payload = await response.clone().json() as { ok?: boolean; error?: string; message?: string; traceId?: string };
+      if (payload.ok === false && payload.error === 'unauthorized' && payload.message === 'Missing session') {
+        warnMissingSession(path, payload.traceId);
+      }
+    } catch {
+      // Ignore parse errors.
+    }
+  }
+  return response;
 };

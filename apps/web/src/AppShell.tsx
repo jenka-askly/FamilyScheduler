@@ -5,7 +5,7 @@ import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiUrl } from './lib/apiUrl';
+import { apiFetch, apiUrl } from './lib/apiUrl';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 import {
   Alert,
@@ -343,7 +343,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (!normalized) throw new Error('Group name is required.');
     if (normalized.length > 60) throw new Error('Group name must be 60 characters or fewer.');
 
-    const response = await fetch(apiUrl('/api/group/rename'), {
+    const response = await apiFetch('/api/group/rename', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, phone, groupName: normalized, traceId })
@@ -451,7 +451,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setTranscript((p) => [...p, { role: 'user', text: trimmed }]);
     setIsSubmitting(true);
     try {
-      const response = await fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone, ...extraBody }) });
+      const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone, ...extraBody }) });
       if (!response.ok) {
         setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]);
         return;
@@ -473,7 +473,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   };
 
   const sendDirectAction = async (action: Record<string, unknown>) => {
-    const response = await fetch(apiUrl('/api/direct'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, phone }) });
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, phone }) });
     const json = await response.json() as { ok?: boolean; snapshot?: Snapshot; message?: string; personId?: string };
     if (json.snapshot) setSnapshot(json.snapshot);
     if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
@@ -559,7 +559,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
     setIsWhenResolving(true);
     try {
-      const response = await fetch(apiUrl('/api/direct'), {
+      const response = await apiFetch('/api/direct', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -695,7 +695,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
   const refreshSnapshot = async () => {
-    const response = await fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) });
+    const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) });
     if (!response.ok) return;
     const json = await response.json() as ChatResponse;
     if (json.snapshot) setSnapshot(json.snapshot);
@@ -733,7 +733,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const endpoint = appointmentId ? '/api/appointmentScanRescan' : '/api/scanAppointment';
     const payload: Record<string, unknown> = { groupId, phone, imageBase64: base64, imageMime: file.type || 'image/jpeg', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
     if (appointmentId) payload.appointmentId = appointmentId;
-    const response = await fetch(apiUrl(endpoint), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
     const json = await response.json() as { snapshot?: Snapshot };
     if (json.snapshot) setSnapshot(json.snapshot); else await refreshSnapshot();
   };
@@ -897,7 +897,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const traceId = forcedTraceId ?? ruleDraftTraceId ?? `rules-draft-${Date.now()}`;
     setRuleDraftTraceId(traceId);
     try {
-      const response = await fetch(apiUrl('/api/chat'), {
+      const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: outgoing, groupId, phone, ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
@@ -946,7 +946,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setIsConfirming(true);
     const traceId = `rules-confirm-${Date.now()}`;
     try {
-      const response = await fetch(apiUrl('/api/chat'), {
+      const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -985,7 +985,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (didInitialLoad.current) return;
     didInitialLoad.current = true;
     authLog({ stage: 'initial_chat_triggered' });
-    fetch(apiUrl('/api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
+    apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
       .then(async (response) => {
         if (!response.ok) return;
         const json = (await response.json()) as ChatResponse;
@@ -1036,7 +1036,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
     const loadGroupMeta = async () => {
       try {
-        const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
+        const response = await apiFetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string };
         if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
@@ -1079,7 +1079,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
     const loadUsage = async () => {
       try {
-        const response = await fetch(apiUrl('/api/usage'));
+        const response = await apiFetch('/api/usage');
         if (!response.ok) throw new Error('usage fetch failed');
         const data = await response.json() as UsagePayload;
         if (!canceled) setUsage({ status: 'ok', data });
@@ -1146,7 +1146,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     try {
-      const response = await fetch(apiUrl('/api/ignite/spinoff'), {
+      const response = await apiFetch('/api/ignite/spinoff', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sourceGroupId: groupId, phone, traceId, groupName: '' })
@@ -1809,7 +1809,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             onClick={() => {
               if (!scanViewerAppointment) return;
               const appointmentId = scanViewerAppointment.id;
-              void fetch(apiUrl('/api/appointmentScanDelete'), {
+              void apiFetch('/api/appointmentScanDelete', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({ groupId, phone, appointmentId })
