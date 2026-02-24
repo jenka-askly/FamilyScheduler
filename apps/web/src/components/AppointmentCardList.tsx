@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import { Box, Button, Chip, IconButton, List, ListItem, Stack, Tooltip, Typography } from '@mui/material';
 import type { TimeSpec } from '../../../../packages/shared/src/types.js';
 
@@ -36,6 +36,7 @@ type AppointmentCardListProps = {
   onDelete: (appointment: Appointment) => void;
   onSelectPeople: (appointment: Appointment) => void;
   onOpenScanViewer: (appointment: Appointment) => void;
+  onOpenDetails?: (appointment: Appointment, anchorEl: HTMLElement) => void;
   activeAppointmentCode: string | null;
   scanViewIcon: ReactNode;
   editIcon: ReactNode;
@@ -51,6 +52,7 @@ export function AppointmentCardList({
   onDelete,
   onSelectPeople,
   onOpenScanViewer,
+  onOpenDetails,
   activeAppointmentCode,
   scanViewIcon,
   editIcon,
@@ -58,6 +60,8 @@ export function AppointmentCardList({
   deleteIcon
 }: AppointmentCardListProps) {
   const [expandedTextIds, setExpandedTextIds] = useState<Set<string>>(new Set());
+  const longPressTimerRef = useRef<number | null>(null);
+  const didLongPressRef = useRef(false);
 
   const toggleExpandedText = (id: string) => {
     setExpandedTextIds((previous) => {
@@ -87,9 +91,52 @@ export function AppointmentCardList({
         const isTextExpanded = expandedTextIds.has(appointment.id);
         const hasMetaRow = Boolean(peopleText || locationText || notesText);
         const isActive = appointment.code === activeAppointmentCode;
+        const isUnassigned = appointment.peopleDisplay.length === 0;
+
+        const clearLongPressTimer = () => {
+          if (longPressTimerRef.current != null) {
+            window.clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        };
 
         return (
-          <ListItem key={appointment.id} disableGutters data-appt-code={appointment.code} className={isActive ? 'ui-appt-active' : ''} sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}>
+          <ListItem
+            key={appointment.id}
+            disableGutters
+            data-appt-code={appointment.code}
+            className={isActive ? 'ui-appt-active' : ''}
+            sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              onOpenDetails?.(appointment, event.currentTarget as HTMLElement);
+            }}
+            onPointerDown={(event) => {
+              if (event.pointerType !== 'touch') return;
+              clearLongPressTimer();
+              didLongPressRef.current = false;
+              const anchorEl = event.currentTarget as HTMLElement;
+              longPressTimerRef.current = window.setTimeout(() => {
+                didLongPressRef.current = true;
+                onOpenDetails?.(appointment, anchorEl);
+              }, 500);
+            }}
+            onPointerUp={() => {
+              clearLongPressTimer();
+            }}
+            onPointerCancel={() => {
+              clearLongPressTimer();
+            }}
+            onPointerLeave={() => {
+              clearLongPressTimer();
+            }}
+            onClickCapture={(event) => {
+              if (!didLongPressRef.current) return;
+              didLongPressRef.current = false;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
             <Box
               sx={{
                 display: 'flex',
@@ -118,24 +165,27 @@ export function AppointmentCardList({
                         color="inherit"
                         aria-label="View scanned document"
                         sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
-                        onClick={() => onOpenScanViewer(appointment)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenScanViewer(appointment);
+                        }}
                       >
                         {scanViewIcon}
                       </IconButton>
                     </Tooltip>
                   ) : null}
                   <Tooltip title="Edit appointment">
-                    <IconButton size="small" color="inherit" aria-label="Edit appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={() => onEdit(appointment)}>
+                    <IconButton size="small" color="inherit" aria-label="Edit appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onEdit(appointment); }}>
                       {editIcon}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Assign people">
-                    <IconButton size="small" color="inherit" aria-label="Assign people" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={() => onSelectPeople(appointment)}>
+                    <IconButton size="small" color="inherit" aria-label="Assign people" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onSelectPeople(appointment); }}>
                       {assignIcon}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Delete appointment">
-                    <IconButton size="small" color="inherit" aria-label="Delete appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={() => onDelete(appointment)}>
+                    <IconButton size="small" color="inherit" aria-label="Delete appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onDelete(appointment); }}>
                       {deleteIcon}
                     </IconButton>
                   </Tooltip>
@@ -145,7 +195,22 @@ export function AppointmentCardList({
             <Stack spacing={0.5} className="ui-appt-body" sx={{ px: 0.25, pr: 1.25, mt: 0.25 }}>
               {hasMetaRow ? (
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                  <Typography variant="body2" color="text.secondary">👤 {peopleText}</Typography>
+                  {isUnassigned ? (
+                    <Button
+                      variant="text"
+                      size="small"
+                      color="inherit"
+                      sx={{ minWidth: 0, px: 0, justifyContent: 'flex-start', textTransform: 'none' }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectPeople(appointment);
+                      }}
+                    >
+                      👤 {peopleText}
+                    </Button>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">👤 {peopleText}</Typography>
+                  )}
                   {locationText ? <Typography variant="body2" color="text.secondary">📍 {locationText}</Typography> : null}
                   {notesText ? (
                     <Tooltip title="Notes available">
@@ -169,7 +234,7 @@ export function AppointmentCardList({
                     {notesText}
                   </Typography>
                   {hasLongText ? (
-                    <Button size="small" variant="text" sx={{ mt: 0.25, minWidth: 0, px: 0 }} onClick={() => toggleExpandedText(appointment.id)}>
+                    <Button size="small" variant="text" sx={{ mt: 0.25, minWidth: 0, px: 0 }} onClick={(event) => { event.stopPropagation(); toggleExpandedText(appointment.id); }}>
                       {isTextExpanded ? 'Show less' : 'Show more'}
                     </Button>
                   ) : null}

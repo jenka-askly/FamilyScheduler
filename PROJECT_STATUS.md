@@ -1,3 +1,31 @@
+## 2026-02-24 06:52 UTC update (List-view appointment details popover + Unassigned click target)
+
+- In list view, `Unassigned` now renders as a text button that opens the existing Assign people dialog for that appointment.
+- Added row-level details gestures in list view: desktop double-click and touch long-press open a compact appointment details popover anchored to the row.
+- Details popover closes on outside click (Popover `onClose`) and also closes when clicking inside the popover content.
+- Added propagation guards on row-interactive controls (scan/edit/assign/delete icons and show more/less) so they do not trigger row detail gestures.
+
+### Success criteria
+
+- Clicking `Unassigned` opens Assign people for the corresponding appointment.
+- Clicking assigned people text does not open Assign people.
+- Double-clicking a list row opens details popover.
+- Long-pressing a list row on touch opens details popover.
+- Clicking anywhere closes details popover, including inside the popover content.
+
+### Non-regressions
+
+- Assign icon behavior is unchanged.
+- Edit dialog behavior is unchanged.
+- Month/week/day chip single-click behavior is unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck`.
+2. Run `pnpm dev:web` and open the app in list view.
+3. Verify Unassigned click target and row details gestures with mouse and touch simulation.
+
+
 ## 2026-02-24 06:38 UTC update (Breakout soft hint when popup handle is null)
 
 - Updated breakout popup null-handle branch to show a soft informational hint instead of a hard `Popup blocked` error, because some browsers return `null` even when the tab opens with `noopener`.

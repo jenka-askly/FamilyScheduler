@@ -26,6 +26,7 @@ import {
   ListItemText,
   Link as MuiLink,
   Paper,
+  Popover,
   Stack,
   SvgIcon,
   Tab,
@@ -365,6 +366,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [whenDraftError, setWhenDraftError] = useState<string | null>(null);
   const [isWhenResolving, setIsWhenResolving] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [detailsAppointment, setDetailsAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [detailsAnchorEl, setDetailsAnchorEl] = useState<HTMLElement | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
@@ -401,6 +404,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
   const [advancedText, setAdvancedText] = useState('');
+
+  function openAppointmentDetails(appt: Snapshot['appointments'][0], anchorEl: HTMLElement) {
+    setDetailsAppointment(appt);
+    setDetailsAnchorEl(anchorEl);
+  }
+
+  function closeAppointmentDetails() {
+    setDetailsAppointment(null);
+    setDetailsAnchorEl(null);
+  }
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -1367,6 +1380,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           onDelete={setAppointmentToDelete}
                           onSelectPeople={setSelectedAppointment}
                           onOpenScanViewer={setScanViewerAppointment}
+                          onOpenDetails={(appointment, anchorEl) => openAppointmentDetails(appointment, anchorEl)}
                           activeAppointmentCode={activeAppointmentCode}
                           scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
                           editIcon={<Pencil />}
@@ -1907,6 +1921,36 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Popover
+        open={Boolean(detailsAppointment && detailsAnchorEl)}
+        anchorEl={detailsAnchorEl}
+        onClose={closeAppointmentDetails}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+      >
+        {detailsAppointment ? (
+          <Box sx={{ p: 2, maxWidth: 420 }} onClick={closeAppointmentDetails}>
+            <Stack spacing={0.75}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsAppointment.desc || 'Appointment'}</Typography>
+              <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsAppointment)}</Typography>
+              {detailsAppointment.locationDisplay || detailsAppointment.location ? (
+                <Typography variant="body2" color="text.secondary">📍 {detailsAppointment.locationDisplay || detailsAppointment.location}</Typography>
+              ) : null}
+              <Typography variant="body2" color="text.secondary">👤 {detailsAppointment.peopleDisplay.length ? detailsAppointment.peopleDisplay.join(', ') : 'Unassigned'}</Typography>
+              {detailsAppointment.notes?.trim() ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' }}
+                >
+                  📝 {detailsAppointment.notes.trim()}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Box>
+        ) : null}
+      </Popover>
 
       <Drawer open={editingTodo != null} title="Edit todo" onClose={closeTodoEditor}>
         {editingTodo ? (
