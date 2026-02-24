@@ -7377,3 +7377,29 @@ Implement requested Ignite/Breakout organizer QR-page UX cleanup: ignite-mode ba
 ### Follow-ups
 
 - Run staging browser verification on develop deployment using the checklist in `PROJECT_STATUS.md` once environment has required frontend dependencies installed.
+
+## 2026-02-24 05:01 UTC (Ignite organizer always visible + name-based joined folks)
+
+### Objective
+Implement DELTA feature to always show organizer in Joined folks, render names instead of person IDs, and keep organizer tile photo updated quickly after upload using existing Ignite APIs (with backward-compatible meta extension).
+
+### Approach
+- Updated backend ignite meta payload to include optional organizer/person-name mapping fields while preserving existing contract fields.
+- Updated organizer frontend meta typing/state and joined-folks rendering to use organizer-first deduped IDs and resolved names.
+- Added optimistic organizer photo timestamp update after successful organizer photo upload to improve tile refresh latency.
+
+### Files changed
+- `api/src/functions/igniteMeta.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `sed -n '1,240p' api/src/functions/igniteMeta.ts` ✅ inspected current meta response implementation.
+- `sed -n '1,320p' apps/web/src/App.tsx` ✅ inspected organizer page/meta polling/type declarations.
+- `rg -n "joinedPersonIds|Joined folks|ignite/meta|photo|upload|IgniteMetaResponse" apps/web/src/App.tsx` ✅ located exact edit points.
+- `pnpm --filter @familyscheduler/web typecheck` ⚠️ failed due pre-existing missing frontend dependencies in container (`@mui/material`, `@mui/icons-material`).
+- `pnpm --filter @familyscheduler/api build` ✅ passed after correcting person lookup key to `person.personId`.
+
+### Follow-ups
+- In dependency-complete local/staging environment, run organizer ignite flow to confirm acceptance behavior for organizer-only session, organizer photo upload refresh, and joiner no-photo name fallback rendering.

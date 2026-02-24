@@ -1968,3 +1968,20 @@ traces
 5. Confirm explanatory text lines are absent under organizer heading area.
 6. Join from another device/tab and confirm joined count + new tile pulse, optional beep when enabled, and no errors when autoplay is blocked.
 7. Confirm `Joined folks (N)` wraps tiles, shows internal vertical scrolling at higher counts, and displays thumbnails only for joiners with uploaded photos.
+
+## 2026-02-24 05:01 UTC update (Ignite organizer identity/name tiles)
+
+- Extended `/api/ignite/meta` response with backward-compatible optional identity fields: `createdByPersonId` and `peopleByPersonId` while preserving existing `joinedCount`, `joinedPersonIds`, and `photoUpdatedAtByPersonId` fields.
+- Organizer `Joined folks` rendering now derives display order from organizer-first deduped IDs (`createdByPersonId` + joined IDs) so organizer is always shown as the first/primary tile when known.
+- Organizer/joiner tiles now render human names from `peopleByPersonId` when no photo is present, with fallback to the raw person ID only when lookup data is unavailable.
+- Photo tiles now display the same resolved name label beneath the thumbnail (organizer and joiners).
+- Organizer photo upload now performs an optimistic tile refresh by bumping organizer photo timestamp locally so the organizer thumbnail appears quickly before/while meta polling catches up.
+
+### Verification
+
+- API compile check: `pnpm --filter @familyscheduler/api build` passes.
+- Web typecheck in this container remains blocked by existing missing frontend deps (`@mui/material`, `@mui/icons-material`) and is not caused by this delta; run with full deps installed for UI validation.
+- Manual acceptance to run in staging/local:
+  1. Open organizer ignite page with no external joiners -> `Joined folks (1)` and organizer name tile.
+  2. Upload organizer photo -> organizer tile switches to thumbnail + organizer name.
+  3. Joiner without photo joins -> tile text shows joiner name (not person ID).
