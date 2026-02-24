@@ -10,7 +10,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material';
 
-type Session = { groupId: string; phone: string; joinedAt: string };
+type Session = { groupId: string; email: string; joinedAt: string };
 type AuthStatus = 'checking' | 'allowed' | 'denied';
 type AuthError = 'no_session' | 'group_mismatch' | 'not_allowed' | 'group_not_found' | 'join_failed';
 
@@ -55,7 +55,7 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; phone: string; next?: string } | { type: 'authConsume'; token?: string } => {
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -74,7 +74,7 @@ const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'ap
     return {
       type: 'handoff',
       groupId: query.get('groupId') ?? '',
-      phone: query.get('phone') ?? '',
+      email: query.get('email') ?? '',
       next: query.get('next') ?? undefined
     };
   }
@@ -97,7 +97,7 @@ const toJoinRoute = (groupId: string, error: AuthError, traceId: string): string
 function CreateGroupPage() {
   const [groupName, setGroupName] = useState('');
   const [groupKey, setGroupKey] = useState('');
-  const [creatorPhone, setCreatorPhone] = useState('');
+  const [creatorEmail, setCreatorPhone] = useState('');
   const [creatorName, setCreatorName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -130,7 +130,7 @@ function CreateGroupPage() {
     setError(null);
     setIsCreating(true);
     try {
-      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone, creatorName }) });
+      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorEmail, creatorName }) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.message ?? 'Failed to create group');
@@ -138,7 +138,7 @@ function CreateGroupPage() {
       }
 
       const link = `${window.location.origin}/#/g/${data.groupId}`;
-      writeSession({ groupId: data.groupId, phone: creatorPhone, joinedAt: new Date().toISOString() });
+      writeSession({ groupId: data.groupId, email: creatorEmail, joinedAt: new Date().toISOString() });
       setCreatedGroupId(data.groupId);
       setShareLink(link);
       setShowCreateForm(false);
@@ -162,7 +162,7 @@ function CreateGroupPage() {
               <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
               <TextField label="Group key" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} required inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }} placeholder="Group key" helperText="6 digits" fullWidth />
               <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
-              <TextField label="Your phone" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" helperText="Use a phone number you can sign in with." fullWidth />
+              <TextField label="Your email" value={creatorEmail} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="you@example.com" helperText="Use a email you can sign in with." fullWidth />
               <div className="ui-authActions">
                 <Button variant="contained" type="submit" disabled={isCreating}>{isCreating ? 'CREATING…' : 'CREATE GROUP'}</Button>
               </div>
@@ -199,13 +199,12 @@ function CreateGroupPage() {
 }
 
 function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
-  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [groupName, setGroupName] = useState<string | undefined>(undefined);
   const routeNotice = routeError === 'group_mismatch' || routeError === 'no_session'
-    ? 'Enter your phone number to join this group.'
+    ? 'Enter your email to join this group.'
     : null;
 
   useEffect(() => {
@@ -235,26 +234,20 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setHasSubmitted(true);
-    const normalized = phone.replace(/[^\d+]/g, '');
-    const isValidPhone = normalized.length >= 10;
-    if (!isValidPhone) {
-      setFormError('Please enter a valid phone number.');
-      return;
-    }
-    setFormError(null);
+        setFormError(null);
     if (!email.trim()) {
       setFormError('Please enter your email address.');
       return;
     }
     const requestTraceId = createTraceId();
-    const response = await apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, email: email.trim(), traceId: requestTraceId }) });
+    const response = await apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email: email.trim(), traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
-      setFormError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
+      setFormError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This email is not authorized for this group.');
       return;
     }
 
-    writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
+    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
     nav(`/g/${groupId}/app`);
   };
 
@@ -262,7 +255,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
     <Page variant="form">
       <PageHeader
         title={groupName ? `Join “${groupName}”` : 'Join Group'}
-        description="Enter your phone number to access this schedule."
+        description="Enter your email to access this schedule."
         groupName={groupName}
         groupId={groupId}
       />
@@ -271,16 +264,16 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
         <Stack className="ui-joinForm" component="form" spacing={2} onSubmit={submit}>
           {routeNotice ? <Typography className="ui-joinNotice">{routeNotice}</Typography> : null}
           <TextField
-            label="Phone number"
-            value={phone}
+            label="Email"
+            value={email}
             onChange={(e) => {
-              setPhone(e.target.value);
+              setEmail(e.target.value);
               if (hasSubmitted) setFormError(null);
             }}
             required
             error={Boolean(formError) && hasSubmitted}
-            helperText={hasSubmitted ? formError || 'Only listed phone numbers can join.' : 'Only listed phone numbers can join.'}
-            placeholder="(425) 555-1234"
+            helperText={hasSubmitted ? formError || 'Only listed emails can join.' : 'Only listed emails can join.'}
+            placeholder="you@example.com"
             fullWidth
           />
           <TextField
@@ -378,7 +371,7 @@ function AuthConsumePage({ token }: { token?: string }) {
 type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string>; createdByPersonId?: string; peopleByPersonId?: Record<string, { name?: string }> };
 const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
 
-function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: string }) {
+function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
   const [groupName, setGroupName] = useState<string>('');
@@ -467,7 +460,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     const response = await apiFetch('/api/group/rename', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, phone, groupName: nextName, traceId })
+      body: JSON.stringify({ groupId, email, groupName: nextName, traceId })
     });
     const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
     if (!response.ok) throw new Error(`${payload.message ?? 'Unable to rename group.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
@@ -516,12 +509,12 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   const startSession = async () => {
     setError(null);
-    if (!phone.trim()) {
-      setError('Missing authorized phone number. Rejoin the group and try again.');
+    if (!email.trim()) {
+      setError('Missing authorized email. Rejoin the group and try again.');
       return;
     }
     const traceId = createTraceId();
-    const response = await apiFetch('/api/ignite/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId }) });
+    const response = await apiFetch('/api/ignite/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, traceId }) });
     const data = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
     if (!response.ok || !data.ok || !data.sessionId) {
       setError(data.message ?? 'Unable to start session');
@@ -541,7 +534,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   useEffect(() => {
     if (!sessionId) {
-      if (!phone.trim()) return;
+      if (!email.trim()) return;
       void startSession();
       return;
     }
@@ -550,7 +543,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       const response = await apiFetch('/api/ignite/meta', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, sessionId, phone, traceId: createTraceId() })
+        body: JSON.stringify({ groupId, sessionId, email, traceId: createTraceId() })
       });
       const data = await response.json() as IgniteMetaResponse;
       if (!response.ok || !data.ok || canceled) return;
@@ -581,11 +574,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     void poll();
     const interval = window.setInterval(() => { void poll(); }, 2500);
     return () => { canceled = true; window.clearInterval(interval); };
-  }, [groupId, phone, sessionId, joinSoundEnabled]);
+  }, [groupId, email, sessionId, joinSoundEnabled]);
 
   const closeSession = async () => {
     if (!sessionId) return;
-    const response = await apiFetch('/api/ignite/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, traceId: createTraceId() }) });
+    const response = await apiFetch('/api/ignite/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, sessionId, traceId: createTraceId() }) });
     const data = await response.json() as { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; message?: string };
     if (!response.ok || !data.ok) {
       setError(data.message ?? 'Unable to close session');
@@ -600,7 +593,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     setError(null);
     setIsUploading(true);
     try {
-      const response = await apiFetch('/api/ignite/photo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
+      const response = await apiFetch('/api/ignite/photo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
       const data = await response.json() as { ok?: boolean; message?: string };
       if (!response.ok || !data.ok) {
         setError(data.message ?? 'Unable to upload photo');
@@ -812,7 +805,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
                   <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
                     {hasPhoto
                       ? <>
-                          <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personName} />
+                          <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&email=${encodeURIComponent(email)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personName} />
                           <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
                         </>
                       : <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>}
@@ -841,7 +834,6 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
 function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string>('');
@@ -869,19 +861,19 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, phone, traceId: createTraceId() }) });
-    const data = await response.json() as { ok?: boolean; error?: string; phoneE164?: string; message?: string };
+    const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, email, traceId: createTraceId() }) });
+    const data = await response.json() as { ok?: boolean; error?: string; emailE164?: string; message?: string };
     if (!response.ok || !data.ok) {
       setError(data.error === 'ignite_closed' ? 'Session closed. Ask the organizer to reopen the QR.' : (data.message ?? 'Unable to join session'));
       return;
     }
-    writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
+    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
     if (imageBase64) {
       try {
         await apiFetch('/api/ignite/photo', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ groupId, sessionId, phone, imageBase64, imageMime: imageMime || 'image/jpeg', traceId: createTraceId() })
+          body: JSON.stringify({ groupId, sessionId, email, imageBase64, imageMime: imageMime || 'image/jpeg', traceId: createTraceId() })
         });
       } catch {
         // Non-fatal: continue into the group even if photo upload fails.
@@ -893,10 +885,10 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
 
   return (
     <Page variant="form">
-      <PageHeader title="Join session" description="Enter your name and phone to join this live session." groupId={groupId} />
+      <PageHeader title="Join session" description="Enter your name and email to join this live session." groupId={groupId} />
       <Stack component="form" spacing={2} onSubmit={submit}>
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth />
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} required fullWidth />
+        <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
         <Button variant="outlined" component="label">
           Add a photo (optional)
           <input hidden type="file" accept="image/*" capture="environment" onChange={(e) => { void onImagePicked(e.currentTarget); }} />
@@ -915,17 +907,17 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   );
 }
 
-function GroupAuthGate({ groupId, children }: { groupId: string; children: (phone: string) => ReactNode }) {
+function GroupAuthGate({ groupId, children }: { groupId: string; children: (email: string) => ReactNode }) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
   const [authError, setAuthError] = useState<AuthError | undefined>();
   const [traceId] = useState(() => createTraceId());
-  const [phone, setPhone] = useState<string | null>(null);
+  const [email, setPhone] = useState<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
     const session = readSession();
-    authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.phone });
-    if (!session || !session.phone) {
+    authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.email });
+    if (!session || !session.email) {
       if (canceled) return;
       setAuthStatus('denied');
       setAuthError('no_session');
@@ -944,9 +936,9 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (phon
       return;
     }
 
-    setPhone(session.phone);
+    setPhone(session.email);
     authLog({ stage: 'gate_join_request', groupId });
-    void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
+    void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email: session.email, traceId }) })
       .then(async (response) => {
         const data = await response.json() as { ok?: boolean; error?: AuthError };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
@@ -979,7 +971,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (phon
     };
   }, [groupId, traceId]);
 
-  if (authStatus !== 'allowed' || !phone) {
+  if (authStatus !== 'allowed' || !email) {
     return (
       <Page variant="form">
         <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
@@ -990,19 +982,19 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (phon
       </Page>
     );
   }
-  return <>{children(phone)}</>;
+  return <>{children(email)}</>;
 }
 
-function HandoffPage({ groupId, phone, next }: { groupId: string; phone: string; next?: string }) {
+function HandoffPage({ groupId, email, next }: { groupId: string; email: string; next?: string }) {
   useEffect(() => {
-    if (!groupId || !phone) {
+    if (!groupId || !email) {
       nav('/');
       return;
     }
     const safeNext = typeof next === 'string' && next.startsWith('/g/') ? next : `/g/${groupId}/ignite`;
-    writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
+    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
     nav(safeNext, { replace: true });
-  }, [groupId, phone, next]);
+  }, [groupId, email, next]);
 
   return (
     <Page variant="form">
@@ -1025,20 +1017,20 @@ export function App() {
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   if (route.type === 'create') return <CreateGroupPage />;
-  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} phone={route.phone} next={route.next} />;
+  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
   if (route.type === 'authConsume') return <AuthConsumePage token={route.token} />;
   if (route.type === 'igniteJoin') return <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
   if (route.type === 'ignite') {
     return (
       <GroupAuthGate groupId={route.groupId}>
-        {(phone) => <IgniteOrganizerPage groupId={route.groupId} phone={phone} />}
+        {(email) => <IgniteOrganizerPage groupId={route.groupId} email={email} />}
       </GroupAuthGate>
     );
   }
   return (
     <GroupAuthGate groupId={route.groupId}>
-      {(phone) => <AppShell groupId={route.groupId} phone={phone} />}
+      {(email) => <AppShell groupId={route.groupId} phone={email} />}
     </GroupAuthGate>
   );
 }

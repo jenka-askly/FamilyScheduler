@@ -165,3 +165,10 @@ Because QR-open allows “any email”:
 ## 3) Known documentation drift
 - `docs/api.md` currently describes `/api/auth/login` and token auth flows that are **not implemented** in v1.
   Treat it as legacy unless/until updated to match current/planned behavior.
+
+## 2026-02 staging cutover (develop only)
+- Identity is email-only in staging.
+- Session auth is required via `X-Session-Id` for all state mutation endpoints.
+- Membership is validated by `state.members[].email` (active only).
+- Phone-based auth/membership is deprecated for staging dogfood.
+- `ignite/join` accepts `{ groupId, sessionId, name, email }` and can provision a new active member/person during joinable windows.

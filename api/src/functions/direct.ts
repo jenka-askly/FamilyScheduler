@@ -10,7 +10,8 @@ import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import type { StorageAdapter } from '../lib/storage/storage.js';
-import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
+import { requireSessionEmail } from '../lib/auth/requireSession.js';
+import { requireActiveMember } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
@@ -22,7 +23,7 @@ export type ResponseSnapshot = {
   historyCount?: number;
 };
 
-type DirectBody = { action?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown };
+type DirectBody = { action?: unknown; groupId?: unknown; traceId?: unknown };
 
 type DirectAction =
   | { type: 'create_blank_appointment' }
@@ -245,7 +246,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
     }, traceId, context);
   }
-  logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
+  logAuth({ traceId, stage: 'gate_in', groupId: groupId, phone: identity.phoneE164 });
 
   let directAction: DirectAction;
   try {
@@ -266,7 +267,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   }
   let loaded;
   try {
-    loaded = await storage.load(identity.groupId);
+    loaded = await storage.load(groupId);
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
@@ -368,7 +369,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const now = new Date().toISOString();
     loaded.state.people.push({ personId, name: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
     try {
-      const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
+      const written = await storage.save(groupId, loaded.state, loaded.etag);
       return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } }, traceId, context);
     } catch (error) {
       if (error instanceof MissingConfigError) {
@@ -398,7 +399,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       person.cellDisplay = normalizedPhone.display;
       person.lastSeen = new Date().toISOString();
       try {
-        const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
+        const written = await storage.save(groupId, loaded.state, loaded.etag);
         return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
       } catch (error) {
         if (error instanceof MissingConfigError) {
@@ -420,7 +421,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     person.status = 'removed';
     person.lastSeen = new Date().toISOString();
     try {
-      const written = await storage.save(identity.groupId, loaded.state, loaded.etag);
+      const written = await storage.save(groupId, loaded.state, loaded.etag);
       return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
     } catch (error) {
       if (error instanceof MissingConfigError) {
@@ -435,7 +436,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   if (!execution.appliedAll) return withDirectMeta({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } }, traceId, context);
 
   try {
-    const written = await storage.save(identity.groupId, execution.nextState, loaded.etag);
+    const written = await storage.save(groupId, execution.nextState, loaded.etag);
     return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
   } catch (error) {
     if (error instanceof MissingConfigError) {

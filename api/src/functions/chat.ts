@@ -13,11 +13,12 @@ import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
-import { findActivePersonByPhone, validateJoinRequest } from '../lib/groupAuth.js';
+import { requireSessionEmail } from '../lib/auth/requireSession.js';
+import { requireActiveMember } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { recordUsageError, recordUsageSuccess } from '../lib/usageMeter.js';
 
-type ChatRequest = { message?: unknown; groupId?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
@@ -33,8 +34,7 @@ const sessionState = new Map<string, SessionRuntimeState>();
 const confirmSynonyms = new Set(['confirm', 'yes', 'y', 'ok']);
 const cancelSynonyms = new Set(['cancel', 'no', 'n']);
 
-const hashPhone = (phoneE164: string): string => createHash('sha256').update(phoneE164).digest('hex').slice(0, 12);
-const getSessionId = (request: HttpRequest, groupId: string, phoneE164: string): string => `${groupId}:${phoneE164}:${((request as { headers?: { get?: (name: string) => string | null } }).headers?.get?.('x-session-id')?.trim() || 'default')}`;
+const getSessionId = (request: HttpRequest, groupId: string): string => `${groupId}:${((request as { headers?: { get?: (name: string) => string | null } }).headers?.get?.('x-session-id')?.trim() || 'default')}`;
 const getSessionState = (sessionId: string): SessionRuntimeState => {
   const existing = sessionState.get(sessionId);
   if (existing) return existing;
@@ -277,37 +277,35 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
   try {
     const body = await request.json() as ChatRequest;
     traceId = ensureTraceId(body.traceId) || fallbackTraceId;
-    const identity = validateJoinRequest(body.groupId, body.phone);
+    const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
+    if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
+    const sessionIdentity = await requireSessionEmail(request, traceId);
+    if ('status' in sessionIdentity) return sessionIdentity;
     const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
-    console.info(JSON.stringify({ traceId, route: '/api/chat', groupId: identity.ok ? identity.groupId : null, phoneHash: identity.ok ? hashPhone(identity.phoneE164) : null, messageLen }));
-    if (!identity.ok) {
-      return {
-        ...identity.response,
-        jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
-      };
-    }
-    logAuth({ traceId, stage: 'gate_in', groupId: identity.groupId, phone: identity.phoneE164 });
+    console.info(JSON.stringify({ traceId, route: '/api/chat', groupId, emailDomain: sessionIdentity.email.split('@')[1] ?? 'unknown', messageLen }));
+    logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: sessionIdentity.email.split('@')[1] ?? 'unknown' });
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (message.length === 0) return badRequest('message is required', traceId, opId);
     const normalized = normalizeUserText(message);
 
-    const session = getSessionState(getSessionId(request, identity.groupId, identity.phoneE164));
+    const session = getSessionState(getSessionId(request, groupId));
     const storage = createStorageAdapter();
     let loaded;
     try {
-      loaded = await storage.load(identity.groupId);
+      loaded = await storage.load(groupId);
     } catch (error) {
       if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
       throw error;
     }
     let state = loaded.state;
-    const allowed = findActivePersonByPhone(state, identity.phoneE164);
-    if (!allowed) {
+    const membership = requireActiveMember(state, sessionIdentity.email, traceId);
+    if ('status' in membership) {
       logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-      return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
+      return membership;
     }
-    logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
-    session.activePersonId = allowed.personId;
+    const allowed = membership.member;
+    logAuth({ traceId, stage: 'gate_allowed', personId: allowed.memberId });
+    session.activePersonId = allowed.memberId;
 
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();
@@ -321,7 +319,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         } : person)
       };
       try {
-        const written = await storage.save(identity.groupId, nextState, loaded.etag);
+        const written = await storage.save(groupId, nextState, loaded.etag);
         loaded = { state: written.state, etag: written.etag };
         state = loaded.state;
       } catch (error) {
@@ -497,7 +495,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
     openAiCallInFlight = true;
-    const openAiParsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, identity.groupId, identity.phoneE164), traceId });
+    const openAiParsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, groupId), traceId });
     opId = openAiParsed.opId;
     const parsed = openAiParsed.parsed;
     openAiCallInFlight = false;

@@ -8149,3 +8149,8 @@ Implement web-side magic-link consume UX, persist `sessionId`, and automatically
 ### Follow-ups
 
 - Human-run staging smoke test still needed for real emailed magic-link click-through and browser network confirmation.
+
+- 2026-02-24 UTC: Implemented staged email/session cutover across API and web payloads.
+- Objective: remove phone authorization path on develop and gate mutations by session membership.
+- Files changed: auth/session helpers, state schema, core API endpoints, web App payload wiring, docs/status.
+- Commands run: install/tests/build (see below output in task response).

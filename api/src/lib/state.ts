@@ -4,13 +4,21 @@ import { normalizeLocation } from './location/normalize.js';
 export type Person = {
   personId: string;
   name: string;
-  cellE164: string;
+  cellE164?: string;
   cellDisplay?: string;
   status: 'active' | 'removed';
   createdAt?: string;
   lastSeen?: string;
   timezone?: string;
   notes?: string;
+};
+
+export type Member = {
+  memberId: string;
+  email: string;
+  status: 'active' | 'invited' | 'removed';
+  invitedAt?: string;
+  joinedAt?: string;
 };
 
 export type Appointment = {
@@ -70,6 +78,7 @@ export type AppState = {
   createdAt: string;
   updatedAt: string;
   people: Person[];
+  members: Member[];
   appointments: Appointment[];
   rules: AvailabilityRule[];
   history: string[];
@@ -96,6 +105,7 @@ export const createEmptyAppState = (groupId = 'default', groupName = 'Family Sch
     createdAt: now,
     updatedAt: now,
     people: [],
+    members: [],
     appointments: [],
     rules: [],
     history: []
@@ -137,7 +147,7 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     if (seen.has(key)) continue;
     seen.add(key);
     const status = raw?.status === 'removed' || raw?.status === 'inactive' ? 'removed' : 'active';
-    const cellE164 = typeof raw?.cellE164 === 'string' ? raw.cellE164.trim() : '';
+    const cellE164 = typeof raw?.cellE164 === 'string' ? raw.cellE164.trim() : undefined;
     const cellDisplay = typeof raw?.cellDisplay === 'string' ? raw.cellDisplay.trim() : cellE164;
     const createdAt = typeof raw?.createdAt === 'string' && raw.createdAt.trim() ? raw.createdAt.trim() : undefined;
     const lastSeen = typeof raw?.lastSeen === 'string' && raw.lastSeen.trim() ? raw.lastSeen.trim() : createdAt;
@@ -147,6 +157,37 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     people.push({ personId, name, cellE164, cellDisplay, status, createdAt, lastSeen, timezone, notes });
   }
   return people;
+};
+
+const normalizeEmail = (value: string): string => value.trim().toLowerCase();
+
+const memberRank = (status: Member['status']): number => {
+  if (status === 'active') return 3;
+  if (status === 'invited') return 2;
+  return 1;
+};
+
+const normalizeMembersCollection = (value: unknown): Member[] => {
+  if (!Array.isArray(value)) return [];
+  // De-dupe rule: keep exactly one row per normalized email and prefer active over invited over removed.
+  const byEmail = new Map<string, Member>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const email = typeof raw.email === 'string' ? normalizeEmail(raw.email) : '';
+    if (!email) continue;
+    const status: Member['status'] = raw.status === 'active' || raw.status === 'removed' ? raw.status : 'invited';
+    const member: Member = {
+      memberId: typeof raw.memberId === 'string' && raw.memberId.trim() ? raw.memberId.trim() : `M-${Math.random().toString(36).slice(2, 10)}`,
+      email,
+      status,
+      invitedAt: typeof raw.invitedAt === 'string' && raw.invitedAt.trim() ? raw.invitedAt.trim() : undefined,
+      joinedAt: typeof raw.joinedAt === 'string' && raw.joinedAt.trim() ? raw.joinedAt.trim() : undefined
+    };
+    const existing = byEmail.get(email);
+    if (!existing || memberRank(member.status) > memberRank(existing.status)) byEmail.set(email, member);
+  }
+  return [...byEmail.values()];
 };
 
 const normalizeRulesCollection = (stateLike: Record<string, unknown>, people: Person[]): AvailabilityRule[] => {
@@ -191,6 +232,7 @@ const normalizeRulesCollection = (stateLike: Record<string, unknown>, people: Pe
 export const normalizeAppState = (state: AppState): AppState => {
   const stateLike = structuredClone(state) as unknown as Record<string, unknown>;
   const people = normalizePeopleCollection(stateLike.people);
+  const members = normalizeMembersCollection(stateLike.members);
   const normalizedAppointments = (Array.isArray(stateLike.appointments) ? stateLike.appointments : []).map((appointment, idx) => {
     const raw = appointment as Record<string, unknown>;
     const assigned = Array.isArray(raw.assigned) ? raw.assigned.filter((item): item is string => typeof item === 'string') : [];
@@ -258,6 +300,7 @@ export const normalizeAppState = (state: AppState): AppState => {
     createdAt,
     updatedAt,
     people,
+    members,
     appointments: normalizedAppointments,
     rules: normalizeRulesCollection(stateLike, people),
     history: Array.isArray(stateLike.history) ? stateLike.history.filter((item): item is string => typeof item === 'string') : [],
