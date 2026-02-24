@@ -7657,3 +7657,32 @@ Ensure breakout always opens in a new tab and never navigates the original meeti
 ### Follow-ups
 
 - Manual staging verification is still required for popup-allowed and popup-blocked browser behaviors.
+
+
+## 2026-02-24 06:29 UTC (Breakout direct handoff tab isolation fix)
+
+### Objective
+
+Guarantee breakout opens Ignite only in a new tab with no opener-tab mutation by removing about:blank + manual popup navigation.
+
+### Approach
+
+- Updated `createBreakoutGroup` to compute handoff URL first and call `window.open(handoffUrl, '_blank', 'noopener')` exactly once.
+- Deleted all popup location mutation and fallback logic (`popup.location.href`, `popup.document.location.href`, close-on-failure branch).
+- Kept popup-blocked error branch intact with manual URL guidance.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no additional AGENTS file discovered under repo path in this environment.
+- `rg -n "createBreakoutGroup|about:blank|popup.location|handoff" apps/web/src/AppShell.tsx` ✅ located breakout code path and old popup mutation code.
+- `rg -n "window.open\(|about:blank|popup.location|popup.document.location|console.debug\('\[breakout\]" apps/web/src/AppShell.tsx` ✅ verified exactly one `window.open` remains and legacy popup mutation code is removed.
+
+### Follow-ups
+
+- Run browser verification in staging across Chrome/Safari/Edge to validate tab/session isolation behavior end-to-end.

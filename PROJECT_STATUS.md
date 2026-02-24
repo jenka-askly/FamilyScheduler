@@ -2186,3 +2186,28 @@ traces
 2. In app meeting view, click Burger → Breakout with popups allowed; verify original tab stays on current meeting while popup navigates to handoff/ignite.
 3. Block popups and repeat; verify same-tab fallback still navigates to new ignite route.
 4. Check browser console for temporary debug line on popup success path.
+
+
+## 2026-02-24 06:29 UTC update (Breakout opens direct handoff URL only)
+
+- Refactored breakout popup flow to open the final `/#/handoff?...` URL directly via a single `window.open(handoffUrl, '_blank', 'noopener')` call.
+- Removed all intermediate `about:blank` popup handling and all popup location mutation fallbacks (`popup.location`, `popup.document.location`).
+- Removed breakout popup navigation debug logs tied to manual popup navigation attempts.
+
+### Success criteria
+
+- Burger → Breakout opens exactly one new tab directly to `/#/handoff?...`.
+- New tab continues to `/#/g/<newGroupId>/ignite`.
+- Original tab route/title/session remain unchanged during breakout.
+- No blank intermediate tab remains.
+
+### Non-regressions
+
+- `/api/ignite/spinoff` request payload/trace behavior is unchanged.
+- Popup-blocked UX still surfaces the manual handoff URL message.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (may fail in this environment due pre-existing dependency issues).
+2. In Chrome/Edge/Safari, open an existing meeting and click Burger → Breakout.
+3. Confirm original tab URL/title/sessionStorage remain unchanged while new tab opens directly to handoff then ignite.

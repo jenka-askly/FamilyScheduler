@@ -1119,7 +1119,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (isSpinningOff) return;
     setBreakoutError(null);
     setIsSpinningOff(true);
-    const popup = window.open('about:blank', '_blank', 'noopener');
     const traceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1131,7 +1130,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       });
       const data = await response.json() as { ok?: boolean; newGroupId?: string; message?: string; traceId?: string };
       if (!response.ok || !data.ok || !data.newGroupId) {
-        if (popup) popup.close();
         setBreakoutError(`${data.message ?? 'Unable to create breakout group.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
         return;
       }
@@ -1139,32 +1137,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       const nextHash = `/g/${data.newGroupId}/ignite`;
       const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextHash)}`;
       const handoffUrl = `${window.location.origin}${handoffPath}`;
+
+      const popup = window.open(handoffUrl, '_blank', 'noopener');
       if (!popup) {
         setBreakoutError(`Popup blocked. Please allow popups, then try again. You can also open: ${handoffUrl}`);
         return;
       }
-
-      console.debug('[breakout] popup?', Boolean(popup), 'navigating popup only');
-      console.debug('[breakout] handoffUrl', handoffUrl);
-      try {
-        popup.location.href = handoffUrl;
-        popup.focus?.();
-      } catch {
-        try {
-          popup.document.location.href = handoffUrl;
-          popup.focus?.();
-        } catch {
-          setBreakoutError(`Unable to navigate popup. Please open: ${handoffUrl}`);
-          try {
-            popup.close();
-          } catch {
-            // ignore close errors
-          }
-        }
-      }
+      popup.focus?.();
       return;
     } catch {
-      if (popup) popup.close();
       setBreakoutError(`Unable to create breakout group. (trace: ${traceId})`);
     } finally {
       setIsSpinningOff(false);
