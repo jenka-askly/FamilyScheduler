@@ -1140,9 +1140,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
       const popup = window.open(handoffUrl, '_blank', 'noopener');
       if (!popup) {
-        setBreakoutError(`Popup blocked. Please allow popups, then try again. You can also open: ${handoffUrl}`);
+        setBreakoutError(`Opening Breakout in a new tab… If nothing happened, allow popups or open: ${handoffUrl}`);
         return;
       }
+      setBreakoutError(null);
       popup.focus?.();
       return;
     } catch {
@@ -1168,7 +1169,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       />
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Group</div>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Session</div>
           <div style={{ color: 'var(--muted)' }}>{breakoutError}</div>
         </div>
       ) : null}
