@@ -69,7 +69,7 @@ const createTraceId = (): string => {
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 };
 const writeSession = (session: Session): void => {
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
 };
 
 const QuestionDialog = ({
@@ -1119,6 +1119,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (isSpinningOff) return;
     setBreakoutError(null);
     setIsSpinningOff(true);
+    const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
     const traceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1130,12 +1131,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       });
       const data = await response.json() as { ok?: boolean; newGroupId?: string; message?: string; traceId?: string };
       if (!response.ok || !data.ok || !data.newGroupId) {
+        if (popup) popup.close();
         setBreakoutError(`${data.message ?? 'Unable to create breakout group.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
         return;
       }
-      writeSession({ groupId: data.newGroupId, phone, joinedAt: new Date().toISOString() });
-      window.location.hash = `/g/${data.newGroupId}/ignite`;
+
+      if (!popup) {
+        writeSession({ groupId: data.newGroupId, phone, joinedAt: new Date().toISOString() });
+        window.location.hash = `/g/${data.newGroupId}/ignite`;
+        return;
+      }
+
+      const nextPath = `/g/${data.newGroupId}/ignite`;
+      const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextPath)}`;
+      const handoffUrl = `${window.location.origin}${handoffPath}`;
+      popup.location.replace(handoffUrl);
     } catch {
+      if (popup) popup.close();
       setBreakoutError(`Unable to create breakout group. (trace: ${traceId})`);
     } finally {
       setIsSpinningOff(false);

@@ -1,3 +1,29 @@
+## 2026-02-24 05:37 UTC update (Breakout handoff opens new tab + per-tab session storage)
+
+- Breakout flow now opens a popup synchronously (`about:blank`) and, on success, routes that new tab through `/#/handoff?...` so the original tab remains on the current meeting.
+- Added hash route `/#/handoff` in `App.tsx`; it writes tab-scoped session (`sessionStorage`) and redirects to a validated `next` route (`/g/...`) with fallback to `/g/<groupId>/ignite`.
+- Session persistence is now tab-scoped by default: `writeSession` writes only to `sessionStorage`, `readSession` prefers `sessionStorage` and backfills from `localStorage` for backward compatibility, and `clearSession` clears `sessionStorage`.
+- Popup-blocked behavior preserves previous same-tab fallback: write session and navigate current tab to breakout ignite route.
+
+### Success criteria
+
+- With popups allowed, clicking Burger → Breakout opens a new tab that reaches `/#/g/<newGroupId>/ignite` and authenticates, while original tab stays on current meeting.
+- With popups blocked, Breakout continues same-tab navigation as before.
+- Refreshing each tab retains its own session context (`sessionStorage`) without cross-tab overwrite.
+
+### Non-regressions
+
+- Existing join/create/session flows still use the same session key format.
+- Legacy users with session only in `localStorage` can still authenticate once and get seeded into tab-local storage automatically.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web build`.
+2. In browser with popups enabled: from `/#/g/<groupId>/app`, click Burger → Breakout and verify new tab goes to ignite for new group while original tab stays put.
+3. In browser with popups blocked: repeat and verify same-tab fallback still navigates to new ignite route.
+4. Refresh both original and breakout tabs and verify each remains in its own meeting context.
+
+
 ## 2026-02-24 06:35 UTC update (Browser tab titles use group display name only)
 
 - Meeting route (`/#/g/:groupId/app`) now sets tab title from `groupName` only: `Family Scheduler` before metadata loads, then `Family Scheduler — {groupName}` once available.
