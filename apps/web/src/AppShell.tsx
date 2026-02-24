@@ -1161,19 +1161,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       ) : null}
       <div className="ui-shell">
         <aside className="ui-sidebar">
-          <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1 }}>
+          <Box>
             <List disablePadding>
               <ListItemButton
+                className="ui-leftNavItem"
                 selected={activeSection === 'calendar'}
                 onClick={() => setActiveSection('calendar')}
-                sx={{ borderRadius: 1, mb: 0.5, ...(activeSection === 'calendar' ? { borderLeft: 3, borderColor: 'primary.main', borderStyle: 'solid', borderRight: 0, borderTop: 0, borderBottom: 0, pl: 1.5 } : null) }}
+                sx={{ mb: 0.5, borderRadius: 0 }}
               >
                 <ListItemText primary="Schedule" />
               </ListItemButton>
               <ListItemButton
+                className="ui-leftNavItem"
                 selected={activeSection === 'members'}
                 onClick={() => setActiveSection('members')}
-                sx={{ borderRadius: 1, ...(activeSection === 'members' ? { borderLeft: 3, borderColor: 'primary.main', borderStyle: 'solid', borderRight: 0, borderTop: 0, borderBottom: 0, pl: 1.5 } : null) }}
+                sx={{ borderRadius: 0 }}
               >
                 <ListItemText primary="Members" />
               </ListItemButton>

@@ -1128,6 +1128,21 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   gap: 8px;
 }
 
+.ui-leftNavItem {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+}
+
+.ui-leftNavItem:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.ui-leftNavItem.Mui-selected,
+.ui-leftNavItem.Mui-selected:hover {
+  background: rgba(0, 0, 0, 0.07);
+}
+
 .ui-topbar {
   display: flex;
   justify-content: space-between;
