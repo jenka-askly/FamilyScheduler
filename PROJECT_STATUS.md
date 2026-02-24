@@ -1900,3 +1900,11 @@ traces
 - Standardized action variants in dialog/footer rows touched by this pass: `Cancel` now uses `variant="outlined"`, and primary actions use `variant="contained"`.
 - Kept destructive primary semantics unchanged (`color="error"`) while aligning cancel styling.
 - Updated `AppointmentEditorForm` footer actions to `Cancel` (outlined) then `Confirm` (contained) with existing handlers and behavior unchanged.
+
+
+## 2026-02-24 03:05 UTC update (Create Group page layout cleanup)
+
+- Create Group page now uses a compact centered auth-form container (`max-width: 480px`) for tighter layout consistency with join/auth flows.
+- Reduced duplicate/verbose header treatment by keeping a single page title and tightening intro copy to one concise sentence.
+- Standardized Create Group action alignment by right-aligning the primary button in a shared auth actions row.
+- Minor scanability tweaks: Group key field label/helper split (`Group key` + `6 digits`) and shorter phone helper copy.

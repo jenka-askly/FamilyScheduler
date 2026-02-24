@@ -7154,3 +7154,28 @@ Make the Join Group page form area visually compact and centered on desktop whil
 ### Follow-ups
 
 - Re-run UI verification in a local environment with dependencies fully installed to confirm final spacing/alignment polish.
+
+## 2026-02-24 03:12 UTC — Create Group page compact layout cleanup
+
+### Objective
+Implement Create Group page layout/content cleanup: compact centered form width, single non-duplicated heading treatment, tighter intro copy, and right-aligned primary action.
+
+### Approach
+- Located `CreateGroupPage` in `apps/web/src/App.tsx` via heading/button string search.
+- Scoped UI changes only within Create Group page component.
+- Reused Join-style layout approach by introducing shared auth container/form/actions class names in CSS and wiring Create Group form to them.
+- Kept create-group behavior and success state flow unchanged.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+- `rg -n "Create a Family Schedule|CREATE GROUP|JoinGroupPage|ui-authContainer|ui-authForm|ui-authActions" apps/web/src/App.tsx apps/web/src/styles.css PROJECT_STATUS.md CODEX_LOG.md` ✅ located source/targets.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed in this environment (missing `@mui/*` modules and existing implicit-any TS errors outside this change scope).
+- `pnpm install` ⚠️ failed to fetch registry package (`ERR_PNPM_FETCH_403` for `@emotion/react`) due environment auth restriction.
+- `run_playwright_script` ⚠️ unable to capture screenshot because no local web server was available at `127.0.0.1:4173` (`net::ERR_EMPTY_RESPONSE`).
+
+### Follow-ups
+- Optional: deduplicate `ui-join*` and `ui-auth*` styles into shared auth primitives if future auth pages need identical treatment.
