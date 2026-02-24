@@ -1,4 +1,4 @@
-import { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useState } from 'react';
 import { Box, Button, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CheckIcon from '@mui/icons-material/Check';
@@ -21,7 +21,7 @@ type AppointmentEditorFormProps = {
   canResolve: boolean;
   previewDisplayText: string | null;
   errorText: string | null;
-  previewContent: ReactNode;
+  assumptions: string[];
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -43,11 +43,18 @@ export const AppointmentEditorForm = ({
   canResolve,
   previewDisplayText,
   errorText,
-  previewContent,
+  assumptions,
   onConfirm,
   onCancel
-}: AppointmentEditorFormProps) => (
-  <Stack spacing={2}>
+}: AppointmentEditorFormProps) => {
+  const [showAssumptions, setShowAssumptions] = useState(false);
+
+  useEffect(() => {
+    setShowAssumptions(false);
+  }, [previewDisplayText, assumptions.length]);
+
+  return (
+    <Stack spacing={2}>
     <Typography variant="subtitle2" color="text.secondary">{appointmentCode}</Typography>
 
     <TextField
@@ -78,13 +85,34 @@ export const AppointmentEditorForm = ({
     />
 
     {previewDisplayText ? (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: -1 }}>
+      <Box sx={{ mt: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography variant="body2" color="text.secondary">Interpreted as: {previewDisplayText}</Typography>
         <Tooltip title="Accept">
           <IconButton size="small" onClick={onAcceptPreview} aria-label="Accept interpreted time">
             <CheckIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        </Box>
+        {assumptions.length ? (
+          <>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ cursor: 'pointer', mt: 0.5 }}
+              onClick={() => setShowAssumptions((prev) => !prev)}
+            >
+              Assumptions ({assumptions.length}) {showAssumptions ? '▾' : '▸'}
+            </Typography>
+            {showAssumptions ? (
+              <Box sx={{ mt: 0.5, pl: 2 }}>
+                {assumptions.map((assumption, index) => (
+                  <Typography key={`${assumption}-${index}`} variant="caption" component="div" color="text.secondary">• {assumption}</Typography>
+                ))}
+              </Box>
+            ) : null}
+          </>
+        ) : null}
       </Box>
     ) : null}
 
@@ -117,9 +145,6 @@ export const AppointmentEditorForm = ({
       minRows={2}
       maxRows={4}
     />
-
-    {previewContent ? <Box sx={{ mt: -1 }}>{previewContent}</Box> : null}
-
     <Stack direction="row" spacing={1} justifyContent="flex-end">
       <Button onClick={onConfirm}>Confirm</Button>
       <Button variant="outlined" onClick={onCancel}>
@@ -127,4 +152,5 @@ export const AppointmentEditorForm = ({
       </Button>
     </Stack>
   </Stack>
-);
+  );
+};

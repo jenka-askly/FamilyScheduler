@@ -6840,3 +6840,36 @@ Make Edit Appointment dialog less bulky by turning the `When` workflow into a co
 
 - Run full web typecheck/build in a fully provisioned frontend environment where MUI dependencies are installed.
 - Perform interactive UX smoke test on resolve/accept/save flow with live backend.
+
+## 2026-02-24 01:29 UTC (Edit appointment compact When assumptions placement)
+
+### Objective
+
+Implement compact `When` grouping in Edit Appointment dialog by moving assumptions into a collapsible inline section under preview and removing detached assumptions rendering.
+
+### Approach
+
+- Converted `AppointmentEditorForm` from a pure expression component to a hook-based component to support local `showAssumptions` collapsed state.
+- Added inline assumptions toggle UI directly below the preview row, rendered only when preview exists and assumptions are present.
+- Reset assumptions expansion state when preview/assumption set changes to keep default collapsed behavior.
+- Removed detached assumptions slot (`previewContent`) and replaced with explicit `assumptions` prop.
+- Updated `AppShell` callsite to pass assumptions array directly from `whenDraftResult.intent.assumptions`.
+- Updated project status with behavior note.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "rawWhenText|resolvedPreview|Assumptions|assumptions|AppointmentEditDialog|Edit Appointment" apps/web packages` ✅ located relevant edit dialog and assumptions usage.
+- `sed -n '1670,1815p' apps/web/src/AppShell.tsx` ✅ inspected edit dialog props and detached assumptions block source.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed due environment dependency/baseline issues (`@mui/material` modules missing and pre-existing implicit-any errors in untouched files).
+
+### Follow-ups
+
+- Re-run frontend typecheck/build once web dependencies are fully available in this environment.
+- Do a manual UI pass on Edit Appointment dialog to verify compact spacing and assumptions toggle behavior in-browser.
