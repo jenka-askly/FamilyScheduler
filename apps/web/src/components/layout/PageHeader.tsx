@@ -32,9 +32,10 @@ type Props = {
   subtitlePulse?: boolean;
   hasApiSession?: boolean;
   onSignOut?: () => void;
+  showGroupSummary?: boolean;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, onSignOut }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, onSignOut, showGroupSummary = true }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -158,6 +159,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
           </IconButton>
         </Tooltip>
       </div>
+      {showGroupSummary ? (
       <Paper>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
           <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -293,6 +295,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
           </MenuItem>
         </Menu>
       </Paper>
+      ) : null}
       {title ? <Typography variant="h6">{title}</Typography> : null}
       {description ? <Typography color="text.secondary">{description}</Typography> : null}
       {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</Typography> : null}

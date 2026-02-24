@@ -1,3 +1,35 @@
+## 2026-02-24 21:46 UTC update (Create Group UX polish + group/create contract + auth done tab handling)
+
+- Web Create Group form now removes `Group key` entirely and no longer sends `groupKey` to the API.
+- Create Group page now hides the top Group summary card (`GROUP / ... / members`) by rendering `PageHeader` with `showGroupSummary=false`.
+- Create Group email field now pre-fills from session email, is read-only/disabled when API+session auth is present, and shows `Signed in as <email>`.
+- Create Group submit now enforces required fields client-side, disables CTA until valid, and shows inline error `You're not signed in. Please sign in again.` if API session is missing (no API call in that case).
+- Auth done flow now redirects to app route and then attempts `window.close()`; when close is blocked, it shows `You can close this tab.` to reduce Continue-tab confusion.
+- API `POST /api/group/create` no longer requires/validates `groupKey`; creator email is derived from active API session when present, with request `creatorEmail` as fallback.
+- Updated groupCreate API tests for email payload and request header shape used by session checks.
+
+### Success criteria
+
+- Create Group UI has no Group key field and no top Group summary card.
+- Create Group email auto-populates from signed-in session and is read-only while signed in.
+- Create Group submit is blocked until required fields are provided and shows loading state while submitting.
+- Missing API session on submit shows clear inline error and avoids calling `/api/group/create`.
+- `POST /api/group/create` accepts requests without `groupKey` and still seeds creator person/member state.
+- Auth Done Continue action redirects to app root and attempts tab close; blocked-close case shows explicit close hint.
+
+### Non-regressions
+
+- Existing group initialization semantics remain unchanged: creator still becomes active person/member in initial state.
+- Existing sign-in and route-gate behavior remains intact outside of callback-tab UX handling.
+
+### How to verify locally
+
+1. `pnpm -r --if-present build`
+2. `pnpm -C api run build && node --test api/dist/api/src/functions/groupCreate.test.js`
+3. `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` then verify Create Group UI/behavior manually.
+4. Perform dogfood magic-link flow and verify Continue tab behavior + create-group submission path.
+
+
 ## 2026-02-24 21:05 UTC update (cross-tab auth success sync + callback-tab UX + improved auth email)
 
 - Web auth consume now broadcasts `AUTH_SUCCESS` on `BroadcastChannel('fs-auth')` with `sessionId` after persisting `fs.sessionId`; initiating tabs now listen on both broadcast + `storage` (`fs.sessionId`) to rehydrate session state immediately.

@@ -5,8 +5,9 @@ import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { createEmptyAppState } from '../lib/state.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.js';
+import { requireSessionEmail } from '../lib/auth/requireSession.js';
 
-type CreateGroupBody = { groupName?: unknown; groupKey?: unknown; creatorEmail?: unknown; creatorName?: unknown; traceId?: unknown };
+type CreateGroupBody = { groupName?: unknown; creatorEmail?: unknown; creatorName?: unknown; traceId?: unknown };
 
 const badRequest = (message: string, traceId: string): HttpResponseInit => ({ status: 400, jsonBody: { ok: false, error: 'bad_request', message, traceId } });
 
@@ -16,14 +17,18 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
   const body = await request.json() as CreateGroupBody;
   const traceId = typeof body.traceId === 'string' && body.traceId.trim() ? body.traceId.trim() : randomUUID();
   const groupName = typeof body.groupName === 'string' ? body.groupName.trim().replace(/\s+/g, ' ') : '';
-  const groupKey = typeof body.groupKey === 'string' ? body.groupKey.trim() : '';
-
   if (!groupName) return badRequest('groupName is required', traceId);
   if (groupName.length > 60) return badRequest('groupName must be 60 characters or less', traceId);
-  if (!/^\d{6}$/.test(groupKey)) return badRequest('groupKey must be exactly 6 digits', traceId);
-  if (typeof body.creatorEmail !== 'string') return badRequest('creatorEmail is required', traceId);
-  if (!isPlausibleEmail(body.creatorEmail)) return badRequest('creatorEmail is invalid', traceId);
-  const creatorEmail = normalizeEmail(body.creatorEmail);
+
+  let creatorEmail: string | null = null;
+  const session = await requireSessionEmail(request, traceId);
+  if (session.ok) creatorEmail = normalizeEmail(session.email);
+
+  if (!creatorEmail) {
+    if (typeof body.creatorEmail !== 'string') return badRequest('creatorEmail is required', traceId);
+    if (!isPlausibleEmail(body.creatorEmail)) return badRequest('creatorEmail is invalid', traceId);
+    creatorEmail = normalizeEmail(body.creatorEmail);
+  }
   const creatorName = typeof body.creatorName === 'string' ? body.creatorName.trim().replace(/\s+/g, ' ') : '';
   if (!creatorName) return badRequest('creatorName is required', traceId);
   if (creatorName.length > 40) return badRequest('creatorName must be 40 characters or less', traceId);
