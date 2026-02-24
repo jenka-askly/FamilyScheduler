@@ -7243,3 +7243,37 @@ Clean up Ignite organizer UI layout by reducing duplicate share controls, enlarg
 ### Follow-ups
 
 - Run local visual verification in a dependency-complete environment and validate both normal QR path and `qrLoadFailed` fallback path.
+
+## 2026-02-24 03:41 UTC (Ignite organizer QR/layout restore Option A)
+
+### Objective
+
+Restore missing organizer QR rendering and align Ignite organizer layout with the requested Option A hierarchy.
+
+### Approach
+
+- Reworked `IgniteOrganizerPage` conditional rendering to explicitly branch on `sessionId`:
+  - no session => clean empty state + single `Reopen` button.
+  - active session => share card with QR image and join-link controls.
+- Restored explicit QR `<img>` render path and retained QR failure handling via `qrLoadFailed` fallback content.
+- Consolidated copy behavior to one canonical join-link copy action, while keeping `Trouble scanning?` URL reveal without duplicate copy affordances.
+- Removed duplicate `Joined` display from Photos header and kept status/joined summary in the top header row only.
+- Tightened CSS for share-card grid sizing and QR dimensions with responsive collapse behavior and action-row spacing.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '260,540p' apps/web/src/App.tsx` ✅ inspected Ignite organizer implementation and render conditions.
+- `rg -n "ui-ignite|ignite-link|ignite-top-row|ui-chip|ui-meta" apps/web/src/styles.css` ✅ located Ignite-related style blocks.
+- `python - <<'PY' ...` ✅ updated `apps/web/src/styles.css` Ignite share-card/action styles to match Option A grid and QR sizing.
+- `pnpm -C apps/web run build` ⚠️ failed in this environment due unresolved `@mui/material` dependency resolution (pre-existing env/package state).
+
+### Follow-ups
+
+- Run local browser validation with dependencies installed to verify QR visibility and responsive layout behavior end-to-end.

@@ -1,3 +1,11 @@
+## 2026-02-24 03:41 UTC update (Ignition organizer QR/layout restore Option A)
+
+- Ignition organizer: restored QR rendering and tightened layout hierarchy/actions.
+- Organizer now shows a session-empty state with a single `Reopen` action when no active `sessionId`; share card/link/QR only render when a session exists.
+- Share card rebuilt as two columns (`Scan to join` + `Join link`) with one canonical copy action and QR fallback messaging when QR load fails.
+- Status pill + joined count are anchored in one header row (removed duplicate joined display from Photos header).
+- Close/Reopen actions now live in one dedicated right-aligned actions row directly under the share card; Photos section remains below actions.
+
 ## 2026-02-24 05:10 UTC update (Ignition organizer layout cleanup)
 
 - Ignition organizer page reorganized: consolidated share controls, clearer session actions, cleaner layout.

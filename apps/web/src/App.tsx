@@ -291,7 +291,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const [isUploading, setIsUploading] = useState(false);
   const [photoSelected, setPhotoSelected] = useState(false);
   const [showJoinUrl, setShowJoinUrl] = useState(false);
-  const [copiedLink, setCopiedLink] = useState<'group' | 'join' | null>(null);
+  const [copiedJoinLink, setCopiedJoinLink] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -392,14 +392,14 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     authLog({ component: 'IgniteOrganizerPage', stage: 'join_url', hasJoinUrl: Boolean(joinUrl), joinUrl, sessionId, groupId });
   }, [groupId, joinUrl, sessionId]);
 
-  const copyLink = async (kind: 'group' | 'join', value: string) => {
+  const copyJoinLink = async (value: string) => {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      setCopiedLink(kind);
-      window.setTimeout(() => setCopiedLink((current) => (current === kind ? null : current)), 1800);
+      setCopiedJoinLink(true);
+      window.setTimeout(() => setCopiedJoinLink(false), 1800);
     } catch {
-      setCopiedLink(null);
+      setCopiedJoinLink(false);
     }
   };
 
@@ -431,43 +431,56 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
             <Typography variant="body2">Joined: {joinedCount}</Typography>
           </div>
         </div>
-        <div className="ui-igniteShareCard ui-igniteSection">
-          <div>
-            {joinUrl ? (
-              qrLoadFailed ? (
-                <p className="ui-meta">QR unavailable right now. Copy the join link and share it directly.</p>
-              ) : (
-                <img className="ui-igniteQr" src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
-              )
-            ) : null}
-          </div>
-          <div>
-            <Typography variant="subtitle2">Join link</Typography>
-            <p className="ui-meta">Share this with anyone joining this session.</p>
-            <div className="ignite-link-row">
-              <span className="ignite-link-text" title={joinUrl}>{joinUrl}</span>
-              <Button variant="outlined" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>Copy</Button>
+        {!sessionId ? (
+          <div className="ui-igniteSection">
+            <Typography className="ui-meta">No active session right now.</Typography>
+            <div className="ui-igniteActions">
+              <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
             </div>
-            {copiedLink === 'join' ? <p className="ui-meta">✓ Copied</p> : null}
-            {joinUrl ? (
-              <Button variant="text" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
-                {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
-              </Button>
-            ) : null}
-            {showJoinUrl && joinUrl ? <p className="ignite-link-text" title={joinUrl}>{joinUrl}</p> : null}
           </div>
-        </div>
-        <div className="ui-igniteActions ui-igniteSection">
-          {sessionId && status === 'OPEN' ? (
-            <Button variant="contained" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</Button>
-          ) : (
-            <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
-          )}
-        </div>
+        ) : (
+          <>
+            <div className="ui-igniteShareCard ui-igniteSection">
+              <div className="ui-igniteQrCol">
+                <div className="ui-igniteLabel">Scan to join</div>
+                {qrLoadFailed ? (
+                  <div>
+                    <p className="ui-meta">QR unavailable right now.</p>
+                    <TextField value={joinUrl} InputProps={{ readOnly: true }} fullWidth />
+                    <div className="ui-igniteInlineActions">
+                      <Button variant="outlined" type="button" onClick={() => { void copyJoinLink(joinUrl); }}>Copy</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <img className="ui-igniteQrImg" src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
+                )}
+              </div>
+              <div className="ui-igniteLinkCol">
+                <div className="ui-igniteLabel">Join link</div>
+                <p className="ui-meta">Share this with anyone joining this session.</p>
+                <div className="ignite-link-row">
+                  <TextField value={joinUrl} InputProps={{ readOnly: true }} fullWidth />
+                  <Button variant="outlined" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>Copy</Button>
+                </div>
+                {copiedJoinLink ? <p className="ui-meta">✓ Copied</p> : null}
+                <Button variant="text" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
+                  {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
+                </Button>
+                {showJoinUrl ? <p className="ignite-link-text" title={joinUrl}>{joinUrl}</p> : null}
+              </div>
+            </div>
+            <div className="ui-igniteActions ui-igniteSection">
+              {status === 'OPEN' ? (
+                <Button variant="contained" type="button" onClick={() => { void closeSession(); }} disabled={status !== 'OPEN'}>Close</Button>
+              ) : (
+                <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
+              )}
+            </div>
+          </>
+        )}
         <div className="ui-igniteSection">
           <div className="ui-igniteHeader">
             <Typography variant="subtitle2">Photos</Typography>
-            <Typography variant="body2">Joined: {joinedCount}</Typography>
           </div>
           <div className="ui-igniteActions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
