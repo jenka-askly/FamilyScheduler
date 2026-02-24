@@ -36,6 +36,7 @@ type AppointmentCardListProps = {
   onDelete: (appointment: Appointment) => void;
   onSelectPeople: (appointment: Appointment) => void;
   onOpenScanViewer: (appointment: Appointment) => void;
+  activeAppointmentCode: string | null;
   scanViewIcon: ReactNode;
   editIcon: ReactNode;
   assignIcon: ReactNode;
@@ -50,6 +51,7 @@ export function AppointmentCardList({
   onDelete,
   onSelectPeople,
   onOpenScanViewer,
+  activeAppointmentCode,
   scanViewIcon,
   editIcon,
   assignIcon,
@@ -84,9 +86,10 @@ export function AppointmentCardList({
         const hasLongText = Boolean(notesText && notesText.length > 120);
         const isTextExpanded = expandedTextIds.has(appointment.id);
         const hasMetaRow = Boolean(peopleText || locationText || notesText);
+        const isActive = appointment.code === activeAppointmentCode;
 
         return (
-          <ListItem key={appointment.id} disableGutters sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}>
+          <ListItem key={appointment.id} disableGutters data-appt-code={appointment.code} className={isActive ? 'ui-appt-active' : ''} sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}>
             <Box
               sx={{
                 display: 'flex',
@@ -102,7 +105,9 @@ export function AppointmentCardList({
                   <Typography variant="body1" sx={{ fontWeight: 600, minWidth: 0 }} noWrap title={titleText}>{titleText}</Typography>
                   {isProblemStatus ? <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" /> : null}
                 </Stack>
-                <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 500 }}>{whenText}</Typography>
+                <div className="ui-appt-body">
+                  <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 500 }}>{whenText}</Typography>
+                </div>
               </Box>
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
                 <Stack direction="row" spacing={0.5} alignItems="center">
@@ -137,7 +142,7 @@ export function AppointmentCardList({
                 </Stack>
               </Stack>
             </Box>
-            <Stack spacing={0.5} sx={{ px: 0.25, pr: 1.25, mt: 0.25 }}>
+            <Stack spacing={0.5} className="ui-appt-body" sx={{ px: 0.25, pr: 1.25, mt: 0.25 }}>
               {hasMetaRow ? (
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <Typography variant="body2" color="text.secondary">👤 {peopleText}</Typography>

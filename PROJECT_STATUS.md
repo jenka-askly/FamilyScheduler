@@ -1,3 +1,9 @@
+## 2026-02-24 02:35 UTC update (List readability + active selection)
+
+- List view: indented appointment detail/body lines to improve scanability while keeping title line flush-left.
+- List view: active appointment highlight is now tracked and preserved for edit/create flows.
+- List view: active appointment auto-scrolls into view (window viewport) when off-screen after edit/create.
+
 ## 2026-02-24 02:15 UTC update (Week/Day calendar MVP enabled)
 
 - Implemented Week and Day calendar views (MVP list-style chips) and enabled Week/Day tabs in the calendar view switcher.

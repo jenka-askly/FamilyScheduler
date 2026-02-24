@@ -356,6 +356,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [questionInput, setQuestionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [whenEditorCode, setWhenEditorCode] = useState<string | null>(null);
+  const [activeAppointmentCode, setActiveAppointmentCode] = useState<string | null>(null);
   const [whenDraftText, setWhenDraftText] = useState('');
   const [descDraftText, setDescDraftText] = useState('');
   const [locationDraftText, setLocationDraftText] = useState('');
@@ -461,7 +462,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const result = await sendDirectAction({ type: 'create_blank_appointment' });
     if (!result.ok) return;
     const created = result.snapshot?.appointments.find((appointment) => !previousCodes.has(appointment.code));
-    if (created) openWhenEditor(created);
+    if (created) {
+      setActiveAppointmentCode(created.code);
+      openWhenEditor(created);
+    }
   };
 
   const openTodoEditor = (todo: TodoItem) => {
@@ -500,6 +504,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
   const openWhenEditor = (appointment: Snapshot['appointments'][0]) => {
+    setActiveAppointmentCode(appointment.code);
     setWhenEditorCode(appointment.code);
     setWhenDraftText(appointment.time?.intent?.originalText ?? '');
     setDescDraftText(appointment.desc ?? '');
@@ -972,6 +977,17 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [whenEditorCode, snapshot.appointments]);
 
   useEffect(() => {
+    if (!activeAppointmentCode) return;
+    if (calendarView !== 'list') return;
+    const element = document.querySelector(`[data-appt-code="${activeAppointmentCode}"]`) as HTMLElement | null;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (fullyVisible) return;
+    element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [activeAppointmentCode, calendarView, sortedAppointments]);
+
+  useEffect(() => {
     if (!editingPersonId) return;
     const exists = snapshot.people.some((person) => person.personId === editingPersonId && person.status === 'active');
     if (!exists) {
@@ -1290,6 +1306,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           onDelete={setAppointmentToDelete}
                           onSelectPeople={setSelectedAppointment}
                           onOpenScanViewer={setScanViewerAppointment}
+                          activeAppointmentCode={activeAppointmentCode}
                           scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
                           editIcon={<Pencil />}
                           assignIcon={<GroupOutlinedIcon fontSize="small" />}
