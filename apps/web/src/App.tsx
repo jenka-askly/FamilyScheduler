@@ -282,6 +282,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
+  const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [copiedJoinLink, setCopiedJoinLink] = useState(false);
@@ -335,8 +336,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       try {
         const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
         if (!response.ok) return;
-        const data = await response.json() as { ok?: boolean; groupName?: string };
-        if (data.ok && data.groupName) setGroupName(data.groupName);
+        const data = await response.json() as { ok?: boolean; groupName?: string; people?: Array<{ personId: string; name: string }> };
+        if (data.ok) {
+          if (data.groupName) setGroupName(data.groupName);
+          setGroupMetaPeople(data.people ?? []);
+        }
       } catch {
         // Keep existing fallback title.
       }
@@ -475,6 +479,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       return;
     }
     setStatus(data.status ?? 'CLOSING');
+    window.location.hash = `/g/${groupId}`;
   };
 
   const uploadPhotoBase64 = async (base64: string) => {
@@ -588,6 +593,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   const base = `${window.location.origin}${window.location.pathname}${window.location.search}#`;
   const joinUrl = sessionId ? `${base}/s/${groupId}/${sessionId}` : '';
+  const meetingUrl = `${window.location.origin}/#/g/${groupId}`;
   const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(joinUrl)}` : '';
 
   useEffect(() => {
@@ -606,7 +612,13 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     }
   };
 
-  const displayedPersonIds = Array.from(new Set([createdByPersonId, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
+  const groupMemberPersonIds = groupMetaPeople.map((person) => person.personId).filter((id) => Boolean(id));
+  const organizerPersonIds = createdByPersonId ? [createdByPersonId] : [];
+  const displayedPersonIds = Array.from(new Set([...groupMemberPersonIds, ...organizerPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
+  const combinedPeopleByPersonId: Record<string, { name?: string }> = {
+    ...Object.fromEntries(groupMetaPeople.map((person) => [person.personId, { name: person.name }])),
+    ...peopleByPersonId
+  };
 
   return (
     <Page variant="form">
@@ -665,8 +677,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
             <div className="ui-igniteSection">
               <Typography variant="subtitle2" sx={{ mb: 1 }}>Join link</Typography>
               <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite join link">
-                <Typography component="div" className="ui-igniteJoinLinkText" title={joinUrl}>{joinUrl}</Typography>
-                <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>
+                <Typography component="div" className="ui-igniteJoinLinkText" title={meetingUrl}>{meetingUrl}</Typography>
+                <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(meetingUrl); }}>
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
               </div>
@@ -682,7 +694,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
             <div className="ui-igniteFolksList">
               {sessionId ? displayedPersonIds.map((personId) => {
                 const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
-                const personName = peopleByPersonId[personId]?.name || personId;
+                const personName = combinedPeopleByPersonId[personId]?.name || personId;
                 return (
                   <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
                     {hasPhoto
