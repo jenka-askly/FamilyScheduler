@@ -1,3 +1,28 @@
+## 2026-02-24 06:38 UTC update (Breakout soft hint when popup handle is null)
+
+- Updated breakout popup null-handle branch to show a soft informational hint instead of a hard `Popup blocked` error, because some browsers return `null` even when the tab opens with `noopener`.
+- Soft hint now reads: `Opening Breakout in a new tab… If nothing happened, allow popups or open: <handoffUrl>`.
+- On popup truthy success, breakout alert state is explicitly cleared before focusing the new tab.
+- Renamed the breakout alert heading from `Breakout Group` to `Breakout Session`.
+
+### Success criteria
+
+- Clicking Breakout opens/navigates a new tab as before.
+- Origin tab no longer shows the false-positive `Popup blocked` wording when popup handle is null but tab likely opened.
+- If a popup is truly blocked, origin tab shows the softer fallback hint with manual URL.
+
+### Non-regressions
+
+- `/api/ignite/spinoff` request/trace flow is unchanged.
+- Existing breakout handoff URL construction/navigation logic is unchanged aside from message semantics.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (may fail in this environment due existing dependency resolution limits).
+2. In browser, go to `/#/g/<groupId>/app` and click Breakout; verify a new tab opens and origin tab does not show `Popup blocked`.
+3. In a popup-blocking browser/profile, click Breakout and verify the soft hint appears with manual URL text.
+
+
 ## 2026-02-24 06:22 UTC update (Breakout popup navigation robustness hotfix)
 
 - Updated breakout popup creation to remove `noreferrer` from window features (`noopener` only) to avoid browser behaviors that can prevent scripted navigation from `about:blank`.

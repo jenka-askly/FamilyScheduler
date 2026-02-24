@@ -1,3 +1,32 @@
+## 2026-02-24 06:38 UTC (Breakout false-positive popup-blocked message softening)
+
+### Objective
+
+Remove false `Popup blocked` error language when breakout still opens in browsers that may return `null` popup handles with `noopener`.
+
+### Approach
+
+- Updated `AppShell.createBreakoutGroup` null popup branch to show a soft hint message instead of a hard blocked error claim.
+- Explicitly clear `breakoutError` on popup truthy success before calling `popup.focus?.()`.
+- Renamed breakout alert heading text from `Breakout Group` to `Breakout Session` for UX consistency with menu wording.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no repo-local AGENTS.md discovered.
+- `rg -n "createBreakoutGroup|breakoutError|Popup blocked|Breakout Group|window.open" apps/web/src/AppShell.tsx` ✅ located breakout message/heading call sites.
+- `pnpm --filter @familyscheduler/web typecheck` ⚠️ failed in this environment due pre-existing dependency resolution issues.
+
+### Follow-ups
+
+- Human browser validation recommended for popup-allowed and popup-blocked scenarios per acceptance criteria.
+
+
 ## 2026-02-24 06:22 UTC (Hotfix: robust popup handoff navigation)
 
 ### Objective
