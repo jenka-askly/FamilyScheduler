@@ -2430,3 +2430,28 @@ Refined section tabs (active merges into content, alignment); replaced calendar 
 1. Run `pnpm -C apps/web run typecheck`.
 2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and open the app.
 3. Confirm section-tab seam/alignment behavior and calendar view dropdown switching.
+
+## 2026-02-24 10:08 UTC update (MUI button base exclusion in global CSS)
+
+- Scoped global native button styles to exclude MUI button-based controls by switching selectors to `button:not(.MuiButtonBase-root)` in `ui.css`.
+- Preserved existing native control styling for plain HTML `<button>`, `<input>`, `<select>`, and `<textarea>`.
+- This removes unintended primary button borders/background from MUI `Tab`, `Button`, and `IconButton` elements used in Schedule/Members and mobile calendar header controls.
+
+### Success criteria
+
+- Schedule/Members tabs no longer inherit global native button primary styles.
+- Active tab seam/occlusion styling (`mb: '-1px'`) works as intended against the rail divider.
+- Mobile header icon actions/dropdown no longer show native global button skin.
+
+### Non-regressions
+
+- Plain HTML buttons keep existing global styling behavior.
+- Members/Schedule section switching and calendar view selection behavior remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Inspect Schedule/Members tabs: selected tab blends into content surface; no unintended primary button fill/border.
+4. Inspect mobile header controls (view dropdown and icon actions): no global button border/background artifacts.
+5. Run `rg -n "<button\\b" apps/web/src --glob='*.tsx'` and spot-check native button surfaces still look acceptable.

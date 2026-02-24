@@ -7944,3 +7944,33 @@ Implement the requested AppShell UI tweaks: refine Schedule/Members rail seam/al
 ### Follow-ups
 
 - Capture a screenshot once browser container stability is restored (same page/control states now implemented in code).
+
+## 2026-02-24 10:08 UTC (Fix global CSS override on MUI button-based controls)
+
+### Objective
+
+Fix Schedule/Members and mobile calendar control appearance by preventing global native button CSS from overriding MUI `ButtonBase` derivatives (`Tab`, `Button`, `IconButton`).
+
+### Approach
+
+- Updated `apps/web/src/styles/ui.css` global selectors to target only native/non-MUI buttons by excluding `.MuiButtonBase-root` with `:not(...)`.
+- Kept existing style declarations unchanged so plain HTML button visuals are preserved.
+- Ran the requested native-button usage grep and completed visual verification via Playwright desktop/mobile screenshots.
+
+### Files changed
+
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "(^|,)\\s*button|a, button, input|button:hover|MuiButtonBase-root" apps/web/src/styles/ui.css` ✅ identified global button selectors to scope.
+- `rg -n "<button\\b" apps/web/src --glob='*.tsx'` ✅ located native button usages for regression review.
+- `pnpm -C apps/web run typecheck` ✅ passed.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ✅ dev server started for visual verification.
+- `run_playwright_script` ✅ captured desktop and mobile screenshots after CSS change.
+
+### Follow-ups
+
+- None.
