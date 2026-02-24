@@ -44,6 +44,8 @@ const isPlausibleEmail = (email: string): boolean => {
   return domain.includes('.') && !domain.startsWith('.') && !domain.endsWith('.');
 };
 
+const MAGIC_LINK_TTL_MINUTES = 15;
+
 const requiredConfigMissing = (): string[] => {
   const required = ['MAGIC_LINK_SECRET', 'AZURE_COMMUNICATION_CONNECTION_STRING', 'EMAIL_SENDER_ADDRESS'] as const;
   return required.filter((key) => !process.env[key] || !process.env[key]?.trim()) as string[];
@@ -67,7 +69,7 @@ export async function authRequestLink(request: HttpRequest, _context: Invocation
 
   const secret = process.env.MAGIC_LINK_SECRET!.trim();
   const now = Math.floor(Date.now() / 1000);
-  const exp = now + (15 * 60);
+  const exp = now + (MAGIC_LINK_TTL_MINUTES * 60);
   const returnTo = toSafeReturnTo(body.returnTo);
   const attemptId = toAttemptId(body.attemptId);
 
@@ -94,9 +96,9 @@ export async function authRequestLink(request: HttpRequest, _context: Invocation
   try {
     const providerResult = await sendEmail({
       to: email,
-      subject: 'Sign in to Family Scheduler',
-      plainText: `Click to sign in to Family Scheduler:\n${link}\n\nIf you don’t see this email, check your Junk/Spam folder.`,
-      html: `<p>Click to sign in to Family Scheduler: <a href="${link}">Sign in</a></p><p>If you don’t see this email, check your Junk/Spam folder.</p>`
+      subject: 'Sign in to FamilyScheduler',
+      plainText: `Sign in to FamilyScheduler\n\nYou requested a secure sign-in link.\n\nSign in: ${link}\n\nIf the button does not work, copy and paste this link into your browser:\n${link}\n\nIf you didn’t request this, ignore this email.\nThis link expires in ${MAGIC_LINK_TTL_MINUTES} minutes.`,
+      html: `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">Sign in to FamilyScheduler</h2><p style="margin:0 0 16px">You requested a secure sign-in link.</p><p style="margin:0 0 20px"><a href="${link}" style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Sign in</a></p><p style="margin:0 0 8px;font-size:14px">If the button does not work, use this link:</p><p style="margin:0 0 16px;word-break:break-all;font-size:14px"><a href="${link}">${link}</a></p><p style="margin:0 0 4px;font-size:13px;color:#444">If you didn’t request this, ignore this email.</p><p style="margin:0;font-size:13px;color:#444">This link expires in ${MAGIC_LINK_TTL_MINUTES} minutes.</p></div>`
     });
     console.log(JSON.stringify({ event: 'auth_link_success', traceId, operationId: providerResult.id }));
   } catch (error) {

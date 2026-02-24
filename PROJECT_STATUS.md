@@ -1,3 +1,30 @@
+## 2026-02-24 21:05 UTC update (cross-tab auth success sync + callback-tab UX + improved auth email)
+
+- Web auth consume now broadcasts `AUTH_SUCCESS` on `BroadcastChannel('fs-auth')` with `sessionId` after persisting `fs.sessionId`; initiating tabs now listen on both broadcast + `storage` (`fs.sessionId`) to rehydrate session state immediately.
+- Auth completion tab now behaves like a callback tab: dedicated “Signed in” confirmation, **Return to FamilyScheduler** action (focus/close attempt + fallback navigation), and always-visible safe fallback link.
+- Magic-link email content updated (HTML + plain text): clearer legitimate sign-in wording, prominent action link, fallback URL text, explicit “If you didn’t request this, ignore this email,” and explicit expiration (`15` minutes) aligned with token TTL.
+
+### Success criteria
+
+- Consuming magic link in Site B stores session and emits cross-tab auth success signal.
+- Site A detects auth success (broadcast or storage) and transitions to authenticated shell without manual refresh.
+- Site B presents callback-style signed-in UX with return/close fallback affordances.
+- Auth email subject/body reflects the updated copy in both HTML and plain text with expiration language.
+
+### Non-regressions
+
+- Existing attempt-scoped auth-complete handoff remains intact (`fs.authComplete.<attemptId>` + `AUTH_COMPLETE`).
+- `returnTo` sanitization remains internal-only and no cross-environment URL assumptions are introduced.
+
+### How to verify locally
+
+1. `pnpm -r --if-present build`
+2. `pnpm --filter @familyscheduler/web test --if-present`
+3. `pnpm --filter @familyscheduler/api test --if-present`
+4. Open Site A (`/#/`) and request a sign-in link; open link in Site B; verify Site B shows signed-in callback UX.
+5. Verify Site A becomes authenticated automatically without manual refresh.
+6. Verify email content includes the updated copy and expiration text.
+
 ## 2026-02-24 20:15 UTC update (attemptId cross-tab auth completion + auth done page + header sign out)
 
 - Added attempt-scoped magic-link flow completion across tabs:
