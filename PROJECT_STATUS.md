@@ -2112,3 +2112,27 @@ traces
 3. Open `/#/g/<groupId>/ignite`; verify tab title is `Ignition Session — <groupName>` after metadata resolves.
 4. Rename the group; verify both titles update immediately.
 
+
+## 2026-02-24 05:44 UTC update (Breakout popup-only navigation hotfix)
+
+- Tightened `createBreakoutGroup` control flow so successful popup path navigates only the popup tab and returns immediately, preventing any same-tab continuation.
+- Kept same-tab fallback only for popup-blocked path (`popup === null`), which still writes session and navigates to `/#/g/<newGroupId>/ignite`.
+- Added temporary debug signal before popup navigation: `console.debug('[breakout] popup?', Boolean(popup), 'navigating popup only')`.
+- Preserved error behavior: fetch failure / non-ok closes popup (if opened) and surfaces breakout error.
+
+### Success criteria
+
+- With popups allowed, breakout opens a new tab and only that tab navigates through `/#/handoff?...`; original tab hash does not change.
+- With popups blocked, original tab follows existing same-tab ignite fallback.
+
+### Non-regressions
+
+- Existing API request payload/trace behavior remains unchanged.
+- Existing breakout error messaging remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (if deps are installed).
+2. In app meeting view, click Burger → Breakout with popups allowed; verify original tab stays on current meeting while popup navigates to handoff/ignite.
+3. Block popups and repeat; verify same-tab fallback still navigates to new ignite route.
+4. Check browser console for temporary debug line on popup success path.
