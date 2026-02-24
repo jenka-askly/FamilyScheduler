@@ -7403,3 +7403,33 @@ Implement DELTA feature to always show organizer in Joined folks, render names i
 
 ### Follow-ups
 - In dependency-complete local/staging environment, run organizer ignite flow to confirm acceptance behavior for organizer-only session, organizer photo upload refresh, and joiner no-photo name fallback rendering.
+
+## 2026-02-24 05:04 UTC (Ignite join link static row + overflow containment)
+
+### Objective
+
+Fix Ignite organizer join link UI so it is static (not input-like) and cannot cause flex/layout width blowout with long URLs.
+
+### Approach
+
+- Updated `IgniteOrganizerPage` join-link rendering from `<code>` to static `<Typography component="div">` within the join-link flex row.
+- Added join-link row hardening styles to keep copy icon fixed (`flex: 0 0 auto`) and prevent horizontal overflow expansion (`overflow-x: hidden`, text `flex: 1 1 auto`, `min-width: 0`, ellipsis).
+- Added width constraints on `.ui-igniteSection` (`width/max-width: 100%`, `min-width: 0`) to avoid parent flex/container blowout.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Join link|ignite|ContentCopyIcon|copy" apps/web/src/App.tsx` ✅ located Ignite join-link rendering.
+- `rg -n "ui-igniteJoinLink|ui-igniteOrg|ui-igniteSection" apps/web/src -g '*.css' -g '*.tsx'` ✅ located related CSS selectors.
+- `pnpm --filter @familyscheduler/web build` ❌ failed due pre-existing missing MUI dependencies in environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ⚠️ started Vite but runtime immediately reported unresolved MUI dependencies, blocking browser verification/screenshot capture.
+
+### Follow-ups
+
+- Once MUI dependencies are installed in this environment, re-run dev server and capture a visual before/after at `/#/g/<id>/ignite` with a long join URL.
