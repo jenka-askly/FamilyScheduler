@@ -1601,11 +1601,27 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                 <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
                               </div>
                             ) : (
-                              <div className="action-icons"> 
-                                <button type="button" className="icon-button" aria-label="Rules" data-tooltip="Rules" onClick={() => openRulePromptModal(person)}><Clock3 /></button>
-                                <button type="button" className="icon-button" aria-label="Edit person" data-tooltip="Edit person" onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}><Pencil /></button>
-                                <button type="button" className="icon-button" aria-label="Delete person" data-tooltip="Delete person" onClick={() => setPersonToDelete(person)}><Trash2 /></button>
-                              </div>
+                              <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                                <Tooltip title="Rules">
+                                  <IconButton size="small" aria-label="Rules" onClick={() => openRulePromptModal(person)}>
+                                    <Clock3 />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title={isEditingPerson ? 'Save person' : 'Edit person'}>
+                                  <IconButton
+                                    size="small"
+                                    aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
+                                    onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
+                                  >
+                                    <Pencil />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete person">
+                                  <IconButton size="small" aria-label="Delete person" onClick={() => setPersonToDelete(person)}>
+                                    <Trash2 />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
                             )}
                           </td>
                         </tr>
@@ -1628,27 +1644,33 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                                             {rule.kind === 'available' ? 'Available' : 'Unavailable'}
                                           </span>
                                           <span className="rule-actions">
-                                        <button
-                                          type="button"
-                                          className="icon-button"
-                                          aria-label="Edit rule"
-                                          data-tooltip="Edit rule"
-                                          onClick={() => {
-                                            setRulePromptModal({ person });
-                                            setRulePrompt(rule.originalPrompt ?? '');
-                                            setRuleDraft(null);
-                                            if (rule.promptId && rule.originalPrompt) {
-                                              setEditingPromptId(rule.promptId);
-                                              setLegacyReplaceRuleCode(null);
-                                            } else {
-                                              setEditingPromptId(null);
-                                              setLegacyReplaceRuleCode(rule.code);
-                                            }
-                                          }}
-                                        >
-                                          <Pencil />
-                                        </button>
-                                        <button type="button" className="icon-button" aria-label="Delete rule" data-tooltip="Delete rule" onClick={() => setRuleToDelete(rule)}><Trash2 /></button>
+                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                              <Tooltip title="Edit rule">
+                                                <IconButton
+                                                  size="small"
+                                                  aria-label="Edit rule"
+                                                  onClick={() => {
+                                                    setRulePromptModal({ person });
+                                                    setRulePrompt(rule.originalPrompt ?? '');
+                                                    setRuleDraft(null);
+                                                    if (rule.promptId && rule.originalPrompt) {
+                                                      setEditingPromptId(rule.promptId);
+                                                      setLegacyReplaceRuleCode(null);
+                                                    } else {
+                                                      setEditingPromptId(null);
+                                                      setLegacyReplaceRuleCode(rule.code);
+                                                    }
+                                                  }}
+                                                >
+                                                  <Pencil />
+                                                </IconButton>
+                                              </Tooltip>
+                                              <Tooltip title="Delete rule">
+                                                <IconButton size="small" aria-label="Delete rule" onClick={() => setRuleToDelete(rule)}>
+                                                  <Trash2 />
+                                                </IconButton>
+                                              </Tooltip>
+                                            </Stack>
                                           </span>
                                         </div>
                                       </div>
