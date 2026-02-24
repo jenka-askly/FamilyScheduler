@@ -2291,3 +2291,26 @@ traces
 1. Run `pnpm -C apps/web run typecheck`.
 2. Open `/#/g/<groupId>/app`, click Breakout, and validate new-tab behavior and no regression to API error messaging.
 3. In an environment where popup handle is null, confirm notice appears with working manual link and dismiss button.
+
+## 2026-02-24 08:19 UTC update (main merge fix: App.tsx typing + JSX closure)
+
+- Removed duplicate `IgniteOrganizerPage` import from `apps/web/src/App.tsx` to avoid local declaration/import conflict after develop→main merge.
+- Expanded `parseHashRoute` return type union to include `ignite`, `igniteJoin`, and `handoff` route variants used by current route parser branches.
+- Added missing `showCreateForm` state in `CreateGroupPage` to satisfy JSX references for the “Edit details” button path.
+- Repaired `CreateGroupPage` JSX tree by closing `<form>` in the correct place, removing stray unmatched closing tags, and keeping `<FooterHelp />` as a direct child inside `<Page>`.
+
+### Success criteria
+
+- `apps/web/src/App.tsx` compiles without route-type and JSX-structure errors introduced by the merge.
+- No duplicate import/local declaration conflict for `IgniteOrganizerPage` remains.
+
+### Non-regressions
+
+- Existing create-group success UI (share link copy, continue button, edit-details affordance) remains intact.
+- Existing hash route behavior for `create`, `join`, `app`, `ignite`, `igniteJoin`, and `handoff` is unchanged.
+
+### How to verify locally
+
+1. `git diff -- apps/web/src/App.tsx` and confirm only targeted changes are present.
+2. `pnpm --filter @familyscheduler/web build` in a fully provisioned environment.
+3. Manually exercise `/#/`, `/#/g/<id>`, `/#/g/<id>/app`, `/#/g/<id>/ignite`, `/#/s/<id>/<sessionId>`, and `/#/handoff?...`.

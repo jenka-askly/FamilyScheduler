@@ -3,7 +3,6 @@ import { AppShell } from './AppShell';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { IgniteOrganizerPage } from './IgniteOrganizerPage';
 import { apiUrl } from './lib/apiUrl';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -56,7 +55,14 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } => {
+const parseHashRoute = (
+  hash: string
+):
+  | { type: 'create' }
+  | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string }
+  | { type: 'ignite'; groupId: string }
+  | { type: 'igniteJoin'; groupId: string; sessionId: string }
+  | { type: 'handoff'; groupId: string; phone: string; next?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -101,6 +107,7 @@ function CreateGroupPage() {
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const shareUrl = useMemo(() => {
     if (shareLink) return shareLink;
@@ -175,29 +182,52 @@ function CreateGroupPage() {
         </div>
         {error ? <p className="form-error">{error}</p> : null}
 
-          {createdGroupId ? (
-            <Stack spacing={2} sx={{ mt: 2 }}>
-              <div className="ui-successHeader">
-                <Box>
-                  <Typography variant="h6">Schedule created</Typography>
-                  <Typography fontWeight={600}>{createdGroupName}</Typography>
-                  <Typography variant="body2" color="text.secondary">Group ID: {createdGroupId}</Typography>
-                  {!showCreateForm ? (
-                    <Button variant="text" size="small" type="button" onClick={() => setShowCreateForm(true)}>Edit details</Button>
-                  ) : null}
-                </Box>
-                <Button variant="contained" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</Button>
-              </div>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                <TextField label="Share link" value={shareUrl} InputProps={{ readOnly: true }} fullWidth />
-                <Button variant="outlined" type="button" onClick={() => void copyShareLink()}>Copy</Button>
-              </Stack>
-              {copied ? <Alert severity="success">Copied to clipboard.</Alert> : null}
-              <Typography className="ui-successHelp">Share this link. Only people you add can join.</Typography>
+        {createdGroupId ? (
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <div className="ui-successHeader">
+              <Box>
+                <Typography variant="h6">Schedule created</Typography>
+                <Typography fontWeight={600}>{createdGroupName}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Group ID: {createdGroupId}
+                </Typography>
+                {!showCreateForm ? (
+                  <Button
+                    variant="text"
+                    size="small"
+                    type="button"
+                    onClick={() => setShowCreateForm(true)}
+                  >
+                    Edit details
+                  </Button>
+                ) : null}
+              </Box>
+              <Button
+                variant="contained"
+                type="button"
+                onClick={() => nav(`/g/${createdGroupId}/app`)}
+              >
+                Continue to app
+              </Button>
+            </div>
+
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+            >
+              <TextField label="Share link" value={shareUrl} InputProps={{ readOnly: true }} fullWidth />
+              <Button variant="outlined" type="button" onClick={() => void copyShareLink()}>
+                Copy
+              </Button>
             </Stack>
-          ) : null}
-        </Stack>
-      </div>
+
+            {copied ? <Alert severity="success">Copied to clipboard.</Alert> : null}
+            <Typography className="ui-successHelp">Share this link. Only people you add can join.</Typography>
+          </Stack>
+        ) : null}
+      </form>
+
       <FooterHelp />
     </Page>
   );

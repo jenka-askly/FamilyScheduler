@@ -7771,3 +7771,35 @@ Refine Breakout popup messaging UX to use a dismissible informational notice wit
 ### Follow-ups
 
 - Re-run local browser/staging verification in a fully provisioned environment to confirm popup-null branch behavior and manual-link UX.
+
+## 2026-02-24 08:19 UTC (Fix App.tsx build errors after develop→main merge)
+
+### Objective
+
+Fix `apps/web/src/App.tsx` merge fallout causing TypeScript/JSX build failures on main.
+
+### Approach
+
+- Applied minimal, targeted edits in `App.tsx` only:
+  - removed duplicate `IgniteOrganizerPage` import,
+  - widened `parseHashRoute` return union to match implemented route branches,
+  - added missing `showCreateForm` state,
+  - replaced malformed create-page success JSX block with correctly nested/closed structure.
+- Ran repo checks and web build command sequence requested by task.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git diff --check` ✅ no whitespace/conflict-marker issues in working diff.
+- `pnpm -w -v` ✅ `10.30.0`.
+- `pnpm -w install` ✅ completed; warning about ignored `esbuild` build scripts.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed due pre-existing environment dependency/typecheck issues (`@mui/*` unresolved plus existing implicit-any errors outside the targeted merge fix scope).
+
+### Follow-ups
+
+- Ensure web workspace dependencies are fully provisioned/approved in CI or local dev env (`pnpm approve-builds` as needed) and rerun web build.
