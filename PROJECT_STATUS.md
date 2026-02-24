@@ -1,3 +1,40 @@
+## 2026-02-24 20:15 UTC update (attemptId cross-tab auth completion + auth done page + header sign out)
+
+- Added attempt-scoped magic-link flow completion across tabs:
+  - `auth/request-link` now accepts/uses `attemptId` and validated internal `returnTo` in the emailed consume URL.
+  - Landing sign-in stores `fs.pendingAuth` in `sessionStorage`, listens for completion (`storage` + `BroadcastChannel`), and auto-navigates back to `returnTo` in the initiating tab.
+  - Consume route now parses `attemptId` + `returnTo`, signals completion (`fs.authComplete.<attemptId>` + broadcast), and routes to new `/#/auth/done` instead of forcing `/#/`.
+- Added `AuthDonePage` with “Signed in. Return to the previous tab to continue.” and manual Continue fallback.
+- Added explicit global header menu action: **Sign out**.
+  - Clears `fs.sessionId`, `familyscheduler.session`, `fs.pendingAuth`, and best-effort `fs.authComplete.*` keys.
+  - Redirects to `/#/`.
+- Updated auth UX copy:
+  - Auth email subject/body cleaned up and includes Junk/Spam hint.
+  - Sign-in form now includes Junk/Spam helper hint and stronger post-send guidance.
+
+### Success criteria
+
+- Opening magic link in Tab B no longer lands on a second create page; Tab B shows auth done confirmation.
+- Tab A auto-continues after Tab B completes consume for the same `attemptId`.
+- Header menu shows Sign out only when an API session exists and clears auth/session state on click.
+- `returnTo` handling is internal-only (must start with `/`, cannot start with `//`, cannot contain `://`).
+
+### Non-regressions
+
+- Existing magic-link consume endpoint and `fs.sessionId` persistence remain intact.
+- Existing route auth gates and join/create behavior remain unchanged except for the new completion handoff.
+
+### How to verify locally
+
+1. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`
+2. In Tab A at `/#/`, request a sign-in link.
+3. Open emailed link in Tab B and confirm Tab B shows “Signed in. Return to the previous tab to continue.”
+4. Return to Tab A and confirm it auto-continues to authenticated flow (currently `/#/`).
+5. Confirm Tab B does **not** show a second Create Group page.
+6. In authenticated UI header menu, click **Sign out** and confirm return to sign-in and no `x-session-id` on follow-up API calls.
+7. Safety checks: test bad returnTo payloads (`//evil`, `https://evil`) and confirm fallback to `/`.
+
+
 ## 2026-02-24 16:20 UTC update (web magic-link consume route + session header plumbing)
 
 - Added web hash route `/#/auth/consume?token=...` and `AuthConsumePage` to consume magic-link tokens client-side.

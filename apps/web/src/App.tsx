@@ -16,6 +16,9 @@ type AuthError = 'no_session' | 'group_mismatch' | 'not_allowed' | 'group_not_fo
 
 const SESSION_KEY = 'familyscheduler.session';
 const ROOT_SIGN_IN_MESSAGE = 'Please sign in to continue.';
+const PENDING_AUTH_KEY = 'fs.pendingAuth';
+const AUTH_CHANNEL_NAME = 'familyscheduler-auth';
+
 
 const readSession = (): Session | null => {
   if (typeof window === 'undefined') return null;
@@ -56,7 +59,20 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string } => {
+const createAttemptId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `attempt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const sanitizeReturnTo = (value?: string): string => {
+  if (typeof value !== 'string') return '/';
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 200) return '/';
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('://')) return '/';
+  return trimmed;
+};
+
+const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -69,7 +85,18 @@ const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { 
   if (sessionMatch) return { type: 'igniteJoin', groupId: sessionMatch[1], sessionId: sessionMatch[2] };
 
   if (path === '/auth/consume') {
-    return { type: 'authConsume', token: query.get('token') ?? undefined };
+    return {
+      type: 'authConsume',
+      token: query.get('token') ?? undefined,
+      attemptId: query.get('attemptId') ?? undefined,
+      returnTo: sanitizeReturnTo(query.get('returnTo') ?? undefined)
+    };
+  }
+  if (path === '/auth/done') {
+    return {
+      type: 'authDone',
+      returnTo: sanitizeReturnTo(query.get('returnTo') ?? undefined)
+    };
   }
   if (path === '/handoff') {
     return {
@@ -120,32 +147,71 @@ function RedirectToSignInPage({ message }: { message: string }) {
 function LandingSignInPage({ notice }: { notice?: string }) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [successState, setSuccessState] = useState<{ attemptId: string; returnTo: string } | null>(null);
   const [requesting, setRequesting] = useState(false);
+
+  useEffect(() => {
+    if (!successState) return;
+
+    const onComplete = (attemptId: string) => {
+      if (attemptId !== successState.attemptId) return;
+      window.sessionStorage.removeItem(PENDING_AUTH_KEY);
+      nav(successState.returnTo, { replace: true });
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === `fs.authComplete.${successState.attemptId}`) onComplete(successState.attemptId);
+    };
+
+    window.addEventListener('storage', onStorage);
+
+    const existing = window.localStorage.getItem(`fs.authComplete.${successState.attemptId}`);
+    if (existing) onComplete(successState.attemptId);
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof window.BroadcastChannel === 'function') {
+      channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+      channel.onmessage = (event: MessageEvent<{ type?: string; attemptId?: string }>) => {
+        if (event.data?.type === 'AUTH_COMPLETE' && event.data.attemptId) onComplete(event.data.attemptId);
+      };
+    }
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      channel?.close();
+    };
+  }, [successState]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSuccess(false);
+    setSuccessState(null);
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
       setError('Please enter your email.');
       return;
     }
+
+    const attemptId = createAttemptId();
+    const returnTo = '/';
+    window.sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify({ attemptId, returnTo, startedAt: Date.now() }));
+
     setRequesting(true);
     try {
       const response = await apiFetch('/api/auth/request-link', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail, traceId: createTraceId(), returnTo: '/' })
+        body: JSON.stringify({ email: trimmedEmail, traceId: createTraceId(), attemptId, returnTo })
       });
       if (!response.ok) {
         setError('Unable to request sign-in link. Please try again.');
+        window.sessionStorage.removeItem(PENDING_AUTH_KEY);
         return;
       }
-      setSuccess(true);
+      setSuccessState({ attemptId, returnTo });
     } catch {
       setError('Unable to request sign-in link. Please try again.');
+      window.sessionStorage.removeItem(PENDING_AUTH_KEY);
     } finally {
       setRequesting(false);
     }
@@ -156,9 +222,9 @@ function LandingSignInPage({ notice }: { notice?: string }) {
       <PageHeader title="Sign in" description="Use your email to get a magic sign-in link." />
       <Stack component="form" spacing={2} onSubmit={submit} sx={{ maxWidth: 520, mx: 'auto' }}>
         {notice ? <Alert severity="warning">{notice}</Alert> : null}
-        <TextField label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth />
+        <TextField label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth helperText="If you don’t see our message, check Junk/Spam." />
         <Button variant="contained" type="submit" disabled={requesting}>{requesting ? 'Sending…' : 'Send sign-in link'}</Button>
-        {success ? <Alert severity="success">Check your email</Alert> : null}
+        {successState ? <Alert severity="success">Email sent. Check your inbox (and Junk/Spam). After you click the link, come back here — we’ll continue automatically.</Alert> : null}
         {error ? <Alert severity="error">{error}</Alert> : null}
       </Stack>
       <FooterHelp />
@@ -374,7 +440,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 }
 
 
-function AuthConsumePage({ token }: { token?: string }) {
+function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attemptId?: string; returnTo?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -395,7 +461,17 @@ function AuthConsumePage({ token }: { token?: string }) {
         }
         if (!canceled) {
           window.localStorage.setItem('fs.sessionId', data.sessionId);
-          nav('/', { replace: true });
+          if (attemptId) {
+            const key = `fs.authComplete.${attemptId}`;
+            const marker = String(Date.now());
+            window.localStorage.setItem(key, marker);
+            if (typeof window.BroadcastChannel === 'function') {
+              const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
+              channel.postMessage({ type: 'AUTH_COMPLETE', attemptId });
+              channel.close();
+            }
+          }
+          nav(`/auth/done?returnTo=${encodeURIComponent(sanitizeReturnTo(returnTo))}`, { replace: true });
         }
       } catch {
         if (!canceled) setError('Unable to sign in with this link.');
@@ -406,7 +482,7 @@ function AuthConsumePage({ token }: { token?: string }) {
     return () => {
       canceled = true;
     };
-  }, [token]);
+  }, [token, attemptId, returnTo]);
 
   if (!token) {
     return (
@@ -443,6 +519,20 @@ function AuthConsumePage({ token }: { token?: string }) {
   );
 }
 
+function AuthDonePage({ returnTo }: { returnTo?: string }) {
+  const nextPath = sanitizeReturnTo(returnTo);
+
+  return (
+    <Page variant="form">
+      <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+        <Alert severity="success">Signed in. Return to the previous tab to continue.</Alert>
+        <Typography>If nothing happens, click “Continue” below.</Typography>
+        <Button variant="contained" onClick={() => nav(nextPath, { replace: true })}>Continue</Button>
+      </Stack>
+      <FooterHelp />
+    </Page>
+  );
+}
 
 type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string>; createdByPersonId?: string; peopleByPersonId?: Record<string, { name?: string }> };
 const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
@@ -1118,7 +1208,8 @@ export function App() {
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
-  if (route.type === 'authConsume') return <AuthConsumePage token={route.token} />;
+  if (route.type === 'authConsume') return <AuthConsumePage token={route.token} attemptId={route.attemptId} returnTo={route.returnTo} />;
+  if (route.type === 'authDone') return <AuthDonePage returnTo={route.returnTo} />;
   if (route.type === 'igniteJoin') return <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
   if (route.type === 'ignite') {
     return (

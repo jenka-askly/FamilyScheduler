@@ -8263,3 +8263,41 @@ Implement a non-blank unauthenticated root landing (`/#/`) with magic-link reque
 ### Follow-ups
 
 - Human/browser-side staging verification still needed for end-to-end magic-link consumption and `x-session-id` confirmation on authenticated calls after link consumption.
+
+## 2026-02-24 20:15 UTC (Cross-tab auth completion + sign out + auth copy updates)
+
+### Objective
+
+Implement attemptId-based cross-tab magic-link completion, add an auth-done destination page, add explicit Sign out in global menu, and update auth email/sign-in UX copy.
+
+### Approach
+
+- Extended auth request-link API input parsing to include `attemptId` and validated `returnTo`.
+- Updated email link generation to include `token`, `attemptId`, and `returnTo` query params; refreshed auth email subject/body text (text+html) with Junk/Spam hint.
+- In web landing sign-in, generated `attemptId`, persisted `fs.pendingAuth` in sessionStorage, posted `attemptId/returnTo`, and after success listened for completion via:
+  - `storage` event on `fs.authComplete.<attemptId>`
+  - optional `BroadcastChannel` message `{ type: 'AUTH_COMPLETE', attemptId }`
+- Extended hash parsing for `/#/auth/consume` to parse `attemptId` + `returnTo`; added `/#/auth/done` route and `AuthDonePage`.
+- Updated auth consume completion to write `fs.sessionId`, emit completion signal(s), and navigate to `/#/auth/done` instead of `/#/`.
+- Added PageHeader menu action **Sign out** (shown only when API session is present) and clear-down logic for auth/session keys.
+
+### Files changed
+
+- `api/src/functions/authRequestLink.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api test` ❌ failed due existing unrelated chat/storage test failures in this environment (`storage_get_binary_not_supported`).
+- `pnpm --filter @familyscheduler/api build && node --test api/dist/api/src/lib/auth/magicLink.test.js` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification.
+- Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/3b9264fc1b41884c/artifacts/artifacts/signin-auth-copy.png`.
+
+### Follow-ups
+
+- Staging dogfood verification for full two-tab magic-link flow and no duplicate create page in tab B.
+- Optional: add targeted unit tests for `parseHashRoute` auth consume/done query handling.
