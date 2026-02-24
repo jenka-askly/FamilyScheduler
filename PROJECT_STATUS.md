@@ -1,3 +1,9 @@
+## 2026-02-24 05:10 UTC update (Ignition organizer layout cleanup)
+
+- Ignition organizer page reorganized: consolidated share controls, clearer session actions, cleaner layout.
+- Organizer share area now uses a single canonical join link + one copy action, with a larger responsive QR and relocated trouble-scanning toggle/raw URL reveal.
+- Session action row now shows only one primary action at a time (Close when OPEN, otherwise Reopen), and photos are grouped under a dedicated Photos section header.
+
 ## 2026-02-24 04:15 UTC update (Join page compact centered layout)
 
 - Join page constrained to compact centered layout (max-width 480px).
