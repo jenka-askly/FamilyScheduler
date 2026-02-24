@@ -1,3 +1,38 @@
+## 2026-02-24 22:07 UTC (Public product home + login/create routes)
+
+### Objective
+
+Implement public `/#/` product home, explicit `/#/login` + `/#/create` routes, and signed-out create gating while preserving all existing hash routes.
+
+### Approach
+
+- Extended hash parser to support `home`, `login` (with `next` + optional message), and explicit `create`.
+- Changed parser fallback to `home` (unknown hashes now land on product home).
+- Added hash bootstrap for empty URL (`/`) to normalize into `/#/`.
+- Added `ProductHomePage` component with hero, feature cards, how-it-works section, CTA actions, and minimal footer links.
+- Added `RedirectToLoginPage` to preserve create intent and redirect unauthenticated users to `/#/login?next=create`.
+- Kept existing group/app/auth/ignite/handoff routes and components unchanged.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -w lint` ⚠️ failed in this environment because Corepack could not fetch pnpm tarball (proxy 403 during download).
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed for the same Corepack/pnpm-fetch environment limitation.
+- `npm -C apps/web run build` ✅ passed (TypeScript + Vite production build succeeded).
+- `npm -C apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started local web server for smoke checks.
+- `run_playwright_script` (Firefox) ✅ verified route smoke checks for `/#/`, `/#/login`, `/#/create` signed-out gate, `/#/xyz` fallback, and `/#/g/test-group/app` auth gate.
+- `run_playwright_script` (Chromium) ⚠️ failed due browser crash/segfault in this container; Firefox used as fallback.
+
+### Follow-ups
+
+- If required, add dedicated pages/routes for footer placeholders (Privacy/Terms/Contact).
+
 ## 2026-02-24 06:38 UTC (Breakout false-positive popup-blocked message softening)
 
 ### Objective
