@@ -1697,3 +1697,27 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   padding-left: 10px;
   box-sizing: border-box;
 }
+
+
+/* Appointment row action icon contrast */
+[data-appt-code] .MuiIconButton-root {
+  color: #475569;
+  opacity: 1 !important;
+}
+
+[data-appt-code] .MuiIconButton-root:hover {
+  color: #0f172a;
+}
+
+[data-appt-code] .MuiIconButton-root.Mui-disabled {
+  color: rgba(15, 23, 42, 0.26);
+  opacity: 1 !important;
+}
+
+.ui-aiAction {
+  color: #7c3aed;
+}
+
+.ui-aiAction:hover {
+  color: #6d28d9;
+}

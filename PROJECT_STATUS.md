@@ -1,3 +1,8 @@
+## 2026-02-24 03:05 UTC update (Calendar action icon contrast + AI scan icon)
+
+- Increased appointment list row action icon contrast so row controls no longer appear washed out.
+- Replaced the auto-scan overflow (ellipsis) trigger with an AI-style sparkles icon and made that icon the only colorful toolbar action icon.
+
 ## 2026-02-24 02:35 UTC update (List readability + active selection)
 
 - List view: indented appointment detail/body lines to improve scanability while keeping title line flush-left.
