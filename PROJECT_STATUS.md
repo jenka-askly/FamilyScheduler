@@ -2086,3 +2086,29 @@ traces
 1. Run `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`.
 2. Open `/#/g/<id>/ignite` with an active session and validate join-link row behavior using a long session URL.
 3. Confirm no horizontal scrollbar appears and card width remains stable.
+
+## 2026-02-24 05:40 UTC update (Meeting tab title uses group display name only)
+
+- Meeting route (`/#/g/:groupId/app`) now sets tab title to exactly the trimmed group display name with no `Family Scheduler —` prefix.
+- While group metadata is still loading or empty, meeting tab title is set to an empty string.
+- Ignite organizer route remains unchanged: `Ignition Session` fallback, then `Ignition Session — {groupName}` when group name is available.
+
+### Success criteria
+
+- Meeting tab shows only the group display name (for example, `Breakout`) when metadata is loaded.
+- Ignite organizer tab shows `Ignition Session — Breakout` for the same group.
+- Renaming the group updates both tab titles immediately via existing `groupName` state effects.
+- No meeting tab title includes `Family Scheduler`.
+
+### Non-regressions
+
+- Ignite tab-title behavior and fallback remain unchanged.
+- Existing group metadata fetch/rename flows remain unchanged beyond meeting-tab title text.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web build` (or `pnpm --filter @familyscheduler/web dev`).
+2. Open `/#/g/<groupId>/app`; verify tab title becomes exactly `<groupName>` and never includes `Family Scheduler`.
+3. Open `/#/g/<groupId>/ignite`; verify tab title is `Ignition Session — <groupName>` after metadata resolves.
+4. Rename the group; verify both titles update immediately.
+
