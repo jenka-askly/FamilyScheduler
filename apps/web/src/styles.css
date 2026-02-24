@@ -52,6 +52,20 @@
   justify-content: flex-end;
 }
 
+
+.ui-successHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ui-successHelp {
+  color: #475569;
+  font-size: 0.95rem;
+  margin-top: 6px;
+}
+
 .ui-joinForm {
   width: 100%;
   max-width: 480px;

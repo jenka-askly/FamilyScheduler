@@ -7179,3 +7179,35 @@ Implement Create Group page layout/content cleanup: compact centered form width,
 
 ### Follow-ups
 - Optional: deduplicate `ui-join*` and `ui-auth*` styles into shared auth primitives if future auth pages need identical treatment.
+
+## 2026-02-24 04:40 UTC (Create Group post-success UI cleanup)
+
+### Objective
+
+Clean up Create Group post-create UX by collapsing the form on success, prioritizing Continue navigation, and simplifying sharing guidance.
+
+### Approach
+
+- Added `showCreateForm` state in `CreateGroupPage` (default `true`) and set it to `false` after successful create.
+- Conditionally render create inputs/actions only when `showCreateForm` is true; preserve error rendering.
+- Reworked success area to a header row with primary `Continue to app` action, summary text, and optional `Edit details` toggle.
+- Simplified share area to label + readonly link + Copy and replaced verbose/callout copy with one muted helper line.
+- Added minimal CSS helpers for success-header alignment and muted helper text style.
+- Updated `PROJECT_STATUS.md` with the new post-success simplification note.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Your schedule is ready|Continue to app|Next steps|Share link|function CreateGroupPage" apps/web/src/App.tsx` ✅ located success block and create page source.
+- `rg -n "ui-successHeader|ui-successHelp|ui-authForm|ui-authContainer|ui-authActions" apps/web/src/styles.css` ✅ verified/added minimal style hooks.
+- `pnpm -C apps/web run build` ⚠️ environment dependency/module-resolution issue for MUI in this container (pre-existing).
+
+### Follow-ups
+
+- Re-run local dev visual verification in a dependency-complete environment to confirm final spacing and button hierarchy.
