@@ -7532,3 +7532,35 @@ Update meeting and ignite organizer browser tab titles to use `groupName` only (
 ### Follow-ups
 
 - Staging/manual verification still needed for route-to-route navigation and rename behavior with real data.
+
+## 2026-02-24 05:40 UTC (Meeting tab title prefix removal)
+
+### Objective
+
+Remove `Family Scheduler —` from meeting-page browser tab titles while preserving Ignite organizer `Ignition Session —` prefix behavior.
+
+### Approach
+
+- Located title side effects in `apps/web/src/AppShell.tsx` (meeting app shell) and `apps/web/src/App.tsx` (ignite organizer).
+- Updated only the meeting-page title effect to `document.title = name || ''`.
+- Verified ignite organizer title logic already matches required behavior and left unchanged.
+- Ran targeted search to confirm no remaining `Family Scheduler —` tab-title pattern in active title effects.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ❌ exited 1 because no `AGENTS.md` files were found by that pattern.
+- `find .. -name AGENTS.md -print` ✅ confirmed no `AGENTS.md` files in reachable parent tree.
+- `rg -n "document.title|Family Scheduler|Ignition Session" apps/web/src/App.tsx` ✅ located ignite title effect and related strings.
+- `rg -n "document.title|Family Scheduler" apps/web/src/AppShell.tsx` ✅ located meeting title effect requiring change.
+- `rg -n "document.title\s*=|Family Scheduler —|Ignition Session —" apps/web/src/AppShell.tsx apps/web/src/App.tsx` ✅ confirmed final title effects: meeting uses group name only; ignite keeps prefix.
+
+### Follow-ups
+
+- Optional: run full local browser verification in a fully provisioned environment to validate title transitions during metadata loading and rename flows.
+

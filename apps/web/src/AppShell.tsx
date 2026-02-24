@@ -999,7 +999,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   useEffect(() => {
     const name = (groupName ?? '').trim();
-    document.title = name ? `Family Scheduler — ${name}` : 'Family Scheduler';
+    document.title = name || '';
   }, [groupName]);
 
   useEffect(() => {
