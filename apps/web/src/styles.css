@@ -113,7 +113,9 @@ main {
 .table-wrap {
   width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
+
 
 .data-table {
   width: 100%;
@@ -385,6 +387,7 @@ input {
 .appointment-editor-feedback {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
   display: grid;
   gap: 8px;
 }
@@ -1755,11 +1758,13 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   align-items: center;
   gap: 8px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .ui-igniteJoinLinkText {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1949,13 +1954,12 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 }
 
 .ui-igniteOptionalLabel {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 36px;
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   color: #64748b;
+  line-height: 1.2;
+  white-space: nowrap;
 }
+
 
 .ui-igniteCardTitle {
   text-align: center;
@@ -1966,11 +1970,16 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  align-content: flex-start;
 }
 
 .ui-ignitePersonCard {
-  min-width: 92px;
-  max-width: 120px;
+  width: 96px;
+  min-height: 96px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 6px;
@@ -1981,15 +1990,20 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 
 .ui-ignitePersonThumb {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 72px;
   object-fit: cover;
   border-radius: 8px;
   background: #f1f5f9;
 }
 
 .ui-ignitePersonName {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: 100%;
+  min-height: 72px;
 }

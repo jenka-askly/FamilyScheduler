@@ -1949,3 +1949,22 @@ traces
 
 - Manual code-path verification via review of Ignite organizer polling/start/close/photo handlers in `apps/web/src/App.tsx` and ignite header override rendering in `PageHeader.tsx`.
 - `pnpm -C apps/web run typecheck` currently fails in this container due pre-existing missing MUI dependencies (`@mui/material`, `@mui/icons-material`), so browser runtime verification should be completed in dependency-complete staging/local environment.
+
+## 2026-02-24 04:50 UTC update (Ignite/Breakout organizer QR-page UX cleanup)
+
+- Ignite route banner now uses group display name + rename edit icon in the header card and live subtitle `Joined: N`; ignite mode no longer relies on member-count summary display.
+- Organizer card header now uses aligned left/center/right controls: camera + `Add photo (optional)`, centered `Ignition Session`, and right-side sound toggle + Close/Reopen kept inside the card.
+- Removed organizer explanatory copy lines by suppressing Ignite page title/description under the header card; removed duplicate in-body group-heading artifacts.
+- Join link presentation remains static text (non-editable) with copy button and constrained flex/ellipsis behavior so long URLs do not widen layout.
+- Joined folks area now renders `Joined folks (N)` with thumbnail-or-name tiles, empty state text, join bump pulse, and internal max-height scroll container.
+- Join sound remains default ON with localStorage persistence (`igniteSoundEnabled`) and best-effort/silent-fail chime on joined-count increments.
+
+### Staging verification steps
+
+1. Open `/#/g/<id>/ignite` on the develop staging deployment.
+2. Confirm banner title shows the group name with edit affordance and subtitle `Joined: N` live-updates without any `0 members` ignite summary.
+3. Confirm header row alignment inside organizer card (left camera+label, centered title, right sound+close/reopen), with no control floating outside the card.
+4. Confirm join link is static text + copy action and long URL truncates (no card width expansion).
+5. Confirm explanatory text lines are absent under organizer heading area.
+6. Join from another device/tab and confirm joined count + new tile pulse, optional beep when enabled, and no errors when autoplay is blocked.
+7. Confirm `Joined folks (N)` wraps tiles, shows internal vertical scrolling at higher counts, and displays thumbnails only for joiners with uploaded photos.
