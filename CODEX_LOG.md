@@ -8116,3 +8116,36 @@ Implement minimal backend magic-link auth endpoints and durable blob-backed sess
 ### Follow-ups
 
 - Add route-level endpoint tests for `auth/request-link` and `auth/consume-link` when lightweight function handler test harness is available.
+
+
+## 2026-02-24 16:20 UTC (Web consume route + session header plumbing)
+
+### Objective
+
+Implement web-side magic-link consume UX, persist `sessionId`, and automatically include `x-session-id` on API calls without changing backend authorization gates.
+
+### Approach
+
+- Added `getSessionId` and `apiFetch` helpers in `apps/web/src/lib/apiUrl.ts`.
+- Updated `App.tsx` to parse and handle `/#/auth/consume?token=...` with a new `AuthConsumePage`.
+- `AuthConsumePage` posts to `/api/auth/consume-link`, stores `fs.sessionId`, and redirects home on success.
+- Switched `App.tsx` API calls from `fetch(apiUrl(...))` to `apiFetch(...)` to centralize session header injection.
+- Confirmed `api/src/functions/groupJoin.ts` already emits hash-route join links (`/#/join`).
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git checkout develop && git pull && git status --short` ⚠️ failed because branch `develop` does not exist in this clone.
+- `git branch -a` ✅ confirmed only local branch `work` exists.
+- `pnpm -w install` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+
+- Human-run staging smoke test still needed for real emailed magic-link click-through and browser network confirmation.

@@ -3,7 +3,7 @@ import { AppShell } from './AppShell';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiUrl } from './lib/apiUrl';
+import { apiFetch, apiUrl } from './lib/apiUrl';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
@@ -55,7 +55,7 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; phone: string; next?: string } => {
+const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; phone: string; next?: string } | { type: 'authConsume'; token?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -66,6 +66,10 @@ const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'ap
   if (igniteMatch) return { type: 'ignite', groupId: igniteMatch[1] };
   const sessionMatch = path.match(/^\/s\/([^/]+)\/([^/]+)$/);
   if (sessionMatch) return { type: 'igniteJoin', groupId: sessionMatch[1], sessionId: sessionMatch[2] };
+
+  if (path === '/auth/consume') {
+    return { type: 'authConsume', token: query.get('token') ?? undefined };
+  }
   if (path === '/handoff') {
     return {
       type: 'handoff',
@@ -126,7 +130,7 @@ function CreateGroupPage() {
     setError(null);
     setIsCreating(true);
     try {
-      const response = await fetch(apiUrl('/api/group/create'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone, creatorName }) });
+      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorPhone, creatorName }) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.message ?? 'Failed to create group');
@@ -213,7 +217,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
     const loadGroupMeta = async () => {
       try {
-        const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
+        const response = await apiFetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string };
         if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
@@ -243,7 +247,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
       return;
     }
     const requestTraceId = createTraceId();
-    const response = await fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, email: email.trim(), traceId: requestTraceId }) });
+    const response = await apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, email: email.trim(), traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       setFormError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
@@ -295,6 +299,76 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
           </div>
         </Stack>
       </div>
+      <FooterHelp />
+    </Page>
+  );
+}
+
+
+function AuthConsumePage({ token }: { token?: string }) {
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let canceled = false;
+
+    const consume = async () => {
+      const traceId = createTraceId();
+      try {
+        const response = await apiFetch('/api/auth/consume-link', {
+          method: 'POST',
+          body: JSON.stringify({ token, traceId })
+        });
+        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string };
+        if (!response.ok || !data.ok || !data.sessionId) {
+          if (!canceled) setError(data?.message ?? data?.error ?? 'Unable to sign in with this link.');
+          return;
+        }
+        if (!canceled) {
+          window.localStorage.setItem('fs.sessionId', data.sessionId);
+          nav('/', { replace: true });
+        }
+      } catch {
+        if (!canceled) setError('Unable to sign in with this link.');
+      }
+    };
+
+    void consume();
+    return () => {
+      canceled = true;
+    };
+  }, [token]);
+
+  if (!token) {
+    return (
+      <Page variant="form">
+        <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+          <Alert severity="error">Missing sign-in token.</Alert>
+          <Button variant="text" onClick={() => nav('/')}>Go home</Button>
+        </Stack>
+        <FooterHelp />
+      </Page>
+    );
+  }
+
+  if (error) {
+    return (
+      <Page variant="form">
+        <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+          <Alert severity="error">{error}</Alert>
+          <Button variant="text" onClick={() => nav(`/auth/consume?token=${encodeURIComponent(token)}`, { replace: true })}>Retry</Button>
+        </Stack>
+        <FooterHelp />
+      </Page>
+    );
+  }
+
+  return (
+    <Page variant="form">
+      <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+        <CircularProgress size={32} />
+        <Typography>Signing you in...</Typography>
+      </Stack>
       <FooterHelp />
     </Page>
   );
@@ -368,7 +442,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   useEffect(() => {
     const loadGroupMeta = async () => {
       try {
-        const response = await fetch(apiUrl(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`));
+        const response = await apiFetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string; people?: Array<{ personId: string; name: string }> };
         if (data.ok) {
@@ -390,7 +464,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const renameGroupName = async (nextName: string) => {
     setError(null);
     const traceId = createTraceId();
-    const response = await fetch(apiUrl('/api/group/rename'), {
+    const response = await apiFetch('/api/group/rename', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, phone, groupName: nextName, traceId })
@@ -447,7 +521,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       return;
     }
     const traceId = createTraceId();
-    const response = await fetch(apiUrl('/api/ignite/start'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId }) });
+    const response = await apiFetch('/api/ignite/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId }) });
     const data = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
     if (!response.ok || !data.ok || !data.sessionId) {
       setError(data.message ?? 'Unable to start session');
@@ -473,7 +547,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     }
     let canceled = false;
     const poll = async () => {
-      const response = await fetch(apiUrl('/api/ignite/meta'), {
+      const response = await apiFetch('/api/ignite/meta', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ groupId, sessionId, phone, traceId: createTraceId() })
@@ -511,7 +585,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 
   const closeSession = async () => {
     if (!sessionId) return;
-    const response = await fetch(apiUrl('/api/ignite/close'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, traceId: createTraceId() }) });
+    const response = await apiFetch('/api/ignite/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, traceId: createTraceId() }) });
     const data = await response.json() as { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; message?: string };
     if (!response.ok || !data.ok) {
       setError(data.message ?? 'Unable to close session');
@@ -526,7 +600,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     setError(null);
     setIsUploading(true);
     try {
-      const response = await fetch(apiUrl('/api/ignite/photo'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
+      const response = await apiFetch('/api/ignite/photo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
       const data = await response.json() as { ok?: boolean; message?: string };
       if (!response.ok || !data.ok) {
         setError(data.message ?? 'Unable to upload photo');
@@ -795,7 +869,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    const response = await fetch(apiUrl('/api/ignite/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, phone, traceId: createTraceId() }) });
+    const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, name, phone, traceId: createTraceId() }) });
     const data = await response.json() as { ok?: boolean; error?: string; phoneE164?: string; message?: string };
     if (!response.ok || !data.ok) {
       setError(data.error === 'ignite_closed' ? 'Session closed. Ask the organizer to reopen the QR.' : (data.message ?? 'Unable to join session'));
@@ -804,7 +878,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
     writeSession({ groupId, phone, joinedAt: new Date().toISOString() });
     if (imageBase64) {
       try {
-        await fetch(apiUrl('/api/ignite/photo'), {
+        await apiFetch('/api/ignite/photo', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ groupId, sessionId, phone, imageBase64, imageMime: imageMime || 'image/jpeg', traceId: createTraceId() })
@@ -872,7 +946,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (phon
 
     setPhone(session.phone);
     authLog({ stage: 'gate_join_request', groupId });
-    void fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
+    void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone: session.phone, traceId }) })
       .then(async (response) => {
         const data = await response.json() as { ok?: boolean; error?: AuthError };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
@@ -953,6 +1027,7 @@ export function App() {
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} phone={route.phone} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
+  if (route.type === 'authConsume') return <AuthConsumePage token={route.token} />;
   if (route.type === 'igniteJoin') return <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
   if (route.type === 'ignite') {
     return (

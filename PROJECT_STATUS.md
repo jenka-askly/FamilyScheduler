@@ -1,3 +1,31 @@
+## 2026-02-24 16:20 UTC update (web magic-link consume route + session header plumbing)
+
+- Added web hash route `/#/auth/consume?token=...` and `AuthConsumePage` to consume magic-link tokens client-side.
+- `AuthConsumePage` now calls `POST /api/auth/consume-link`, persists returned `sessionId` into `localStorage` key `fs.sessionId`, and redirects to home.
+- Added shared web API helpers `getSessionId()` + `apiFetch()` so API requests automatically attach `x-session-id` when a session exists.
+- Updated web call sites to use `apiFetch`, including group meta/group join flows (and remaining API calls in `App.tsx`) for consistent session header behavior.
+- Backend auth gates are unchanged: existing phone-based membership checks still apply and session headers are not enforced yet.
+
+### Success criteria
+
+- Magic-link consume URL loads at `/#/auth/consume` without SPA route miss.
+- Consume page stores `fs.sessionId` after successful token exchange.
+- Web API requests include `x-session-id` whenever `fs.sessionId` is present.
+
+### Non-regressions
+
+- Existing phone-gated join/group authorization behavior is unchanged.
+- No backend endpoint now requires `x-session-id` in this increment.
+
+### How to verify locally
+
+1. `pnpm -w install`
+2. `pnpm --filter @familyscheduler/web build`
+3. Open `/#/auth/consume?token=<valid-token>` and confirm loading UI then redirect to home.
+4. In browser devtools, confirm `localStorage.getItem('fs.sessionId')` is populated.
+5. In browser network panel, confirm follow-up API requests include `x-session-id` header.
+
+
 ## 2026-02-24 15:05 UTC update (magic-link auth endpoints + durable sessions + join hash-route link)
 
 - Fixed join email links in `groupJoin` to use hash routing (`/#/join?...`) to prevent direct-route 404s on SPA hosts.
