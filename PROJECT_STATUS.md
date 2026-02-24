@@ -2597,3 +2597,9 @@ Refined section tabs (active merges into content, alignment); replaced calendar 
 3. Inspect Schedule/Members tabs: selected tab blends into content surface; no unintended primary button fill/border.
 4. Inspect mobile header controls (view dropdown and icon actions): no global button border/background artifacts.
 5. Run `rg -n "<button\\b" apps/web/src --glob='*.tsx'` and spot-check native button surfaces still look acceptable.
+
+## Update: staging email identity cutover (develop)
+- Switched group membership authority to `state.members` with normalized email keys.
+- Added centralized session + membership guards and applied to mutating endpoints.
+- Ignite breakout join now uses email+name and can provision membership on join.
+- Staging-only intent: no backward compatibility for phone-era blob data.

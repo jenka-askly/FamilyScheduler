@@ -42,3 +42,9 @@ The new auth endpoints (`/api/auth/request-link` and `/api/auth/consume-link`) r
   - Blob key prefix for durable session JSON documents.
 - `SESSION_TTL_SECONDS` *(optional, default: `604800`)*
   - Session lifetime in seconds (default is 7 days).
+
+Required for staging email/session auth:
+- `MAGIC_LINK_SECRET`
+- `WEB_BASE_URL`
+- `SESSION_BLOB_PREFIX` (optional, defaults provided)
+- `SESSION_TTL_SECONDS` (optional)
