@@ -7913,3 +7913,34 @@ Implement top section tab rail visual behavior: page-bg inactive tabs, paper-bg 
 - Run local UI verification and screenshot capture once dependencies allow app startup in this environment.
 - `pnpm -C apps/web run typecheck` ⚠️ failed due unresolved `@mui/*` dependencies in this environment.
 - `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started, then dependency pre-bundle failed for unresolved `@mui/*`, blocking browser screenshot capture.
+
+## 2026-02-24 09:52 UTC (Schedule/Members tab seam alignment + calendar view dropdown)
+
+### Objective
+
+Implement the requested AppShell UI tweaks: refine Schedule/Members rail seam/alignment behavior and replace calendar List/Month/Week/Day tabs with a compact dropdown selector.
+
+### Approach
+
+- Kept the section rail as the divider owner and updated selected tab styling to use `mb: '-1px'` + `zIndex` so active tab covers rail border and visually merges into content.
+- Preserved left-edge alignment by keeping tab flex container padding tied to shared `BODY_PX` spacing.
+- Replaced calendar view `Tabs` block with `Button + Menu + MenuItem` selector driven by `calendarView` and new `viewMenuAnchor` state.
+- Kept existing calendar content rendering branches (`list|month|week|day`) unchanged; only changed view-selection UI.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,80p' apps/web/src/AppShell.tsx` ✅ reviewed imports and top-level constants.
+- `rg -n "Schedule|Members|calendarView|<Tabs|List|Month|Week|Day" apps/web/src/AppShell.tsx` ✅ located section rail and calendar view controls.
+- `pnpm -C apps/web run typecheck` ✅ passed.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ✅ dev server started.
+- `run_playwright_script` ⚠️ failed to capture screenshot because bundled Chromium crashed with `SIGSEGV` in this environment.
+
+### Follow-ups
+
+- Capture a screenshot once browser container stability is restored (same page/control states now implemented in code).

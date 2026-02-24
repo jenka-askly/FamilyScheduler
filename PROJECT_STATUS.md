@@ -2408,3 +2408,25 @@ traces
 1. Run `pnpm -C apps/web run typecheck`.
 2. Open `/#/g/<groupId>/app`, click Breakout, and validate new-tab behavior and no regression to API error messaging.
 3. In an environment where popup handle is null, confirm notice appears with working manual link and dismiss button.
+
+## 2026-02-24 09:52 UTC update (section tab polish + calendar view dropdown)
+
+Refined section tabs (active merges into content, alignment); replaced calendar view tabs with dropdown to prevent mobile clipping.
+
+### Success criteria
+
+- Schedule/Members rail divider is visible under inactive tabs and hidden under active tab.
+- Active Schedule/Members tab visually merges with the paper content area.
+- Calendar view control is a dropdown showing current view and switching between List/Month/Week/Day.
+- Calendar header avoids clipping on narrow layouts by replacing four-tab control with compact menu button.
+
+### Non-regressions
+
+- Body scroll behavior remains unchanged.
+- Existing calendar rendering for list/month/week/day remains unchanged after selection.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and open the app.
+3. Confirm section-tab seam/alignment behavior and calendar view dropdown switching.
