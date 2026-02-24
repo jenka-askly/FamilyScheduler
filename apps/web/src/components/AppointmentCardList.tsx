@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Box, Chip, Collapse, IconButton, List, ListItem, Stack, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Chip, IconButton, List, ListItem, Stack, Tooltip, Typography } from '@mui/material';
 import type { TimeSpec } from '../../../../packages/shared/src/types.js';
 
 type Appointment = {
@@ -28,8 +28,6 @@ type Appointment = {
   time: TimeSpec;
 };
 
-type MetadataToken = { kind: 'people' | 'location' | 'notes'; label: string; tooltip?: string };
-
 type AppointmentCardListProps = {
   appointments: Appointment[];
   getStatus: (appointment: Appointment) => 'unreconcilable' | 'conflict' | 'no_conflict';
@@ -57,7 +55,19 @@ export function AppointmentCardList({
   assignIcon,
   deleteIcon
 }: AppointmentCardListProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedTextIds, setExpandedTextIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandedText = (id: string) => {
+    setExpandedTextIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
     <List disablePadding>
@@ -68,50 +78,33 @@ export function AppointmentCardList({
         const isProblemStatus = statusLabel && statusLabel.toLowerCase() !== 'no conflict';
         const statusColor = apptStatus === 'unreconcilable' ? 'warning' : 'error';
         const peopleText = appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned';
-        const titleText = appointment.desc || appointment.code;
-        const metadataTokens: MetadataToken[] = [];
-        if (appointment.peopleDisplay.length) metadataTokens.push({ kind: 'people', label: `👤 ${appointment.peopleDisplay.join(', ')}` });
-        if (appointment.locationDisplay || appointment.location) metadataTokens.push({ kind: 'location', label: `📍 ${appointment.locationDisplay || appointment.location}` });
-        if (appointment.notes) metadataTokens.push({ kind: 'notes', label: '📝 Notes', tooltip: appointment.notes });
-        const metadataPreview = metadataTokens.slice(0, 2);
+        const titleText = appointment.desc || 'Appointment';
+        const locationText = appointment.locationDisplay || appointment.location;
+        const notesText = appointment.notes?.trim();
+        const hasLongText = Boolean(notesText && notesText.length > 120);
+        const isTextExpanded = expandedTextIds.has(appointment.id);
+        const hasMetaRow = Boolean(peopleText || locationText || notesText);
 
         return (
-          <ListItem key={appointment.id} disableGutters sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}` }}>
+          <ListItem key={appointment.id} disableGutters sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}>
             <Box
-              onClick={() => setExpandedId((previous) => previous === appointment.id ? null : appointment.id)}
               sx={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 justifyContent: 'space-between',
                 width: '100%',
-                py: 1,
-                px: 0.25,
-                cursor: 'pointer'
+                py: 0.25,
+                px: 0.25
               }}
             >
               <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap title={titleText}>{titleText}</Typography>
-                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.5 }}>
+                <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 600, minWidth: 0 }} noWrap title={titleText}>{titleText}</Typography>
                   {isProblemStatus ? <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" /> : null}
-                  {metadataPreview.length > 0 ? (
-                    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-                      {metadataPreview.map((token, index) => (
-                        token.kind === 'notes' ? (
-                          <Tooltip key={`${appointment.id}-${token.kind}-${index}`} title={token.tooltip ?? 'Notes'}>
-                            <Typography variant="caption" color="text.secondary" noWrap>{token.label}</Typography>
-                          </Tooltip>
-                        ) : (
-                          <Typography key={`${appointment.id}-${token.kind}-${index}`} variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 220 }}>
-                            {token.label}
-                          </Typography>
-                        )
-                      ))}
-                    </Stack>
-                  ) : null}
                 </Stack>
+                <Typography variant="body2" sx={{ mt: 0.25, fontWeight: 500 }}>{whenText}</Typography>
               </Box>
               <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
-                <Typography variant="caption" color="text.secondary" noWrap>{whenText}</Typography>
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   {appointment.scanImageKey ? (
                     <Tooltip title="View scanned document">
@@ -120,48 +113,64 @@ export function AppointmentCardList({
                         color="inherit"
                         aria-label="View scanned document"
                         sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onOpenScanViewer(appointment);
-                        }}
+                        onClick={() => onOpenScanViewer(appointment)}
                       >
                         {scanViewIcon}
                       </IconButton>
                     </Tooltip>
                   ) : null}
                   <Tooltip title="Edit appointment">
-                    <IconButton size="small" color="inherit" aria-label="Edit appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onEdit(appointment); }}>
+                    <IconButton size="small" color="inherit" aria-label="Edit appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={() => onEdit(appointment)}>
                       {editIcon}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Assign people">
-                    <IconButton size="small" color="inherit" aria-label="Assign people" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onSelectPeople(appointment); }}>
+                    <IconButton size="small" color="inherit" aria-label="Assign people" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={() => onSelectPeople(appointment)}>
                       {assignIcon}
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Delete appointment">
-                    <IconButton size="small" color="inherit" aria-label="Delete appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={(event) => { event.stopPropagation(); onDelete(appointment); }}>
+                    <IconButton size="small" color="inherit" aria-label="Delete appointment" sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }} onClick={() => onDelete(appointment)}>
                       {deleteIcon}
                     </IconButton>
                   </Tooltip>
                 </Stack>
               </Stack>
             </Box>
-            <Collapse in={expandedId === appointment.id} timeout="auto" unmountOnExit>
-              <Stack spacing={0.75} sx={{ py: 0.75, px: 0.25, pr: 1.25 }}>
-                <Typography variant="body2" color="text.secondary">📅 {whenText}</Typography>
-                <Typography variant="body2" color="text.secondary">👤 {peopleText}</Typography>
-                {appointment.locationDisplay || appointment.location ? (
-                  <Typography variant="body2" color="text.secondary">📍 {appointment.locationDisplay || appointment.location}</Typography>
-                ) : null}
-                {appointment.notes ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    📝 {appointment.notes}
+            <Stack spacing={0.5} sx={{ px: 0.25, pr: 1.25, mt: 0.25 }}>
+              {hasMetaRow ? (
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                  <Typography variant="body2" color="text.secondary">👤 {peopleText}</Typography>
+                  {locationText ? <Typography variant="body2" color="text.secondary">📍 {locationText}</Typography> : null}
+                  {notesText ? (
+                    <Tooltip title="Notes available">
+                      <Typography variant="body2" color="text.secondary" aria-label="Notes available">📝</Typography>
+                    </Tooltip>
+                  ) : null}
+                </Stack>
+              ) : null}
+              {notesText ? (
+                <Box>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: isTextExpanded ? 'unset' : 2,
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {notesText}
                   </Typography>
-                ) : null}
-                <Typography variant="caption" color="text.disabled">Code: {appointment.code}</Typography>
-              </Stack>
-            </Collapse>
+                  {hasLongText ? (
+                    <Button size="small" variant="text" sx={{ mt: 0.25, minWidth: 0, px: 0 }} onClick={() => toggleExpandedText(appointment.id)}>
+                      {isTextExpanded ? 'Show less' : 'Show more'}
+                    </Button>
+                  ) : null}
+                </Box>
+              ) : null}
+            </Stack>
           </ListItem>
         );
       })}

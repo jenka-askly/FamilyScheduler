@@ -6645,3 +6645,33 @@ Implement UI polish across calendar/list/header: single unified calendar surface
 - `pnpm -r --if-present build` ❌ failed in `apps/web` due environment dependency resolution issues (`@mui/material` and `@mui/icons-material/*` unresolved) plus pre-existing TypeScript strictness errors outside this change scope.
 - `pnpm -C apps/web exec tsc -p tsconfig.json --noEmit` ❌ same dependency resolution/typecheck baseline failures.
 - `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started but runtime dependency resolution failed for MUI packages, so screenshot capture could not proceed.
+
+## 2026-02-24 00:00 UTC (Appointment list elastic rows + inline notes expansion)
+
+### Objective
+
+Replace row-level expand/collapse in appointment list with an elastic always-visible row layout, elevate `When` prominence, and add inline notes-only expansion.
+
+### Approach
+
+- Removed row click toggle + `<Collapse>` rendering and replaced with always-visible compact rows.
+- Promoted title/when hierarchy in left content block and kept problem status chip near title.
+- Preserved right-aligned action icon order and handler wiring.
+- Added secondary metadata row for people/location/notes indicator.
+- Added per-appointment notes expansion state via `Set<string>` and `Show more/Show less` control using a text-length heuristic.
+- Updated project status documentation to record UI behavior changes.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/components/AppointmentCardList.tsx` ✅ inspected current row/collapse implementation.
+- `pnpm -r --if-present build` ⚠️ failed due environment/dependency setup (`Cannot find module '@mui/material'` and related existing TypeScript resolution errors).
+
+### Follow-ups
+
+- Once frontend dependencies are available in the environment, rerun build and do manual visual QA in browser for row density/expansion behavior.

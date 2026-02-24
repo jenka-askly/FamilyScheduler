@@ -1687,3 +1687,31 @@ traces
 1. `pnpm -r --if-present build`
 2. `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173`
 3. Open `/#/g/<groupId>/app` and validate header, unified calendar surface, list density, and status chip behavior.
+
+## 2026-02-24 00:00 UTC update (Appointment list elastic rows + inline notes expansion)
+
+- Reworked appointment list rows to an always-visible elastic layout: removed row-level expand/collapse and now show key details by default.
+- Promoted `When` to a first-class field directly beneath the description with stronger visual weight (not muted gray).
+- Added compact secondary metadata row (people + location + notes indicator) when applicable.
+- Added inline notes preview clamped to 2 lines with per-appointment `Show more` / `Show less` text expansion.
+- Preserved action handlers and ordering (view scan, edit, assign, delete) and preserved status rule to show only problem chips (no `No conflict`).
+- UI-only changes; business logic unchanged.
+
+### Success criteria
+
+- Description and `When` are always visible and scannable in each row.
+- Rows naturally grow only when metadata/notes are present.
+- Notes default to a 2-line preview and expand/collapse inline per appointment.
+- Action buttons remain right-aligned and functional.
+- `No conflict` label is not shown.
+
+### Non-regressions
+
+- Existing scan/edit/assign/delete flows remain wired to existing handlers.
+- Appointment data formatting and status evaluation logic remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -r --if-present build`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Open the appointment list and verify the elastic row behavior and inline notes expansion.
