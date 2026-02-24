@@ -1,3 +1,35 @@
+## 2026-02-24 14:20 UTC update (Join email capture + ACS send with origin-derived link)
+
+- Updated Join Group UI to collect a required email field and include it in `/api/group/join` payload.
+- Extended `groupJoin` API to parse optional `email` and attempt ACS email send **after** successful join authorization.
+- Implemented email link generation using request headers origin strategy (Option 2): `origin` header fallback to `x-forwarded-host`.
+- Added structured email logs with `traceId` + `groupId` for attempt/success/failure/skip states.
+- Added ACS email env var documentation and local settings placeholders.
+
+### Success criteria
+
+- Join Group page includes Email field and sends `{ groupId, phone, traceId, email }`.
+- Join authorization behavior remains unchanged when email is missing/invalid or email send fails.
+- API logs include `email_send_attempt`, `email_send_success`, `email_send_failure`, and `email_send_skipped` with reasons.
+
+### Non-regressions
+
+- Existing phone-based group membership checks and status codes remain unchanged for auth failures.
+- Email failure does not block successful join response.
+
+### Known limitations
+
+- Email link is Option A (`/join?groupId=<id>&traceId=<traceId>`) only.
+- Link is informational; no token validation is added in this change.
+
+### How to verify locally
+
+1. Set `AZURE_COMMUNICATION_CONNECTION_STRING` and `EMAIL_SENDER_ADDRESS` in API settings.
+2. Run API + Web locally and submit Join Group with a valid phone and email.
+3. Confirm join success, email delivery, and logs for attempt/success including `traceId` + `groupId`.
+4. Test with missing origin header path and verify `email_send_skipped` (`missing_origin`) while join still succeeds.
+
+
 ## 2026-02-24 13:13 UTC update (members/rules icon action normalization)
 
 - Converted Members table row action controls (Rules/Edit/Delete) from plain `<button className="icon-button">` to MUI `IconButton` wrapped in `Tooltip`.
