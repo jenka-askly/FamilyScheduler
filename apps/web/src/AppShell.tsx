@@ -22,6 +22,8 @@ import {
   FormGroup,
   IconButton,
   Link as MuiLink,
+  Menu,
+  MenuItem,
   Paper,
   Popover,
   Stack,
@@ -35,6 +37,7 @@ import {
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -317,12 +320,20 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [usage, setUsage] = useState<UsageStatus>({ status: 'loading' });
   const [activeSection, setActiveSection] = useState<ShellSection>('calendar');
   const [calendarView, setCalendarView] = useState<CalendarView>('list');
+  const [viewMenuAnchor, setViewMenuAnchor] = useState<null | HTMLElement>(null);
   const [monthCursor, setMonthCursor] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [weekCursor, setWeekCursor] = useState<Date>(() => new Date());
   const [dayCursor, setDayCursor] = useState<Date>(() => new Date());
+  const isViewMenuOpen = Boolean(viewMenuAnchor);
+  const calendarViewLabels: Record<CalendarView, string> = {
+    list: 'List',
+    month: 'Month',
+    week: 'Week',
+    day: 'Day'
+  };
 
   const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
 
@@ -1256,7 +1267,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   px: 2,
                   backgroundColor: 'background.default',
                   '&:hover': { backgroundColor: 'action.hover' },
-                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1, zIndex: 1 }
+                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', mb: '-1px', zIndex: 2, fontWeight: 600 }
                 }}
               />
               <Tab
@@ -1270,7 +1281,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   px: 2,
                   backgroundColor: 'background.default',
                   '&:hover': { backgroundColor: 'action.hover' },
-                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1, zIndex: 1 }
+                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', mb: '-1px', zIndex: 2, fontWeight: 600 }
                 }}
               />
             </Tabs>
@@ -1288,17 +1299,25 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               <section className="ui-cal">
                   <Box>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
-                      <Tabs
-                        value={calendarView}
-                        onChange={(_event: SyntheticEvent, value: CalendarView) => setCalendarView(value)}
-                        aria-label="Calendar views"
-                        sx={{ flex: 1, minHeight: 40, '& .MuiTab-root': { minHeight: 40, textTransform: 'none', fontWeight: 600 } }}
-                      >
-                        <Tab label="List" value="list" />
-                        <Tab label="Month" value="month" />
-                        <Tab label="Week" value="week" />
-                        <Tab label="Day" value="day" />
-                      </Tabs>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Button
+                          variant="text"
+                          endIcon={<ExpandMoreIcon />}
+                          onClick={(event) => setViewMenuAnchor(event.currentTarget)}
+                          sx={{ textTransform: 'none', minWidth: 0, px: 1 }}
+                          aria-haspopup="menu"
+                          aria-expanded={isViewMenuOpen ? 'true' : undefined}
+                          aria-label="Calendar view selector"
+                        >
+                          {calendarViewLabels[calendarView]}
+                        </Button>
+                        <Menu anchorEl={viewMenuAnchor} open={isViewMenuOpen} onClose={() => setViewMenuAnchor(null)}>
+                          <MenuItem selected={calendarView === 'list'} onClick={() => { setCalendarView('list'); setViewMenuAnchor(null); }}>List</MenuItem>
+                          <MenuItem selected={calendarView === 'month'} onClick={() => { setCalendarView('month'); setViewMenuAnchor(null); }}>Month</MenuItem>
+                          <MenuItem selected={calendarView === 'week'} onClick={() => { setCalendarView('week'); setViewMenuAnchor(null); }}>Week</MenuItem>
+                          <MenuItem selected={calendarView === 'day'} onClick={() => { setCalendarView('day'); setViewMenuAnchor(null); }}>Day</MenuItem>
+                        </Menu>
+                      </Box>
                       <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
                         <Tooltip title="Scan to create appointment">
                           <span>
