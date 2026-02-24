@@ -92,6 +92,11 @@ Ignite endpoints are also membership-protected by groupId+phone:
 - API: `DEBUG_AUTH_LOGS=true`
 - API populates `traceId` when missing (ensureTraceId), and includes `traceId` in error responses.
 
+### 1.8 Web magic-link consume route (Implemented)
+- Web now handles `/#/auth/consume?token=...` and posts token to `POST /api/auth/consume-link`.
+- On success, client stores `sessionId` in `localStorage` key `fs.sessionId` and redirects to home.
+- Web API helper now auto-attaches `x-session-id` when present; backend enforcement remains unchanged in this increment.
+
 ---
 
 ## 2) Planned (Not Implemented Yet) — Email-Based, Magic Link, QR Provisional Join
