@@ -7564,3 +7564,31 @@ Remove `Family Scheduler —` from meeting-page browser tab titles while preserv
 
 - Optional: run full local browser verification in a fully provisioned environment to validate title transitions during metadata loading and rename flows.
 
+
+## 2026-02-24 05:44 UTC (Breakout popup-only navigation control-flow hotfix)
+
+### Objective
+
+Fix breakout bug where original tab still navigated to ignite even when popup tab was opened.
+
+### Approach
+
+- Verified `createBreakoutGroup` already opens popup before fetch and closes it on error paths.
+- Updated success popup branch to use explicit `nextHash` naming and added an immediate `return` after `popup.location.replace(...)` to hard-stop same-tab continuation.
+- Added temporary debug log before popup navigation to confirm popup-only routing path at runtime.
+- Left popup-blocked fallback unchanged (same-tab `writeSession` + hash navigation).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1080,1170p' apps/web/src/AppShell.tsx` ✅ inspected breakout handler.
+- `pnpm --filter @familyscheduler/web typecheck` ❌ failed due pre-existing workspace dependency/type issues (`@mui/*` resolution and implicit-any errors not introduced by this patch).
+
+### Follow-ups
+
+- Remove temporary breakout debug log after manual validation in a real browser run.

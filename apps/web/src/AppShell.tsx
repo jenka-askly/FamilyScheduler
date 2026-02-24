@@ -1142,10 +1142,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         return;
       }
 
-      const nextPath = `/g/${data.newGroupId}/ignite`;
-      const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextPath)}`;
+      const nextHash = `/g/${data.newGroupId}/ignite`;
+      const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextHash)}`;
       const handoffUrl = `${window.location.origin}${handoffPath}`;
+      console.debug('[breakout] popup?', Boolean(popup), 'navigating popup only');
       popup.location.replace(handoffUrl);
+      return;
     } catch {
       if (popup) popup.close();
       setBreakoutError(`Unable to create breakout group. (trace: ${traceId})`);
