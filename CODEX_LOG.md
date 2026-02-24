@@ -1,3 +1,35 @@
+## 2026-02-24 01:55 UTC (Month view today highlight MVP)
+
+### Objective
+
+Add a subtle "today" highlight in Month view using browser-local date comparison, without changing month bucketing logic or calendar behavior.
+
+### Approach
+
+- Updated Month grid cell render in `AppShell` to compute `isToday` using local `getFullYear()/getMonth()/getDate()` comparison against `new Date()`.
+- Appended `ui-cal-today` class in the existing month cell class string while preserving `ui-cal-outside` handling.
+- Added `.ui-cal-today` CSS with subtle blue outline + light tint and negative outline offset so it stays visually inside the cell.
+- Added a concise status note in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ none found in repo scope.
+- `rg -n "monthDays\.map|ui-cal-cell|ui-cal-outside" apps/web/src/AppShell.tsx` ✅ located month-cell render path.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due existing environment dependency/module-resolution issues for `@mui/*` packages.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts but reports unresolved `@mui/*` imports in this environment.
+- `run_playwright_script` ✅ screenshot captured at `browser:/tmp/codex_browser_invocations/e1364df4dcffb22a/artifacts/artifacts/month-today-highlight.png`.
+
+### Follow-ups
+
+- Restore/install missing MUI dependencies in this environment to fully validate visual state and run typecheck cleanly.
+
 ## 2026-02-24 01:10 UTC (Calendar single-surface border fix)
 
 ### Objective

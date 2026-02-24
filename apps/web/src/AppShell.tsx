@@ -1207,8 +1207,13 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                         const dayAppointments = appointmentsByDate[dateKey] ?? [];
                         const dayTodos = todosByDate[dateKey] ?? [];
                         const inMonth = day.getMonth() === monthAnchor.getMonth();
+                        const now = new Date();
+                        const isToday =
+                          day.getFullYear() === now.getFullYear() &&
+                          day.getMonth() === now.getMonth() &&
+                          day.getDate() === now.getDate();
                         return (
-                          <div key={dateKey} className={`ui-cal-cell ${inMonth ? '' : 'ui-cal-outside'}`}>
+                          <div key={dateKey} className={`ui-cal-cell ${inMonth ? '' : 'ui-cal-outside'} ${isToday ? 'ui-cal-today' : ''}`}>
                             <div className="ui-cal-dateRow">
                               <span>{day.getDate()}</span>
                               <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
