@@ -360,7 +360,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [notesDraftText, setNotesDraftText] = useState('');
   const [whenDraftResult, setWhenDraftResult] = useState<TimeSpec | null>(null);
   const [whenDraftError, setWhenDraftError] = useState<string | null>(null);
-  const [whenPreviewed, setWhenPreviewed] = useState(false);
+  const [isWhenResolving, setIsWhenResolving] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
@@ -505,7 +505,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setNotesDraftText(appointment.notes ?? '');
     setWhenDraftResult(null);
     setWhenDraftError(null);
-    setWhenPreviewed(false);
+    setIsWhenResolving(false);
   };
 
   const closeWhenEditor = () => {
@@ -516,18 +516,18 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setNotesDraftText('');
     setWhenDraftResult(null);
     setWhenDraftError(null);
-    setWhenPreviewed(false);
+    setIsWhenResolving(false);
   };
 
   const previewWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
     const whenText = whenDraftText.trim();
     if (!whenText) {
       setWhenDraftResult(null);
-      setWhenPreviewed(false);
       setWhenDraftError('Enter a date/time to resolve.');
       return;
     }
     const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+    setIsWhenResolving(true);
     try {
       const response = await fetch(apiUrl('/api/direct'), {
         method: 'POST',
@@ -544,21 +544,21 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         })
       });
       const json = await response.json() as { ok?: boolean; time?: TimeSpec; message?: string };
-      if (!response.ok || !json.ok || !json.time) {
+      if (!response.ok || !json.ok || !json.time || json.time.intent.status !== 'resolved' || !json.time.resolved) {
         setWhenDraftResult(null);
-        setWhenDraftError(json.message ?? 'Unable to resolve date.');
-        setWhenPreviewed(false);
+        setWhenDraftError("Couldn't interpret that.");
         return;
       }
       setWhenDraftResult(json.time);
       setWhenDraftError(null);
-      setWhenPreviewed(true);
     } catch (_error) {
       setWhenDraftResult(null);
-      setWhenDraftError('Unable to resolve date.');
-      setWhenPreviewed(false);
+      setWhenDraftError("Couldn't interpret that.");
+    } finally {
+      setIsWhenResolving(false);
     }
   };
+
 
   const confirmWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
     if (descDraftText !== (appointment.desc ?? '')) {
@@ -582,50 +582,9 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         return;
       }
     }
-    let resolvedDraft = whenDraftResult;
-    if (!resolvedDraft || resolvedDraft.intent.originalText !== whenDraftText.trim()) {
-      const whenText = whenDraftText.trim();
-      if (!whenText) {
-        setWhenDraftError('Enter a date/time to resolve.');
-        return;
-      }
-      const timezone = appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
-      const response = await fetch(apiUrl('/api/direct'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          groupId,
-          phone,
-          action: {
-            type: 'resolve_appointment_time',
-            appointmentId: appointment.code,
-            whenText,
-            timezone
-          }
-        })
-      });
-      const json = await response.json() as { ok?: boolean; time?: TimeSpec; message?: string };
-      if (!response.ok || !json.ok || !json.time) {
-        setWhenDraftError(json.message ?? 'Unable to resolve date.');
-        return;
-      }
-      resolvedDraft = json.time;
-      setWhenDraftResult(json.time);
-      setWhenPreviewed(true);
-    }
-    if (resolvedDraft.intent.status !== 'resolved' || !resolvedDraft.resolved) {
-      const response = await fetch(apiUrl('/api/chat'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: `Reschedule appointment ${appointment.code} to ${whenDraftText.trim()}`, groupId, phone })
-      });
-      const json = await response.json() as ChatResponse;
-      if (json.snapshot) setSnapshot(json.snapshot);
-      if (!response.ok) {
-        setWhenDraftError('Unable to confirm unresolved time.');
-        return;
-      }
-      closeWhenEditor();
+    const resolvedDraft = whenDraftResult;
+    if (!resolvedDraft || resolvedDraft.intent.status !== 'resolved' || !resolvedDraft.resolved) {
+      setWhenDraftError('Resolve the appointment time before confirming.');
       return;
     }
     const start = new Date(resolvedDraft.resolved.startUtc);
@@ -1776,7 +1735,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               descriptionValue={descDraftText}
               locationValue={locationDraftText}
               notesValue={notesDraftText}
-              onWhenChange={setWhenDraftText}
+              onWhenChange={(next) => {
+                setWhenDraftText(next);
+                setWhenDraftResult(null);
+                setWhenDraftError(null);
+              }}
               onWhenKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
@@ -1787,13 +1750,19 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               onLocationChange={setLocationDraftText}
               onNotesChange={setNotesDraftText}
               onResolveDate={() => void previewWhenDraft(editingAppointment)}
+              onAcceptPreview={() => {
+                if (!whenDraftResult || whenDraftResult.intent.status !== 'resolved') return;
+                setWhenDraftText(formatAppointmentTime({ ...editingAppointment, time: whenDraftResult }));
+              }}
+              isResolving={isWhenResolving}
+              canResolve={!whenDraftResult}
+              previewDisplayText={whenDraftResult?.intent.status === 'resolved' ? formatAppointmentTime({ ...editingAppointment, time: whenDraftResult }) : null}
               errorText={whenDraftError}
-              previewContent={whenPreviewed ? (
-                <div>
-                  <p><strong>Preview:</strong> {formatAppointmentTime({ ...editingAppointment, time: whenDraftResult ?? editingAppointment.time })}</p>
-                  {whenDraftResult?.intent?.assumptions?.length ? <><p>Assumptions</p><ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-                  {whenDraftResult?.intent.status !== 'resolved' ? <p>{formatMissingSummary(whenDraftResult?.intent.missing ?? [])}</p> : null}
-                </div>
+              previewContent={whenDraftResult?.intent?.assumptions?.length ? (
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Assumptions</Typography>
+                  <ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul>
+                </Box>
               ) : null}
               onConfirm={() => void confirmWhenDraft(editingAppointment)}
               onCancel={closeWhenEditor}

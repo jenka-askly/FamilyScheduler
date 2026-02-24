@@ -1,5 +1,8 @@
 import { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
-import { Alert, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, IconButton, InputAdornment, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import CheckIcon from '@mui/icons-material/Check';
+import CircularProgress from '@mui/material/CircularProgress';
 
 type AppointmentEditorFormProps = {
   appointmentCode: string;
@@ -13,6 +16,10 @@ type AppointmentEditorFormProps = {
   onLocationChange: (next: string) => void;
   onNotesChange: (next: string) => void;
   onResolveDate: () => void;
+  onAcceptPreview: () => void;
+  isResolving: boolean;
+  canResolve: boolean;
+  previewDisplayText: string | null;
   errorText: string | null;
   previewContent: ReactNode;
   onConfirm: () => void;
@@ -31,28 +38,55 @@ export const AppointmentEditorForm = ({
   onLocationChange,
   onNotesChange,
   onResolveDate,
+  onAcceptPreview,
+  isResolving,
+  canResolve,
+  previewDisplayText,
   errorText,
   previewContent,
   onConfirm,
   onCancel
 }: AppointmentEditorFormProps) => (
   <Stack spacing={2}>
-    <Typography variant="subtitle1">Edit {appointmentCode}</Typography>
+    <Typography variant="subtitle2" color="text.secondary">{appointmentCode}</Typography>
 
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-      <TextField
-        fullWidth
-        label="When"
-        value={whenValue}
-        onChange={(event) => onWhenChange(event.target.value)}
-        placeholder="e.g. next Tuesday 8–9pm"
-        multiline
-        minRows={1}
-        maxRows={3}
-        inputProps={{ onKeyDown: onWhenKeyDown }}
-      />
-      <Button onClick={onResolveDate}>Resolve date</Button>
-    </Stack>
+    <TextField
+      fullWidth
+      label="When"
+      value={whenValue}
+      onChange={(event) => onWhenChange(event.target.value)}
+      placeholder="e.g. next Tuesday 8–9pm"
+      multiline
+      minRows={1}
+      maxRows={3}
+      inputProps={{ onKeyDown: onWhenKeyDown }}
+      error={Boolean(errorText)}
+      helperText={errorText ?? undefined}
+      InputProps={{
+        endAdornment: canResolve ? (
+          <InputAdornment position="end">
+            <Tooltip title="Resolve">
+              <span>
+                <IconButton size="small" onClick={onResolveDate} disabled={isResolving} aria-label="Resolve">
+                  {isResolving ? <CircularProgress size={18} /> : <AutoFixHighIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </InputAdornment>
+        ) : undefined
+      }}
+    />
+
+    {previewDisplayText ? (
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: -1 }}>
+        <Typography variant="body2" color="text.secondary">Interpreted as: {previewDisplayText}</Typography>
+        <Tooltip title="Accept">
+          <IconButton size="small" onClick={onAcceptPreview} aria-label="Accept interpreted time">
+            <CheckIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    ) : null}
 
     <TextField
       fullWidth
@@ -84,10 +118,7 @@ export const AppointmentEditorForm = ({
       maxRows={4}
     />
 
-    <Paper variant="outlined">
-      {errorText ? <Alert severity="error">{errorText}</Alert> : null}
-      <Box sx={{ mt: 1 }}>{previewContent}</Box>
-    </Paper>
+    {previewContent ? <Box sx={{ mt: -1 }}>{previewContent}</Box> : null}
 
     <Stack direction="row" spacing={1} justifyContent="flex-end">
       <Button onClick={onConfirm}>Confirm</Button>
