@@ -384,9 +384,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   };
 
   const base = `${window.location.origin}${window.location.pathname}${window.location.search}#`;
-  const groupUrl = `${base}/g/${groupId}/app`;
   const joinUrl = sessionId ? `${base}/s/${groupId}/${sessionId}` : '';
-  const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}` : '';
+  const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(joinUrl)}` : '';
 
   useEffect(() => {
     setQrLoadFailed(false);
@@ -425,50 +424,61 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
             ←
           </button>
         </div>
-        <label>
-          <Typography variant="subtitle2">Group home</Typography>
-          <p className="ui-meta">Use this link to coordinate later.</p>
-          <div className="ignite-link-row">
-            <span className="ignite-link-text" title={groupUrl}>{groupUrl}</span>
-            <Button variant="outlined" type="button" title="Copy" aria-label="Copy group home link" onClick={() => { void copyLink('group', groupUrl); }}>Copy</Button>
+        <div className="ui-igniteHeader ui-igniteSection">
+          <Typography variant="h6">Organizer view</Typography>
+          <div className="ui-igniteMeta">
+            <span className="ui-chip">{status}</span>
+            <Typography variant="body2">Joined: {joinedCount}</Typography>
           </div>
-          {copiedLink === 'group' ? <p className="ui-meta">✓ Copied</p> : null}
-        </label>
-        <div>
-          <div className="ignite-link-row" style={{ justifyContent: 'space-between' }}>
-            <Typography variant="subtitle2">Join QR</Typography>
-            <Button variant="outlined" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>Copy</Button>
-          </div>
-          {copiedLink === 'join' ? <p className="ui-meta">✓ Copied</p> : null}
-          {joinUrl ? (
-            qrLoadFailed ? (
-              <p className="ui-meta">QR unavailable right now. Copy the join link and share it directly.</p>
-            ) : (
-              <img src={qrImageUrl} alt="Ignite join QR code" style={{ width: 220, height: 220, borderRadius: 12, border: '1px solid #e2e8f0' }} onError={() => setQrLoadFailed(true)} />
-            )
-          ) : null}
-          {joinUrl ? (
-            <Button variant="text" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
-              {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
-            </Button>
-          ) : null}
-          {showJoinUrl && joinUrl ? <p className="ignite-link-text" title={joinUrl}>{joinUrl}</p> : null}
         </div>
-        <p><strong>Status:</strong> {status} · <strong>Joined:</strong> {joinedCount}</p>
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</Button>
-          <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
-        </Stack>
-        <label>
-          <Typography variant="subtitle2">Photo</Typography>
-          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
-          <Button variant="outlined" type="button" title="Photo" aria-label="Add or update your photo" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>Add photo</Button>
+        <div className="ui-igniteShareCard ui-igniteSection">
+          <div>
+            {joinUrl ? (
+              qrLoadFailed ? (
+                <p className="ui-meta">QR unavailable right now. Copy the join link and share it directly.</p>
+              ) : (
+                <img className="ui-igniteQr" src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
+              )
+            ) : null}
+          </div>
+          <div>
+            <Typography variant="subtitle2">Join link</Typography>
+            <p className="ui-meta">Share this with anyone joining this session.</p>
+            <div className="ignite-link-row">
+              <span className="ignite-link-text" title={joinUrl}>{joinUrl}</span>
+              <Button variant="outlined" type="button" title="Copy" aria-label="Copy join link" onClick={() => { void copyLink('join', joinUrl); }} disabled={!joinUrl}>Copy</Button>
+            </div>
+            {copiedLink === 'join' ? <p className="ui-meta">✓ Copied</p> : null}
+            {joinUrl ? (
+              <Button variant="text" type="button" onClick={() => setShowJoinUrl((current) => !current)}>
+                {showJoinUrl ? 'Hide join URL' : 'Trouble scanning?'}
+              </Button>
+            ) : null}
+            {showJoinUrl && joinUrl ? <p className="ignite-link-text" title={joinUrl}>{joinUrl}</p> : null}
+          </div>
+        </div>
+        <div className="ui-igniteActions ui-igniteSection">
+          {sessionId && status === 'OPEN' ? (
+            <Button variant="contained" type="button" onClick={() => { void closeSession(); }} disabled={!sessionId || status !== 'OPEN'}>Close</Button>
+          ) : (
+            <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
+          )}
+        </div>
+        <div className="ui-igniteSection">
+          <div className="ui-igniteHeader">
+            <Typography variant="subtitle2">Photos</Typography>
+            <Typography variant="body2">Joined: {joinedCount}</Typography>
+          </div>
+          <div className="ui-igniteActions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
+            <Button variant="outlined" type="button" title="Photo" aria-label="Add or update your photo" onClick={() => fileInputRef.current?.click()} disabled={!sessionId || isUploading}>Add photo</Button>
+          </div>
           {photoSelected ? <p className="ui-meta">Photo selected.</p> : null}
-        </label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
-          {sessionId ? joinedPersonIds.map((personId) => (
-            <img key={personId} src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, background: '#f1f5f9' }} />
-          )) : null}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
+            {sessionId ? joinedPersonIds.map((personId) => (
+              <img key={personId} src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, background: '#f1f5f9' }} />
+            )) : null}
+          </div>
         </div>
       </Stack>
       <FooterHelp />

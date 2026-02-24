@@ -7211,3 +7211,35 @@ Clean up Create Group post-create UX by collapsing the form on success, prioriti
 ### Follow-ups
 
 - Re-run local dev visual verification in a dependency-complete environment to confirm final spacing and button hierarchy.
+
+## 2026-02-24 05:10 UTC (Ignition organizer page layout cleanup)
+
+### Objective
+
+Clean up Ignite organizer UI layout by reducing duplicate share controls, enlarging/organizing QR share surface, and simplifying session actions while preserving existing ignite behavior.
+
+### Approach
+
+- Refactored `IgniteOrganizerPage` render structure into grouped sections: organizer header/meta, share card (QR + canonical join link), right-aligned session action row, and photos section.
+- Removed organizer-facing Group home link/copy block to keep one canonical join link + single copy action.
+- Increased QR service size to `280x280`, kept `qrLoadFailed` error path, and moved `Trouble scanning?` toggle under join-link controls.
+- Updated session controls to render exactly one primary button: `Close` only when status is `OPEN`; otherwise `Reopen`.
+- Added minimal Ignite layout CSS classes and responsive breakpoint behavior per requested structure.
+- Updated `PROJECT_STATUS.md` with the new organizer-layout status bullet.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found.
+- `rg -n "IgniteOrganizerPage|joinUrl|Group home|Trouble scanning|closeSession|startSession|qrLoadFailed|Photos" apps/web/src/App.tsx` ✅ located target organizer implementation and handlers.
+- `pnpm -C apps/web run typecheck` ⚠️ failed in this environment due pre-existing dependency resolution/module availability issues (`@mui/*`) and existing TS errors outside this change scope.
+
+### Follow-ups
+
+- Run local visual verification in a dependency-complete environment and validate both normal QR path and `qrLoadFailed` fallback path.
