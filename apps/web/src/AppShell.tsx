@@ -63,6 +63,10 @@ type Session = { groupId: string; phone: string; joinedAt: string };
 
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SESSION_KEY = 'familyscheduler.session';
+const createTraceId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
 const writeSession = (session: Session): void => {
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 };
@@ -318,6 +322,28 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
+
+  const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  async function renameGroupName(nextName: string): Promise<void> {
+    const normalized = normalizeGroupName(nextName);
+    const traceId = createTraceId();
+    if (!normalized) throw new Error('Group name is required.');
+    if (normalized.length > 60) throw new Error('Group name must be 60 characters or fewer.');
+
+    const response = await fetch(apiUrl('/api/group/rename'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, phone, groupName: normalized, traceId })
+    });
+
+    const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
+    if (!response.ok) {
+      throw new Error(`${payload.message ?? 'Unable to rename group.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
+    }
+
+    setGroupName(payload.groupName || normalized);
+  }
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [todoDraft, setTodoDraft] = useState<{ text: string; dueDate: string; assignee: string; done: boolean }>({ text: '', dueDate: '', assignee: '', done: false });
@@ -1127,6 +1153,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         showGroupAccessNote={activeSection !== 'calendar'}
         onBreakoutClick={() => { void createBreakoutGroup(); }}
         breakoutDisabled={isSpinningOff}
+        onRenameGroupName={renameGroupName}
       />
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
