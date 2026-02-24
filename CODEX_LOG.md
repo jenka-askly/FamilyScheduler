@@ -1,3 +1,36 @@
+## 2026-02-24 06:22 UTC (Hotfix: robust popup handoff navigation)
+
+### Objective
+
+Fix breakout behavior where popup opens as `about:blank` but fails to navigate to `/#/handoff` in some browsers.
+
+### Approach
+
+- Located breakout flow in `AppShell.createBreakoutGroup`.
+- Changed popup open features from `noopener,noreferrer` to `noopener` only.
+- Replaced `popup.location.replace(handoffUrl)` with guarded navigation attempts (`popup.location.href`, fallback `popup.document.location.href`) and retained popup focus calls.
+- Added `console.debug('[breakout] handoffUrl', handoffUrl)` before navigation attempt.
+- Added failure surface for navigation exception path: show manual URL error and close popup best-effort.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ✅ confirmed repo path; no nested AGENTS files discovered via this pattern.
+- `sed -n '1,260p' apps/web/src/AppShell.tsx` ✅ inspected target file.
+- `rg -n "window.open|location.replace|breakout|handoff" apps/web/src/AppShell.tsx` ✅ located breakout logic lines to patch.
+- `sed -n '1088,1165p' apps/web/src/AppShell.tsx` ✅ verified exact breakout handler section.
+- `rg --files | rg 'PROJECT_STATUS.md|CODEX_LOG.md'` ✅ confirmed continuity docs exist.
+
+### Follow-ups
+
+- Run staging/manual verification for Burger → Breakout behavior in target browsers (especially those previously stuck on blank popup).
+
+
 ## 2026-02-24 05:37 UTC (Breakout new-tab handoff + per-tab session isolation)
 
 ### Objective

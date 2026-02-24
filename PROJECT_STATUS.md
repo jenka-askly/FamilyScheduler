@@ -1,3 +1,29 @@
+## 2026-02-24 06:22 UTC update (Breakout popup navigation robustness hotfix)
+
+- Updated breakout popup creation to remove `noreferrer` from window features (`noopener` only) to avoid browser behaviors that can prevent scripted navigation from `about:blank`.
+- Replaced direct `popup.location.replace(...)` with robust navigation attempts: first `popup.location.href`, then `popup.document.location.href`, with `focus()` after successful assignment.
+- Added debug logging of computed `handoffUrl` immediately before navigation attempt to improve diagnosability.
+- If popup navigation still fails, app now surfaces a manual URL error (`Unable to navigate popup. Please open: ...`) and attempts to close the orphaned popup.
+- Popup-blocked branch remains unchanged: no same-tab navigation fallback; user receives popup guidance/manual URL.
+
+### Success criteria
+
+- Burger → Breakout opens a new tab and reliably navigates to `/#/handoff?...`, then onward to `/#/g/<newGroupId>/ignite`.
+- Original tab remains on the current meeting route throughout.
+- If popup navigation throws, user sees the manual URL error and the blank popup is closed.
+
+### Non-regressions
+
+- Existing popup-blocked behavior still only shows guidance/manual URL (no same-tab route change).
+- Existing `/api/ignite/spinoff` request/trace flow is unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web typecheck` (environment may still fail due pre-existing dependency issues).
+2. In browser with popups allowed, open `/#/g/<groupId>/app` and click Burger → Breakout; verify new tab reaches handoff/ignite and original tab hash does not change.
+3. If possible, simulate popup navigation failure and verify manual URL error appears and blank popup closes.
+
+
 ## 2026-02-24 06:06 UTC update (Breakout popup-blocked handling keeps current tab fixed)
 
 - Breakout create flow no longer falls back to same-tab navigation when popup creation is blocked.

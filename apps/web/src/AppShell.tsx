@@ -1119,7 +1119,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (isSpinningOff) return;
     setBreakoutError(null);
     setIsSpinningOff(true);
-    const popup = window.open('about:blank', '_blank', 'noopener,noreferrer');
+    const popup = window.open('about:blank', '_blank', 'noopener');
     const traceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1145,7 +1145,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       }
 
       console.debug('[breakout] popup?', Boolean(popup), 'navigating popup only');
-      popup.location.replace(handoffUrl);
+      console.debug('[breakout] handoffUrl', handoffUrl);
+      try {
+        popup.location.href = handoffUrl;
+        popup.focus?.();
+      } catch {
+        try {
+          popup.document.location.href = handoffUrl;
+          popup.focus?.();
+        } catch {
+          setBreakoutError(`Unable to navigate popup. Please open: ${handoffUrl}`);
+          try {
+            popup.close();
+          } catch {
+            // ignore close errors
+          }
+        }
+      }
       return;
     } catch {
       if (popup) popup.close();
