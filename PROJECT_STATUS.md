@@ -1,3 +1,28 @@
+## 2026-02-24 11:47 UTC update (auth model documentation alignment)
+
+- Added a new authoritative auth model spec at `docs/AUTH_MODEL.md` with explicit separation of **Current (Implemented)** and **Planned (Not Implemented Yet)** behavior.
+- Added a prominent README link to the new auth model document under Specifications.
+- Marked `docs/api.md` as legacy/stale because it documents `/api/auth/login` token flows not implemented in the current codebase.
+- No runtime code paths were changed; this is documentation-only.
+
+### Success criteria
+
+- `docs/AUTH_MODEL.md` exists and clearly separates current behavior from planned behavior.
+- `README.md` links directly to `docs/AUTH_MODEL.md`.
+- `docs/api.md` starts with a legacy/stale banner pointing readers to `docs/AUTH_MODEL.md`.
+
+### Non-regressions
+
+- Existing API or frontend behavior remains unchanged.
+- Existing route, status-code, and terminology references in current v1 auth behavior remain documented as-is.
+
+### How to verify locally
+
+1. Run `test -f docs/AUTH_MODEL.md` and confirm the file exists.
+2. Run `rg -n "AUTH_MODEL\.md|Auth model|Legacy / stale doc" README.md docs/AUTH_MODEL.md docs/api.md` and confirm references are present.
+3. Run `sed -n '1,20p' docs/api.md` and confirm the legacy/stale banner appears at the top.
+
+
 
 ## 2026-02-24 09:35 UTC update (tab rail flatten + active seam blend + left-edge alignment)
 
