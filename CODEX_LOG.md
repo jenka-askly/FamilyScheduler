@@ -1,3 +1,32 @@
+## 2026-02-24 01:10 UTC (Calendar single-surface border fix)
+
+### Objective
+
+Remove the double-border/nested-card effect in calendar List/Month views by enforcing one framed surface owned by the unified outer calendar container.
+
+### Approach
+
+- Located calendar module wrappers in `AppShell` and verified the unified outer container is the existing `Paper variant="outlined"`.
+- Removed the additional `.panel` class from the calendar section wrapper (`section`), which previously applied its own border/radius via global CSS and created the nested frame effect.
+- Left inner List/Month content wrappers borderless (`Box` + existing content), preserving internal divider/grid visuals.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "variant=\"outlined\"|borderRadius|border:|Paper\\b|outlined" apps/web/src/AppShell.tsx apps/web/src/components -S` ✅ identified outer and candidate nested surfaces.
+- `sed -n '1160,1288p' apps/web/src/AppShell.tsx` ✅ confirmed calendar render branches and wrappers.
+- `pnpm -r --if-present build` ⚠️ failed in `apps/web` due existing environment dependency resolution/typecheck issues (`@mui/material` and related imports unresolved).
+- `run_playwright_script` ⚠️ unable to capture screenshot because local web app was not serving (`ERR_EMPTY_RESPONSE` on `http://127.0.0.1:4173`).
+
+### Follow-ups
+
+- Optional: add a visual regression snapshot for calendar shell framing to catch future nested border reintroductions.
+
 ## 2026-02-24 00:05 UTC (Header hamburger menu + breakout emphasis)
 
 ### Objective
