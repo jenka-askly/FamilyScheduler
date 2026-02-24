@@ -1724,13 +1724,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         ) : null}
       </Drawer>
 
-      <Dialog open={whenEditorCode != null} onClose={closeWhenEditor} maxWidth="md" fullWidth>
+      <Dialog open={whenEditorCode != null} onClose={closeWhenEditor} maxWidth="sm" fullWidth>
         <DialogTitle>Edit appointment</DialogTitle>
-        <DialogContent dividers>
-          {editingAppointment ? <AppointmentDialogContext {...getAppointmentContext(editingAppointment)} /> : null}
+        <DialogContent dividers sx={{ py: 2 }}>
+          {editingAppointment ? (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {editingAppointment.code} · {editingAppointment.time?.intent?.status === 'resolved' ? 'Resolved' : 'Unresolved'}
+            </Typography>
+          ) : null}
           {editingAppointment ? (
             <AppointmentEditorForm
-              appointmentCode={editingAppointment.code}
               whenValue={whenDraftText}
               descriptionValue={descDraftText}
               locationValue={locationDraftText}

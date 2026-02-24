@@ -6873,3 +6873,36 @@ Implement compact `When` grouping in Edit Appointment dialog by moving assumptio
 
 - Re-run frontend typecheck/build once web dependencies are fully available in this environment.
 - Do a manual UI pass on Edit Appointment dialog to verify compact spacing and assumptions toggle behavior in-browser.
+
+## 2026-02-24 02:05 UTC (Edit Appointment compaction + header dedupe)
+
+### Objective
+
+Implement compact Edit Appointment dialog layout and keep When/Resolve/Preview/Assumptions unified, with no API contract changes and resolve remaining explicit user-triggered.
+
+### Approach
+
+- Reduced Edit Appointment dialog width from `md` to `sm` and tightened content vertical padding.
+- Removed redundant APPT code rendering from the form body and replaced it with a single compact meta line under the dialog title (`APPT-x · Resolved/Unresolved`).
+- Kept resolve action embedded in the `When` field end adornment and retained explicit click/Enter-triggered resolve only.
+- Kept inline interpreted preview + ✓ accept behavior directly under `When`, with assumptions disclosure directly beneath preview.
+- Compacted non-When field visuals: Description/Location converted to single-line fields; Notes set to compact multiline (3 rows).
+- Confirm/save logic remains unchanged and still uses structured `whenDraftResult` automatically when present (✓ accept not required).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' --glob '!**/dist/**' --glob '!**/build/**' "Edit appointment|APPT-|Resolve Date|Resolved|Interpreted as|Preview|Assumptions|AppointmentDialog|AppointmentModal|DialogTitle" apps/web/src` ✅ located primary Edit Appointment dialog and resolve pipeline.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed due environment baseline dependency/type errors (`@mui/*` unresolved and existing implicit-any errors in untouched files).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started but app could not render due unresolved `@mui/*` imports in this environment.
+
+### Follow-ups
+
+- Install/restore frontend dependencies in this environment and rerun typecheck.
+- Capture visual screenshot once app renders successfully.

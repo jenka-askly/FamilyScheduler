@@ -5,7 +5,6 @@ import CheckIcon from '@mui/icons-material/Check';
 import CircularProgress from '@mui/material/CircularProgress';
 
 type AppointmentEditorFormProps = {
-  appointmentCode: string;
   whenValue: string;
   descriptionValue: string;
   locationValue: string;
@@ -27,7 +26,6 @@ type AppointmentEditorFormProps = {
 };
 
 export const AppointmentEditorForm = ({
-  appointmentCode,
   whenValue,
   descriptionValue,
   locationValue,
@@ -55,17 +53,12 @@ export const AppointmentEditorForm = ({
 
   return (
     <Stack spacing={2}>
-    <Typography variant="subtitle2" color="text.secondary">{appointmentCode}</Typography>
-
     <TextField
       fullWidth
       label="When"
       value={whenValue}
       onChange={(event) => onWhenChange(event.target.value)}
       placeholder="e.g. next Tuesday 8–9pm"
-      multiline
-      minRows={1}
-      maxRows={3}
       inputProps={{ onKeyDown: onWhenKeyDown }}
       error={Boolean(errorText)}
       helperText={errorText ?? undefined}
@@ -121,9 +114,6 @@ export const AppointmentEditorForm = ({
       label="Description"
       value={descriptionValue}
       onChange={(event) => onDescriptionChange(event.target.value)}
-      multiline
-      minRows={1}
-      maxRows={3}
     />
 
     <TextField
@@ -131,9 +121,6 @@ export const AppointmentEditorForm = ({
       label="Location"
       value={locationValue}
       onChange={(event) => onLocationChange(event.target.value)}
-      multiline
-      minRows={1}
-      maxRows={3}
     />
 
     <TextField
@@ -142,8 +129,8 @@ export const AppointmentEditorForm = ({
       value={notesValue}
       onChange={(event) => onNotesChange(event.target.value)}
       multiline
-      minRows={2}
-      maxRows={4}
+      minRows={3}
+      maxRows={3}
     />
     <Stack direction="row" spacing={1} justifyContent="flex-end">
       <Button onClick={onConfirm}>Confirm</Button>
