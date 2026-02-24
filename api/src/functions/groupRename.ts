@@ -20,7 +20,7 @@ export async function groupRename(request: HttpRequest, _context: InvocationCont
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
 
   const nextName = normalizeGroupName(body.groupName);
   if (!nextName) return errorResponse(400, 'bad_request', 'groupName is required', traceId);
@@ -36,7 +36,7 @@ export async function groupRename(request: HttpRequest, _context: InvocationCont
   }
 
   const caller = requireActiveMember(loaded.state, session.email, traceId);
-  if ('status' in caller) return caller;
+  if (!caller.ok) return caller.response;
 
   loaded.state.groupName = nextName;
   loaded.state.updatedAt = new Date().toISOString();

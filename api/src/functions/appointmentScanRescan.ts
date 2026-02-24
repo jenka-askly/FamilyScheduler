@@ -13,7 +13,7 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
   const appointmentId = typeof body.appointmentId === 'string' ? body.appointmentId.trim() : '';
   const imageMime = body.imageMime === 'image/jpeg' || body.imageMime === 'image/png' || body.imageMime === 'image/webp' ? body.imageMime : null;
   if (!appointmentId || !imageMime || typeof body.imageBase64 !== 'string') return errorResponse(400, 'invalid_scan_payload', 'appointmentId, imageBase64, imageMime required', traceId);
@@ -21,7 +21,7 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   if (!storage.putBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing putBinary', traceId);
   const loaded = await storage.load(groupId);
   const member = requireActiveMember(loaded.state, session.email, traceId);
-  if ('status' in member) return member;
+  if (!member.ok) return member.response;
   const appt = loaded.state.appointments.find((item) => item.id === appointmentId || item.code === appointmentId);
   if (!appt) return errorResponse(404, 'not_found', 'Appointment not found', traceId);
 

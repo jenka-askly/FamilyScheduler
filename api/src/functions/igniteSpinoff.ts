@@ -18,13 +18,13 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   const sourceGroupId = typeof body.sourceGroupId === 'string' ? body.sourceGroupId.trim() : '';
   if (!sourceGroupId) return errorResponse(400, 'invalid_group_id', 'sourceGroupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
 
   const storage = createStorageAdapter();
   let loadedA;
   try { loadedA = await storage.load(sourceGroupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
   const membership = requireActiveMember(loadedA.state, session.email, traceId);
-  if ('status' in membership) return membership;
+  if (!membership.ok) return membership.response;
 
   const newGroupId = randomUUID();
   const nowISO = new Date().toISOString();

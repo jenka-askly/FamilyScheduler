@@ -14,7 +14,7 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
   const imageMime = body.imageMime === 'image/jpeg' || body.imageMime === 'image/png' || body.imageMime === 'image/webp' ? body.imageMime : null;
   if (!imageMime || typeof body.imageBase64 !== 'string' || !body.imageBase64.trim()) return errorResponse(400, 'invalid_scan_payload', 'imageBase64 and valid imageMime are required', traceId);
 
@@ -23,7 +23,7 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
   let loaded;
   try { loaded = await storage.load(groupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
   const member = requireActiveMember(loaded.state, session.email, traceId);
-  if ('status' in member) return member;
+  if (!member.ok) return member.response;
 
   const appointment = createScannedAppointment(loaded.state, typeof body.timezone === 'string' ? body.timezone : 'America/Los_Angeles');
   loaded.state.appointments.push(appointment);

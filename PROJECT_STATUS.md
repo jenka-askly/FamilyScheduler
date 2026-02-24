@@ -2603,3 +2603,28 @@ Refined section tabs (active merges into content, alignment); replaced calendar 
 - Added centralized session + membership guards and applied to mutating endpoints.
 - Ignite breakout join now uses email+name and can provision membership on join.
 - Staging-only intent: no backward compatibility for phone-era blob data.
+
+## 2026-02-24 16:55 UTC update (email auth cutover build fix)
+
+- Switched auth guard helpers to discriminated union results (`ok: true/false`) to eliminate `HttpResponseInit | data` unions in endpoint flows.
+- Updated all impacted API endpoints to use explicit auth/membership guard checks and consistent `session`/`member` variable handling.
+- Completed `direct.ts` cleanup by removing leftover phone-gate references and enforcing session+membership gating.
+- Fixed `ignitePhotoBlobKey` import to come from `lib/ignite.ts`.
+- Kept `Person.cellE164` and `Person.cellDisplay` optional, and normalized response mapping to default empty strings where required by response DTOs.
+
+### Success criteria
+
+- TypeScript build passes for API and workspace packages with no auth-guard typing errors.
+- `chat.ts` no longer references undefined `identity` symbol.
+- `direct.ts` compiles without `phone`/`validateJoinRequest`/`findActivePersonByPhone` references.
+
+### Non-regressions
+
+- Endpoint error contracts remain response-based (`errorResponse`) and do not throw for auth denials.
+- Conflict handling in `direct.ts` and other mutation endpoints remains unchanged.
+
+### How to verify locally
+
+1. `pnpm -r --if-present build`
+2. Confirm no TS errors for `requireSessionEmail` / `requireActiveMember` call sites.
+3. Spot-check `/api/direct` and `/api/chat` with valid and invalid session headers for expected 401/403 behavior.

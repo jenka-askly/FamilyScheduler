@@ -13,13 +13,13 @@ export async function groupMeta(request: HttpRequest, _context: InvocationContex
   if (!groupId) return errorResponse(400, 'groupId_required', 'groupId is required', traceId);
 
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
 
   try {
     const storage = createStorageAdapter();
     const loaded = await storage.load(groupId);
     const membership = requireActiveMember(loaded.state, session.email, traceId);
-    if ('status' in membership) return membership;
+    if (!membership.ok) return membership.response;
     return {
       status: 200,
       jsonBody: {

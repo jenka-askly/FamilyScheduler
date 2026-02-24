@@ -11,13 +11,13 @@ export async function appointmentScanDelete(request: HttpRequest, _context: Invo
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
   const appointmentId = typeof body.appointmentId === 'string' ? body.appointmentId.trim() : '';
   if (!appointmentId) return errorResponse(400, 'appointment_required', 'appointmentId is required', traceId);
   const storage = createStorageAdapter();
   const loaded = await storage.load(groupId);
   const member = requireActiveMember(loaded.state, session.email, traceId);
-  if ('status' in member) return member;
+  if (!member.ok) return member.response;
   const appt = loaded.state.appointments.find((item) => item.id === appointmentId || item.code === appointmentId);
   if (!appt) return errorResponse(404, 'not_found', 'Appointment not found', traceId);
   if (appt.scanImageKey && storage.deleteBlob) await storage.deleteBlob(appt.scanImageKey).catch(() => undefined);

@@ -8154,3 +8154,47 @@ Implement web-side magic-link consume UX, persist `sessionId`, and automatically
 - Objective: remove phone authorization path on develop and gate mutations by session membership.
 - Files changed: auth/session helpers, state schema, core API endpoints, web App payload wiring, docs/status.
 - Commands run: install/tests/build (see below output in task response).
+
+## 2026-02-24 16:55 UTC (Fix build after email auth cutover)
+
+### Objective
+
+Fix TypeScript build errors introduced during email/session auth cutover with minimal, targeted changes.
+
+### Approach
+
+- Refactored `requireSessionEmail` to return a discriminated union (`SessionResult`) and removed error-shape casting in favor of typed `HttpError` handling.
+- Refactored `requireActiveMember` to return a discriminated union (`MemberResult`) and updated endpoint call sites to explicit `ok` checks.
+- Updated affected endpoints (`appointmentScan*`, `scanAppointment`, `groupMeta`, `groupRename`, `ignite*`, `chat`, `direct`) to use consistent session/membership guard flow.
+- Repaired `chat.ts` variable consistency by removing stale `identity` references and standardizing on `groupId`/session member usage.
+- Fixed `ignitePhotoBlobKey` import source to `lib/ignite.ts`.
+- Completed `direct.ts` cleanup by removing phone-gate logic (`validateJoinRequest`, `findActivePersonByPhone`, `body.phone`) and using member-based actor identity.
+- Adjusted response snapshot mappings to default phone display values where response contracts require strings while keeping state `Person` phone fields optional.
+
+### Files changed
+
+- `api/src/lib/auth/requireSession.ts`
+- `api/src/lib/auth/requireMembership.ts`
+- `api/src/functions/appointmentScanDelete.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/groupMeta.ts`
+- `api/src/functions/groupRename.ts`
+- `api/src/functions/igniteClose.ts`
+- `api/src/functions/igniteStart.ts`
+- `api/src/functions/ignitePhoto.ts`
+- `api/src/functions/igniteSpinoff.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/direct.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git checkout develop` ⚠️ failed because branch `develop` does not exist in this clone (only `work`).
+- `git status --short` ✅ clean start.
+- `pnpm -r --if-present build` ✅ passed for API/shared/web.
+
+### Follow-ups
+
+- If integration tests exist for these endpoints, run them in CI/staging to confirm runtime auth semantics match intended session-membership model.

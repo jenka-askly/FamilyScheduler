@@ -84,7 +84,7 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
       scanCapturedAt: appointment.scanCapturedAt ?? null
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt ?? nowIso, timezone: person.timezone, notes: person.notes ?? '' })),
+  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164 ?? '', status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt ?? nowIso, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
   });
@@ -279,11 +279,11 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     traceId = ensureTraceId(body.traceId) || fallbackTraceId;
     const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
     if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-    const sessionIdentity = await requireSessionEmail(request, traceId);
-    if ('status' in sessionIdentity) return sessionIdentity;
+    const sessionAuth = await requireSessionEmail(request, traceId);
+    if (!sessionAuth.ok) return sessionAuth.response;
     const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
-    console.info(JSON.stringify({ traceId, route: '/api/chat', groupId, emailDomain: sessionIdentity.email.split('@')[1] ?? 'unknown', messageLen }));
-    logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: sessionIdentity.email.split('@')[1] ?? 'unknown' });
+    console.info(JSON.stringify({ traceId, route: '/api/chat', groupId, emailDomain: sessionAuth.email.split('@')[1] ?? 'unknown', messageLen }));
+    logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: sessionAuth.email.split('@')[1] ?? 'unknown' });
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (message.length === 0) return badRequest('message is required', traceId, opId);
     const normalized = normalizeUserText(message);
@@ -298,21 +298,22 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       throw error;
     }
     let state = loaded.state;
-    const membership = requireActiveMember(state, sessionIdentity.email, traceId);
-    if ('status' in membership) {
+    const membership = requireActiveMember(state, sessionAuth.email, traceId);
+    if (!membership.ok) {
       logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-      return membership;
+      return membership.response;
     }
-    const allowed = membership.member;
-    logAuth({ traceId, stage: 'gate_allowed', personId: allowed.memberId });
-    session.activePersonId = allowed.memberId;
+    const member = membership.member;
+    logAuth({ traceId, stage: 'gate_allowed', personId: member.memberId });
+    session.activePersonId = member.memberId;
 
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();
-    if (shouldPersistLastSeen(allowed.lastSeen, nowMs)) {
+    const currentPerson = state.people.find((person) => person.personId === member.memberId);
+    if (shouldPersistLastSeen(currentPerson?.lastSeen, nowMs)) {
       const nextState: AppState = {
         ...state,
-        people: state.people.map((person) => person.personId === allowed.personId ? {
+        people: state.people.map((person) => person.personId === member.memberId ? {
           ...person,
           lastSeen: nowIso,
           createdAt: person.createdAt ?? nowIso
@@ -383,7 +384,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         });
         try {
           const confirmed = confirmRuleDraftV2(state, draftedRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
-          const written = await storage.save(identity.groupId, confirmed.nextState, loaded.etag);
+          const written = await storage.save(groupId, confirmed.nextState, loaded.etag);
           console.info('rule_mode_confirm_result', { traceId, mode: 'confirm', source: 'draftedIntervals', persistedIntervalsCount: draftedRules.length, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
           return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
         } catch (error) {
@@ -452,7 +453,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
         }
         const confirmed = confirmRuleDraftV2(state, incomingRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
-        const written = await storage.save(identity.groupId, confirmed.nextState, loaded.etag);
+        const written = await storage.save(groupId, confirmed.nextState, loaded.etag);
         console.info('rule_mode_confirm_result', { traceId, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
         return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
       } catch (error) {
@@ -476,7 +477,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       if (confirmSynonyms.has(normalized)) {
         try {
           const execution = await executeActions(state, session.pendingProposal.actions, { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
-          const written = await storage.save(identity.groupId, execution.nextState, session.pendingProposal.expectedEtag);
+          const written = await storage.save(groupId, execution.nextState, session.pendingProposal.expectedEtag);
           session.activePersonId = execution.nextActivePersonId;
           session.pendingProposal = null;
           return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
