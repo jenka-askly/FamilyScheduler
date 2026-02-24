@@ -124,46 +124,48 @@ function CreateGroupPage() {
     <Page variant="form">
       <PageHeader
         title="Create a Family Schedule"
-        description="Create a private shared schedule for coordinating appointments. You’ll get a link to share. Only phone numbers you add can access this group."
+        description="Create a private shared schedule. Only people you add can access it."
       />
 
-      <Stack component="form" spacing={2} onSubmit={submit}>
-        <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
-        <TextField label="Group key (6 digits)" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} required inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }} fullWidth />
-        <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
-        <TextField label="Your phone" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" helperText="Use a number you will use to sign into this group." fullWidth />
-        <Stack direction="row" spacing={1}>
-          <Button variant="contained" type="submit" disabled={isCreating}>{isCreating ? 'Creating…' : 'Create Group'}</Button>
-        </Stack>
-        {error ? <Alert severity="error">{error}</Alert> : null}
+      <div className="ui-authContainer">
+        <Stack className="ui-authForm" component="form" spacing={2} onSubmit={submit}>
+          <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
+          <TextField label="Group key" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} required inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }} placeholder="Group key" helperText="6 digits" fullWidth />
+          <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
+          <TextField label="Your phone" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" helperText="Use a phone number you can sign in with." fullWidth />
+          <div className="ui-authActions">
+            <Button variant="contained" type="submit" disabled={isCreating}>{isCreating ? 'CREATING…' : 'CREATE GROUP'}</Button>
+          </div>
+          {error ? <Alert severity="error">{error}</Alert> : null}
 
-        {createdGroupId ? (
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <Typography variant="h6">Your schedule is ready</Typography>
-            <Box>
-              <Typography fontWeight={600}>{createdGroupName}</Typography>
-              <Typography variant="body2" color="text.secondary">Group ID: {createdGroupId}</Typography>
-            </Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-              <TextField label="Share link" value={shareUrl} InputProps={{ readOnly: true }} fullWidth />
-              <Button variant="outlined" type="button" onClick={() => void copyShareLink()}>Copy</Button>
+          {createdGroupId ? (
+            <Stack spacing={2} sx={{ mt: 2 }}>
+              <Typography variant="h6">Your schedule is ready</Typography>
+              <Box>
+                <Typography fontWeight={600}>{createdGroupName}</Typography>
+                <Typography variant="body2" color="text.secondary">Group ID: {createdGroupId}</Typography>
+              </Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                <TextField label="Share link" value={shareUrl} InputProps={{ readOnly: true }} fullWidth />
+                <Button variant="outlined" type="button" onClick={() => void copyShareLink()}>Copy</Button>
+              </Stack>
+              {copied ? <Alert severity="success">Copied to clipboard.</Alert> : null}
+              <Typography variant="body2" color="text.secondary">Share this link with family members. They must enter a phone number that you add to the group.</Typography>
+              <Alert severity="info">
+                <Typography fontWeight={600}>Next steps</Typography>
+                <ul>
+                  <li>Add people who can access this schedule</li>
+                  <li>Share the link</li>
+                  <li>Add appointments</li>
+                </ul>
+              </Alert>
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</Button>
+              </Stack>
             </Stack>
-            {copied ? <Alert severity="success">Copied to clipboard.</Alert> : null}
-            <Typography variant="body2" color="text.secondary">Share this link with family members. They must enter a phone number that you add to the group.</Typography>
-            <Alert severity="info">
-              <Typography fontWeight={600}>Next steps</Typography>
-              <ul>
-                <li>Add people who can access this schedule</li>
-                <li>Share the link</li>
-                <li>Add appointments</li>
-              </ul>
-            </Alert>
-            <Stack direction="row" spacing={1}>
-              <Button variant="contained" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</Button>
-            </Stack>
-          </Stack>
-        ) : null}
-      </Stack>
+          ) : null}
+        </Stack>
+      </div>
       <FooterHelp />
     </Page>
   );

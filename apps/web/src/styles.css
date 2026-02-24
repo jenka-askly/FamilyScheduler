@@ -34,6 +34,24 @@
   padding: 24px 16px;
 }
 
+.ui-authContainer {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.ui-authForm {
+  width: 100%;
+  max-width: 480px;
+  display: grid;
+  gap: 12px;
+}
+
+.ui-authActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .ui-joinForm {
   width: 100%;
   max-width: 480px;
