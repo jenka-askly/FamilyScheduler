@@ -121,67 +121,74 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       <Typography variant="h5" sx={{ fontWeight: 700, mb: 1.5 }}>{PRODUCT.name}</Typography>
       <Paper>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
-          <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="overline" color="text.secondary" sx={{ opacity: 0.8, display: 'block', lineHeight: 1.2 }}>
               Group
             </Typography>
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              {isEditingGroupName ? (
-                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
-                  <TextField
-                    size="small"
-                    value={groupNameDraft}
-                    onChange={(event) => {
-                      setGroupNameDraft(event.target.value);
-                      if (renameError) setRenameError(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        void saveRename();
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault();
-                        cancelRename();
-                      }
-                    }}
-                    inputProps={{ maxLength: 60, 'aria-label': 'Group name' }}
-                    sx={{ minWidth: 220 }}
-                  />
-                  <Tooltip title="Save group name">
-                    <span>
-                      <IconButton size="small" onClick={() => void saveRename()} disabled={isRenamePending} aria-label="Save group name">
-                        <CheckIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Cancel rename">
-                    <span>
-                      <IconButton size="small" onClick={cancelRename} disabled={isRenamePending} aria-label="Cancel rename">
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </Stack>
-              ) : (
-                <>
-                  <Typography variant="h5">{displayGroupTitle}</Typography>
-                  {canRenameGroup ? (
-                    <Tooltip title="Rename group">
-                      <IconButton size="small" onClick={beginRename} aria-label="Rename group">
-                        <EditIcon fontSize="small" />
-                      </IconButton>
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ width: '100%', gap: 1 }}>
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
+                {isEditingGroupName ? (
+                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+                    <TextField
+                      size="small"
+                      value={groupNameDraft}
+                      onChange={(event) => {
+                        setGroupNameDraft(event.target.value);
+                        if (renameError) setRenameError(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          void saveRename();
+                        }
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      inputProps={{ maxLength: 60, 'aria-label': 'Group name' }}
+                      sx={{ minWidth: 220 }}
+                    />
+                    <Tooltip title="Save group name">
+                      <span>
+                        <IconButton size="small" onClick={() => void saveRename()} disabled={isRenamePending} aria-label="Save group name">
+                          <CheckIcon fontSize="small" />
+                        </IconButton>
+                      </span>
                     </Tooltip>
-                  ) : null}
-                </>
-              )}
-              {groupId ? (
-                <Tooltip title="Copy group link">
-                  <IconButton size="small" onClick={() => void copyGroupLink()} aria-label="Copy group link">
-                    <ContentCopyIcon />
-                  </IconButton>
-                </Tooltip>
-              ) : null}
+                    <Tooltip title="Cancel rename">
+                      <span>
+                        <IconButton size="small" onClick={cancelRename} disabled={isRenamePending} aria-label="Cancel rename">
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Stack>
+                ) : (
+                  <>
+                    <Typography variant="h5" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayGroupTitle}</Typography>
+                    {canRenameGroup ? (
+                      <Tooltip title="Rename group">
+                        <IconButton size="small" onClick={beginRename} aria-label="Rename group">
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
+                  </>
+                )}
+                {groupId ? (
+                  <Tooltip title="Copy group link">
+                    <IconButton size="small" onClick={() => void copyGroupLink()} aria-label="Copy group link">
+                      <ContentCopyIcon />
+                    </IconButton>
+                  </Tooltip>
+                ) : null}
+              </Stack>
+              <Tooltip title="Menu">
+                <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
+                  <MenuIcon />
+                </IconButton>
+              </Tooltip>
             </Stack>
             <Box
               component="div"
@@ -203,13 +210,6 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               </Typography>
             </Box>
           </Box>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Menu">
-              <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
-                <MenuIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
         </Stack>
         <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
           {onBreakoutClick ? (

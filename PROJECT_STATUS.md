@@ -1848,3 +1848,27 @@ traces
 - Edit Appointment dialog now renders assumptions inline under the `When` preview row as a collapsed-by-default toggle (`Assumptions (n) ▸/▾`) for a more compact layout.
 - Removed the previously detached assumptions block from below the main fields so resolve artifacts are grouped directly under `When`.
 - Kept resolve/preview/confirm behavior unchanged: in-field resolve trigger, explicit preview accept, and save using existing resolved preview state.
+
+## 2026-02-24 02:30 UTC update (Group header menu button alignment)
+
+- Moved group header menu button into the group name row for better visual grouping.
+- Kept header structure as: top `Group` label, middle name/actions row with menu at far right, and members summary beneath.
+- Preserved menu trigger behavior and anchor handling; no menu action logic changed.
+
+### Success criteria
+
+- Burger/menu icon appears on the same horizontal row as the group name.
+- Group name + rename/copy actions remain left, menu remains right.
+- Members summary stays on a separate row below.
+
+### Non-regressions
+
+- Menu opening/closing and action handlers remain unchanged.
+- Keyboard/click behavior for members summary remains unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+2. Open `/#/g/<groupId>/app`.
+3. Confirm the header row order is `Group` label, then `name/actions + menu` on one row, then members line.
+4. Click the menu button and verify the menu anchors to the moved button as before.
