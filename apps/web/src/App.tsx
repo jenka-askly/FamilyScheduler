@@ -6,7 +6,6 @@ import { PageHeader } from './components/layout/PageHeader';
 import { apiUrl } from './lib/apiUrl';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import EditIcon from '@mui/icons-material/Edit';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material';
@@ -269,22 +268,20 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
 
 type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; joinedCount?: number; joinedPersonIds?: string[]; photoUpdatedAtByPersonId?: Record<string, string> };
+const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
 
 function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
   const [groupName, setGroupName] = useState<string>('Family Schedule');
-  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
-  const [groupNameDraft, setGroupNameDraft] = useState('');
-  const [isRenamePending, setIsRenamePending] = useState(false);
   const [joinedCount, setJoinedCount] = useState(0);
   const [joinedBump, setJoinedBump] = useState(false);
-  const [joinSoundEnabled, setJoinSoundEnabled] = useState(false);
+  const [joinSoundEnabled, setJoinSoundEnabled] = useState(true);
   const [joinedPersonIds, setJoinedPersonIds] = useState<string[]>([]);
+  const [newlyJoinedPersonIds, setNewlyJoinedPersonIds] = useState<string[]>([]);
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [photoSelected, setPhotoSelected] = useState(false);
   const [copiedJoinLink, setCopiedJoinLink] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
   const [scanCaptureOpen, setScanCaptureOpen] = useState(false);
@@ -293,11 +290,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const scanCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scanCaptureStreamRef = useRef<MediaStream | null>(null);
   const prevJoinedRef = useRef(0);
+  const prevJoinedPersonIdsRef = useRef<string[]>([]);
   const joinBumpTimeoutRef = useRef<number | null>(null);
+  const joinedPersonBumpTimeoutRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastChimeAtRef = useRef(0);
-
-  const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
 
   const stopScanCaptureStream = () => {
     if (!scanCaptureStreamRef.current) return;
@@ -313,7 +310,23 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   useEffect(() => () => {
     stopScanCaptureStream();
     if (joinBumpTimeoutRef.current != null) window.clearTimeout(joinBumpTimeoutRef.current);
+    if (joinedPersonBumpTimeoutRef.current != null) window.clearTimeout(joinedPersonBumpTimeoutRef.current);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const persisted = window.localStorage.getItem(IGNITE_SOUND_KEY);
+    if (persisted == null) {
+      setJoinSoundEnabled(true);
+      return;
+    }
+    setJoinSoundEnabled(persisted !== 'false');
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(IGNITE_SOUND_KEY, joinSoundEnabled ? 'true' : 'false');
+  }, [joinSoundEnabled]);
 
   useEffect(() => {
     const loadGroupMeta = async () => {
@@ -329,38 +342,17 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     void loadGroupMeta();
   }, [groupId]);
 
-  const renameGroupName = async () => {
-    const normalized = normalizeGroupName(groupNameDraft);
-    if (!normalized) {
-      setError('Group name is required.');
-      return;
-    }
-    if (normalized.length > 60) {
-      setError('Group name must be 60 characters or fewer.');
-      return;
-    }
-    setIsRenamePending(true);
+  const renameGroupName = async (nextName: string) => {
     setError(null);
     const traceId = createTraceId();
-    try {
-      const response = await fetch(apiUrl('/api/group/rename'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, phone, groupName: normalized, traceId })
-      });
-      const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
-      if (!response.ok) {
-        setError(`${payload.message ?? 'Unable to rename group.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
-        return;
-      }
-      setGroupName(payload.groupName || normalized);
-      setIsEditingGroupName(false);
-      setGroupNameDraft('');
-    } catch {
-      setError('Unable to rename group.');
-    } finally {
-      setIsRenamePending(false);
-    }
+    const response = await fetch(apiUrl('/api/group/rename'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, phone, groupName: nextName, traceId })
+    });
+    const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
+    if (!response.ok) throw new Error(`${payload.message ?? 'Unable to rename group.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
+    setGroupName(payload.groupName || nextName);
   };
 
   const playJoinChime = () => {
@@ -420,7 +412,9 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     setStatus('OPEN');
     setJoinedCount(0);
     prevJoinedRef.current = 0;
+    prevJoinedPersonIdsRef.current = [];
     setJoinedPersonIds([]);
+    setNewlyJoinedPersonIds([]);
     setPhotoUpdatedAtByPersonId({});
   };
 
@@ -446,10 +440,19 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
         joinBumpTimeoutRef.current = window.setTimeout(() => setJoinedBump(false), 600);
         if (joinSoundEnabled && document.visibilityState === 'visible') playJoinChime();
       }
+      const incomingIds = data.joinedPersonIds ?? [];
+      const nextSet = new Set(incomingIds);
+      const addedIds = incomingIds.filter((personId) => !prevJoinedPersonIdsRef.current.includes(personId));
+      if (addedIds.length > 0) {
+        setNewlyJoinedPersonIds((existing) => [...new Set([...existing.filter((personId) => nextSet.has(personId)), ...addedIds])]);
+        if (joinedPersonBumpTimeoutRef.current != null) window.clearTimeout(joinedPersonBumpTimeoutRef.current);
+        joinedPersonBumpTimeoutRef.current = window.setTimeout(() => setNewlyJoinedPersonIds([]), 900);
+      }
+      prevJoinedPersonIdsRef.current = incomingIds;
       prevJoinedRef.current = nextCount;
       setStatus(data.status ?? 'OPEN');
       setJoinedCount(nextCount);
-      setJoinedPersonIds(data.joinedPersonIds ?? []);
+      setJoinedPersonIds(incomingIds);
       setPhotoUpdatedAtByPersonId(data.photoUpdatedAtByPersonId ?? {});
     };
     void poll();
@@ -476,7 +479,6 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       const response = await fetch(apiUrl('/api/ignite/photo'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, sessionId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
       const data = await response.json() as { ok?: boolean; message?: string };
       if (!response.ok || !data.ok) setError(data.message ?? 'Unable to upload photo');
-      else setPhotoSelected(true);
     } catch {
       setError('Unable to upload photo');
     } finally {
@@ -487,7 +489,6 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
   const uploadPhoto = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
     if (!file || !sessionId) {
-      setPhotoSelected(false);
       return;
     }
     setError(null);
@@ -597,42 +598,25 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
       <PageHeader
         title="Ignition Session"
         description="QR join for quick onboarding with live count and photos."
+        titleOverride={groupName}
+        subtitleOverride={`Joined: ${joinedCount}`}
+        subtitlePulse={joinedBump}
+        onRenameGroupName={renameGroupName}
         groupId={groupId}
       />
       {error ? <Alert severity="error">{error}</Alert> : null}
       <div className="ui-igniteOrg">
         <div className="ui-igniteOrgInner">
-          <div className="ui-igniteSection">
-            <Typography variant="overline" color="text.secondary">Group</Typography>
-            {isEditingGroupName ? (
-              <div className="ui-igniteGroupEditRow">
-                <TextField
-                  size="small"
-                  value={groupNameDraft}
-                  onChange={(event) => setGroupNameDraft(event.target.value)}
-                  inputProps={{ maxLength: 60, 'aria-label': 'Group name' }}
-                />
-                <Button variant="contained" size="small" onClick={() => { void renameGroupName(); }} disabled={isRenamePending}>Save</Button>
-                <Button variant="text" size="small" onClick={() => setIsEditingGroupName(false)} disabled={isRenamePending}>Cancel</Button>
-              </div>
-            ) : (
-              <div className="ui-igniteGroupTitleRow">
-                <Typography variant="h5" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupName}</Typography>
-                <IconButton
-                  size="small"
-                  aria-label="Rename group"
-                  title="Rename group"
-                  onClick={() => {
-                    setGroupNameDraft(groupName);
-                    setIsEditingGroupName(true);
-                  }}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </div>
-            )}
-            <div className="ui-igniteJoinedRow">
-              <Typography variant="body2">Joined <span className={`ui-igniteJoinedBadge ${joinedBump ? 'ui-igniteJoinedBump' : ''}`}>{joinedCount}</span></Typography>
+          <div className="ui-igniteSection ui-igniteCardHeader">
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
+            <div className="ui-igniteHeaderLeft">
+              <IconButton type="button" title="Add optional photo" aria-label="Add optional photo" onClick={() => { void openCapture(); }} disabled={!sessionId || isUploading}>
+                <CameraAltIcon />
+              </IconButton>
+              <Typography className="ui-igniteOptionalLabel">Optional</Typography>
+            </div>
+            <Typography variant="h6" className="ui-igniteCardTitle">Ignition Session</Typography>
+            <div className="ui-igniteHeaderRight">
               <IconButton
                 size="small"
                 aria-label="Join sound"
@@ -641,6 +625,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
               >
                 {joinSoundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
               </IconButton>
+              {status === 'OPEN' && sessionId ? (
+                <Button variant="contained" type="button" onClick={() => { void closeSession(); }}>Close</Button>
+              ) : (
+                <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
+              )}
             </div>
           </div>
 
@@ -672,29 +661,21 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
             </div>
           ) : null}
 
-          <div className="ui-igniteSection ui-igniteActions">
-            {status === 'OPEN' && sessionId ? (
-              <Button variant="contained" type="button" onClick={() => { void closeSession(); }}>Close</Button>
-            ) : (
-              <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
-            )}
-          </div>
-
           <div className="ui-igniteSection">
             <div className="ui-igniteHeader">
-              <Typography variant="subtitle2">Photos</Typography>
+              <Typography variant="subtitle2">Joined folks</Typography>
             </div>
-            <div className="ui-igniteActions" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
-              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
-              <IconButton type="button" title="Add or update your photo" aria-label="Add or update your photo" onClick={() => { void openCapture(); }} disabled={!sessionId || isUploading}>
-                <CameraAltIcon />
-              </IconButton>
-            </div>
-            {photoSelected ? <p className="ui-meta">Photo selected.</p> : null}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 8 }}>
-              {sessionId ? joinedPersonIds.map((personId) => (
-                <img key={personId} src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: 8, background: '#f1f5f9' }} />
-              )) : null}
+            {!sessionId || joinedPersonIds.length === 0 ? <Typography className="ui-meta">No one joined yet.</Typography> : null}
+            <div className="ui-igniteFolksList">
+              {sessionId ? joinedPersonIds.map((personId) => {
+                const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
+                return (
+                  <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
+                    {hasPhoto ? <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personId} /> : null}
+                    <Typography variant="caption" className="ui-ignitePersonName">{personId}</Typography>
+                  </div>
+                );
+              }) : null}
             </div>
           </div>
         </div>

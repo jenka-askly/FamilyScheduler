@@ -1936,3 +1936,16 @@ traces
 - Create Group post-success UI simplified: collapsed form after creation, primary Continue action elevated in success header, and streamlined sharing section.
 - Added compact success summary (`Schedule created`, group name, group ID) with optional `Edit details` to reopen the create form.
 - Removed multi-step callout in favor of one muted helper line while preserving share-link copy behavior.
+
+## 2026-02-24 06:12 UTC update (Ignite organizer/header/banner joined-folks cleanup)
+
+- Reworked Ignite organizer card top row into a stable single header grid: left optional camera action (`Optional` caption), centered `Ignition Session`, right sound toggle + Close/Reopen action within the card.
+- Removed organizer duplicate group-title block and old `Photos`/`Photo selected.` artifact UI; replaced bottom section with `Joined folks` list + empty state (`No one joined yet.`).
+- Added joined-folks entry bump animation and wired live joined count pulse from the same meta-poll increment logic.
+- Added sound preference persistence (`igniteSoundEnabled` in localStorage) with default ON and best-effort silent fail when browser audio autoplay is blocked.
+- Updated ignite banner/header usage to show group display name with rename affordance and subtitle override `Joined: N` (live count source aligned with organizer polling).
+
+### Verification
+
+- Manual code-path verification via review of Ignite organizer polling/start/close/photo handlers in `apps/web/src/App.tsx` and ignite header override rendering in `PageHeader.tsx`.
+- `pnpm -C apps/web run typecheck` currently fails in this container due pre-existing missing MUI dependencies (`@mui/material`, `@mui/icons-material`), so browser runtime verification should be completed in dependency-complete staging/local environment.

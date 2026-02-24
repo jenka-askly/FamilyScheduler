@@ -1712,6 +1712,7 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-bottom: 10px;
 }
 
 .ui-igniteShareCard {
@@ -1926,4 +1927,69 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 
 .ui-aiAction:hover {
   color: #6d28d9;
+}
+
+.ui-igniteCardHeader {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.ui-igniteHeaderLeft,
+.ui-igniteHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-igniteHeaderLeft {
+  position: relative;
+  justify-self: start;
+}
+
+.ui-igniteOptionalLabel {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 36px;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.ui-igniteCardTitle {
+  text-align: center;
+}
+
+.ui-igniteFolksList {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ui-ignitePersonCard {
+  min-width: 92px;
+  max-width: 120px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px;
+  background: #fff;
+  display: grid;
+  gap: 4px;
+}
+
+.ui-ignitePersonThumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.ui-ignitePersonName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
