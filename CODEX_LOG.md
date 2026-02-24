@@ -6741,3 +6741,37 @@ Apply requested UI-only shell polish: convert left nav from boxed buttons to a s
 - `pnpm -r --if-present build` ❌ fails in this environment due unresolved MUI packages (`@mui/material`, `@mui/icons-material/*`) and existing implicit-any diagnostics unrelated to this UI-only change.
 - `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ starts Vite, but app compile fails for same missing MUI deps when modules load.
 - Playwright screenshot capture ✅ produced artifact: `browser:/tmp/codex_browser_invocations/e8c749d7aefc77d0/artifacts/artifacts/sidebar-restyle.png`.
+
+## 2026-02-24 00:24 UTC (Inline group rename + groupRename function)
+
+### Objective
+
+Implement inline group-name editing in the authenticated AppShell header and add a new authorized backend endpoint (`POST /api/group/rename`) with tests.
+
+### Approach
+
+- Updated `PageHeader` to support optional async rename handler and inline edit flow (pencil icon, small text field, Save/Cancel controls, Enter/Escape shortcuts, validation/error/pending states).
+- Added `renameGroupName` in `AppShell` to normalize input and call `/api/group/rename` with `{ groupId, phone, groupName, traceId }`, surfacing API error trace IDs.
+- Implemented new API function `groupRename` following `groupJoin`/`igniteSpinoff` auth and error patterns.
+- Registered function route in `api/src/index.ts` and added function name to startup expected list.
+- Added unit tests covering success, invalid name, unauthorized caller, missing group, and traceId propagation.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/groupRename.ts`
+- `api/src/functions/groupRename.test.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files apps/web/src/components/layout/PageHeader.tsx apps/web/src/AppShell.tsx api/src/index.ts api/src/functions/groupJoin.ts api/src/functions/igniteSpinoff.ts api/src/functions/groupMeta.test.ts api/src/functions/groupCreate.test.ts PROJECT_STATUS.md CODEX_LOG.md` ✅ located target files.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed due missing MUI packages/types in environment (`Cannot find module '@mui/material'`) and pre-existing implicit-any issues in untouched files.
+- `pnpm --filter @familyscheduler/api run test` ✅ passed after adding/fixing `groupRename` tests.
+
+### Follow-ups
+
+- If needed for full local frontend verification in this environment, install workspace dependencies before rerunning web typecheck/build.

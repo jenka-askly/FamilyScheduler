@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import TextField from '@mui/material/TextField';
 import { useColorMode } from '../../colorMode';
 import { PRODUCT } from '../../product';
 
@@ -22,11 +26,16 @@ type Props = {
   showGroupAccessNote?: boolean;
   onBreakoutClick?: () => void;
   breakoutDisabled?: boolean;
+  onRenameGroupName?: (nextName: string) => Promise<void>;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [isRenamePending, setIsRenamePending] = useState(false);
   const { mode, toggleMode } = useColorMode();
 
   useEffect(() => {
@@ -56,6 +65,49 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       ? `Group ${shortGroupId}`
       : title;
   const hasMembersAction = typeof onMembersClick === 'function';
+  const canRenameGroup = Boolean(groupId && displayGroupTitle && typeof onRenameGroupName === 'function');
+
+  const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
+
+  const beginRename = () => {
+    if (!canRenameGroup) return;
+    setRenameError(null);
+    setGroupNameDraft(normalizedGroupName || displayGroupTitle || '');
+    setIsEditingGroupName(true);
+  };
+
+  const cancelRename = () => {
+    if (isRenamePending) return;
+    setRenameError(null);
+    setIsEditingGroupName(false);
+    setGroupNameDraft('');
+  };
+
+  const saveRename = async () => {
+    if (!onRenameGroupName) return;
+    const nextName = normalizeGroupName(groupNameDraft);
+    if (!nextName) {
+      setRenameError('Group name is required.');
+      return;
+    }
+    if (nextName.length > 60) {
+      setRenameError('Group name must be 60 characters or fewer.');
+      return;
+    }
+
+    setIsRenamePending(true);
+    setRenameError(null);
+    try {
+      await onRenameGroupName(nextName);
+      setIsEditingGroupName(false);
+      setGroupNameDraft('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to rename group.';
+      setRenameError(message);
+    } finally {
+      setIsRenamePending(false);
+    }
+  };
 
   const handleMembersKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!hasMembersAction) return;
@@ -74,7 +126,55 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               Group
             </Typography>
             <Stack direction="row" spacing={0.5} alignItems="center">
-              <Typography variant="h5">{displayGroupTitle}</Typography>
+              {isEditingGroupName ? (
+                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+                  <TextField
+                    size="small"
+                    value={groupNameDraft}
+                    onChange={(event) => {
+                      setGroupNameDraft(event.target.value);
+                      if (renameError) setRenameError(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void saveRename();
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault();
+                        cancelRename();
+                      }
+                    }}
+                    inputProps={{ maxLength: 60, 'aria-label': 'Group name' }}
+                    sx={{ minWidth: 220 }}
+                  />
+                  <Tooltip title="Save group name">
+                    <span>
+                      <IconButton size="small" onClick={() => void saveRename()} disabled={isRenamePending} aria-label="Save group name">
+                        <CheckIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Cancel rename">
+                    <span>
+                      <IconButton size="small" onClick={cancelRename} disabled={isRenamePending} aria-label="Cancel rename">
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Stack>
+              ) : (
+                <>
+                  <Typography variant="h5">{displayGroupTitle}</Typography>
+                  {canRenameGroup ? (
+                    <Tooltip title="Rename group">
+                      <IconButton size="small" onClick={beginRename} aria-label="Rename group">
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
+                </>
+              )}
               {groupId ? (
                 <Tooltip title="Copy group link">
                   <IconButton size="small" onClick={() => void copyGroupLink()} aria-label="Copy group link">
@@ -148,6 +248,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       {description ? <Typography color="text.secondary">{description}</Typography> : null}
       {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only listed phone numbers can access this group.'}</Typography> : null}
       {copied ? <Alert severity="success">Copied</Alert> : null}
+      {renameError ? <Alert severity="error">{renameError}</Alert> : null}
     </Stack>
   );
 }

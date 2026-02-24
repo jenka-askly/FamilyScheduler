@@ -1765,3 +1765,29 @@ traces
 2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
 3. Open `/#/g/<groupId>/app`.
 4. Confirm left nav labels are `Schedule` and `Members`, and there is no `Calendar` heading above the main calendar module.
+
+## 2026-02-24 00:24 UTC update (Inline group rename + group/rename API)
+
+- Added inline group rename UX to authenticated app header (`PageHeader`) with edit pencil affordance, Enter-to-save, Escape-to-cancel, explicit save/cancel icon buttons, pending-state save disablement, and inline error surfacing.
+- Added `POST /api/group/rename` backend endpoint with join-style identity validation, group name normalization (trim + collapse whitespace), 1..60 length enforcement, membership authorization, persisted `groupName` update, and traceId in responses.
+- Wired `AppShell` to call `POST /api/group/rename` and optimistically refresh header state from response payload.
+- Added API tests for success + key error cases (400/403/404) and traceId coverage.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/groupRename.ts`
+- `api/src/functions/groupRename.test.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification steps
+
+1. Run `pnpm --filter @familyscheduler/api run test`.
+2. Run `pnpm --filter @familyscheduler/web run typecheck` (environment may require dependency install first).
+3. In app shell (`/#/g/<groupId>/app`), click pencil icon next to group title, edit name, press Enter or Save, and confirm header updates.
+4. Press Escape or Cancel during edit and confirm draft is discarded.
+5. Confirm copy-link button, breakout menu item, and dark-mode toggle still work.
+6. Call `GET /api/group/meta?groupId=<groupId>` and confirm returned `groupName` reflects rename.

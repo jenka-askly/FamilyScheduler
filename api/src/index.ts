@@ -8,6 +8,7 @@ import { diagnoseOpenAi } from './functions/diagnoseOpenAi.js';
 import { groupCreate } from './functions/groupCreate.js';
 import { groupJoin } from './functions/groupJoin.js';
 import { groupMeta } from './functions/groupMeta.js';
+import { groupRename } from './functions/groupRename.js';
 import { usage } from './functions/usage.js';
 import { scanAppointment } from './functions/scanAppointment.js';
 import { appointmentScanImage } from './functions/appointmentScanImage.js';
@@ -25,7 +26,7 @@ const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -72,6 +73,8 @@ registerHttp('groupCreate', 'group/create', ['POST'], groupCreate);
 registerHttp('groupJoin', 'group/join', ['POST'], groupJoin);
 
 registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
+
+registerHttp('groupRename', 'group/rename', ['POST'], groupRename);
 
 registerHttp('chat', 'chat', ['POST'], chat);
 
