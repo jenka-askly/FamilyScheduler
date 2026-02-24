@@ -1234,6 +1234,60 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   min-width: 0;
 }
 
+.ui-sheetTabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.ui-sheetTab {
+  appearance: none;
+  border: 1px solid #cbd5e1;
+  border-bottom: none;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  color: inherit;
+  cursor: pointer;
+  min-height: 0;
+}
+
+.ui-sheetTab:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.ui-sheetTab.is-active {
+  background: #fff;
+  position: relative;
+  top: 1px;
+  z-index: 1;
+}
+
+.ui-sheetTab:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.ui-sheetBody {
+  border: 1px solid #cbd5e1;
+  border-top: 0;
+  background: #fff;
+}
+
+.ui-sheetBody > .panel {
+  border: 0;
+  border-radius: 0;
+  margin-bottom: 0;
+}
+
+.ui-sheetBody .ui-cal > .MuiPaper-root {
+  border: 0;
+  border-radius: 0;
+}
+
 .ui-calToolbar {
   display: flex;
   justify-content: space-between;

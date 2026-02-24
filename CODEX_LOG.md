@@ -7771,3 +7771,38 @@ Refine Breakout popup messaging UX to use a dismissible informational notice wit
 ### Follow-ups
 
 - Re-run local browser/staging verification in a fully provisioned environment to confirm popup-null branch behavior and manual-link UX.
+
+
+## 2026-02-24 08:55 UTC (Top sheet tabs for Schedule/Members)
+
+### Objective
+
+Implement a top-mounted Excel-like sheet tab switcher for `Schedule` and `Members`, remove reliance on sidebar section buttons, and visually connect the active tab to the content panel.
+
+### Approach
+
+- Removed sidebar `ListItemButton` section entries for Schedule/Members and left sidebar structure in place to minimize layout risk.
+- Added `ui-sheetTabs` in `ui-main` before section branches with two tab buttons wired to `setActiveSection('calendar' | 'members')`.
+- Added tab semantics (`role=tablist/tab`, `aria-selected`, `tabIndex` active/inactive).
+- Wrapped branch content in `ui-sheetBody` and added CSS so active tab overlays the body border and avoids double-border seams.
+- Kept existing calendar internal view tabs and members panel content unchanged.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found.
+- `rg -n "ui-shell|ui-main|activeSection|ListItemButton" apps/web/src/AppShell.tsx` ✅ located shell/nav render points.
+- `rg -n "ui-shell|ui-sidebar|ui-main|panel|ui-leftNavItem" apps/web/src/styles.css` ✅ confirmed shell styles live in `styles.css`.
+- `pnpm -C apps/web run typecheck` ⚠️ failed in this environment due pre-existing TypeScript issues in unrelated code paths.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ timed out in non-interactive session after startup; used for screenshot capture setup.
+- `run_playwright_script` ✅ captured UI screenshot artifact for verification.
+
+### Follow-ups
+
+- If desired, consider removing now-unused sidebar styling rules in a dedicated cleanup pass.

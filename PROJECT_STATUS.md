@@ -1,3 +1,31 @@
+## 2026-02-24 08:55 UTC update (Schedule/Members moved to top sheet tabs)
+
+- Replaced sidebar section navigation for `Schedule`/`Members` with a top-mounted sheet-style tab strip in the main content area.
+- Added semantic tab accessibility on the new switcher (`role="tablist"`, `role="tab"`, `aria-selected`, and active-only `tabIndex=0`).
+- Wrapped section content in `ui-sheetBody` and aligned borders so the active tab visually attaches to the panel without double-border seams.
+- Preserved existing internal calendar tabs (`List/Month/Week/Day`) and members table/flows unchanged.
+
+### Success criteria
+
+- Switching between Schedule and Members works via top sheet tabs.
+- Sidebar no longer contains Schedule/Members interactive entries.
+- Active sheet tab appears attached to the content panel.
+- Appointment and member CRUD flows continue behaving as before.
+
+### Non-regressions
+
+- Calendar internal view tabs and actions are unchanged.
+- People header/table/edit/delete/add interactions are unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` and open the app.
+3. Use top tabs to switch Schedule/Members; confirm tab active styling and no top seam.
+4. In Schedule, verify List/Month/Week/Day tabs still work.
+5. In Members, verify add/edit/delete and existing rows render as before.
+
+
 ## 2026-02-24 06:52 UTC update (List-view appointment details popover + Unassigned click target)
 
 - In list view, `Unassigned` now renders as a text button that opens the existing Assign people dialog for that appointment.
