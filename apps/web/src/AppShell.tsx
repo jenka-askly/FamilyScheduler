@@ -1519,24 +1519,23 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
 
           {activeSection === 'members' ? (
-            <section className="panel">
-              <Box>
-                <Box sx={{ px: 2, pt: 1 }}>
-                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" aria-label="People actions">
-                      <Tooltip title="Add person">
-                        <span>
-                          <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person">
-                            <Plus />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </Stack>
+            <Paper variant="outlined" sx={{ borderRadius: 2 }}>
+              <Box sx={{ px: 2, pt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" aria-label="People actions">
+                    <Tooltip title="Add person">
+                      <span>
+                        <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person" sx={{ alignSelf: 'center' }}>
+                          <Plus />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Stack>
                 </Box>
-                <Divider />
-                <Box sx={{ p: 2 }}>
+              </Box>
+              <Divider />
+              <Box sx={{ p: 2 }}>
                   {peopleInView.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       No people added yet.
@@ -1632,9 +1631,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       </tbody>
                     </table>
                   </div>
-                </Box>
               </Box>
-            </section>
+            </Paper>
           ) : null}
         </section>
       </div>
