@@ -1,3 +1,9 @@
+## 2026-02-24 02:15 UTC update (Week/Day calendar MVP enabled)
+
+- Implemented Week and Day calendar views (MVP list-style chips) and enabled Week/Day tabs in the calendar view switcher.
+- Added independent Week and Day cursors with prev/next/today navigation controls.
+- Week renders a 7-column day grid with appointment/todo chips; Day renders a single-date list with the same chip interactions.
+
 ## 2026-02-24 01:55 UTC update (Month view today highlight)
 
 - Month view: highlight today's date cell (local timezone).

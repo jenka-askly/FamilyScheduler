@@ -322,6 +322,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
+  const [weekCursor, setWeekCursor] = useState<Date>(() => new Date());
+  const [dayCursor, setDayCursor] = useState<Date>(() => new Date());
 
   const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
 
@@ -793,6 +795,17 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           : undefined;
   const monthAnchor = monthCursor;
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthAnchor);
+  const localDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const isSameLocalDay = (a: Date, b: Date) => (
+    a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate()
+  );
   const monthStartWeekday = monthAnchor.getDay();
   const monthGridStart = new Date(monthAnchor);
   monthGridStart.setDate(monthAnchor.getDate() - monthStartWeekday);
@@ -824,6 +837,16 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
     return `${timeFormatter.format(start)}–${timeFormatter.format(end)}`;
   };
+  const weekAnchor = weekCursor;
+  const weekStart = new Date(weekAnchor);
+  weekStart.setDate(weekAnchor.getDate() - weekAnchor.getDay());
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + i);
+    return day;
+  });
+  const weekLabel = `Week of ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(weekStart)}`;
+  const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(dayCursor);
 
   const openRulePromptModal = (person: Snapshot['people'][0]) => {
     setRulePromptModal({ person });
@@ -1162,8 +1185,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                       >
                         <Tab label="List" value="list" />
                         <Tab label="Month" value="month" />
-                        <Tab label="Week · Soon" value="week" disabled aria-disabled="true" />
-                        <Tab label="Day · Soon" value="day" disabled aria-disabled="true" />
+                        <Tab label="Week" value="week" />
+                        <Tab label="Day" value="day" />
                       </Tabs>
                       <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
                         <Tooltip title="Scan to create appointment">
@@ -1272,6 +1295,100 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           assignIcon={<GroupOutlinedIcon fontSize="small" />}
                           deleteIcon={<Trash2 />}
                         />
+                      </>
+                    ) : null}
+
+                    {calendarView === 'week' ? (
+                      <>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                          <IconButton size="small" aria-label="Previous week" onClick={() => setWeekCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() - 7); return next; })}><ChevronLeft /></IconButton>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 170 }}>{weekLabel}</Typography>
+                          <IconButton size="small" aria-label="Next week" onClick={() => setWeekCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() + 7); return next; })}><ChevronRight /></IconButton>
+                          <Button size="small" variant="outlined" onClick={() => setWeekCursor(new Date())}>Today</Button>
+                        </Stack>
+                        <div className="ui-week-grid">
+                          {weekDays.map((day) => {
+                            const dateKey = localDateKey(day);
+                            const dayAppointments = appointmentsByDate[dateKey] ?? [];
+                            const dayTodos = todosByDate[dateKey] ?? [];
+                            const isToday = isSameLocalDay(day, new Date());
+                            return (
+                              <div key={dateKey} className={`ui-week-col ${isToday ? 'ui-cal-today' : ''}`}>
+                                <div className="ui-week-colHeader">
+                                  <div className="ui-week-colHeaderTop">
+                                    <span className="ui-week-dow">{new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(day)}</span>
+                                    <span className="ui-week-dateNum">{day.getDate()}</span>
+                                  </div>
+                                  <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                                </div>
+                                <div className="ui-week-items">
+                                  {dayAppointments.map((appointment) => (
+                                    <button
+                                      key={appointment.code}
+                                      type="button"
+                                      className="ui-chip"
+                                      onClick={() => openWhenEditor(appointment)}
+                                      title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
+                                    >
+                                      <span className="ui-chipTitle">{appointment.desc || appointment.code}</span>
+                                      <span className="ui-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                    </button>
+                                  ))}
+                                  {dayTodos.map((todo) => (
+                                    <button key={todo.id} type="button" className={`ui-chip ui-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                      📝 {todo.text}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : null}
+
+                    {calendarView === 'day' ? (
+                      <>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                          <IconButton size="small" aria-label="Previous day" onClick={() => setDayCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() - 1); return next; })}><ChevronLeft /></IconButton>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, minWidth: 220 }}>{dayLabel}</Typography>
+                          <IconButton size="small" aria-label="Next day" onClick={() => setDayCursor((prev) => { const next = new Date(prev); next.setDate(prev.getDate() + 1); return next; })}><ChevronRight /></IconButton>
+                          <Button size="small" variant="outlined" onClick={() => setDayCursor(new Date())}>Today</Button>
+                        </Stack>
+                        {(() => {
+                          const dateKey = localDateKey(dayCursor);
+                          const dayAppointments = appointmentsByDate[dateKey] ?? [];
+                          const dayTodos = todosByDate[dateKey] ?? [];
+                          const isToday = isSameLocalDay(dayCursor, new Date());
+                          return (
+                            <div className="ui-day">
+                              <div className={`ui-dayHeader ${isToday ? 'ui-cal-today' : ''}`}>
+                                <div className="ui-dayHeaderTitle">{dayLabel}</div>
+                                <button type="button" className="ui-cal-dayPlus" aria-label={`Add appointment for ${dateKey}`} onClick={() => { void addAppointment(); }}>+</button>
+                              </div>
+                              <div className="ui-dayItems">
+                                {dayAppointments.map((appointment) => (
+                                  <button
+                                    key={appointment.code}
+                                    type="button"
+                                    className="ui-chip"
+                                    onClick={() => openWhenEditor(appointment)}
+                                    title={`${appointment.desc || 'Untitled'}\n${formatMonthAppointmentTime(appointment)}${appointment.locationDisplay ? `\n${appointment.locationDisplay}` : ''}`}
+                                  >
+                                    <span className="ui-chipTitle">{appointment.desc || appointment.code}</span>
+                                    <span className="ui-chipSubtle">{formatMonthAppointmentTime(appointment)}</span>
+                                  </button>
+                                ))}
+                                {dayTodos.map((todo) => (
+                                  <button key={todo.id} type="button" className={`ui-chip ui-chipTodo ${todo.done ? 'is-done' : ''}`} onClick={() => openTodoEditor(todo)} title={todo.text}>
+                                    📝 {todo.text}
+                                  </button>
+                                ))}
+                                {dayAppointments.length === 0 && dayTodos.length === 0 ? <Typography variant="body2" color="text.secondary">No items for this day.</Typography> : null}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </>
                     ) : null}
                   </Box>

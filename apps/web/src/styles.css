@@ -1619,3 +1619,70 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.ui-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ui-week-col {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 6px;
+  min-height: 360px;
+}
+
+.ui-week-colHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ui-week-colHeaderTop {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.ui-week-dow {
+  font-weight: 600;
+  color: #475569;
+}
+
+.ui-week-dateNum {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ui-week-items {
+  display: grid;
+  gap: 5px;
+}
+
+.ui-week-col:hover .ui-cal-dayPlus,
+.ui-week-col:focus-within .ui-cal-dayPlus,
+.ui-dayHeader:hover .ui-cal-dayPlus,
+.ui-dayHeader:focus-within .ui-cal-dayPlus {
+  opacity: 1;
+}
+
+.ui-dayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.ui-dayHeaderTitle {
+  font-weight: 700;
+}
+
+.ui-dayItems {
+  display: grid;
+  gap: 6px;
+}
