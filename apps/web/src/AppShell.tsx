@@ -62,6 +62,7 @@ type Session = { groupId: string; phone: string; joinedAt: string };
 
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SESSION_KEY = 'familyscheduler.session';
+const BODY_PX = 2;
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -1233,58 +1234,49 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
-          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Box sx={{ px: 2, pt: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Tabs
-                value={activeSection === 'members' ? 'members' : 'calendar'}
-                onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
-                aria-label="Section tabs"
+          <Box sx={{ backgroundColor: 'background.default', borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Tabs
+              value={activeSection === 'members' ? 'members' : 'calendar'}
+              onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
+              aria-label="Section tabs"
+              sx={{
+                minHeight: 40,
+                '& .MuiTabs-flexContainer': { paddingLeft: BODY_PX, paddingRight: BODY_PX, gap: 1 },
+                '& .MuiTabs-indicator': { display: 'none' }
+              }}
+            >
+              <Tab
+                value="calendar"
+                label="Schedule"
                 sx={{
-                  minHeight: 32,
-                  '& .MuiTabs-flexContainer': { gap: 1 },
-                  '& .MuiTabs-indicator': { display: 'none' }
+                  textTransform: 'none',
+                  borderRadius: 0,
+                  minHeight: 40,
+                  minWidth: 0,
+                  px: 2,
+                  backgroundColor: 'background.default',
+                  '&:hover': { backgroundColor: 'action.hover' },
+                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1, zIndex: 1 }
                 }}
-              >
-                <Tab
-                  value="calendar"
-                  label="Schedule"
-                  sx={{
-                    textTransform: 'none',
-                    minHeight: 28,
-                    minWidth: 0,
-                    px: 2,
-                    borderTopLeftRadius: 10,
-                    borderTopRightRadius: 10,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderBottom: 'none',
-                    backgroundColor: 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
-                  }}
-                />
-                <Tab
-                  value="members"
-                  label="Members"
-                  sx={{
-                    textTransform: 'none',
-                    minHeight: 28,
-                    minWidth: 0,
-                    px: 2,
-                    borderTopLeftRadius: 10,
-                    borderTopRightRadius: 10,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderBottom: 'none',
-                    backgroundColor: 'transparent',
-                    '&:hover': { backgroundColor: 'action.hover' },
-                    '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1 }
-                  }}
-                />
-              </Tabs>
-            </Box>
+              />
+              <Tab
+                value="members"
+                label="Members"
+                sx={{
+                  textTransform: 'none',
+                  borderRadius: 0,
+                  minHeight: 40,
+                  minWidth: 0,
+                  px: 2,
+                  backgroundColor: 'background.default',
+                  '&:hover': { backgroundColor: 'action.hover' },
+                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', top: 1, zIndex: 1 }
+                }}
+              />
+            </Tabs>
+          </Box>
 
-            <div className="ui-sheetBody">
+          <Paper variant="outlined" sx={{ borderTop: 'none', borderRadius: 0 }}>
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
@@ -1292,7 +1284,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'calendar' ? (
             <>
-              <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+              <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <section className="ui-cal">
                   <Box>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
@@ -1548,7 +1540,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
 
           {activeSection === 'members' ? (
-            <Box sx={{ px: 2, pb: 2, pt: 1 }}>
+            <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
                 <Tooltip title="Add person">
@@ -1656,7 +1648,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                   </div>
             </Box>
           ) : null}
-          </div>
           </Paper>
         </section>
       </div>

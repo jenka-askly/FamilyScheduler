@@ -1,3 +1,34 @@
+
+## 2026-02-24 09:35 UTC update (tab rail flatten + active seam blend + left-edge alignment)
+
+- Flattened section tabs; aligned tab rail to content grid; active tab blends into content surface.
+- Removed the outer framed tabs+content container by splitting the rail and body into separate wrappers.
+- Set a shared `BODY_PX = 2` and reused it for both the tab flex container horizontal padding and section body content padding.
+- Updated section tabs to square MUI tabs with inactive `background.default`, active `background.paper`, hidden indicator, and selected-tab seam cover (`top: 1`, `zIndex: 1`).
+- Kept a single content `Paper` surface (`variant="outlined"`) with `borderTop: 'none'` so the rail border is the only top boundary.
+
+### Success criteria
+
+- Inactive tabs render on page background while active tab matches content surface background.
+- Active tab visually covers the rail divider under itself (no visible line beneath active tab).
+- First tab label aligns with section body content left edge (including People/table content).
+- No rounded tab corners and no extra outer framed tabs+content wrapper.
+- Section switching preserves existing behavior with no functional changes.
+
+### Non-regressions
+
+- Internal calendar view tabs (`List/Month/Week/Day`) and calendar actions remain unchanged.
+- Members add/edit/delete/rules flows remain wired as before.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck` (may fail in this environment if MUI deps are unresolved).
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Confirm Schedule/Members rail sits above the body surface with one top seam and no extra divider.
+4. Confirm active tab blends into the body surface and covers the rail divider under itself.
+5. Confirm first tab label left edge aligns with People header/table and schedule content edge.
+
+
 ## 2026-02-24 09:18 UTC update (UI sheet tab polish + workspace width + scrollbar stability)
 
 - Moved Schedule/Members tab rail into the shared top sheet header inside the workspace `Paper` and normalized the attached-tab styling.
