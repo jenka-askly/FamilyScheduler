@@ -7715,3 +7715,34 @@ Guarantee breakout opens Ignite only in a new tab with no opener-tab mutation by
 ### Follow-ups
 
 - Run browser verification in staging across Chrome/Safari/Edge to validate tab/session isolation behavior end-to-end.
+
+## 2026-02-24 06:50 UTC (Breakout notice refinement: dismissible + full-width + hyperlink)
+
+### Objective
+
+Refine Breakout popup messaging UX to use a dismissible informational notice with clickable manual handoff URL, while reserving `breakoutError` for true API failures.
+
+### Approach
+
+- Added `breakoutNotice` local state in `AppShell`.
+- Switched popup-null branch from `setBreakoutError(...)` to `setBreakoutNotice(handoffUrl)`.
+- Cleared notice in popup success path.
+- Inserted new dismissible notice alert block above shell content, aligned with existing alert layout width and style.
+- Kept existing `breakoutError` alert block for true failures.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in this repo scope.
+- `rg -n "breakoutError|handoffUrl|Breakout" apps/web/src/AppShell.tsx` ✅ located breakout flow and alert rendering points.
+- `rg -n "breakoutNotice|setBreakoutNotice|breakoutError" apps/web/src/AppShell.tsx` ✅ validated new notice/error usage split and references.
+- `pnpm -C apps/web run typecheck` ⚠️ blocked by environment dependency-resolution issues observed previously in this workspace (`@mui/*` resolution).
+
+### Follow-ups
+
+- Re-run local browser/staging verification in a fully provisioned environment to confirm popup-null branch behavior and manual-link UX.
