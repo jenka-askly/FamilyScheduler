@@ -824,10 +824,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
-  const headerTitle = activeSection === 'members' ? 'Members' : activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : undefined;
-  const headerDescription = activeSection === 'members'
-    ? 'Manage who can access this schedule.'
-    : activeSection === 'todos'
+  const headerTitle = activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : undefined;
+  const headerDescription = activeSection === 'todos'
       ? 'Track personal and family todos.'
       : activeSection === 'overview'
         ? 'Overview is coming soon.'
@@ -1150,7 +1148,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         groupId={groupId}
         memberNames={activePeople.map((person) => person.name).filter((name) => name.trim())}
         onMembersClick={() => setActiveSection('members')}
-        showGroupAccessNote={activeSection !== 'calendar'}
+        showGroupAccessNote={activeSection !== 'calendar' && activeSection !== 'members'}
         onBreakoutClick={() => { void createBreakoutGroup(); }}
         breakoutDisabled={isSpinningOff}
         onRenameGroupName={renameGroupName}
@@ -1346,19 +1344,33 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           ) : null}
 
           {activeSection === 'members' ? (
-        <section className="panel"> 
-          {peopleInView.length === 0 ? (
-            <div className="ui-alert" style={{ maxWidth: 760 }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>No people added yet</div>
-              <div style={{ color: 'var(--muted)' }}>
-                Add at least one person to allow them to access this group.
-              </div>
-            </div>
-          ) : null}
-          <div className="table-wrap ui-tableScroll">
-            <table className="ui-membersTable">
-              <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
-              <tbody>
+            <section className="panel">
+              <Paper variant="outlined" sx={{ borderRadius: 2 }}>
+                <Box sx={{ px: 2, pt: 1 }}>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" aria-label="People actions">
+                      <Tooltip title="Add person">
+                        <span>
+                          <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person">
+                            <Plus />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+                </Box>
+                <Divider />
+                <Box sx={{ p: 2 }}>
+                  {peopleInView.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      No people added yet.
+                    </Typography>
+                  ) : null}
+                  <div className="table-wrap ui-tableScroll">
+                    <table className="ui-membersTable">
+                      <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
+                      <tbody>
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                   const isEditingPerson = editingPersonId === person.personId;
@@ -1442,17 +1454,12 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                     </Fragment>
                   );
                 })}
-                <tr className="ui-tableCtaRow">
-                  <td colSpan={4}>
-                    <button type="button" className="ui-tableCtaBtn" onClick={() => void addPerson()} aria-label="Add person">
-                      {peopleInView.length > 0 ? '+ Add another person' : '+ Add a person'}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+                      </tbody>
+                    </table>
+                  </div>
+                </Box>
+              </Paper>
+            </section>
           ) : null}
         </section>
       </div>

@@ -1791,3 +1791,10 @@ traces
 4. Press Escape or Cancel during edit and confirm draft is discarded.
 5. Confirm copy-link button, breakout menu item, and dark-mode toggle still work.
 6. Call `GET /api/group/meta?groupId=<groupId>` and confirm returned `groupName` reflects rename.
+
+## 2026-02-24 00:46 UTC update (Members pane control-row alignment)
+
+- People/Members pane no longer shows members-specific static subheader copy below the page header.
+- Moved add-person action from bottom table CTA to a Schedule-style top control row (left label `People`, right `+` icon button) using the same existing add handler.
+- Added members empty-state hint text (`No people added yet.`) below the control row and above the table.
+- No routing, data flow, or handler behavior changes.
