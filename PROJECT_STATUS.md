@@ -2264,3 +2264,30 @@ traces
 1. Run `pnpm --filter @familyscheduler/web typecheck` (may fail in this environment due pre-existing dependency issues).
 2. In Chrome/Edge/Safari, open an existing meeting and click Burger → Breakout.
 3. Confirm original tab URL/title/sessionStorage remain unchanged while new tab opens directly to handoff then ignite.
+
+## 2026-02-24 06:50 UTC update (Breakout dismissible informational notice + manual link)
+
+- Added a dedicated `breakoutNotice` state in `AppShell` for informational popup-hand-off guidance, separating it from `breakoutError` (API failure channel only).
+- Updated breakout popup `null` branch to set a notice with `handoffUrl` instead of setting an error-style message.
+- Added a dismissible informational notice banner above shell content, matching existing alert max width (`maxWidth: 760`) and including a clickable `open it manually` hyperlink (`target="_blank"`, `rel="noopener"`).
+- Added close affordance (`×`) with accessible label `Close breakout notice`.
+- Ensured successful popup open clears any prior informational notice immediately.
+
+### Success criteria
+
+- Clicking Breakout still opens a new tab.
+- Origin tab shows informational notice (not error) only when popup handle is null.
+- Notice width matches other app alerts.
+- Manual URL is clickable.
+- Clicking `×` dismisses the notice.
+
+### Non-regressions
+
+- API-failure handling still flows through `breakoutError` and preserves trace messaging.
+- Existing handoff URL generation and popup focus behavior remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Open `/#/g/<groupId>/app`, click Breakout, and validate new-tab behavior and no regression to API error messaging.
+3. In an environment where popup handle is null, confirm notice appears with working manual link and dismiss button.

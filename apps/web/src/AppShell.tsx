@@ -385,6 +385,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
+  const [breakoutNotice, setBreakoutNotice] = useState<string | null>(null);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
@@ -1153,9 +1154,10 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
       const popup = window.open(handoffUrl, '_blank', 'noopener');
       if (!popup) {
-        setBreakoutError(`Opening Breakout in a new tab… If nothing happened, allow popups or open: ${handoffUrl}`);
+        setBreakoutNotice(handoffUrl);
         return;
       }
+      setBreakoutNotice(null);
       setBreakoutError(null);
       popup.focus?.();
       return;
@@ -1180,6 +1182,49 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         breakoutDisabled={isSpinningOff}
         onRenameGroupName={renameGroupName}
       />
+      {breakoutNotice ? (
+        <div
+          className="ui-alert"
+          style={{
+            maxWidth: 760,
+            marginBottom: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start'
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              Breakout Session
+            </div>
+            <div style={{ color: 'var(--muted)' }}>
+              Opening Breakout in a new tab.
+              If nothing happened,&nbsp;
+              <a
+                href={breakoutNotice}
+                target="_blank"
+                rel="noopener"
+                style={{ textDecoration: 'underline' }}
+              >
+                open it manually
+              </a>.
+            </div>
+          </div>
+          <button
+            onClick={() => setBreakoutNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: 16,
+              cursor: 'pointer',
+              marginLeft: 12
+            }}
+            aria-label="Close breakout notice"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Session</div>
