@@ -1,3 +1,28 @@
+## 2026-02-24 06:35 UTC update (Browser tab titles use group display name only)
+
+- Meeting route (`/#/g/:groupId/app`) now sets tab title from `groupName` only: `Family Scheduler` before metadata loads, then `Family Scheduler — {groupName}` once available.
+- Ignite organizer route (`/#/g/:groupId/ignite`) now sets tab title from `groupName` only: `Ignition Session` before metadata loads, then `Ignition Session — {groupName}` once available.
+- Removed any tab-title dependency on `groupId` for these pages; rename flows update titles automatically through shared `groupName` state effects.
+
+### Success criteria
+
+- Visiting meeting route shows `Family Scheduler` initially and updates to `Family Scheduler — <groupName>` after `/api/group/meta` resolves.
+- Visiting ignite route shows `Ignition Session` initially and updates to `Ignition Session — <groupName>` after `/api/group/meta` resolves.
+- Renaming group name updates the browser tab title on both routes without requiring refresh.
+
+### Non-regressions
+
+- Existing group metadata fetch + rename behavior remains unchanged except tab-title strings.
+- No browser tab title includes `groupId` on meeting/ignite routes.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web build` (or `pnpm --filter @familyscheduler/web dev`).
+2. Open `/#/g/<groupId>/app`; verify title transitions from `Family Scheduler` to `Family Scheduler — <groupName>`.
+3. Open `/#/g/<groupId>/ignite`; verify title transitions from `Ignition Session` to `Ignition Session — <groupName>`.
+4. Rename the group in either route; verify title updates immediately and never displays `groupId`.
+
+
 ## 2026-02-24 05:23 UTC update (Ignite organizer close navigation + meeting-link semantics + joined members)
 
 - Organizer `Close` now redirects directly to the meeting route for the breakout group (`/#/g/<groupId>`) after a successful close response.

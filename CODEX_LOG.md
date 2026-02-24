@@ -7466,3 +7466,32 @@ Implement organizer ignite delta: close navigates to meeting, join-link row poin
 ### Follow-ups
 
 - Staging validation remains required for breakout group with existing members + QR join + close navigation flow.
+
+## 2026-02-24 06:35 UTC (Browser tab titles via group display name only)
+
+### Objective
+
+Update meeting and ignite organizer browser tab titles to use `groupName` only (never `groupId`), with correct fallback titles while metadata is still loading.
+
+### Approach
+
+- Added an Ignite organizer `useEffect` in `App.tsx` that derives `document.title` from `groupName`, with fallback `Ignition Session`.
+- Changed Ignite organizer `groupName` initial state to empty string so initial title stays fallback until `/api/group/meta` resolves.
+- Added a meeting-page `useEffect` in `AppShell.tsx` to set `document.title` to `Family Scheduler` fallback or `Family Scheduler — {groupName}` once metadata/rename updates are available.
+- Reused existing `groupName` state and existing rename handlers so successful rename immediately updates title via effect dependencies.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "document.title|groupName|/api/group/meta|onRenameGroupName" apps/web/src/App.tsx apps/web/src/AppShell.tsx` ✅ located title/meta/rename flows.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this environment due missing `@mui/*` module resolution (pre-existing dependency/runtime setup issue).
+
+### Follow-ups
+
+- Staging/manual verification still needed for route-to-route navigation and rename behavior with real data.

@@ -273,7 +273,7 @@ const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
 function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: string }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
-  const [groupName, setGroupName] = useState<string>('Family Schedule');
+  const [groupName, setGroupName] = useState<string>('');
   const [joinedCount, setJoinedCount] = useState(0);
   const [joinedBump, setJoinedBump] = useState(false);
   const [joinSoundEnabled, setJoinSoundEnabled] = useState(true);
@@ -347,6 +347,11 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
     };
     void loadGroupMeta();
   }, [groupId]);
+
+  useEffect(() => {
+    const name = (groupName ?? '').trim();
+    document.title = name ? `Ignition Session — ${name}` : 'Ignition Session';
+  }, [groupName]);
 
   const renameGroupName = async (nextName: string) => {
     setError(null);
