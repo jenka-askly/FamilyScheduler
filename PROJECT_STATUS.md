@@ -1908,3 +1908,9 @@ traces
 - Reduced duplicate/verbose header treatment by keeping a single page title and tightening intro copy to one concise sentence.
 - Standardized Create Group action alignment by right-aligning the primary button in a shared auth actions row.
 - Minor scanability tweaks: Group key field label/helper split (`Group key` + `6 digits`) and shorter phone helper copy.
+
+## 2026-02-24 04:40 UTC update (Create Group post-success UI simplification)
+
+- Create Group post-success UI simplified: collapsed form after creation, primary Continue action elevated in success header, and streamlined sharing section.
+- Added compact success summary (`Schedule created`, group name, group ID) with optional `Edit details` to reopen the create form.
+- Removed multi-step callout in favor of one muted helper line while preserving share-link copy behavior.

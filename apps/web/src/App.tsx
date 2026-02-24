@@ -76,6 +76,7 @@ function CreateGroupPage() {
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -114,6 +115,7 @@ function CreateGroupPage() {
       writeSession({ groupId: data.groupId, phone: creatorPhone, joinedAt: new Date().toISOString() });
       setCreatedGroupId(data.groupId);
       setShareLink(link);
+      setShowCreateForm(false);
       setCopied(false);
     } finally {
       setIsCreating(false);
@@ -129,39 +131,38 @@ function CreateGroupPage() {
 
       <div className="ui-authContainer">
         <Stack className="ui-authForm" component="form" spacing={2} onSubmit={submit}>
-          <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
-          <TextField label="Group key" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} required inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }} placeholder="Group key" helperText="6 digits" fullWidth />
-          <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
-          <TextField label="Your phone" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" helperText="Use a phone number you can sign in with." fullWidth />
-          <div className="ui-authActions">
-            <Button variant="contained" type="submit" disabled={isCreating}>{isCreating ? 'CREATING…' : 'CREATE GROUP'}</Button>
-          </div>
+          {showCreateForm ? (
+            <>
+              <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
+              <TextField label="Group key" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} required inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }} placeholder="Group key" helperText="6 digits" fullWidth />
+              <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
+              <TextField label="Your phone" value={creatorPhone} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="(425) 555-1234" helperText="Use a phone number you can sign in with." fullWidth />
+              <div className="ui-authActions">
+                <Button variant="contained" type="submit" disabled={isCreating}>{isCreating ? 'CREATING…' : 'CREATE GROUP'}</Button>
+              </div>
+            </>
+          ) : null}
           {error ? <Alert severity="error">{error}</Alert> : null}
 
           {createdGroupId ? (
             <Stack spacing={2} sx={{ mt: 2 }}>
-              <Typography variant="h6">Your schedule is ready</Typography>
-              <Box>
-                <Typography fontWeight={600}>{createdGroupName}</Typography>
-                <Typography variant="body2" color="text.secondary">Group ID: {createdGroupId}</Typography>
-              </Box>
+              <div className="ui-successHeader">
+                <Box>
+                  <Typography variant="h6">Schedule created</Typography>
+                  <Typography fontWeight={600}>{createdGroupName}</Typography>
+                  <Typography variant="body2" color="text.secondary">Group ID: {createdGroupId}</Typography>
+                  {!showCreateForm ? (
+                    <Button variant="text" size="small" type="button" onClick={() => setShowCreateForm(true)}>Edit details</Button>
+                  ) : null}
+                </Box>
+                <Button variant="contained" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</Button>
+              </div>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
                 <TextField label="Share link" value={shareUrl} InputProps={{ readOnly: true }} fullWidth />
                 <Button variant="outlined" type="button" onClick={() => void copyShareLink()}>Copy</Button>
               </Stack>
               {copied ? <Alert severity="success">Copied to clipboard.</Alert> : null}
-              <Typography variant="body2" color="text.secondary">Share this link with family members. They must enter a phone number that you add to the group.</Typography>
-              <Alert severity="info">
-                <Typography fontWeight={600}>Next steps</Typography>
-                <ul>
-                  <li>Add people who can access this schedule</li>
-                  <li>Share the link</li>
-                  <li>Add appointments</li>
-                </ul>
-              </Alert>
-              <Stack direction="row" spacing={1}>
-                <Button variant="contained" type="button" onClick={() => nav(`/g/${createdGroupId}/app`)}>Continue to app</Button>
-              </Stack>
+              <Typography className="ui-successHelp">Share this link. Only people you add can join.</Typography>
             </Stack>
           ) : null}
         </Stack>
