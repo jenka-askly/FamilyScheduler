@@ -58,7 +58,7 @@ ol {
   color: var(--ui-text-muted);
 }
 
-button,
+button:not(.MuiButtonBase-root),
 input,
 select,
 textarea {
@@ -74,7 +74,7 @@ textarea {
 input,
 select,
 textarea,
-button {
+button:not(.MuiButtonBase-root) {
   padding: 0 var(--ui-control-padding-x);
 }
 
@@ -84,7 +84,7 @@ textarea {
   padding-bottom: 8px;
 }
 
-button {
+button:not(.MuiButtonBase-root) {
   background: var(--ui-primary);
   border-color: var(--ui-primary);
   color: #fff;
@@ -92,7 +92,7 @@ button {
   font-weight: 500;
 }
 
-button:hover {
+button:not(.MuiButtonBase-root):hover {
   background: var(--ui-primary-hover);
   border-color: var(--ui-primary-hover);
 }
