@@ -27,9 +27,12 @@ type Props = {
   onBreakoutClick?: () => void;
   breakoutDisabled?: boolean;
   onRenameGroupName?: (nextName: string) => Promise<void>;
+  titleOverride?: string;
+  subtitleOverride?: string;
+  subtitlePulse?: boolean;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -59,11 +62,12 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   const membersSummary = memberCount > 0 ? `${memberCount} members • ${memberNames?.join(', ') ?? ''}` : '0 members';
   const normalizedGroupName = groupName?.trim();
   const shortGroupId = groupId ? groupId.slice(0, 8) : undefined;
-  const displayGroupTitle = normalizedGroupName
+  const defaultGroupTitle = normalizedGroupName
     ? normalizedGroupName
     : shortGroupId
       ? `Group ${shortGroupId}`
       : title;
+  const displayGroupTitle = titleOverride?.trim() || defaultGroupTitle;
   const hasMembersAction = typeof onMembersClick === 'function';
   const canRenameGroup = Boolean(groupId && displayGroupTitle && typeof onRenameGroupName === 'function');
 
@@ -206,7 +210,9 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               }}
             >
               <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {membersSummary}
+                {subtitleOverride ? (
+                  <span className={subtitlePulse ? 'ui-igniteJoinedBump' : undefined}>{subtitleOverride}</span>
+                ) : membersSummary}
               </Typography>
             </Box>
           </Box>

@@ -7311,3 +7311,37 @@ Implement approved Ignite organizer UX polish: single-column layout, group renam
 ### Follow-ups
 
 - Manual local browser verification is still recommended for camera permission + join-sound gesture behavior across target browsers.
+
+## 2026-02-24 06:12 UTC (Ignite UX cleanup: header/banner/joined folks)
+
+### Objective
+
+Implement Ignite organizer UX cleanup: stable in-card header row, sound default/persistence, banner joined override, and joined-folks list replacing photo artifact section.
+
+### Approach
+
+- Updated `IgniteOrganizerPage` to remove duplicate in-card group title block and move organizer controls into a single card header grid.
+- Added optional camera action (with hidden file input + capture fallback path retained), centered session title, and right-side sound toggle + close/reopen action.
+- Added `igniteSoundEnabled` localStorage persistence (default ON) and retained best-effort chime playback with silent failure behavior.
+- Added joined-person delta tracking to pulse newly joined entries and keep joined count pulse behavior on increments.
+- Replaced bottom `Photos` + `Photo selected.` artifact with `Joined folks` list + empty state.
+- Extended `PageHeader` with optional title/subtitle overrides for ignite route (`groupName` + `Joined: N`) and pulse class on subtitle updates.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ✅ confirmed repo root and no in-repo AGENTS file surfaced via ripgrep path listing.
+- `find .. -name AGENTS.md -maxdepth 3` ✅ no AGENTS.md discovered in parent scope paths.
+- `rg -n "IgniteOrganizerPage|ignite|Joined|Photos|photo selected|sound" apps/web/src/App.tsx` ✅ located target organizer logic blocks.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing environment dependency gaps (`@mui/material` and `@mui/icons-material` unresolved in container).
+
+### Follow-ups
+
+- Validate visually in staging/local browser for exact header alignment (camera/sound/close row), live joined subtitle updates in banner, and joined-folks thumbnails/name fallback behavior.
