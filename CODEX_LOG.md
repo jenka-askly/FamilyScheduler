@@ -7592,3 +7592,35 @@ Fix breakout bug where original tab still navigated to ignite even when popup ta
 ### Follow-ups
 
 - Remove temporary breakout debug log after manual validation in a real browser run.
+
+## 2026-02-24 06:06 UTC (Breakout never navigates original tab on popup block)
+
+### Objective
+
+Ensure breakout always opens in a new tab and never navigates the original meeting tab, including popup-blocked cases.
+
+### Approach
+
+- Located breakout navigation logic in `createBreakoutGroup` and removed same-tab fallback behavior from popup-blocked branch.
+- Reused existing computed handoff URL and surfaced a user-facing popup-blocked error containing a manual URL to open breakout if needed.
+- Hardened PageHeader Breakout menu click handler with `preventDefault` + `stopPropagation` to avoid accidental default/click-bubbling navigation behavior.
+- Updated continuity docs with the new expected popup-blocked behavior and verification steps.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ❌ no AGENTS file found by glob in repo root.
+- `find .. -name AGENTS.md -print` ✅ confirmed no `AGENTS.md` files in reachable parent tree.
+- `sed -n '1080,1205p' apps/web/src/AppShell.tsx` ✅ inspected breakout flow and fallback path.
+- `sed -n '1,260p' apps/web/src/components/layout/PageHeader.tsx` ✅ inspected breakout menu click handler.
+- `pnpm --filter @familyscheduler/web typecheck` ❌ fails due pre-existing workspace dependency/type issues (`@mui/*` module resolution + implicit-any errors not introduced by this change).
+
+### Follow-ups
+
+- Manual staging verification is still required for popup-allowed and popup-blocked browser behaviors.
