@@ -1,3 +1,30 @@
+## 2026-02-24 05:23 UTC update (Ignite organizer close navigation + meeting-link semantics + joined members)
+
+- Organizer `Close` now redirects directly to the meeting route for the breakout group (`/#/g/<groupId>`) after a successful close response.
+- Ignite organizer's displayed/copyable "Join link" now uses the meeting URL (`/#/g/<groupId>`); QR still uses the ignite join portal (`/#/s/<groupId>/<sessionId>`).
+- `/api/group/meta` now returns additive `people` payload of active members (`personId`, `name`) so organizer UI can include pre-existing meeting members in Joined folks immediately.
+- Joined folks list/count now uses combined IDs (group active members + organizer + ignite joiners) and resolves display names from merged metadata before falling back to `personId`.
+
+### Success criteria
+
+- Closing an open ignite session navigates organizer to `/#/g/<groupId>` on success.
+- The join-link row displays/copies the meeting link and does not display the ignite join portal URL.
+- Existing active group members appear in Joined folks before/without new QR joins.
+
+### Non-regressions
+
+- QR code generation continues using session join URL (`/#/s/<groupId>/<sessionId>`).
+- Existing `/api/group/meta` consumers remain compatible with additive payload.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/api build`.
+2. Run `pnpm --filter @familyscheduler/web build`.
+3. Start app and API, open organizer ignite route, and verify displayed link equals `/#/g/<groupId>` while QR still joins session URL.
+4. Click Close and confirm navigation to `/#/g/<groupId>`.
+5. Confirm Joined folks includes pre-existing active members plus new QR joiners.
+
+
 ## 2026-02-24 06:05 UTC update (Ignite organizer polish + join emphasis/sound)
 
 - Ignite organizer simplified to a centered single-column flow and removed back/status/header noise.

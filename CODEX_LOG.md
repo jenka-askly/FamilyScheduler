@@ -189,7 +189,7 @@ Implement breakout flow that spins off a new group from current group and immedi
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
 - Playwright screenshot capture ✅ succeeded.
 
@@ -226,7 +226,7 @@ Fix organizer Ignite session flow where `sessionId/joinUrl` were missing and met
 - `rg -n --hidden --glob '!**/node_modules/**' "Ignition Session|Starting session|Status: OPEN|Joined:|Reopen|ignite/start|ignite/meta|Not allowed" apps/web/src` ✅ located ignite organizer implementation and endpoints.
 - `rg -n "groupUrl|joinUrl|qrImageUrl|IgniteOrganizerPage|api/ignite/meta|type === 'ignite'|GroupAuthGate" apps/web/src/App.tsx` ✅ confirmed route/auth wiring + link and QR logic locations.
 - `rg -n --hidden --glob '!**/node_modules/**' "igniteStart|igniteMeta|igniteClose|phoneE164|findActivePersonByPhone|not_allowed" api/src` ✅ located backend handler and auth gates.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/api build` ✅ passed (with npm env warnings only).
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped after capture.
 - `run_playwright_script` ✅ captured screenshot artifact (`artifacts/ignite-organizer-link-qr.png`).
@@ -1417,7 +1417,7 @@ Implement table-based task panels in `apps/web` for appointments and availabilit
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local Vite server for screenshot capture.
 - `playwright script via mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact with populated tables using mocked `/api/chat` snapshot.
 
@@ -2052,7 +2052,7 @@ Replace text-only `clarify` handling with structured AI `question` responses and
 
 - `pnpm --filter @familyscheduler/api test` ✅ passed (8 tests).
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture (stopped with SIGINT after capture).
 - Playwright screenshot with mocked `/api/chat` response ✅ artifact: `browser:/tmp/codex_browser_invocations/5eb466f6dede5a7d/artifacts/artifacts/question-dialog.png`.
 
@@ -2078,7 +2078,7 @@ Fix the appointments table so long `Location` and `Notes` values are readable wi
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (stopped with SIGINT after screenshot capture).
 - Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/199c65cc30e725c7/artifacts/artifacts/appointments-multiline.png`.
 
@@ -2116,7 +2116,7 @@ Change the Appointments pane `Description` column to render as multi-line wrappe
 ### Verification updates (post-implementation)
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual verification (stopped with SIGINT after screenshot capture).
 - Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/46723266d1c1da17/artifacts/artifacts/appointments-description-multiline.png`.
 
@@ -2154,7 +2154,7 @@ Implement deterministic inline appointment editing with direct API mutations, pl
 
 - `pnpm --filter @familyscheduler/api test` ✅ passed (10 tests).
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot attempt.
 - Playwright screenshot attempt ⚠️ failed due browser container Chromium SIGSEGV on launch.
 
@@ -2230,7 +2230,7 @@ Implement appointments UX cleanup in `apps/web`: single-row edit mode with Edit/
 
 ### Commands run + outcomes
 
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
 - Playwright screenshot capture via browser tool ✅ succeeded (`appointments-ux-fullwidth.png`).
 - Stopped dev server with SIGINT after capture ✅ expected.
@@ -2261,7 +2261,7 @@ Make appointment row edit mode easier to exit by adding explicit cancel affordan
 
 ### Commands run + outcomes
 
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started successfully (terminated with SIGINT after verification).
 
 ### Follow-ups
@@ -2716,7 +2716,7 @@ Upgrade the Create Group page to use form layout primitives and present a polish
 
 ### Commands run + outcomes
 
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 5173` ✅ started for visual verification.
 - `pnpm --filter @familyscheduler/api dev` ⚠️ failed (`func: not found`) in this environment.
 - `mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact `create-group-ux-upgrade.png` with mocked create API.
@@ -2750,7 +2750,7 @@ Upgrade the appointments workspace UX with page layout primitives, empty-state C
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 5173` ✅ started for browser verification (stopped with SIGINT after capture).
 - `mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact `appointments-workspace-ux.png`.
 
@@ -2815,7 +2815,7 @@ Normalize workspace pages to a centered wide column, add horizontal overflow beh
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm dev` ⚠️ failed because Azure Functions Core Tools (`func`) is not installed in this environment.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for browser screenshot.
 - `mcp__browser_tools__run_playwright_script` ✅ captured screenshot artifact.
@@ -3081,7 +3081,7 @@ Implement deterministic API deploy packaging that prevents `0 functions found (C
 - `pnpm install --frozen-lockfile` ✅ passed.
 - `pnpm deploy:api:package` ✅ passed (self-test passed).
 - `pnpm deploy:api:verifyzip` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `date -u '+%Y-%m-%d %H:%M UTC'` ✅ used to timestamp this entry.
 
 ### Follow-ups
@@ -3215,7 +3215,7 @@ Fix Create Group production failures by attaching `/api` to the deployed Static 
 - `sed -n '1,220p' .github/workflows/swa-web.yml` ✅ inspected current SWA deploy settings before edit.
 - `sed -n '1,220p' apps/web/src/lib/apiUrl.ts` ✅ inspected current API base URL behavior before edit.
 - `rg -n "static-web-apps-deploy|api_location" .github/workflows` ✅ confirmed all SWA workflow API-location settings and competing workflow state.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `git diff -- .github/workflows/swa-web.yml apps/web/src/lib/apiUrl.ts PROJECT_STATUS.md CODEX_LOG.md` ✅ verified targeted changes.
 
 ### Follow-ups
@@ -3420,7 +3420,7 @@ Force a clean production redeploy and add a deterministic, user-visible build ve
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web exec vite preview --host 0.0.0.0 --port 4173` ✅ preview server started.
 - `mcp__browser_tools__run_playwright_script` ⚠️ failed in this environment due to Chromium `SIGSEGV`, so screenshot capture could not be completed.
 
@@ -3833,7 +3833,7 @@ Enforce `ruleMode=draft|confirm` as a strict rules-only backend path and fix rul
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 
 ### Follow-ups
 
@@ -5624,7 +5624,7 @@ Implement frontend-only app shell/navigation plus calendar month view and todos 
 
 ### Commands run + outcomes
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
-- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
 - Playwright screenshot script via browser tool against `http://127.0.0.1:4173` ✅ captured `browser:/tmp/codex_browser_invocations/fafea451f84a2f40/artifacts/artifacts/shell-calendar.png`.
 - `Ctrl+C` in dev session ⚠️ expected SIGINT shutdown of temporary dev server.
@@ -7433,3 +7433,36 @@ Fix Ignite organizer join link UI so it is static (not input-like) and cannot ca
 ### Follow-ups
 
 - Once MUI dependencies are installed in this environment, re-run dev server and capture a visual before/after at `/#/g/<id>/ignite` with a long join URL.
+
+## 2026-02-24 05:23 UTC (Ignite close route + meeting link + active members in Joined folks)
+
+### Objective
+
+Implement organizer ignite delta: close navigates to meeting, join-link row points to meeting URL, and Joined folks includes existing active members.
+
+### Approach
+
+- Extended `groupMeta` API response to include active people list (`people`) while preserving prior fields.
+- Updated `IgniteOrganizerPage` group meta loader/types to store additive people payload.
+- Kept `joinUrl` for QR only and introduced `meetingUrl` for displayed/copyable link row.
+- Updated `closeSession` success path to navigate organizer to `/#/g/<groupId>`.
+- Updated Joined folks aggregation to combine group active members + organizer + ignite joiners and resolve names from merged meta sources.
+
+### Files changed
+
+- `api/src/functions/groupMeta.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ❌ no AGENTS.md file found under repo search scope in this environment.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
+- `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- `run_playwright_script` ✅ captured organizer screenshot artifact for updated meeting-link/joined-folks UI.
+
+### Follow-ups
+
+- Staging validation remains required for breakout group with existing members + QR join + close navigation flow.
