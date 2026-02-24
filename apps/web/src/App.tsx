@@ -234,8 +234,7 @@ function LandingSignInPage({ notice }: { notice?: string }) {
 
 function CreateGroupPage() {
   const [groupName, setGroupName] = useState('');
-  const [groupKey, setGroupKey] = useState('');
-  const [creatorEmail, setCreatorPhone] = useState('');
+  const [creatorEmail, setCreatorEmail] = useState('');
   const [creatorName, setCreatorName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -243,6 +242,19 @@ function CreateGroupPage() {
   const [showCreateForm, setShowCreateForm] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const session = readSession();
+    if (session?.email) setCreatorEmail(session.email);
+  }, []);
+
+  const hasApiSession = Boolean(getSessionId());
+  const hasSessionEmail = Boolean(readSession()?.email);
+  const hasSignedInSession = hasApiSession && hasSessionEmail;
+  const trimmedGroupName = groupName.trim();
+  const trimmedCreatorName = creatorName.trim();
+  const trimmedCreatorEmail = creatorEmail.trim();
+  const canSubmit = Boolean(trimmedGroupName && trimmedCreatorName && trimmedCreatorEmail) && !isCreating;
 
   const shareUrl = useMemo(() => {
     if (shareLink) return shareLink;
@@ -266,13 +278,17 @@ function CreateGroupPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    if (!getSessionId()) {
-      nav('/', { replace: true });
+    if (!hasApiSession) {
+      setError("You're not signed in. Please sign in again.");
+      return;
+    }
+    if (!trimmedCreatorEmail) {
+      setError('Your email is required.');
       return;
     }
     setIsCreating(true);
     try {
-      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorEmail, creatorName }) });
+      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName: trimmedGroupName, creatorEmail: trimmedCreatorEmail, creatorName: trimmedCreatorName }) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.message ?? 'Failed to create group');
@@ -280,7 +296,7 @@ function CreateGroupPage() {
       }
 
       const link = `${window.location.origin}/#/g/${data.groupId}`;
-      writeSession({ groupId: data.groupId, email: creatorEmail, joinedAt: new Date().toISOString() });
+      writeSession({ groupId: data.groupId, email: creatorEmail.trim(), joinedAt: new Date().toISOString() });
       setCreatedGroupId(data.groupId);
       setShareLink(link);
       setShowCreateForm(false);
@@ -295,6 +311,7 @@ function CreateGroupPage() {
       <PageHeader
         title="Create a Family Schedule"
         description="Create a private shared schedule. Only people you add can access it."
+        showGroupSummary={false}
       />
 
       <div className="ui-authContainer">
@@ -302,11 +319,20 @@ function CreateGroupPage() {
           {showCreateForm ? (
             <>
               <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
-              <TextField label="Group key" value={groupKey} onChange={(e) => setGroupKey(e.target.value)} required inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }} placeholder="Group key" helperText="6 digits" fullWidth />
               <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
-              <TextField label="Your email" value={creatorEmail} onChange={(e) => setCreatorPhone(e.target.value)} required placeholder="you@example.com" helperText="Use a email you can sign in with." fullWidth />
+              <TextField
+                label="Your email"
+                value={creatorEmail}
+                onChange={(e) => setCreatorEmail(e.target.value)}
+                required
+                placeholder="you@example.com"
+                helperText={hasSignedInSession ? `Signed in as ${trimmedCreatorEmail || creatorEmail}` : 'Use an email you can sign in with.'}
+                fullWidth
+                InputProps={{ readOnly: hasSignedInSession }}
+                disabled={hasSignedInSession}
+              />
               <div className="ui-authActions">
-                <Button variant="contained" type="submit" disabled={isCreating}>{isCreating ? 'CREATING…' : 'CREATE GROUP'}</Button>
+                <Button variant="contained" type="submit" disabled={!canSubmit}>{isCreating ? 'CREATING…' : 'CREATE GROUP'}</Button>
               </div>
             </>
           ) : null}
@@ -527,6 +553,7 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
 
 function AuthDonePage({ returnTo }: { returnTo?: string }) {
   const nextPath = sanitizeReturnTo(returnTo);
+  const [showCloseHint, setShowCloseHint] = useState(false);
 
   const returnToApp = () => {
     try {
@@ -534,12 +561,16 @@ function AuthDonePage({ returnTo }: { returnTo?: string }) {
     } catch {
       // noop
     }
-    try {
-      window.close();
-    } catch {
-      // noop
-    }
-    window.location.href = nextPath === '/' ? '/#/' : `/#${nextPath}`;
+    const destination = nextPath === '/' ? '/#/' : `/#${nextPath}`;
+    window.location.replace(destination);
+    window.setTimeout(() => {
+      try {
+        window.close();
+      } catch {
+        // noop
+      }
+      if (!window.closed) setShowCloseHint(true);
+    }, 150);
   };
 
   return (
@@ -547,6 +578,7 @@ function AuthDonePage({ returnTo }: { returnTo?: string }) {
       <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
         <Alert severity="success">Signed in.</Alert>
         <Typography>This tab can close now. Return to FamilyScheduler to continue.</Typography>
+        {showCloseHint ? <Typography variant="body2" color="text.secondary">You can close this tab.</Typography> : null}
         <Button variant="contained" onClick={returnToApp}>Return to FamilyScheduler</Button>
         <Button component="a" href={nextPath === '/' ? '/#/' : `/#${nextPath}`} variant="text">Go to FamilyScheduler</Button>
       </Stack>

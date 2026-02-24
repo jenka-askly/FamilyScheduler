@@ -8332,3 +8332,40 @@ Implement bundled magic-link UX improvements: cross-tab auth propagation from co
 ### Follow-ups
 
 - Manual staging smoke still recommended for end-to-end mail provider rendering and browser-specific `window.close()` behavior.
+
+## 2026-02-24 21:46 UTC (Create Group UX polish + API contract update + auth done tab hint)
+
+### Objective
+
+Implement first Create Group polish pass for email-sign-in: remove group key and pre-group header card, prefill/read-only email from session, prevent missing-session submission calls, update `group/create` contract, and reduce magic-link Continue-tab confusion.
+
+### Approach
+
+- Updated `CreateGroupPage` in `App.tsx` to remove `groupKey`, derive submit-enable state from trimmed required fields, and enforce inline missing-session error before API call.
+- Prefilled `creatorEmail` from local session storage and switched email field to read-only/disabled only when both API session + session email exist.
+- Added `showGroupSummary` prop in `PageHeader` and used it in Create Group route to suppress top group summary card while keeping page title/description.
+- Updated `AuthDonePage` Continue handler to redirect first, then attempt `window.close()`, and show `You can close this tab.` when close is blocked.
+- Updated API `groupCreate` to remove `groupKey` validation and prefer session-derived creator email via `requireSessionEmail`, with `creatorEmail` request fallback.
+- Updated API tests to reflect email payload and mock request headers required by session parsing path.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `api/src/functions/groupCreate.ts`
+- `api/src/functions/groupCreate.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS instructions files found in repo scope.
+- `pnpm -r --if-present build` ✅ passed for workspace packages (with existing npm env warning noise).
+- `pnpm -C api test` ❌ fails in this environment due many pre-existing unrelated API tests expecting different storage/session setup.
+- `pnpm -C api run build && node --test api/dist/api/src/functions/groupCreate.test.js` ✅ passed targeted tests for modified endpoint.
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ app started for manual visual capture.
+- `run_playwright_script (port 4173)` ✅ screenshot captured at `browser:/tmp/codex_browser_invocations/9479c8bd36c587fa/artifacts/artifacts/create-group-polish.png`.
+
+### Follow-ups
+
+- Dogfood checks (magic-link + continue-tab + create-group first `/api/group/meta` behavior) still need human validation against deployed environment.

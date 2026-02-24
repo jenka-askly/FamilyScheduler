@@ -23,7 +23,7 @@ test.afterEach(() => setStorageAdapterForTests(null));
 
 test('group create seeds creator in people and returns link payload', async () => {
   setStorageAdapterForTests(createAdapter());
-  const response = await groupCreate({ json: async () => ({ groupName: 'Family', groupKey: '123456', creatorPhone: '(415) 555-0123', creatorName: 'Joe' }) } as any, { debug: () => {} } as any);
+  const response = await groupCreate({ json: async () => ({ groupName: 'Family', creatorEmail: 'joe@example.com', creatorName: 'Joe' }), headers: { get: () => null } } as any, { debug: () => {} } as any);
   assert.equal(response.status, 200);
   const body = response.jsonBody as any;
   assert.ok(body.groupId);
@@ -38,7 +38,7 @@ test('group create returns CONFIG_MISSING when required vars are absent', async 
   delete process.env.STORAGE_ACCOUNT_URL;
   delete process.env.STATE_CONTAINER;
 
-  const response = await groupCreate({ json: async () => ({ groupName: 'Family', groupKey: '123456', creatorPhone: '(415) 555-0123', creatorName: 'Joe', traceId: 'trace-1' }) } as any, { debug: () => {} } as any);
+  const response = await groupCreate({ json: async () => ({ groupName: 'Family', creatorEmail: 'joe@example.com', creatorName: 'Joe', traceId: 'trace-1' }), headers: { get: () => null } } as any, { debug: () => {} } as any);
   assert.equal(response.status, 500);
   assert.equal((response.jsonBody as any).error, 'CONFIG_MISSING');
   assert.deepEqual((response.jsonBody as any).missing, ['STATE_CONTAINER', 'STORAGE_ACCOUNT_URL']);
