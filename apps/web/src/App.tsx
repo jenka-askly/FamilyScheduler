@@ -664,8 +664,8 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
           {sessionId ? (
             <div className="ui-igniteSection">
               <Typography variant="subtitle2" sx={{ mb: 1 }}>Join link</Typography>
-              <div className="ui-igniteJoinLinkRow">
-                <code className="ui-igniteJoinLinkText" title={joinUrl}>{joinUrl}</code>
+              <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite join link">
+                <Typography component="div" className="ui-igniteJoinLinkText" title={joinUrl}>{joinUrl}</Typography>
                 <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
@@ -892,4 +892,3 @@ export function App() {
     </GroupAuthGate>
   );
 }
-

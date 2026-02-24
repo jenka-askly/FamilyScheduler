@@ -1759,10 +1759,15 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   gap: 8px;
   min-width: 0;
   max-width: 100%;
+  overflow-x: hidden;
+}
+
+.ui-igniteJoinLinkRow > .MuiIconButton-root {
+  flex: 0 0 auto;
 }
 
 .ui-igniteJoinLinkText {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
   white-space: nowrap;
@@ -1812,6 +1817,9 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 
 .ui-igniteSection {
   margin-top: 16px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 @media (max-width: 800px) {

@@ -1985,3 +1985,26 @@ traces
   1. Open organizer ignite page with no external joiners -> `Joined folks (1)` and organizer name tile.
   2. Upload organizer photo -> organizer tile switches to thumbnail + organizer name.
   3. Joiner without photo joins -> tile text shows joiner name (not person ID).
+
+## 2026-02-24 05:04 UTC update (Ignite join link static row + no flex blowout)
+
+- Ignite organizer join link is now rendered as static typography text (no input/textarea/contentEditable) with the existing copy icon action.
+- Join-link row now enforces overflow containment (`min-width: 0`, `overflow-x: hidden`, icon fixed-size flex item) so long URLs cannot widen the card.
+- Ignite section containers now explicitly constrain width (`width/max-width: 100%`, `min-width: 0`) to prevent nested flex overflow expansion.
+
+### Success criteria
+
+- On `/#/g/<id>/ignite`, the join link appears as static read-only text (no editable affordance).
+- Very long join links truncate with ellipsis and do not cause horizontal page/card blowout.
+- Copy icon remains visible/right-aligned and continues copying the full URL.
+
+### Non-regressions
+
+- Existing copy-to-clipboard behavior and copied feedback stay unchanged.
+- QR rendering/header alignment remain unchanged.
+
+### How to verify locally
+
+1. Run `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`.
+2. Open `/#/g/<id>/ignite` with an active session and validate join-link row behavior using a long session URL.
+3. Confirm no horizontal scrollbar appears and card width remains stable.
