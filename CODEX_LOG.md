@@ -8035,3 +8035,41 @@ Fix blue-filled Members and Rules row action icons by replacing legacy `.icon-bu
 ### Follow-ups
 
 - Run the web app locally and visually verify Members/Rules action icon styling and interaction states.
+
+## 2026-02-24 14:20 UTC (Join Group email field + ACS email send)
+
+### Objective
+
+Implement Join Group email capture in web UI and trigger ACS email sending on successful `/api/group/join` without breaking join success when email send fails.
+
+### Approach
+
+- Added ACS email helper (`api/src/lib/email/acsEmail.ts`) using `@azure/communication-email` with required env vars.
+- Extended `groupJoin` request parsing to include `email` and added minimal email validation.
+- Added origin derivation from `origin` header or `x-forwarded-host`, then built Option A link.
+- Added structured logs for email attempt/success/failure/skipped including `traceId` + `groupId` and recipient domain-only logging.
+- Updated Join Group page to include required Email input and include `email` in join POST body.
+- Added docs for new env vars and local settings placeholders.
+
+### Files changed
+
+- `api/package.json`
+- `api/src/lib/email/acsEmail.ts`
+- `api/src/functions/groupJoin.ts`
+- `apps/web/src/App.tsx`
+- `docs/email-env.md`
+- `api/local.settings.example.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git checkout -b feature/join-email-magiclink` ✅ created branch.
+- `npm install @azure/communication-email` (in `api/`) ⚠️ failed in environment with npm registry 403; dependency added manually to `api/package.json`.
+- `pnpm -C api run build` ✅ passed.
+- `pnpm -C apps/web run typecheck` ✅ passed.
+
+### Follow-ups
+
+- Run `pnpm install` in an environment with npm registry access to refresh lockfile with `@azure/communication-email`.
+- Perform staging smoke test for outbound email and origin header behavior.

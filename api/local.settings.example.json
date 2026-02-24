@@ -10,6 +10,8 @@
     "BLOB_KIND": "",
     "LOCATION_AI_FORMATTING": "false",
     "LOCATION_AI_MODEL": "",
-    "LOCATION_AI_LOG_RAW": "false"
+    "LOCATION_AI_LOG_RAW": "false",
+    "AZURE_COMMUNICATION_CONNECTION_STRING": "endpoint=https://<resource>.communication.azure.com/;accesskey=<redacted>",
+    "EMAIL_SENDER_ADDRESS": "no-reply@notifications.example.com"
   }
 }

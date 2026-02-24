@@ -196,6 +196,7 @@ function CreateGroupPage() {
 
 function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [groupName, setGroupName] = useState<string | undefined>(undefined);
@@ -237,8 +238,12 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
       return;
     }
     setFormError(null);
+    if (!email.trim()) {
+      setFormError('Please enter your email address.');
+      return;
+    }
     const requestTraceId = createTraceId();
-    const response = await fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId: requestTraceId }) });
+    const response = await fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, email: email.trim(), traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       setFormError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
@@ -272,6 +277,17 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
             error={Boolean(formError) && hasSubmitted}
             helperText={hasSubmitted ? formError || 'Only listed phone numbers can join.' : 'Only listed phone numbers can join.'}
             placeholder="(425) 555-1234"
+            fullWidth
+          />
+          <TextField
+            label="Email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (hasSubmitted) setFormError(null);
+            }}
+            required
+            placeholder="you@example.com"
             fullWidth
           />
           <div className="ui-joinActions">
@@ -752,6 +768,7 @@ function IgniteOrganizerPage({ groupId, phone }: { groupId: string; phone: strin
 function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string>('');
   const [imageMime, setImageMime] = useState<string>('');
