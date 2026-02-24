@@ -1881,3 +1881,10 @@ traces
 2. Open `/#/g/<groupId>/app`.
 3. Confirm the header row order is `Group` label, then `name/actions + menu` on one row, then members line.
 4. Click the menu button and verify the menu anchors to the moved button as before.
+
+## 2026-02-24 02:42 UTC update (Dialog action button standardization)
+
+- Standardized dialog action order to `Cancel` then primary action for the previously reversed Rules (`Add Rule`) and Scan Capture (`Capture`) dialogs.
+- Standardized action variants in dialog/footer rows touched by this pass: `Cancel` now uses `variant="outlined"`, and primary actions use `variant="contained"`.
+- Kept destructive primary semantics unchanged (`color="error"`) while aligning cancel styling.
+- Updated `AppointmentEditorForm` footer actions to `Cancel` (outlined) then `Confirm` (contained) with existing handlers and behavior unchanged.

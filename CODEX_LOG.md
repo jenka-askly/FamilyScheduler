@@ -7050,6 +7050,25 @@ Relocate the existing global hamburger menu button from the group card header to
 
 - `apps/web/src/components/layout/PageHeader.tsx`
 - `apps/web/src/styles.css`
+## 2026-02-24 02:42 UTC (Dialog action buttons standardized)
+
+### Objective
+
+Standardize dialog/footer action button order and variants across targeted UI flows so actions read consistently as `Cancel` (outlined) then primary (contained), while preserving destructive semantics and existing handlers.
+
+### Approach
+
+- Updated `AppShell` dialogs with reversed order in scope:
+  - Rules modal (`Add Rule`) now renders Cancel first, Add Rule second.
+  - Scan Capture modal now renders Cancel first, Capture second.
+- Performed best-effort pass on nearby `DialogActions` blocks in `AppShell` to align cancel buttons to `variant="outlined"` where safe.
+- Updated `AppointmentEditorForm` action row to `Cancel` outlined first, `Confirm` contained second.
+- Kept action labels, click handlers, and destructive `color="error"` usage intact.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentEditorForm.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -7065,3 +7084,10 @@ Relocate the existing global hamburger menu button from the group card header to
 ### Follow-ups
 
 - Install/restore MUI dependencies in this environment for clean typecheck/runtime verification beyond structural UI placement.
+- `rg -n "DialogActions|Add Rule|Capture|variant=\"outlined\"|variant=\"contained\"" apps/web/src/AppShell.tsx apps/web/src/components/AppointmentEditorForm.tsx` ✅ identified target action rows and verified edits.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ fails in this environment due pre-existing dependency/type baseline issues.
+
+### Follow-ups
+
+- Re-run frontend typecheck/build in a dependency-complete local environment and visually verify all dialog action rows.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts, but runtime immediately fails due unresolved `@mui/*` dependencies; could not capture a meaningful UI screenshot in this container.

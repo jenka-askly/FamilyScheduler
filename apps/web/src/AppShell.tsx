@@ -1618,7 +1618,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <Typography>{proposalText}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button type="button" onClick={() => void sendMessage('cancel')}>Cancel</Button>
+          <Button type="button" variant="outlined" onClick={() => void sendMessage('cancel')}>Cancel</Button>
           <Button type="button" variant="contained" onClick={() => void sendMessage('confirm')}>Confirm</Button>
         </DialogActions>
       </Dialog>
@@ -1633,7 +1633,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           {appointmentToDelete ? <AppointmentDialogContext {...getAppointmentContext(appointmentToDelete)} /> : null}
         </DialogContent>
         <DialogActions>
-          <Button type="button" onClick={() => setAppointmentToDelete(null)}>Cancel</Button>
+          <Button type="button" variant="outlined" onClick={() => setAppointmentToDelete(null)}>Cancel</Button>
           <Button
             type="button"
             variant="contained"
@@ -1703,8 +1703,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
         </DialogContent>
         <DialogActions>
-          <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }}>Capture</Button>
           <Button type="button" variant="outlined" onClick={closeScanCaptureModal}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }}>Capture</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={Boolean(personToDelete)} onClose={() => setPersonToDelete(null)} fullWidth maxWidth="sm">
@@ -1713,7 +1713,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <Typography>This will remove this person from the active allowlist. Existing history and appointments are preserved.</Typography>
         </DialogContent>
         <DialogActions>
-          <Button type="button" onClick={() => setPersonToDelete(null)}>Cancel</Button>
+          <Button type="button" variant="outlined" onClick={() => setPersonToDelete(null)}>Cancel</Button>
           <Button
             type="button"
             variant="contained"
@@ -1740,7 +1740,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           <Typography>This removes the rule from this person.</Typography>
         </DialogContent>
         <DialogActions>
-          <Button type="button" onClick={() => setRuleToDelete(null)}>Cancel</Button>
+          <Button type="button" variant="outlined" onClick={() => setRuleToDelete(null)}>Cancel</Button>
           <Button
             type="button"
             variant="contained"
@@ -1799,8 +1799,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button type="button" variant="contained" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</Button>
           <Button type="button" variant="outlined" onClick={closeRulePromptModal}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</Button>
         </DialogActions>
       </Dialog>
 
