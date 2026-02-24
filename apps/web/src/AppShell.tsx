@@ -998,6 +998,11 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   }, [editingPersonId, snapshot.people]);
 
   useEffect(() => {
+    const name = (groupName ?? '').trim();
+    document.title = name ? `Family Scheduler — ${name}` : 'Family Scheduler';
+  }, [groupName]);
+
+  useEffect(() => {
     if (!editingPersonId) return;
     personNameInputRef.current?.focus();
   }, [editingPersonId]);
