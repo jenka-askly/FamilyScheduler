@@ -171,18 +171,12 @@ function CreateGroupPage() {
 
 function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
   const [phone, setPhone] = useState('');
-  const [error, setError] = useState<string | null>(
-    routeError === 'not_allowed'
-      ? 'This phone number is not authorized for this group.'
-      : routeError === 'group_not_found'
-        ? 'This group could not be found.'
-        : routeError === 'join_failed'
-          ? 'Unable to verify access. Please try again.'
-          : routeError === 'group_mismatch' || routeError === 'no_session'
-            ? 'Please enter your phone number to continue.'
-            : null
-  );
+  const [formError, setFormError] = useState<string | null>(null);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [groupName, setGroupName] = useState<string | undefined>(undefined);
+  const routeNotice = routeError === 'group_mismatch' || routeError === 'no_session'
+    ? 'Enter your phone number to join this group.'
+    : null;
 
   useEffect(() => {
     authLog({ stage: 'join_page_loaded', groupId, err: routeError ?? null, traceId: traceId ?? null });
@@ -210,16 +204,19 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
-    if (!phone.trim()) {
-      setError('Enter a valid phone number.');
+    setHasSubmitted(true);
+    const normalized = phone.replace(/[^\d+]/g, '');
+    const isValidPhone = normalized.length >= 10;
+    if (!isValidPhone) {
+      setFormError('Please enter a valid phone number.');
       return;
     }
+    setFormError(null);
     const requestTraceId = createTraceId();
     const response = await fetch(apiUrl('/api/group/join'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, phone, traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
-      setError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
+      setFormError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This phone number is not authorized for this group.');
       return;
     }
 
@@ -231,17 +228,29 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
     <Page variant="form">
       <PageHeader
         title={groupName ? `Join “${groupName}”` : 'Join Group'}
-        description="Enter your phone number to access this schedule. Your number must already be added to this group."
+        description="Enter your phone number to access this schedule."
         groupName={groupName}
         groupId={groupId}
       />
 
       <Stack component="form" spacing={2} onSubmit={submit}>
-        <TextField label="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="(425) 555-1234" fullWidth />
+        {routeNotice ? <Typography className="ui-joinNotice">{routeNotice}</Typography> : null}
+        <TextField
+          label="Phone number"
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            if (hasSubmitted) setFormError(null);
+          }}
+          required
+          error={Boolean(formError) && hasSubmitted}
+          helperText={hasSubmitted ? formError || 'Only listed phone numbers can join.' : 'Only listed phone numbers can join.'}
+          placeholder="(425) 555-1234"
+          fullWidth
+        />
         <Stack direction="row" spacing={1}>
           <Button variant="contained" type="submit">Join Group</Button>
         </Stack>
-        {error ? <Alert severity="error">{error}</Alert> : null}
       </Stack>
       <FooterHelp />
     </Page>

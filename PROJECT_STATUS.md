@@ -1,3 +1,9 @@
+## 2026-02-24 02:55 UTC update (Join Group notice/error behavior cleanup)
+
+- Join Group page now treats redirect route errors (`no_session` / `group_mismatch`) as neutral notice copy instead of a red error state on first render.
+- Join Group validation errors now appear only after submit (`hasSubmitted` gating), with inline phone field error text and permissive 10+ digit normalization check.
+- Simplified Join Group copy to a single concise helper line (`Only listed phone numbers can join.`).
+
 ## 2026-02-24 03:40 UTC update (Global menu hierarchy tweak)
 
 - Moved global menu (burger) from group card header to product header for clearer hierarchy.
