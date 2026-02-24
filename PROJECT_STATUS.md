@@ -2651,3 +2651,42 @@ Fixed web auth/session sequencing bug causing immediate `unauthorized: Missing s
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. Logged-in path: create group -> open app -> `group/meta` succeeds with `x-session-id` header.
 3. Logged-out path: create/open-group routes show sign-in gate; no unauthorized spam.
+
+## 2026-02-24 20:10 UTC update (staging root landing + auth-gate redirect hardening)
+
+Implemented unauthenticated landing behavior for `/#/` so staging no longer renders a blank/blocked page when `fs.sessionId` is missing.
+
+### Bug
+
+- Root hash route (`/#/`) showed a blocking sign-in-required panel instead of a usable unauthenticated entry flow.
+- Protected route handling could leave users in non-optimal redirects when session state was missing.
+- Fatal top-level render errors could still appear as a blank app without a clear on-screen signal.
+
+### Fix
+
+- Added `LandingSignInPage` on root route when `fs.sessionId` is absent:
+  - Minimal email form.
+  - Calls `POST /api/auth/request-link`.
+  - Shows success message: `Check your email`.
+- Added explicit protected-route redirect behavior for `/g/:groupId/app` and `/g/:groupId/ignite` when unauthenticated:
+  - Redirects to `/#/?m=Please%20sign%20in%20to%20continue.`
+  - Displays visible sign-in-required panel while routing.
+- Updated auth gate redirect when API session is missing to route to root sign-in page with message.
+- Added top-level React error boundary in `main.tsx`:
+  - Shows `App error — open console` on fatal render errors.
+  - Logs boundary-caught errors in dev.
+
+### Verification
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. Start web app and open `/#/` with empty `localStorage.fs.sessionId`:
+   - Sign-in panel renders (email + submit), not blank.
+3. Submit email on landing sign-in:
+   - Network shows `POST /api/auth/request-link`.
+   - UI shows `Check your email`.
+4. Navigate directly to protected route without session (`/#/g/<groupId>/app`):
+   - Redirects to root sign-in with `Please sign in to continue.` message.
+5. Confirm no redirect loops between root and protected routes.
+6. After consuming magic link:
+   - App routes load normally.
+   - Authenticated requests include `x-session-id` header (handled via existing `apiFetch`).

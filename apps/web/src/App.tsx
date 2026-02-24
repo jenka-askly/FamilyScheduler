@@ -15,6 +15,7 @@ type AuthStatus = 'checking' | 'allowed' | 'denied';
 type AuthError = 'no_session' | 'group_mismatch' | 'not_allowed' | 'group_not_found' | 'join_failed';
 
 const SESSION_KEY = 'familyscheduler.session';
+const ROOT_SIGN_IN_MESSAGE = 'Please sign in to continue.';
 
 const readSession = (): Session | null => {
   if (typeof window === 'undefined') return null;
@@ -55,7 +56,7 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string } => {
+const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -80,7 +81,7 @@ const parseHashRoute = (hash: string): { type: 'create' } | { type: 'join' | 'ap
   }
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
   if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined, traceId: query.get('trace') ?? undefined };
-  return { type: 'create' };
+  return { type: 'create', message: query.get('m') ?? undefined };
 };
 
 const nav = (path: string, options?: { replace?: boolean }) => {
@@ -93,6 +94,7 @@ const nav = (path: string, options?: { replace?: boolean }) => {
 };
 
 const toJoinRoute = (groupId: string, error: AuthError, traceId: string): string => `/g/${groupId}?err=${error}&trace=${traceId}`;
+const toSignInRoute = (message: string = ROOT_SIGN_IN_MESSAGE): string => `/?m=${encodeURIComponent(message)}`;
 
 
 function SignInRequiredPage({ message }: { message: string }) {
@@ -101,6 +103,63 @@ function SignInRequiredPage({ message }: { message: string }) {
       <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
         <Alert severity="warning">{message}</Alert>
         <Button variant="contained" onClick={() => nav('/', { replace: true })}>Go to sign-in</Button>
+      </Stack>
+      <FooterHelp />
+    </Page>
+  );
+}
+
+function RedirectToSignInPage({ message }: { message: string }) {
+  useEffect(() => {
+    nav(toSignInRoute(message), { replace: true });
+  }, [message]);
+
+  return <SignInRequiredPage message={message} />;
+}
+
+function LandingSignInPage({ notice }: { notice?: string }) {
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setSuccess(false);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('Please enter your email.');
+      return;
+    }
+    setRequesting(true);
+    try {
+      const response = await apiFetch('/api/auth/request-link', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, traceId: createTraceId(), returnTo: '/' })
+      });
+      if (!response.ok) {
+        setError('Unable to request sign-in link. Please try again.');
+        return;
+      }
+      setSuccess(true);
+    } catch {
+      setError('Unable to request sign-in link. Please try again.');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  return (
+    <Page variant="form">
+      <PageHeader title="Sign in" description="Use your email to get a magic sign-in link." />
+      <Stack component="form" spacing={2} onSubmit={submit} sx={{ maxWidth: 520, mx: 'auto' }}>
+        {notice ? <Alert severity="warning">{notice}</Alert> : null}
+        <TextField label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth />
+        <Button variant="contained" type="submit" disabled={requesting}>{requesting ? 'Sending…' : 'Send sign-in link'}</Button>
+        {success ? <Alert severity="success">Check your email</Alert> : null}
+        {error ? <Alert severity="error">{error}</Alert> : null}
       </Stack>
       <FooterHelp />
     </Page>
@@ -939,8 +998,8 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
       if (canceled) return;
       setAuthStatus('denied');
       setAuthError('no_session');
-      authLog({ stage: 'gate_redirect', to: '/', reason: 'missing_api_session' });
-      nav('/', { replace: true });
+      authLog({ stage: 'gate_redirect', to: toSignInRoute(ROOT_SIGN_IN_MESSAGE), reason: 'missing_api_session' });
+      nav(toSignInRoute(ROOT_SIGN_IN_MESSAGE), { replace: true });
       return;
     }
     if (!session || !session.email) {
@@ -1054,8 +1113,8 @@ export function App() {
     setHasApiSession(Boolean(getSessionId()));
   }, [hash]);
 
-  if (route.type === 'create' && !hasApiSession) return <SignInRequiredPage message="Please sign in before creating or opening a group." />;
-  if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <SignInRequiredPage message="Please sign in to continue." />;
+  if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
+  if (route.type === 'create' && !hasApiSession) return <LandingSignInPage notice={route.message} />;
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;

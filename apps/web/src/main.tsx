@@ -10,6 +10,27 @@ import './styles/ui.css';
 import { ColorModeProvider, useColorMode } from './colorMode';
 import { getTheme } from './theme';
 
+type FatalBoundaryState = { hasError: boolean };
+
+class FatalErrorBoundary extends React.Component<React.PropsWithChildren, FatalBoundaryState> {
+  state: FatalBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): FatalBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    if (import.meta.env.DEV) console.error('fatal_render_error', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: 16, fontFamily: 'Inter, sans-serif' }}>App error — open console</div>;
+    }
+    return this.props.children;
+  }
+}
+
 function AppWithTheme() {
   const { mode } = useColorMode();
   return (
@@ -22,8 +43,10 @@ function AppWithTheme() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ColorModeProvider>
-      <AppWithTheme />
-    </ColorModeProvider>
+    <FatalErrorBoundary>
+      <ColorModeProvider>
+        <AppWithTheme />
+      </ColorModeProvider>
+    </FatalErrorBoundary>
   </React.StrictMode>
 );
