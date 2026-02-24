@@ -6806,3 +6806,37 @@ Implement People/Members pane UI alignment updates: remove static members subhea
 ### Follow-ups
 
 - Re-run typecheck/dev after installing workspace deps (`pnpm install`) to validate UI in a fully provisioned environment and capture an updated members-pane screenshot.
+
+## 2026-02-24 01:18 UTC (Edit appointment When control compaction)
+
+### Objective
+
+Make Edit Appointment dialog less bulky by turning the `When` workflow into a compact grouped control with in-field resolve, compact preview + accept, and explicit (click-only) resolve semantics.
+
+### Approach
+
+- Updated `AppointmentEditorForm` to move resolve action into `When` `TextField` endAdornment as an icon button with spinner while resolving.
+- Removed standalone `Resolve date` button and separate bulky preview container.
+- Added compact preview row directly below `When`: `Interpreted as: ...` plus ✓ accept button.
+- Wired ✓ accept to replace `whenDraftText` with preview display string while preserving resolved preview state.
+- Updated `AppShell` When state transitions so typing clears stale resolved preview and inline errors.
+- Updated resolve handler to only set preview on truly resolved outputs and show inline `Couldn't interpret that.` on failures.
+- Updated confirm handler to require/use existing resolved preview only (no auto-resolve during confirm), and to persist using structured resolved datetime payload exactly as before.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n --hidden --glob '!**/node_modules/**' --glob '!**/dist/**' --glob '!**/build/**' "Edit appointment|APPT-|Resolve Date|Resolved|Preview|appointment dialog|AppointmentDialog|AppointmentModal|DialogTitle" apps/web/src` ✅ located Edit Appointment flow and related UI.
+- `rg -n "whenPreviewed|whenDraftText|whenDraftResult|resolve|closeWhenEditor|confirmWhenDraft|Edit appointment|DialogTitle" apps/web/src/AppShell.tsx` ✅ mapped state and save/resolve handlers.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed due environment dependency/typecheck baseline issues (`@mui/material` modules unavailable + pre-existing implicit-any errors in untouched files).
+
+### Follow-ups
+
+- Run full web typecheck/build in a fully provisioned frontend environment where MUI dependencies are installed.
+- Perform interactive UX smoke test on resolve/accept/save flow with live backend.

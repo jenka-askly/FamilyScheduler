@@ -1798,3 +1798,25 @@ traces
 - Moved add-person action from bottom table CTA to a Schedule-style top control row (left label `People`, right `+` icon button) using the same existing add handler.
 - Added members empty-state hint text (`No people added yet.`) below the control row and above the table.
 - No routing, data flow, or handler behavior changes.
+
+## 2026-02-24 01:10 UTC update (Edit appointment "When" control compact resolve flow)
+
+- Refined the Edit Appointment dialog so "When" now uses a compact, grouped control with an in-field resolve icon (end adornment) instead of a standalone Resolve button/section.
+- Added a compact interpreted preview row directly below the field when resolution succeeds, including a ✓ accept action to normalize the raw input text to the preview display string.
+- Updated behavior so editing the When text clears stale resolved preview state and re-enables explicit resolve.
+- Save/Confirm now requires an explicit resolved preview and always persists structured resolved datetime values from that preview (independent of whether ✓ accept was clicked).
+- Added compact inline resolving/error UX on the field: spinner while resolving; "Couldn't interpret that." error on resolution failure.
+
+### Success criteria
+
+- Resolve trigger is inside the `When` input when unresolved.
+- Clicking resolve performs resolution only on explicit click (no auto-resolve while typing).
+- Resolved preview row appears directly below `When` with ✓ accept.
+- ✓ accept updates the raw `When` text to the preview display string.
+- Editing `When` clears resolved preview and returns to unresolved state.
+- Confirm uses structured resolved preview values and blocks unresolved confirmation.
+
+### Non-regressions
+
+- Description, Location, and Notes edit/save behavior remains unchanged.
+- Reschedule payload contract (`reschedule_appointment` fields including `timeResolved` for timed events) is preserved.
