@@ -1,3 +1,9 @@
+## 2026-02-24 02:05 UTC update (Edit Appointment compact dialog + unified When group)
+
+- Edit Appointment dialog compacted to `maxWidth="sm"` with tighter content spacing for a shorter/tighter modal footprint.
+- When control remains a single input with in-field resolve action, inline interpreted preview row, and inline ✓ accept action.
+- Assumptions stay grouped under preview as a collapsed disclosure, keeping When/Resolve/Preview/Assumptions in one compact section.
+
 ## 2026-02-24 01:10 UTC update (Single-surface calendar module: remove nested panel border)
 
 - Removed the nested `.panel` frame around the calendar module so the unified outer `Paper variant="outlined"` is now the single border/radius surface for calendar views.
