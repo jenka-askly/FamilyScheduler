@@ -1,3 +1,16 @@
+## 2026-02-24 22:37 UTC update (Yapper marketing home + layout split + visual polish)
+
+- Added a dedicated `MarketingLayout` for marketing surfaces with a prominent Yapper wordmark, utility burger menu (dark mode), generous spacing, and inline muted footer links (`Privacy`, `Terms`, `Contact`).
+- Reworked home `ProductHomePage` into an asymmetrical hero with subtle flare (blue-forward gradient/card layering + restrained warm accent), emotional 3-step narrative, and polished feature cards with micro-hover lift.
+- Updated routing so `/#/` renders `MarketingLayout + ProductHomePage` while product flows (`/#/create`, `/#/g/...`) continue using compact product surfaces unchanged.
+- Footer link treatment on marketing home is now inline links (not button-style controls).
+
+### Key files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/App.tsx`
+
 ## 2026-02-24 22:07 UTC update (public home/login/create hash routes + create gate)
 
 - Added a new public product home route at `/#/` and `/#/home` with a professional landing layout and CTA buttons into create/login flows.

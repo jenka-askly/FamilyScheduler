@@ -1,3 +1,34 @@
+
+## 2026-02-24 22:37 UTC UTC (Yapper marketing home + marketing layout split)
+
+### Objective
+
+Implement a louder marketing home for `/#/` with Option 2 color direction while preserving compact product headers/layout for create/group/app surfaces.
+
+### Approach
+
+- Added `MarketingLayout` with prominent Yapper wordmark, optional sign-in text link, utility hamburger menu for dark mode toggle, and inline muted footer links.
+- Rebuilt `ProductHomePage` content/visual treatment: asymmetrical two-column hero + subtle abstract flare, emotional 3-step section, and three feature cards with light warm accent/icon treatments and hover polish.
+- Updated hash routing in `App.tsx` so home renders inside `MarketingLayout` while existing create/login/deep-link product routes remain intact.
+
+### Files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -w lint` ✅ passed (`no lint yet`).
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ served for smoke + screenshot; stopped after verification.
+- Playwright smoke checks against `/#/`, `/#/login`, `/#/create`, `/#/nonsense`, `/#/g/testgroup/app` ✅ verified behavior and captured screenshot artifact.
+
+### Follow-ups
+
+- Replace placeholder `/#/privacy`, `/#/terms`, `/#/contact` targets with real policy/contact pages when content is ready.
 ## 2026-02-24 22:07 UTC (Public product home + login/create routes)
 
 ### Objective
