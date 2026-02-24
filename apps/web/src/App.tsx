@@ -74,7 +74,7 @@ const sanitizeReturnTo = (value?: string): string => {
   return trimmed;
 };
 
-const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notice?: string; next?: string } | { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
+const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notice?: string; next?: string } | { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email?: string; phone?: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -111,7 +111,8 @@ const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notic
     return {
       type: 'handoff',
       groupId: query.get('groupId') ?? '',
-      email: query.get('email') ?? '',
+      email: query.get('email') ?? undefined,
+      phone: query.get('phone') ?? undefined,
       next: query.get('next') ?? undefined
     };
   }
@@ -598,10 +599,10 @@ function AuthDonePage({ returnTo }: { returnTo?: string }) {
     <Page variant="form">
       <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
         <Alert severity="success">Signed in.</Alert>
-        <Typography>This tab can close now. Return to FamilyScheduler to continue.</Typography>
+        <Typography>This tab can close now. Return to Yapper to continue.</Typography>
         {showCloseHint ? <Typography variant="body2" color="text.secondary">You can close this tab.</Typography> : null}
-        <Button variant="contained" onClick={returnToApp}>Return to FamilyScheduler</Button>
-        <Button component="a" href={nextPath === '/' ? '/#/' : `/#${nextPath}`} variant="text">Go to FamilyScheduler</Button>
+        <Button variant="contained" onClick={returnToApp}>Return to Yapper</Button>
+        <Button component="a" href={nextPath === '/' ? '/#/' : `/#${nextPath}`} variant="text">Go to Yapper</Button>
       </Stack>
       <FooterHelp />
     </Page>
@@ -1234,16 +1235,17 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
   return <>{children(email)}</>;
 }
 
-function HandoffPage({ groupId, email, next }: { groupId: string; email: string; next?: string }) {
+function HandoffPage({ groupId, email, phone, next }: { groupId: string; email?: string; phone?: string; next?: string }) {
   useEffect(() => {
-    if (!groupId || !email) {
+    const identity = email?.trim() || phone?.trim() || '';
+    if (!groupId || !identity) {
       nav('/');
       return;
     }
     const safeNext = typeof next === 'string' && next.startsWith('/g/') ? next : `/g/${groupId}/ignite`;
-    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
+    writeSession({ groupId, email: identity, joinedAt: new Date().toISOString() });
     nav(safeNext, { replace: true });
-  }, [groupId, email, next]);
+  }, [groupId, email, phone, next]);
 
   return (
     <Page variant="form">
@@ -1302,7 +1304,7 @@ export function App() {
   if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
   if (route.type === 'create' && !hasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;
-  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
+  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} phone={route.phone} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
   if (route.type === 'authConsume') return <AuthConsumePage token={route.token} attemptId={route.attemptId} returnTo={route.returnTo} />;
   if (route.type === 'authDone') return <AuthDonePage returnTo={route.returnTo} />;

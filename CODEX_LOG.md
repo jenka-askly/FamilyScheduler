@@ -8435,3 +8435,30 @@ Implement first Create Group polish pass for email-sign-in: remove group key and
 ### Follow-ups
 
 - Dogfood checks (magic-link + continue-tab + create-group first `/api/group/meta` behavior) still need human validation against deployed environment.
+
+## 2026-02-24 23:05 UTC (Breakout handoff phone identity fix + Yapper auth-done branding)
+
+### Objective
+
+Fix Breakout Session burger-menu handoff so `/#/handoff?...&phone=...` routes to ignite organizer instead of home fallback, and update verified-email completion UX branding to “Yapper”.
+
+### Approach
+
+- Extended `parseHashRoute('/handoff')` response shape to parse both `email` and `phone` query params.
+- Updated `HandoffPage` to accept either identity value (`email || phone`), require `groupId` + identity before redirecting, then persist session and navigate to safe `next` (or `/g/<groupId>/ignite`).
+- Updated `AuthDonePage` user-facing completion strings from “FamilyScheduler” to “Yapper”.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -w lint` ✅ passed (`no lint yet` placeholder script).
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+
+- Human/manual staging smoke required for burger → Breakout tab flow and ignite QR visibility.
