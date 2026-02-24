@@ -1,3 +1,7 @@
+## 2026-02-24 01:55 UTC update (Month view today highlight)
+
+- Month view: highlight today's date cell (local timezone).
+
 ## 2026-02-24 02:05 UTC update (Edit Appointment compact dialog + unified When group)
 
 - Edit Appointment dialog compacted to `maxWidth="sm"` with tighter content spacing for a shorter/tighter modal footprint.
