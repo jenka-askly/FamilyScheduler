@@ -6775,3 +6775,34 @@ Implement inline group-name editing in the authenticated AppShell header and add
 ### Follow-ups
 
 - If needed for full local frontend verification in this environment, install workspace dependencies before rerunning web typecheck/build.
+
+## 2026-02-24 00:46 UTC (Members pane UI alignment: control row + add action move)
+
+### Objective
+
+Implement People/Members pane UI alignment updates: remove static members subheader lines, add schedule-like control row with add icon, move add-person trigger, and add empty-state hint without behavior/routing changes.
+
+### Approach
+
+- Updated `AppShell` members rendering to use an outlined `Paper` section mirroring calendar control row composition.
+- Added top members control row (`People` label + tooltip-wrapped primary `IconButton` with existing `Plus` icon) wired directly to existing `addPerson` handler.
+- Removed bottom table CTA row (`+ Add another person` / `+ Add a person`) so only one add entry point remains.
+- Replaced prior alert-style empty panel with subtle helper hint text `No people added yet.` rendered only when members list is empty.
+- Removed members-specific `PageHeader` title/description and suppressed group access note in members view to eliminate the three static lines while preserving header shell.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "activeSection === 'members'|Add another person|Manage who can access|Only listed phone" apps/web/src/AppShell.tsx` ✅ located target members/header blocks.
+- `pnpm --filter @familyscheduler/web run typecheck` ⚠️ failed due environment dependency resolution (`@mui/material` / `@mui/icons-material` missing in current install), unrelated to touched logic.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite started, but runtime failed to resolve MUI dependencies in environment, blocking reliable UI rendering.
+- `run_playwright_script` ⚠️ attempted screenshot capture; resulting page was blank because unresolved MUI deps prevented app render.
+
+### Follow-ups
+
+- Re-run typecheck/dev after installing workspace deps (`pnpm install`) to validate UI in a fully provisioned environment and capture an updated members-pane screenshot.
