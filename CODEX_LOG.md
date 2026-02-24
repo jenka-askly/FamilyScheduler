@@ -7806,3 +7806,37 @@ Implement a top-mounted Excel-like sheet tab switcher for `Schedule` and `Member
 ### Follow-ups
 
 - If desired, consider removing now-unused sidebar styling rules in a dedicated cleanup pass.
+
+## 2026-02-24 09:00 UTC (Shared workspace Paper + members alignment fix)
+
+### Objective
+
+Fix visual seams and width drift by placing Schedule/Members tabs + body on one shared outlined surface, removing nested calendar border wrappers, and aligning the members table body/actions column.
+
+### Approach
+
+- Replaced custom `.ui-sheetTabs` button markup with MUI `Tabs`/`Tab` rendered as the first child inside a single `Paper variant="outlined"`.
+- Routed section switching through tab values (`calendar`/`members`) while preserving existing section state usage in the rest of the shell.
+- Removed the calendar branch outer `Paper` wrapper and rendered the branch inside padded `Box` sections within the shared sheet body.
+- Removed members panel wrapper border usage and switched table wrapper class to a dedicated members table container.
+- Added members-table CSS rules for full-width layout, shared th/td padding, fixed/right-aligned actions column, and mobile-only overflow-x behavior.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no AGENTS.md file found under repo scope.
+- `rg -n "ui-main|ui-sheetTabs|activeSection|membersTable|Paper variant=\"outlined\"" apps/web/src/AppShell.tsx` ✅ located shell sections and wrappers.
+- `pnpm -C apps/web run typecheck` ❌ initially failed due JSX mismatch introduced during edit; fixed in follow-up patch, then reran.
+- `pnpm -C apps/web run typecheck` ⚠️ currently fails due environment dependency/module-resolution issues for `@mui/*` across project files.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts but then reports unresolved `@mui/*` dependencies in this environment.
+- `run_playwright_script` ⚠️ failed to capture screenshot because headless Chromium crashed in this environment (`SIGSEGV`).
+
+### Follow-ups
+
+- Restore/install missing `@mui/*` dependencies in the environment to validate runtime UI and enable screenshot capture.
