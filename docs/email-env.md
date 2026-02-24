@@ -26,3 +26,19 @@ Apply values per environment (do not reuse prod secrets in staging).
 
 - The sender address must belong to a verified domain configured for ACS Email.
 - If either variable is missing, join still succeeds and email sending is skipped with a log entry.
+
+
+## Magic-link auth environment variables
+
+The new auth endpoints (`/api/auth/request-link` and `/api/auth/consume-link`) require/accept additional settings:
+
+- `MAGIC_LINK_SECRET` **(required)**
+  - HMAC signing secret used to sign and verify magic-link tokens.
+  - Must be long, random, and unique per environment.
+- `WEB_BASE_URL` **(recommended)**
+  - Absolute base URL used when building emailed auth links (for example `https://app.example.com`).
+  - Recommended to avoid relying on request `Origin` headers (which may be absent or spoofed).
+- `SESSION_BLOB_PREFIX` *(optional, default: `familyscheduler/sessions`)*
+  - Blob key prefix for durable session JSON documents.
+- `SESSION_TTL_SECONDS` *(optional, default: `604800`)*
+  - Session lifetime in seconds (default is 7 days).

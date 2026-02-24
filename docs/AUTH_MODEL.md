@@ -7,6 +7,25 @@ This document is intended to be **authoritative** for how auth/authorization sho
 
 ---
 
+
+## Implemented now (incremental magic-link backend)
+
+The following backend pieces are now implemented in addition to the existing phone-based gates:
+
+- `POST /api/auth/request-link`
+  - accepts `{ email, traceId?, returnTo? }`
+  - always returns `200 { ok: true, traceId }` to reduce account enumeration risk
+  - when configured, sends a signed magic-link email
+- `POST /api/auth/consume-link`
+  - accepts `{ token, traceId? }`
+  - verifies token and creates a durable blob-backed session
+  - returns `{ ok: true, sessionId, email, traceId, expiresAt }`
+- Durable sessions are stored in blob JSON and are intended to be supplied by clients via `x-session-id` header.
+
+Important: existing endpoints still enforce the current phone-based membership gates. A full auth cutover is deferred to a later milestone.
+
+---
+
 ## 1) Current (Implemented) — v1 Phone + Group Membership Gate
 
 ### 1.1 Summary
