@@ -1758,12 +1758,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               canResolve={!whenDraftResult}
               previewDisplayText={whenDraftResult?.intent.status === 'resolved' ? formatAppointmentTime({ ...editingAppointment, time: whenDraftResult }) : null}
               errorText={whenDraftError}
-              previewContent={whenDraftResult?.intent?.assumptions?.length ? (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Assumptions</Typography>
-                  <ul>{whenDraftResult.intent.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul>
-                </Box>
-              ) : null}
+              assumptions={whenDraftResult?.intent?.assumptions ?? []}
               onConfirm={() => void confirmWhenDraft(editingAppointment)}
               onCancel={closeWhenEditor}
             />

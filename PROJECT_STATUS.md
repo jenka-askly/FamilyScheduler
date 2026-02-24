@@ -1820,3 +1820,9 @@ traces
 
 - Description, Location, and Notes edit/save behavior remains unchanged.
 - Reschedule payload contract (`reschedule_appointment` fields including `timeResolved` for timed events) is preserved.
+
+## 2026-02-24 01:29 UTC update (Edit appointment assumptions moved under When preview)
+
+- Edit Appointment dialog now renders assumptions inline under the `When` preview row as a collapsed-by-default toggle (`Assumptions (n) ▸/▾`) for a more compact layout.
+- Removed the previously detached assumptions block from below the main fields so resolve artifacts are grouped directly under `When`.
+- Kept resolve/preview/confirm behavior unchanged: in-field resolve trigger, explicit preview accept, and save using existing resolved preview state.
