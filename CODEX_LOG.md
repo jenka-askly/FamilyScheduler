@@ -7803,3 +7803,33 @@ Fix `apps/web/src/App.tsx` merge fallout causing TypeScript/JSX build failures o
 ### Follow-ups
 
 - Ensure web workspace dependencies are fully provisioned/approved in CI or local dev env (`pnpm approve-builds` as needed) and rerun web build.
+
+## 2026-02-24 08:31 UTC (Members panel visual parity with Schedule)
+
+### Objective
+
+Make Members/People panel visually match Schedule panel container and header alignment with minimal diff.
+
+### Approach
+
+- Replaced Members-only outer wrapper from `<section className="panel">` to MUI `<Paper variant="outlined" sx={{ borderRadius: 2 }}>` to mirror Schedule panel surface.
+- Normalized Members header row to a flex `Box` (`display: 'flex'`, `alignItems: 'center'`, `justifyContent: 'space-between'`) while retaining existing title/actions.
+- Added `sx={{ alignSelf: 'center' }}` on Members add `IconButton` to ensure vertical centering parity.
+- Left People table and row/rules functionality untouched.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no AGENTS.md files found under repo path.
+- `rg -n "activeSection === 'members'|section className=\"panel\"|Paper variant=\"outlined\" sx=\{\{ borderRadius: 2 \}\}|People actions|Add person" apps/web/src/AppShell.tsx` ✅ verified members surface/header changes and retained other panel usage.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing missing `@mui/*` dependencies and unrelated existing TS7006 issues.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts but cannot resolve `@mui/*` dependencies, blocking runtime visual verification/screenshot in this environment.
+
+### Follow-ups
+
+- Install/restore `@mui/material` and `@mui/icons-material` packages locally, then perform visual side-by-side Schedule vs Members verification.

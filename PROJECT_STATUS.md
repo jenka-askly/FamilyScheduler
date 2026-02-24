@@ -1,3 +1,28 @@
+## 2026-02-24 08:31 UTC update (Members panel surface/header visual alignment)
+
+- Updated the Members section container from legacy `.panel` wrapper to MUI `Paper` with `variant="outlined"` and `sx={{ borderRadius: 2 }}` to match the Schedule panel surface.
+- Normalized Members header row layout to a flex `Box` with `alignItems: 'center'` and `justifyContent: 'space-between'`, matching Schedule header alignment behavior.
+- Kept existing People table behavior/markup unchanged; only visual container/header alignment was adjusted.
+- Applied `sx={{ alignSelf: 'center' }}` on the Members add `IconButton` to avoid vertical drift and align with Schedule toolbar placement.
+
+### Success criteria
+
+- Members panel corners visually match Schedule panel corners.
+- Members header title and add button are vertically centered in the same way as Schedule header controls.
+- Add person action still triggers the existing flow.
+
+### Non-regressions
+
+- People table structure, row actions, and rule rows are unchanged.
+- Schedule panel implementation is unchanged.
+
+### How to verify locally
+
+1. Run `pnpm -C apps/web run typecheck`.
+2. Run `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173`.
+3. Compare Schedule (List tab) panel vs Members panel: outlined border radius and top-row control centering should match.
+
+
 ## 2026-02-24 06:52 UTC update (List-view appointment details popover + Unassigned click target)
 
 - In list view, `Unassigned` now renders as a text button that opens the existing Assign people dialog for that appointment.
