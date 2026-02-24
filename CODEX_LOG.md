@@ -7715,3 +7715,35 @@ Guarantee breakout opens Ignite only in a new tab with no opener-tab mutation by
 ### Follow-ups
 
 - Run browser verification in staging across Chrome/Safari/Edge to validate tab/session isolation behavior end-to-end.
+
+
+## 2026-02-24 06:52 UTC (List-view details popover + Unassigned assignment trigger)
+
+### Objective
+
+Implement list-view UX updates: make `Unassigned` directly open Assign people, and support row details popover via double-click (desktop) and long-press (touch).
+
+### Approach
+
+- Updated `AppointmentCardList` to add optional `onOpenDetails` callback and row gesture handlers (`onDoubleClick`, touch long-press pointer lifecycle).
+- Added long-press timer + suppression flag refs to avoid unintended follow-up click behavior after a long-press trigger.
+- Kept assigned people text non-interactive; rendered only `Unassigned` as a clickable text button to open people assignment.
+- Added event propagation guards to scan/edit/assign/delete icon buttons and notes `Show more/less` toggle.
+- Added popover state + handlers in `AppShell`, passed `onOpenDetails` into `AppointmentCardList`, and rendered a compact read-only details popover that closes on inside/outside clicks.
+
+### Files changed
+
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ no AGENTS.md found in repo tree.
+- `pnpm --filter @familyscheduler/web typecheck` ⚠️ failed in this environment due unresolved `@mui/*` dependencies and existing implicit-any TypeScript errors.
+- `pnpm dev:web --host 0.0.0.0 --port 4173` ⚠️ Vite starts but cannot render app due unresolved `@mui/*` dependencies in this environment.
+
+### Follow-ups
+
+- Optional: add a component test for long-press and double-click detail-open behavior when a test harness is added for the web package.
