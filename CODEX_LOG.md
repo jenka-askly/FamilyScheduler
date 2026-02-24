@@ -6971,3 +6971,33 @@ Implement Week and Day calendar views in AppShell, enable tabs, and add independ
 ### Follow-ups
 
 - Optional future polish: add week/day empty-state cards and mobile horizontal scroll tuning for week columns.
+
+## 2026-02-24 02:30 UTC (Group header menu button moved into name row)
+
+### Objective
+
+Move the header burger/menu button into the same visual row as the group name/actions while preserving existing menu behavior.
+
+### Approach
+
+- Updated `PageHeader` layout to make the group-info column flex and host a dedicated middle row with `justify-content: space-between`.
+- Kept left side as existing group name/edit/copy controls.
+- Moved the existing menu `IconButton` into that middle row’s right side, preserving the same `onClick={(event) => setAnchorEl(event.currentTarget)}` anchoring logic and aria label.
+- Left top `Group` label and bottom members summary row unchanged in behavior.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,280p' apps/web/src/components/layout/PageHeader.tsx` ✅ identified header/menu markup.
+- `pnpm -C apps/web run build` ⚠️ failed in this environment due unresolved local package/dependency setup.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ unable to complete local runtime verification in this environment.
+- Playwright screenshot capture ✅ produced artifact (current environment still shows unresolved dependency error page): `browser:/tmp/codex_browser_invocations/600ef65eecff1887/artifacts/artifacts/group-header-menu-row.png`.
+
+### Follow-ups
+
+- Run local dev server with fully resolved dependencies and verify final alignment at narrow widths.
