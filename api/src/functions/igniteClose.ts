@@ -14,13 +14,13 @@ export async function igniteClose(request: HttpRequest, _context: InvocationCont
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
 
   const storage = createStorageAdapter();
   let loaded;
   try { loaded = await storage.load(groupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
   const membership = requireActiveMember(loaded.state, session.email, traceId);
-  if ('status' in membership) return membership;
+  if (!membership.ok) return membership.response;
 
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!loaded.state.ignite || loaded.state.ignite.sessionId !== sessionId) return errorResponse(410, 'ignite_closed', 'Session closed', traceId);

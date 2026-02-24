@@ -83,7 +83,7 @@ export const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       scanCapturedAt: appointment.scanCapturedAt ?? null
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164, cellE164: person.cellE164, status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
+  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164 ?? '', cellE164: person.cellE164 ?? '', status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
@@ -239,14 +239,12 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   const fallbackTraceId = randomUUID();
   const body = await request.json() as DirectBody;
   const traceId = ensureTraceId(body.traceId) || fallbackTraceId;
-  const identity = validateJoinRequest(body.groupId, body.phone);
-  if (!identity.ok) {
-    return withDirectMeta({
-      ...identity.response,
-      jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId }
-    }, traceId, context);
-  }
-  logAuth({ traceId, stage: 'gate_in', groupId: groupId, phone: identity.phoneE164 });
+  const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
+  if (!groupId) return withDirectMeta(errorResponse(400, 'invalid_group_id', 'groupId is required', traceId), traceId, context);
+
+  const session = await requireSessionEmail(request, traceId);
+  if (!session.ok) return withDirectMeta(session.response, traceId, context);
+  logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: session.email.split('@')[1] ?? 'unknown' });
 
   let directAction: DirectAction;
   try {
@@ -276,12 +274,13 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (error instanceof GroupNotFoundError) return withDirectMeta(errorResponse(404, 'group_not_found', 'Group not found', traceId), traceId, context);
     throw error;
   }
-  const allowed = findActivePersonByPhone(loaded.state, identity.phoneE164);
-  if (!allowed) {
+  const membership = requireActiveMember(loaded.state, session.email, traceId);
+  if (!membership.ok) {
     logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
-    return withDirectMeta(errorResponse(403, 'not_allowed', 'Not allowed', traceId), traceId, context);
+    return withDirectMeta(membership.response, traceId, context);
   }
-  logAuth({ traceId, stage: 'gate_allowed', personId: allowed.personId });
+  const caller = membership.member;
+  logAuth({ traceId, stage: 'gate_allowed', memberId: caller.memberId });
 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
@@ -363,7 +362,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     }, traceId, context, opId);
   }
 
-  const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: null, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+  const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: caller.memberId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (directAction.type === 'create_blank_person') {
     const personId = nextPersonId(loaded.state);
     const now = new Date().toISOString();

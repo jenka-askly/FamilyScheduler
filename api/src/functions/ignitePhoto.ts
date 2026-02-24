@@ -1,8 +1,8 @@
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
-import { IGNITE_DEFAULT_GRACE_SECONDS, igniteIsJoinable } from '../lib/ignite.js';
+import { IGNITE_DEFAULT_GRACE_SECONDS, igniteIsJoinable, ignitePhotoBlobKey } from '../lib/ignite.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { decodeImageBase64, ignitePhotoBlobKey } from '../lib/scan/appointmentScan.js';
+import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
@@ -16,7 +16,7 @@ export async function ignitePhoto(request: HttpRequest, _context: InvocationCont
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId);
-  if ('status' in session) return session;
+  if (!session.ok) return session.response;
 
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!sessionId) return errorResponse(400, 'sessionId_required', 'sessionId is required', traceId);
@@ -32,7 +32,7 @@ export async function ignitePhoto(request: HttpRequest, _context: InvocationCont
   if (!igniteIsJoinable(loaded.state.ignite)) return errorResponse(410, 'ignite_closed', 'Session closed', traceId);
 
   const membership = requireActiveMember(loaded.state, session.email, traceId);
-  if ('status' in membership) return membership;
+  if (!membership.ok) return membership.response;
   const caller = membership.member;
 
   const nowISO = new Date().toISOString();

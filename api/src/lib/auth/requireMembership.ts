@@ -21,11 +21,15 @@ export const findActiveMemberByEmail = (state: AppState, email: string): Member 
   state.members.find((member) => member.status === 'active' && member.email === normalizeEmail(email)) ?? null
 );
 
-export const requireActiveMember = (state: AppState, email: string, traceId: string): { member: Member } | HttpResponseInit => {
+export type MemberResult =
+  | { ok: true; member: Member }
+  | { ok: false; response: HttpResponseInit };
+
+export const requireActiveMember = (state: AppState, email: string, traceId: string): MemberResult => {
   const member = findActiveMemberByEmail(state, email);
   if (!member) {
     console.info(JSON.stringify({ event: 'membership_denied', traceId, emailDomain: getEmailDomain(email) }));
-    return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
+    return { ok: false, response: errorResponse(403, 'not_allowed', 'Not allowed', traceId) };
   }
-  return { member };
+  return { ok: true, member };
 };
