@@ -7033,6 +7033,23 @@ Implement list-view readability improvements and active appointment selection be
 
 - Re-run `pnpm -C apps/web run typecheck` and visual verify in a dependency-complete local environment.
 
+## 2026-02-24 03:40 UTC (Move global menu to product header row)
+
+### Objective
+
+Relocate the existing global hamburger menu button from the group card header to the top product header row beside `Family Scheduler`, without changing any menu behavior/handlers.
+
+### Approach
+
+- Updated `PageHeader` to render a new top `ui-productHeader` flex row containing the product title and the existing menu `IconButton` (same `onClick`, `aria-label`, and anchor state).
+- Removed the menu button from the group header row and simplified that row so it no longer reserves right-side space for the old menu placement.
+- Added minimal global CSS utility classes for the product header row layout and title margin reset.
+- Added a project status note for the hierarchy change.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/styles.css`
 ## 2026-02-24 02:42 UTC (Dialog action buttons standardized)
 
 ### Objective
@@ -7057,6 +7074,16 @@ Standardize dialog/footer action button order and variants across targeted UI fl
 
 ### Commands run + outcomes
 
+- `rg --files -g 'AGENTS.md'` ✅ no AGENTS.md files found in repository scope.
+- `rg -n "Family Scheduler|This is renamed|Menu|aria-label|IconButton" apps/web/src/AppShell.tsx` ✅ used to locate header/menu references.
+- `rg -n "PageHeader|h1|group|renamed|drawer|menu" apps/web/src/AppShell.tsx` ✅ confirmed PageHeader is the menu host surface.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing missing `@mui/*` modules in this environment.
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ⚠️ Vite starts, but unresolved `@mui/*` deps prevent full runtime validation.
+- `run_playwright_script` ✅ screenshot captured at `browser:/tmp/codex_browser_invocations/cb1876bd2b383c5a/artifacts/artifacts/menu-relocation.png`.
+
+### Follow-ups
+
+- Install/restore MUI dependencies in this environment for clean typecheck/runtime verification beyond structural UI placement.
 - `rg -n "DialogActions|Add Rule|Capture|variant=\"outlined\"|variant=\"contained\"" apps/web/src/AppShell.tsx apps/web/src/components/AppointmentEditorForm.tsx` ✅ identified target action rows and verified edits.
 - `pnpm --filter @familyscheduler/web run typecheck` ⚠️ fails in this environment due pre-existing dependency/type baseline issues.
 

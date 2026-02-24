@@ -1,3 +1,7 @@
+## 2026-02-24 03:40 UTC update (Global menu hierarchy tweak)
+
+- Moved global menu (burger) from group card header to product header for clearer hierarchy.
+
 ## 2026-02-24 03:05 UTC update (Calendar action icon contrast + AI scan icon)
 
 - Increased appointment list row action icon contrast so row controls no longer appear washed out.
