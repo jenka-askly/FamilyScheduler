@@ -1702,31 +1702,56 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 
 .ui-igniteShareCard {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 320px 1fr;
   gap: 16px;
   align-items: start;
 }
 
-.ui-igniteQr {
-  width: 100%;
-  max-width: 280px;
-  border-radius: 12px;
+.ui-igniteQrCol,
+.ui-igniteLinkCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ui-igniteLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ui-igniteQrImg {
+  width: 280px;
+  height: 280px;
+  max-width: 100%;
   border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ui-igniteInlineActions {
+  margin-top: 8px;
 }
 
 .ui-igniteActions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 12px;
 }
 
 .ui-igniteSection {
   margin-top: 16px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 800px) {
   .ui-igniteShareCard {
     grid-template-columns: 1fr;
+  }
+
+  .ui-igniteQrImg {
+    width: 240px;
+    height: 240px;
   }
 }
 
