@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from './AppShell';
+import { ProductHomePage } from './components/ProductHomePage';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
@@ -72,7 +73,7 @@ const sanitizeReturnTo = (value?: string): string => {
   return trimmed;
 };
 
-const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
+const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notice?: string; next?: string } | { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -83,6 +84,13 @@ const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { 
   if (igniteMatch) return { type: 'ignite', groupId: igniteMatch[1] };
   const sessionMatch = path.match(/^\/s\/([^/]+)\/([^/]+)$/);
   if (sessionMatch) return { type: 'igniteJoin', groupId: sessionMatch[1], sessionId: sessionMatch[2] };
+  if (path === '/' || path === '/home') return { type: 'home' };
+  if (path === '/login') {
+    const requestedNext = query.get('next') ?? undefined;
+    const normalizedNext = requestedNext === 'create' ? '/create' : sanitizeReturnTo(requestedNext);
+    return { type: 'login', notice: query.get('m') ?? undefined, next: normalizedNext };
+  }
+  if (path === '/create') return { type: 'create' };
 
   if (path === '/auth/consume') {
     return {
@@ -108,7 +116,7 @@ const parseHashRoute = (hash: string): { type: 'create'; message?: string } | { 
   }
   const joinMatch = path.match(/^\/g\/([^/]+)$/);
   if (joinMatch) return { type: 'join', groupId: joinMatch[1], error: query.get('err') ?? undefined, traceId: query.get('trace') ?? undefined };
-  return { type: 'create', message: query.get('m') ?? undefined };
+  return { type: 'home' };
 };
 
 const nav = (path: string, options?: { replace?: boolean }) => {
@@ -121,7 +129,7 @@ const nav = (path: string, options?: { replace?: boolean }) => {
 };
 
 const toJoinRoute = (groupId: string, error: AuthError, traceId: string): string => `/g/${groupId}?err=${error}&trace=${traceId}`;
-const toSignInRoute = (message: string = ROOT_SIGN_IN_MESSAGE): string => `/?m=${encodeURIComponent(message)}`;
+const toSignInRoute = (message: string = ROOT_SIGN_IN_MESSAGE): string => `/login?m=${encodeURIComponent(message)}`;
 
 
 function SignInRequiredPage({ message }: { message: string }) {
@@ -144,7 +152,19 @@ function RedirectToSignInPage({ message }: { message: string }) {
   return <SignInRequiredPage message={message} />;
 }
 
-function LandingSignInPage({ notice }: { notice?: string }) {
+
+function RedirectToLoginPage({ next = '/create', notice }: { next?: string; notice?: string }) {
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('next', next === '/create' ? 'create' : next);
+    if (notice) params.set('m', notice);
+    nav(`/login?${params.toString()}`, { replace: true });
+  }, [next, notice]);
+
+  return <LandingSignInPage notice={notice} nextPath={next} />;
+}
+
+function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPath?: string }) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successState, setSuccessState] = useState<{ attemptId: string; returnTo: string } | null>(null);
@@ -193,7 +213,7 @@ function LandingSignInPage({ notice }: { notice?: string }) {
     }
 
     const attemptId = createAttemptId();
-    const returnTo = '/';
+    const returnTo = sanitizeReturnTo(nextPath);
     window.sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify({ attemptId, returnTo, startedAt: Date.now() }));
 
     setRequesting(true);
@@ -1263,6 +1283,9 @@ export function App() {
     };
   }, []);
   useEffect(() => {
+    if (!window.location.hash) {
+      window.location.hash = '/';
+    }
     const onChange = () => setHash(window.location.hash || '#/');
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
@@ -1274,7 +1297,9 @@ export function App() {
   }, [hash]);
 
   if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
-  if (route.type === 'create' && !hasApiSession) return <LandingSignInPage notice={route.message} />;
+  if (route.type === 'home') return <ProductHomePage onCreateGroup={() => nav('/create')} onSignIn={() => nav('/login')} />;
+  if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
+  if (route.type === 'create' && !hasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;

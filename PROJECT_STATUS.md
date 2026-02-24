@@ -1,3 +1,20 @@
+## 2026-02-24 22:07 UTC update (public home/login/create hash routes + create gate)
+
+- Added a new public product home route at `/#/` and `/#/home` with a professional landing layout and CTA buttons into create/login flows.
+- Added explicit hash route handling for `/#/login` and `/#/create`; unknown hashes now resolve to home instead of create.
+- Added signed-out guard for `/#/create` that redirects to `/#/login?next=create&m=...`, while preserving intent and continuing to existing Create Group page for authenticated sessions.
+- Preserved existing deep-link route parsing and rendering for group app, ignite organizer/join, auth consume/done, handoff, and join flows.
+
+### Key files touched
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+
+### Follow-ups
+
+- Add first-class Privacy/Terms/Contact pages and wire footer placeholders to real routes.
+- Optional: refine landing copy and spacing based on product marketing review.
+
 ## 2026-02-24 21:46 UTC update (Create Group UX polish + group/create contract + auth done tab handling)
 
 - Web Create Group form now removes `Group key` entirely and no longer sends `groupKey` to the API.
