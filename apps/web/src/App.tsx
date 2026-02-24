@@ -3,7 +3,7 @@ import { AppShell } from './AppShell';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl } from './lib/apiUrl';
+import { apiFetch, apiUrl, getSessionId } from './lib/apiUrl';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
@@ -94,6 +94,19 @@ const nav = (path: string, options?: { replace?: boolean }) => {
 
 const toJoinRoute = (groupId: string, error: AuthError, traceId: string): string => `/g/${groupId}?err=${error}&trace=${traceId}`;
 
+
+function SignInRequiredPage({ message }: { message: string }) {
+  return (
+    <Page variant="form">
+      <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+        <Alert severity="warning">{message}</Alert>
+        <Button variant="contained" onClick={() => nav('/', { replace: true })}>Go to sign-in</Button>
+      </Stack>
+      <FooterHelp />
+    </Page>
+  );
+}
+
 function CreateGroupPage() {
   const [groupName, setGroupName] = useState('');
   const [groupKey, setGroupKey] = useState('');
@@ -128,6 +141,10 @@ function CreateGroupPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    if (!getSessionId()) {
+      nav('/', { replace: true });
+      return;
+    }
     setIsCreating(true);
     try {
       const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName, groupKey, creatorEmail, creatorName }) });
@@ -916,7 +933,16 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
   useEffect(() => {
     let canceled = false;
     const session = readSession();
-    authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.email });
+    const apiSessionId = getSessionId();
+    authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.email, hasApiSession: !!apiSessionId });
+    if (!apiSessionId) {
+      if (canceled) return;
+      setAuthStatus('denied');
+      setAuthError('no_session');
+      authLog({ stage: 'gate_redirect', to: '/', reason: 'missing_api_session' });
+      nav('/', { replace: true });
+      return;
+    }
     if (!session || !session.email) {
       if (canceled) return;
       setAuthStatus('denied');
@@ -1009,6 +1035,14 @@ function HandoffPage({ groupId, email, next }: { groupId: string; email: string;
 
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
+  const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getSessionId()));
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'fs.sessionId') setHasApiSession(Boolean(getSessionId()));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   useEffect(() => {
     const onChange = () => setHash(window.location.hash || '#/');
     window.addEventListener('hashchange', onChange);
@@ -1016,6 +1050,12 @@ export function App() {
   }, []);
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
+  useEffect(() => {
+    setHasApiSession(Boolean(getSessionId()));
+  }, [hash]);
+
+  if (route.type === 'create' && !hasApiSession) return <SignInRequiredPage message="Please sign in before creating or opening a group." />;
+  if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <SignInRequiredPage message="Please sign in to continue." />;
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;

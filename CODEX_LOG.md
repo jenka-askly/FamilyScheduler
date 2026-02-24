@@ -8198,3 +8198,34 @@ Fix TypeScript build errors introduced during email/session auth cutover with mi
 ### Follow-ups
 
 - If integration tests exist for these endpoints, run them in CI/staging to confirm runtime auth semantics match intended session-membership model.
+
+## 2026-02-24 19:32 UTC (Fix unauthorized Missing session after create/open)
+
+### Objective
+
+Fix runtime auth failure (`unauthorized: Missing session`) occurring immediately after group create/open by ensuring all auth-required web calls include `x-session-id` and routes are gated until session exists.
+
+### Approach
+
+- Searched call paths and identified canonical wrapper (`apiFetch`) in `apps/web/src/lib/apiUrl.ts`.
+- Found bypasses in `apps/web/src/AppShell.tsx` using direct `fetch(apiUrl(...))`; migrated to `apiFetch(...)` calls.
+- Added route-level boot gating in `App.tsx` to block `/g/:groupId/app`, `/g/:groupId/ignite`, and create flow when `fs.sessionId` is absent.
+- Enforced `CreateGroupPage` submit guard to redirect to sign-in entry if no API session.
+- Added deduped unauthorized diagnostics in `apiFetch` keyed by response `traceId`.
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "fs.sessionId|x-session-id|groupMeta|groupCreate|consume|auth/consume|fetch\(" apps/web` ✅ mapped session/auth call sites.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Manual browser verification in DevTools Network to confirm `x-session-id` present on `group/meta` and mutating calls in real auth session.

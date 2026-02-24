@@ -2628,3 +2628,26 @@ Refined section tabs (active merges into content, alignment); replaced calendar 
 1. `pnpm -r --if-present build`
 2. Confirm no TS errors for `requireSessionEmail` / `requireActiveMember` call sites.
 3. Spot-check `/api/direct` and `/api/chat` with valid and invalid session headers for expected 401/403 behavior.
+
+## 2026-02-24 19:32 UTC update (Missing session after group create)
+
+Fixed web auth/session sequencing bug causing immediate `unauthorized: Missing session` after group creation/open.
+
+### Root cause
+
+- `AppShell` had multiple direct `fetch(apiUrl(...))` calls that bypassed the canonical `apiFetch` helper, so `x-session-id` was omitted on authenticated endpoints (including `group/meta`).
+- App route boot could enter authenticated routes (`/g/:groupId/app` and `/g/:groupId/ignite`) before `fs.sessionId` existed, causing early authenticated calls to fail.
+- Group creation flow allowed unauthenticated create attempts, producing groups that then failed on first authenticated metadata call.
+
+### Fix
+
+- Routed `apps/web/src/AppShell.tsx` API requests through `apiFetch` so session header injection is centralized.
+- Added auth boot gating in `App.tsx` so authenticated routes and create flow require `fs.sessionId`; missing session now routes to sign-in entry screen instead of firing authenticated calls.
+- Kept `/auth/consume` flow async and ensured it stores `fs.sessionId` before redirecting into app routes.
+- Added deduped unauthorized diagnostics in `apiFetch` to log one-line warning with `traceId` and local session presence when API returns `{ ok:false, error:"unauthorized", message:"Missing session" }`.
+
+### Verification
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. Logged-in path: create group -> open app -> `group/meta` succeeds with `x-session-id` header.
+3. Logged-out path: create/open-group routes show sign-in gate; no unauthorized spam.
