@@ -1686,3 +1686,14 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   display: grid;
   gap: 6px;
 }
+
+.ui-appt-body {
+  margin-left: 18px;
+}
+
+.ui-appt-active {
+  background: rgba(59, 130, 246, 0.06);
+  border-left: 3px solid rgba(59, 130, 246, 0.45);
+  padding-left: 10px;
+  box-sizing: border-box;
+}

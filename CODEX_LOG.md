@@ -6971,3 +6971,35 @@ Implement Week and Day calendar views in AppShell, enable tabs, and add independ
 ### Follow-ups
 
 - Optional future polish: add week/day empty-state cards and mobile horizontal scroll tuning for week columns.
+
+## 2026-02-24 02:29 UTC (List readability + active appointment selection)
+
+### Objective
+
+Implement list-view readability improvements and active appointment selection behavior with auto-scroll after edit/create.
+
+### Approach
+
+- Added `activeAppointmentCode` state in `AppShell` and set it when opening edit and when creating a blank appointment.
+- Added list-view-only auto-scroll effect: when active appointment changes and list view is visible, scroll only if row is off-screen.
+- Updated appointment list row rendering to include `data-appt-code` and active class on the outer row container.
+- Split title vs body layout by indenting non-title lines under `.ui-appt-body`.
+- Added list styles for body indentation and active row highlight treatment.
+- Documented behavior update in `PROJECT_STATUS.md`.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+
+- `rg -n "openWhenEditor|calendarView === 'list'|AppointmentCardList" apps/web/src/AppShell.tsx` ✅ located list/edit/create integration points.
+- `rg -n "activeAppointmentCode|ui-appt-body|ui-appt-active" apps/web/src/AppShell.tsx apps/web/src/components/AppointmentCardList.tsx apps/web/src/styles.css` ✅ verified additions and wiring.
+- `pnpm -C apps/web run typecheck` ⚠️ failed due pre-existing missing `@mui/*` module resolution in this environment.
+
+### Follow-ups
+
+- Re-run `pnpm -C apps/web run typecheck` and visual verify in a dependency-complete local environment.
