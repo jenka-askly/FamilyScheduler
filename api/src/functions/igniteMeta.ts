@@ -1,7 +1,8 @@
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
-import { findActivePersonByPhone, validateIdentityRequest } from '../lib/groupAuth.js';
-import { findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
-import { requireSessionFromRequest } from '../lib/auth/sessions.js';
+import { findActivePersonByPhone, uuidV4Pattern } from '../lib/groupAuth.js';
+import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
+import { normalizeEmail, requireActiveMember } from '../lib/auth/requireMembership.js';
+import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { igniteEffectiveStatus } from '../lib/ignite.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
@@ -57,6 +58,28 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
 
   const sessionId = ((typeof body.sessionId === 'string' ? body.sessionId : undefined) ?? url.searchParams.get('sessionId') ?? '').trim();
   if (!sessionId) return errorResponse(400, 'sessionId_required', 'sessionId is required', traceId);
+
+  const phoneRaw = ((typeof body.phone === 'string' ? body.phone : undefined) ?? url.searchParams.get('phone') ?? '').trim();
+  const email = ((typeof body.email === 'string' ? body.email : undefined) ?? url.searchParams.get('email') ?? '').trim();
+
+  let authedEmail: string | null = null;
+  try {
+    const session = await requireSessionFromRequest(request, traceId, { groupId });
+    authedEmail = session.email;
+  } catch (error) {
+    if (!(error instanceof HttpError)) throw error;
+  }
+
+  let phoneE164: string | null = null;
+  if (!authedEmail && !email) {
+    if (!phoneRaw) return errorResponse(400, 'identity_required', 'phone or email is required', traceId);
+    try {
+      phoneE164 = validateAndNormalizePhone(phoneRaw).e164;
+    } catch (error) {
+      if (error instanceof PhoneValidationError) return errorResponse(400, 'invalid_phone', error.message, traceId);
+      throw error;
+    }
+  }
 
   const storage = createStorageAdapter();
   let loaded;
