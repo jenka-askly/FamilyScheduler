@@ -6,6 +6,11 @@ const apiBaseUrl = configuredApiBaseUrl ? trimTrailingSlash(configuredApiBaseUrl
 const SESSION_ID_KEY = 'fs.sessionId';
 const PROVISIONAL_EXPIRED_NOTICE = 'Please verify your email to continue';
 const warnedUnauthorizedTraceIds = new Set<string>();
+const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+const authLog = (payload: Record<string, unknown>): void => {
+  if (!debugAuthLogsEnabled) return;
+  console.log(payload);
+};
 
 export const apiUrl = (path: string): string => {
   if (!path.startsWith('/')) throw new Error(`apiUrl path must start with '/'. Received: ${path}`);
@@ -19,13 +24,17 @@ export const getSessionId = (): string | null => {
 };
 
 
-const handleProvisionalExpiry = (path: string, payload: { error?: string; code?: string }): void => {
+const shouldClearSessionId = (code?: string): boolean => code === 'AUTH_PROVISIONAL_EXPIRED' || code === 'AUTH_IGNITE_GRACE_EXPIRED';
+
+const handleProvisionalExpiry = (path: string, payload: { error?: string; code?: string; traceId?: string }): void => {
   if (typeof window === 'undefined') return;
   const code = payload.code ?? payload.error;
-  if (code !== 'AUTH_PROVISIONAL_EXPIRED') return;
+  if (!shouldClearSessionId(code)) return;
   window.localStorage.removeItem(SESSION_ID_KEY);
+  authLog({ component: 'apiFetch', stage: 'clear_session_id', code, traceId: payload.traceId, path });
   const currentHash = window.location.hash || '';
   if (currentHash.startsWith('#/login')) return;
+  if (code !== 'AUTH_PROVISIONAL_EXPIRED') return;
   console.warn(`[apiFetch] provisional_session_expired path=${path}`);
   window.location.replace(`${window.location.pathname}${window.location.search}#/login?m=${encodeURIComponent(PROVISIONAL_EXPIRED_NOTICE)}`);
 };

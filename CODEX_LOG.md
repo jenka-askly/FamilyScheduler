@@ -8933,3 +8933,37 @@ Add a cancel action on the Organizer Breakout QR (Ignite organizer) page so orga
 ### Follow-ups
 
 - Manual browser smoke still recommended for end-to-end breakout organizer flow with real auth + group data.
+
+## 2026-02-25 02:11 UTC (Organizer close-to-app continuity + scoped sessionId expiry clearing)
+
+### Objective
+
+Implement organizer close behavior so closing Ignite returns to `/#/g/:groupId/app` without login prompt, and restrict `apiFetch` `fs.sessionId` clearing to explicit expiry codes only.
+
+### Approach
+
+- Updated `IgniteOrganizerPage.closeSession` success path to:
+  - write local app session via `writeSession({ groupId, email, joinedAt })`
+  - navigate to `/g/:groupId/app` using `nav(...)`
+- Kept this behavior strictly on successful `/api/ignite/close` responses.
+- Updated `apiUrl.ts` auth handling:
+  - introduced `shouldClearSessionId(code)` for targeted clearing (`AUTH_PROVISIONAL_EXPIRED`, `AUTH_IGNITE_GRACE_EXPIRED`)
+  - added debug-gated `authLog` in `apiFetch` module and logged clear events with `code`, `traceId`, and `path`
+  - preserved existing login redirect behavior only for `AUTH_PROVISIONAL_EXPIRED`
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline` ✅ baseline branch/commit check.
+- `rg -n "closeSession|IgniteOrganizerPage|api/ignite/close|fs.sessionId" apps/web/src/App.tsx apps/web/src/lib/apiUrl.ts` ✅ located edit points.
+- `pnpm -r build` ✅ build passed.
+
+### Follow-ups
+
+- Manual browser verification should confirm organizer Close returns to `/#/g/:groupId/app` and does not bounce to login.

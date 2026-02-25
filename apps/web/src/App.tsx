@@ -852,7 +852,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       return;
     }
     setStatus(data.status ?? 'CLOSING');
-    window.location.hash = `/g/${groupId}`;
+    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
+    nav(`/g/${groupId}/app`);
   };
 
   const uploadPhotoBase64 = async (base64: string) => {
