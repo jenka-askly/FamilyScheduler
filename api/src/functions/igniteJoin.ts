@@ -102,7 +102,9 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
     }
   }
 
-  const graceTtlSeconds = 30;
+  // Grace session TTL is configured in seconds (default: 30 minutes).
+  const graceTtlSecondsRaw = process.env.IGNITE_GRACE_TTL_SECONDS ?? '1800';
+  const graceTtlSeconds = Math.max(60, Number.parseInt(graceTtlSecondsRaw, 10) || 1800);
   let grace: Awaited<ReturnType<typeof createIgniteGraceSession>>;
   try {
     grace = await createIgniteGraceSession(email, groupId, graceTtlSeconds, { scopeIgniteSessionId: sessionId });
@@ -117,7 +119,7 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
     return errorResponse(500, 'ignite_grace_session_create_failed', 'Unable to create ignite grace session', traceId);
   }
 
-  console.log(JSON.stringify({ event: 'ignite_join_grace_session_issued', traceId, breakoutGroupId: groupId, igniteSessionId: sessionId, expiresAt: grace.expiresAtISO }));
+  console.log(JSON.stringify({ event: 'ignite_join_grace_session_issued', traceId, breakoutGroupId: groupId, igniteSessionId: sessionId, graceTtlSeconds, expiresAt: grace.expiresAtISO }));
   return {
     status: 200,
     jsonBody: {
