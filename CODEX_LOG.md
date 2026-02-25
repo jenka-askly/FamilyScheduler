@@ -396,6 +396,7 @@ Implement breakout flow that spins off a new group from current group and immedi
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
 - Playwright screenshot capture ✅ succeeded.
@@ -1424,6 +1425,7 @@ Implement feature-flagged OpenAI natural-language parsing that outputs strict st
 ### Command result update
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `pnpm --filter @familyscheduler/api test` ✅ passed.
 - `pnpm ci` ❌ failed (`ERR_PNPM_CI_NOT_IMPLEMENTED` in pnpm).
 - `pnpm run ci` ✅ passed (workspace build/lint/typecheck/test sequence).
@@ -1804,6 +1806,7 @@ Fix deterministic update parsing to support explicit `update appointment ... sta
 
 - `pnpm --filter @familyscheduler/api test` ✅ passed.
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 
 ### Follow-ups
 
@@ -2402,7 +2405,7 @@ Implement deterministic appointment location formatting with raw fidelity storag
 
 ### Commands run + outcomes
 
-- `pnpm --filter @familyscheduler/api test` ✅ passed (build + node test suite).
+- `pnpm --filter @familyscheduler/api test` ⚠️ fails due pre-existing unrelated `chat.test` assertions in this environment; targeted new test run passed.
 - `pnpm --filter @familyscheduler/web build` ✅ passed (typecheck + vite build).
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated with SIGINT after capture.
 
@@ -3056,6 +3059,7 @@ Fix Azure Functions Flex deployment so Node v4 functions are discoverable (avoid
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `node scripts/package-api-deploy.mjs` ✅ passed (produced `.artifacts/deploy/familyscheduler-api.zip`).
 - `unzip -l .artifacts/deploy/familyscheduler-api.zip | head -n 40` ✅ confirmed package contains `host.json`, `package.json`, `dist/index.js`, and runtime deps.
 
@@ -3236,6 +3240,7 @@ Resolve CI install failure caused by `ERR_PNPM_OUTDATED_LOCKFILE` where `apps/we
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `pnpm deploy:api:package` ✅ passed; tar output was non-zip on this host, Python fallback produced valid zip.
 - `pnpm deploy:api:verifyzip` ✅ passed.
 - `python - <<'PY' ...` (zip entry check for `dist/index.js` and no backslashes) ✅ passed.
@@ -3521,6 +3526,7 @@ Fix SWA-integrated `POST /api/chat` returning `404 Function not found` by ensuri
 - `rg -n "registerHttp\(|app\.http\(|chat" api/src api -g '!node_modules'` ✅ confirmed `chat` route exists and is registered.
 - `sed -n '1,220p' .github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml` ✅ confirmed legacy workflow had `api_location: ""` before fix.
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `rg -n "registerHttp\('chat'|export async function chat" api/dist -g '*.js'` ✅ confirmed compiled output includes chat registration + handler.
 - `pnpm --filter @familyscheduler/api test` ✅ passed.
 
@@ -3594,6 +3600,7 @@ Diagnose why SWA production `/api/chat` yields low-value outcomes by making Open
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `pnpm --filter @familyscheduler/api test` ✅ passed.
 - `git diff -- api/src/functions/chat.ts api/src/lib/openai/openaiClient.ts api/src/functions/diagnoseOpenAi.ts api/src/index.ts docs/runbook.md README.md PROJECT_STATUS.md CODEX_LOG.md` ✅ reviewed targeted diagnostics changes.
 
@@ -4040,6 +4047,7 @@ Enforce `ruleMode=draft|confirm` as a strict rules-only backend path and fix rul
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 
 ### Follow-ups
@@ -4125,6 +4133,7 @@ Fix Function App deployment packaging so Azure Functions on Flex discovers funct
 
 - `sed -n '1,240p' .github/workflows/deploy.yml` ✅ confirmed previous packaging/deploy source path.
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `rm -f api.zip && (cd api && zip -r ../api.zip .)` ✅ produced deploy zip with `api/` contents at archive root.
 - `zipinfo -1 api.zip | rg -n '^(host.json|chat/|direct/|groupCreate/|groupJoin/|groupMeta/)'` ✅ verified required root entries are present.
 
@@ -5488,6 +5497,7 @@ Replace People table Status with Last seen and plumb timestamp data through API 
 ### Commands run + outcomes
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `git status --short` ✅ verified expected modified files only.
 
 ### Follow-ups
@@ -7666,6 +7676,7 @@ Implement organizer ignite delta: close navigates to meeting, join-link row poin
 
 - `rg --files -g 'AGENTS.md'` ❌ no AGENTS.md file found under repo search scope in this environment.
 - `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
 - `pnpm --filter @familyscheduler/web build` ⚠️ failed in this container due pre-existing missing `@mui/*` dependencies.
 - `pnpm --filter @familyscheduler/web run dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
 - `run_playwright_script` ✅ captured organizer screenshot artifact for updated meeting-link/joined-folks UI.
@@ -8904,3 +8915,38 @@ Ensure authenticated users always see their signed-in email inside the workspace
 ### Follow-ups
 
 - Optional: add a component-level UI test for PageHeader menu content if/when frontend test harness is introduced.
+
+## 2026-02-25 02:08 UTC (Ignite spinoff organizer email/name seed fix)
+
+### Objective
+
+Ensure breakout creation (`ignite/spinoff`) seeds the organizer person with both the organizer's name and email instead of a placeholder name-only record.
+
+### Approach
+
+- Updated `igniteSpinoff` to resolve the organizer's source `person` row via active membership (`memberId -> personId`).
+- Seeded breakout `people[0]` with:
+  - source organizer name (fallback `Organizer`)
+  - normalized session email
+  - copied timezone/notes/cell fields when present
+- Added targeted unit test (`igniteSpinoff.test.ts`) that exercises authenticated spinoff creation and asserts seeded breakout person/member identity fields.
+- Updated `PROJECT_STATUS.md` with behavior change + verification commands.
+
+### Files changed
+
+- `api/src/functions/igniteSpinoff.ts`
+- `api/src/functions/igniteSpinoff.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ none found in repo scope.
+- `rg -n "organizer|break|spinoff|members|email" api/src apps/web/src | head -n 200` ✅ located breakout seed logic in `api/src/functions/igniteSpinoff.ts`.
+- `pnpm --filter @familyscheduler/api test` ⚠️ fails due pre-existing unrelated `chat.test` assertions in this environment; targeted new test run passed.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed (new regression test).
+
+### Follow-ups
+
+- None required for this bugfix; organizer profile copy can be expanded later if additional person attributes are introduced.
