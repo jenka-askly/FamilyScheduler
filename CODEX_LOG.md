@@ -9798,3 +9798,34 @@ Fix `GroupAuthGate` so logged-in users are authorized by durable API session + s
 ### Follow-ups
 - Consider adding a focused web unit/integration test around `GroupAuthGate` to lock this auth contract in place.
 
+
+## 2026-02-25 07:56 UTC (igniteGrace counts as authenticated for route/gate checks)
+
+### Objective
+
+Ensure client-side route and gate auth checks accept temporary igniteGrace sessions for joiners, while preserving durable session ownership/priority.
+
+### Approach
+
+- Added a small helper (`getAuthSessionId`) in `apiUrl.ts` that returns durable session id first, then igniteGrace fallback.
+- Switched web `hasApiSession` and `GroupAuthGate` checks to use this helper so joiners with igniteGrace are treated as authenticated in app/ignite routes.
+- Extended auth debug logging to include `fs.igniteGraceSessionId` for faster diagnosis of mixed-session states.
+- Left request-header behavior untouched (`apiFetch` still sends durable token when both exist).
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git branch --show-current && git rev-parse HEAD && git status --short` ✅
+- `rg --files | rg 'PROJECT_STATUS.md|CODEX_LOG.md'` ✅
+- `rg -n "getSessionId\(|hasApiSession|GroupAuthGate|RedirectToSignInPage|gate_redirect_missing_api_session" apps/web/src/App.tsx` ✅
+- `npm -C apps/web run build` ✅ passed (vite build completed).
+
+### Follow-ups
+
+- If organizer-only surfaces should strictly require durable sessions (not grace), isolate those checks to `getSessionId()` explicitly and add route-level comments/tests.

@@ -32,6 +32,8 @@ export const getIgniteGraceSessionId = (): string | null => {
   return sessionId && sessionId.trim() ? sessionId : null;
 };
 
+export const getAuthSessionId = (): string | null => getSessionId() || getIgniteGraceSessionId();
+
 
 const shouldClearSessionId = (code?: string): boolean => code === 'AUTH_PROVISIONAL_EXPIRED';
 
