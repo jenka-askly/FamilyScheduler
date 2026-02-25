@@ -9032,6 +9032,22 @@ Add authenticated user name to identity display areas that currently show only e
 - `apps/web/src/AppShell.tsx`
 - `apps/web/src/components/layout/MarketingLayout.tsx`
 - `apps/web/src/App.tsx`
+## 2026-02-25 02:30 UTC (Ignite join auth bounce hotfix + auth-link guard)
+
+### Objective
+
+Stop post-ignite-join `/login` bounce caused by local session clearing and harden ignite auth-link path against missing runtime dependencies.
+
+### Approach
+
+- Narrowed `apiFetch` session-clearing policy to `AUTH_PROVISIONAL_EXPIRED` only.
+- Added explicit warning log + debug auth log payload when local `fs.sessionId` is cleared, including code/path/trace/hash.
+- Hardened `igniteJoin` unauth auth-link invocation by pre-checking required config and request header availability; when missing, log structured skip events and continue grace-session response path.
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `api/src/functions/igniteJoin.ts`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -9045,3 +9061,14 @@ Add authenticated user name to identity display areas that currently show only e
 ### Follow-ups
 
 - Optional: return user display name directly from auth consume endpoint in future for immediate name display before app-shell profile fetch.
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline` ✅ baseline branch/HEAD captured.
+- `sed -n '1,260p' apps/web/src/lib/apiUrl.ts` ✅ inspected client session-clearing logic.
+- `rg -n --hidden --no-ignore -S "ignite_join_auth_link_failed|request-link|authRequestLink|\.get\(" api/src` ✅ located ignite auth-link call path.
+- `sed -n '1,220p' api/src/functions/igniteJoin.ts` ✅ inspected join+grace response logic.
+- `sed -n '1,220p' api/src/functions/authRequestLink.ts` ✅ verified possible `headers.get` crash source.
+- `rg -n --hidden --no-ignore -S "AUTH_IGNITE_GRACE_EXPIRED|removeItem\('fs\.sessionId'\)" apps/web/src` ✅ confirmed no apiFetch clearing remains tied to ignite grace expiry.
+- `pnpm -r build` ✅ workspace build passed (api/shared/web).
+
+### Follow-ups
+
+- Human-run browser repro should confirm no immediate `api_session_cleared` after unauth ignite join and no hard bounce to `/login` during grace window.

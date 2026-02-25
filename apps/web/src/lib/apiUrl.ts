@@ -24,15 +24,16 @@ export const getSessionId = (): string | null => {
 };
 
 
-const shouldClearSessionId = (code?: string): boolean => code === 'AUTH_PROVISIONAL_EXPIRED' || code === 'AUTH_IGNITE_GRACE_EXPIRED';
+const shouldClearSessionId = (code?: string): boolean => code === 'AUTH_PROVISIONAL_EXPIRED';
 
 const handleProvisionalExpiry = (path: string, payload: { error?: string; code?: string; traceId?: string }): void => {
   if (typeof window === 'undefined') return;
   const code = payload.code ?? payload.error;
   if (!shouldClearSessionId(code)) return;
-  window.localStorage.removeItem(SESSION_ID_KEY);
-  authLog({ component: 'apiFetch', stage: 'clear_session_id', code, traceId: payload.traceId, path });
   const currentHash = window.location.hash || '';
+  console.warn(`[apiFetch] api_session_cleared code=${code ?? 'unknown'} path=${path} traceId=${payload.traceId ?? 'unknown'} hash=${currentHash || '(empty)'}`);
+  window.localStorage.removeItem(SESSION_ID_KEY);
+  authLog({ event: 'api_session_cleared', component: 'apiFetch', stage: 'clear_session_id', code, traceId: payload.traceId, path, currentHash });
   if (currentHash.startsWith('#/login')) return;
   if (code !== 'AUTH_PROVISIONAL_EXPIRED') return;
   console.warn(`[apiFetch] provisional_session_expired path=${path}`);
