@@ -41,7 +41,7 @@ const upsertCounter = async (column: string, incrementBy = 1, nowIso = new Date(
     };
 
     if (current?.etag) {
-      await client.updateEntity(next, 'Replace', { etag: current.etag, updateMode: 'Replace' });
+      await client.updateEntity(next, 'Replace', { etag: current.etag });
       return;
     }
     await client.createEntity(next);

@@ -3787,3 +3787,10 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/api build` (pending in this container due dependency install issue for `@azure/data-tables`)
 2. `pnpm --filter @familyscheduler/web build`
+
+## 2026-02-25 21:43 UTC update (Azure Tables typing/updateMode cleanup)
+
+- Fixed Azure Tables SDK typing break (removed `updateMode`, typed entities for `updateEntity`/`createEntity`).
+- `usageTables.ts`: typed `next` entity as `Record<string, any> & { partitionKey: string; rowKey: string }` and removed deprecated `updateMode` option.
+- `metrics.ts`: removed deprecated `updateMode` option from `updateEntity` call.
+- Build/test verification in this environment is currently blocked by missing registry access for `@azure/data-tables` package fetch (403), so TypeScript build cannot complete until dependency access is restored.
