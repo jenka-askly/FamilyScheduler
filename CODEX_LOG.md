@@ -9209,3 +9209,38 @@ Address unauth ignite-join sign-in kick path by ensuring grace `sessionId` alway
 ### Follow-ups
 
 - Human staging check should confirm whether any later API response still clears `fs.sessionId`; if so, use emitted `{code,path,traceId,currentHash}` payload to identify exact endpoint/response responsible.
+
+
+## 2026-02-25 03:45 UTC (authRequestLink never-throw error surface)
+
+### Objective
+
+Ensure `authRequestLink` does not throw and always returns structured JSON failures with traceable codes (`BAD_JSON`, `CONFIG_MISSING`, `EMAIL_SEND_FAILED`, etc.).
+
+### Approach
+
+- Wrapped the full handler body in a top-level `try/catch` and added a common structured failure response helper.
+- Added guarded JSON parse branch for `request.json()` failures that returns `400 BAD_JSON` instead of throwing.
+- Added local `logFailure` structured logger for a single failure event shape: `auth_request_link_failed` with `traceId`, `code`, optional details, and stack.
+- Converted config validation failures to explicit response envelopes (`config_missing`, `CONFIG_MISSING`, `missing`).
+- Wrapped provider email send with `try/catch` to return `502 EMAIL_SEND_FAILED` response and stop silent failures.
+- Extended tests for invalid JSON handling and config-missing envelope invariants.
+
+### Files changed
+
+- `api/src/functions/authRequestLink.ts`
+- `api/src/functions/authRequestLink.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short; git rev-parse --abbrev-ref HEAD; git log -n 1 --oneline` ✅ baseline branch/commit check.
+- `nl -ba api/src/functions/authRequestLink.ts | sed -n '1,260p'` ✅ inspected function before and after patch.
+- `rg -n --hidden --no-ignore -S "headers\.get\(|request\.headers|get\(|request\.json\(" api/src/functions/authRequestLink.ts` ✅ verified request access points and JSON parse guard target.
+- `pnpm --filter @familyscheduler/api test` ⚠️ fails in this environment due pre-existing missing runtime package resolution for `@azure/communication-email` plus unrelated pre-existing chat test failures.
+- `pnpm --filter @familyscheduler/api build` ✅ TypeScript build passes for the patched API code.
+
+### Follow-ups
+
+- Deploy API and validate runtime response payloads from real provider failures to confirm downstream client surfaces exact `code` + `traceId` text.

@@ -1,3 +1,15 @@
+## 2026-02-25 03:45 UTC update (authRequestLink structured failure responses)
+
+- Hardened `POST /api/auth/request-link` so handler-level failures no longer escape as thrown exceptions; all known failures now return explicit JSON with `ok:false`, `error`, `code`, and `traceId`.
+- Added guarded JSON body parsing: malformed request bodies now return `400` with `error=bad_request` and `code=BAD_JSON`.
+- Standardized config-missing behavior for auth-link path to return `500` with `error=config_missing`, `code=CONFIG_MISSING`, and sorted `missing` keys (no secret values logged).
+- Wrapped email provider send path with explicit `EMAIL_SEND_FAILED` response (`502`) that includes `traceId` and a provider-safe message.
+- Added one structured failure log event (`auth_request_link_failed`) carrying `traceId`, `code`, optional `missing`/`message`, and stack when available for diagnosability.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test`
+
 ## 2026-02-25 02:35 UTC update (Show authenticated user name alongside email)
 
 - Updated authenticated user identity display to prefer **name + email** where available, with graceful fallback to email-only.
