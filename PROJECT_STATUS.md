@@ -3704,3 +3704,14 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Non-regressions
 - Ignite join gating semantics remain OPEN/CLOSING/CLOSED; `IGNITE_CLOSED` behavior remains unchanged.
 - Existing ignite photo endpoints and join polling behavior remain in place.
+
+## 2026-02-25 18:39 UTC update (SWA deploy action replaces npx CLI deploy)
+
+- Replaced SWA deploy in production workflow from `npx @azure/static-web-apps-cli deploy` to `Azure/static-web-apps-deploy@v1` using existing production SWA token secret.
+- Replaced SWA deploy in staging workflow from `npx @azure/static-web-apps-cli deploy` to `Azure/static-web-apps-deploy@v1` using existing staging SWA token secret.
+- Kept BYO API setup unchanged and did not add `api_location` in either workflow.
+- Kept existing production HTML verification step unchanged.
+
+### Verification run
+
+1. `rg -n "@azure/static-web-apps-cli|\bnpx\b.*static-web-apps-cli|\bswa\b" .github/workflows`

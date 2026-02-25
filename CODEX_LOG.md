@@ -10017,3 +10017,27 @@ Implement final Ignite organizer UX updates (centered, QR-first, no vertical scr
 
 ### Follow-ups
 - Add burger-menu profile photo editing entry in a future pass (tracked in `PROJECT_STATUS.md` TODO).
+
+## 2026-02-25 18:39 UTC
+
+### Objective
+Fix GitHub Actions SWA deployment 403/npm issues by removing `npx @azure/static-web-apps-cli` deploy usage and switching workflows to `Azure/static-web-apps-deploy@v1`.
+
+### Approach
+- Updated production workflow deploy step to `Azure/static-web-apps-deploy@v1` with existing production token secret and `skip_app_build: true`.
+- Updated staging workflow deploy step to `Azure/static-web-apps-deploy@v1` with existing staging token secret and `skip_app_build: true`.
+- Preserved existing production post-deploy HTML verification step and avoided `api_location` changes.
+- Ran repo workflow search to verify no remaining `@azure/static-web-apps-cli` or `npx ... static-web-apps-cli` patterns.
+
+### Files changed
+- `.github/workflows/swa-web.yml`
+- `.github/workflows/swa-web-staging.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `sed -n '1,240p' .github/workflows/swa-web.yml && sed -n '1,260p' .github/workflows/swa-web-staging.yml` ✅ baseline workflow inspection.
+- `rg -n "@azure/static-web-apps-cli|\bnpx\b.*static-web-apps-cli|\bswa\b" .github/workflows` ✅ only workflow name text contains `swa`; no CLI deploy usage remains.
+
+### Follow-ups
+- Trigger staging/prod workflows on GitHub to validate successful upload via `Azure/static-web-apps-deploy@v1` with repository secrets.
