@@ -86,10 +86,20 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
     return { status: 200, jsonBody: { ok: true, breakoutGroupId: groupId, traceId } };
   }
 
-  try {
-    await authRequestLink({ ...request, json: async () => ({ email, traceId, returnTo: `/g/${groupId}/app` }) } as HttpRequest, context);
-  } catch (error) {
-    console.log(JSON.stringify({ event: 'ignite_join_auth_link_failed', traceId, message: (error as Error)?.message ?? 'unknown' }));
+  const missingAuthLinkConfig = ['MAGIC_LINK_SECRET', 'AZURE_COMMUNICATION_CONNECTION_STRING', 'EMAIL_SENDER_ADDRESS']
+    .filter((key) => !process.env[key]?.trim());
+  const hasRequestHeaders = typeof (request as { headers?: { get?: unknown } }).headers?.get === 'function';
+
+  if (missingAuthLinkConfig.length > 0) {
+    console.log(JSON.stringify({ event: 'ignite_join_auth_link_skipped', traceId, reason: 'missing_config', missing: missingAuthLinkConfig }));
+  } else if (!hasRequestHeaders) {
+    console.log(JSON.stringify({ event: 'ignite_join_auth_link_skipped', traceId, reason: 'missing_request_headers' }));
+  } else {
+    try {
+      await authRequestLink({ ...request, json: async () => ({ email, traceId, returnTo: `/g/${groupId}/app` }) } as HttpRequest, context);
+    } catch (error) {
+      console.log(JSON.stringify({ event: 'ignite_join_auth_link_failed', traceId, message: (error as Error)?.message ?? 'unknown' }));
+    }
   }
 
   const graceTtlSeconds = 30;

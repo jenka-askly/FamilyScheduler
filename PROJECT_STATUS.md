@@ -1,3 +1,24 @@
+## 2026-02-25 02:34 UTC update (Ignite join grace no longer clears local session)
+
+- Updated client auth handling in `apiFetch` so `fs.sessionId` is only cleared for `AUTH_PROVISIONAL_EXPIRED`.
+- `AUTH_IGNITE_GRACE_EXPIRED` no longer triggers local session clearing, preventing immediate post-join bounce to `/#/login` during ignite grace navigation.
+- Added explicit warning log when `apiFetch` clears local session: `api_session_cleared` includes `code`, request `path`, `traceId`, and current hash for faster auth-flow diagnosis.
+- Hardened `igniteJoin` auth-link trigger path for unauthenticated joins:
+  - skip link-send with structured log when required auth-link config is missing,
+  - skip link-send with structured log when request headers are unavailable,
+  - continue returning ignite grace session payload (`ok`, `breakoutGroupId`, `sessionId`) without throwing.
+
+### Verification run
+
+1. `rg -n --hidden --no-ignore -S "AUTH_IGNITE_GRACE_EXPIRED|removeItem\('fs\.sessionId'\)" apps/web/src`
+2. `pnpm -r build`
+3. Manual smoke (human-run):
+   - User A create breakout and present QR.
+   - User B scan/join with name+email.
+   - Confirm landing on `/#/g/<breakoutGroupId>/app` without immediate login redirect.
+   - Confirm no immediate `api_session_cleared` log after join.
+   - After ~30s, verify normal grace-expiry follow-up behavior.
+
 ## 2026-02-25 02:11 UTC update (Organizer close routes to app + targeted sessionId clearing)
 
 - Updated Ignite organizer **Close** action to persist a fresh local app session (`writeSession`) and navigate directly to `/#/g/:groupId/app` only after `/api/ignite/close` returns success.
