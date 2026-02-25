@@ -1155,8 +1155,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 }
 
 function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
-  const hasApiSession = Boolean(getAuthSessionId());
-  // "Unauth" here means no durable login session. Joiners may still have/receive igniteGrace.
+  // Durable login session (fs.sessionId) means we can auto-join without prompting.
+  // igniteGrace is joiner-only and may be stale; do NOT auto-join based on grace.
   const hasDurableSession = Boolean(getSessionId());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -1230,10 +1230,10 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   };
 
   useEffect(() => {
-    if (!hasApiSession) return;
+    if (!hasDurableSession) return;
     if (joining) return;
     void join({});
-  }, [hasApiSession]);
+  }, [hasDurableSession]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -1244,7 +1244,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
     await join({ name, email, photoBase64: photoBase64 || undefined });
   };
 
-  if (hasApiSession) {
+  if (hasDurableSession) {
     return (
       <Page variant="form">
         <PageHeader title="Join session" description="Joining…" groupId={groupId} />
