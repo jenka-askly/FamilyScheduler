@@ -62,6 +62,20 @@ const authLog = (payload: Record<string, unknown>): void => {
   if (!debugAuthLogsEnabled) return;
   console.log(payload);
 };
+function authDebug(event: string, data?: unknown) {
+  try {
+    console.debug('[AUTH_DEBUG]', {
+      event,
+      hash: window.location.hash,
+      sessionId: window.localStorage.getItem('fs.sessionId'),
+      sessionEmail: window.localStorage.getItem('fs.sessionEmail'),
+      localSession: sessionStorage.getItem('familyscheduler.session'),
+      ...(typeof data === 'object' && data !== null ? data : { data })
+    });
+  } catch {
+    // Ignore logging failures.
+  }
+}
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1178,7 +1192,13 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
         setError(data.message ?? 'Unable to join session');
         return;
       }
-      if (data.sessionId) window.localStorage.setItem('fs.sessionId', data.sessionId);
+      if (data.sessionId) {
+        window.localStorage.setItem('fs.sessionId', data.sessionId);
+        authDebug('ignite_join_set_session', {
+          breakoutGroupId: data.breakoutGroupId,
+          sessionIdPrefix: data.sessionId?.slice(0, 8)
+        });
+      }
       writeSession({ groupId: data.breakoutGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
       nav(`/g/${data.breakoutGroupId}/app`);
     } catch {
@@ -1254,8 +1274,17 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     let canceled = false;
     const session = readSession();
     const apiSessionId = getSessionId();
+    authDebug('gate_decision_snapshot', {
+      groupId,
+      apiSessionIdPrefix: apiSessionId?.slice(0, 8),
+      session
+    });
     authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.email, hasApiSession: !!apiSessionId });
     if (!apiSessionId) {
+      authDebug('gate_redirect_missing_api_session', {
+        groupId,
+        apiSessionId
+      });
       if (canceled) return;
       setAuthStatus('denied');
       setAuthError('no_session');
@@ -1264,6 +1293,10 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
       return;
     }
     if (!session || !session.email) {
+      authDebug('gate_redirect_no_local_session', {
+        groupId,
+        session
+      });
       if (canceled) return;
       setAuthStatus('denied');
       setAuthError('no_session');
@@ -1273,6 +1306,10 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     }
 
     if (session.groupId !== groupId) {
+      authDebug('gate_redirect_group_mismatch', {
+        groupId,
+        session
+      });
       clearSession();
       if (canceled) return;
       setAuthStatus('denied');
@@ -1282,6 +1319,10 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
       return;
     }
 
+    authDebug('gate_allowed', {
+      groupId,
+      email: session.email
+    });
     setPhone(session.email);
     authLog({ stage: 'gate_join_request', groupId });
     void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email: session.email, traceId }) })
@@ -1419,7 +1460,20 @@ export function App() {
     window.localStorage.setItem(LAST_GROUP_ID_KEY, route.groupId);
   }, [route]);
 
-  if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
+  useEffect(() => {
+    authDebug('route_render', {
+      routeType: route.type,
+      hasApiSession
+    });
+  }, [route, hasApiSession]);
+
+  if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) {
+    authDebug('route_redirect_login', {
+      routeType: route.type,
+      hasApiSession
+    });
+    return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
+  }
   if (route.type === 'home') {
     if (!hasApiSession) {
       return (

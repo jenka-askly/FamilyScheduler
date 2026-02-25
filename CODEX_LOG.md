@@ -1,3 +1,35 @@
+## 2026-02-25 03:57 UTC (Auth bounce instrumentation for join/login redirects)
+
+### Objective
+
+Make join/login bounces impossible to be silent by adding explicit auth debug telemetry around session writes/removals and route/gate redirect decisions.
+
+### Approach
+
+- Added a centralized `authDebug` helper in `App.tsx` that captures current hash + storage session snapshot per event.
+- Instrumented Ignite join success path to log when `fs.sessionId` is written.
+- Instrumented `GroupAuthGate` to log decision-time session snapshots and explicit redirect/allow reasons.
+- Instrumented route rendering in `App` so `hasApiSession` evaluation and app/ignite guard redirects are logged.
+- Instrumented `apiFetch` provisional-expiry session clear path to log `apiFetch_clear_session` with session prefix and hash before deletion.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅ clean baseline check.
+- `git rev-parse --abbrev-ref HEAD` ✅ confirmed branch `work`.
+- `git log -n 1 --oneline` ✅ captured baseline head commit.
+- `pnpm -r build` ✅ passed for `api`, `apps/web`, and `packages/shared`; web build completed with existing chunk-size warning from Vite.
+
+### Follow-ups
+
+- Human-run browser validation should confirm `[AUTH_DEBUG]` events appear during join/login bounce scenarios and include expected session snapshots.
+
 ## 2026-02-25 00:27 UTC UTC
 
 ### Objective
