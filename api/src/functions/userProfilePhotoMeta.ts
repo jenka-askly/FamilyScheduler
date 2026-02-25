@@ -42,15 +42,20 @@ export async function userProfilePhotoMeta(request: HttpRequest, _context: Invoc
   if (!membership.ok) return membership.response;
 
   const personId = membership.member.memberId;
+  const noStoreHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0'
+  };
   try {
     const metaBlob = await storage.getBinary(userProfilePhotoMetaBlobKey(groupId, personId));
     const raw = await streamToString(metaBlob.stream);
     const parsed = JSON.parse(raw) as { updatedAt?: string; contentType?: string };
-    return { status: 200, jsonBody: { ok: true, hasPhoto: true, updatedAt: parsed.updatedAt ?? '', contentType: parsed.contentType ?? '' } };
+    return { status: 200, headers: noStoreHeaders, jsonBody: { ok: true, hasPhoto: true, updatedAt: parsed.updatedAt ?? '', contentType: parsed.contentType ?? '' } };
   } catch (error) {
     const details = error as { statusCode?: number; code?: string };
     if (details?.statusCode === 404 || details?.code === 'BlobNotFound') {
-      return { status: 200, jsonBody: { ok: true, hasPhoto: false } };
+      return { status: 200, headers: noStoreHeaders, jsonBody: { ok: true, hasPhoto: false } };
     }
     throw error;
   }
