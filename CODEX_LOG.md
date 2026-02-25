@@ -10095,3 +10095,29 @@ Fix organizer profile-photo reliability so uploaded photos appear immediately an
 ### Follow-ups
 
 - Human browser verification should confirm no blank organizer-photo window when `createdByPersonId` is initially empty and later populated by `/api/ignite/meta`.
+
+## 2026-02-25 20:38 UTC (Ignite organizer: photo/session reload, whitespace layout, access-note removal)
+
+### Objective
+Fix three Ignite organizer issues: profile photo not reliably showing across second sessions, excessive layout whitespace pushing footer controls down, and removal of invited-email access sentence.
+
+### Approach
+- Kept profile-photo META request non-cacheable (`cache: 'no-store'`) and added explicit session readiness guard before invoking `loadProfilePhoto`.
+- Preserved organizer identity precedence via existing `organizerPersonId` memo and kept effect deps on `[groupId, sessionId, organizerPersonId]`.
+- Replaced stretched page wrappers with normal MUI `Stack` flow to remove forced vertical spacing and keep footer controls near "Who’s in".
+- Disabled PageHeader group access note specifically on Ignite organizer page.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `sed -n '640,1290p' apps/web/src/App.tsx` ✅ inspected Ignite organizer implementation.
+- `rg -n "Only invited email addresses can access this group" -S` ✅ found source in `PageHeader` default copy path.
+- `npm -C apps/web run build` ✅ passed.
+- `npm -C apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started local app for visual verification.
+- Playwright screenshot script against `http://127.0.0.1:4173/#/g/demo/ignite` ✅ captured `artifacts/ignite-organizer-layout.png`.
+
+### Follow-ups
+- Browser/manual session lifecycle verification should still be run in full auth-backed environment (session 1 -> session 2 transition) to confirm end-to-end user flow.
