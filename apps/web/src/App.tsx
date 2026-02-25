@@ -448,7 +448,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
       return;
     }
     const requestTraceId = createTraceId();
-    const response = await apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email: email.trim(), traceId: requestTraceId }) });
+    const response = await apiFetch('/api/group/join-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email: email.trim(), traceId: requestTraceId }) });
     const data = await response.json();
     if (!response.ok || !data.ok) {
       setFormError(data?.error === 'group_not_found' ? 'This group could not be found.' : 'This email is not authorized for this group.');

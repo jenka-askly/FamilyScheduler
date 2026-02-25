@@ -8731,3 +8731,45 @@ Switch People editor UI from phone to email, wire backend person email persisten
 - `pnpm --filter @familyscheduler/web typecheck` ✅ pass.
 - `pnpm --filter @familyscheduler/api test` ❌ fails in current branch due pre-existing chat/storage test expectations (`storage_get_binary_not_supported` causing many chat tests to return 500 instead of expected 200/404/502). Not introduced by this change set.
 - Playwright screenshot captured: `browser:/tmp/codex_browser_invocations/8ddc6b12b5d05de4/artifacts/artifacts/people-email-change.png`.
+
+
+## 2026-02-25 01:11 UTC (Split group join validation vs join-link email send)
+
+### Objective
+
+Implement a minimal backend/frontend split so `/api/group/join` performs access validation only and a new `/api/group/join-link` endpoint owns join-link email side effects.
+
+### Approach
+
+- Refactored `groupJoin` to remove `sendEmail` and enforce explicit membership validation against storage-backed active members.
+- Added reusable join validation helper + trace-preserving responses for `group_not_found`, `not_allowed`, and `join_failed`.
+- Introduced `groupJoinLink` function that reuses validation, builds the same join URL resolution logic, sends via ACS, and logs structured redacted telemetry.
+- Wired new HTTP registration + Azure Function binding (`group/join-link`) to match existing `registerHttp + function.json` conventions.
+- Switched only the explicit join-form submit call in web app to `/api/group/join-link`; kept `GroupAuthGate` auto-validation on `/api/group/join`.
+- Added focused API tests for validation-only `groupJoin` outcomes.
+
+### Files changed
+
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/groupJoinLink.ts`
+- `api/src/functions/groupJoin.test.ts`
+- `api/src/index.ts`
+- `api/groupJoinLink/function.json`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --porcelain; git rev-parse --abbrev-ref HEAD; git log -n 3 --oneline` ✅
+- `rg -n --hidden --no-ignore -S "/api/group/join[^-]" apps/web/src` ✅
+- `rg -n --hidden --no-ignore -S "group/join-link|/api/group/join-link" apps/web/src api/src` ✅
+- `pnpm -r build` ✅
+- `pnpm -r test || true` ⚠️ fails due pre-existing API test failures in `chat.test` suite (unrelated to this change set).
+- `pnpm -r lint || true` ⚠️ workspace has no lint scripts (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`).
+- `find api -maxdepth 2 -name function.json -print` ✅
+- `rg -n --hidden --no-ignore -S "groupJoinLink|group/join-link" api` ✅
+
+### Follow-ups
+
+- Optional: add dedicated tests for `groupJoinLink` email-skip/send branches with injectable email sender abstraction for easier deterministic testing.

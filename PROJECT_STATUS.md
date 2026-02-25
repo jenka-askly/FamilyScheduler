@@ -1,3 +1,26 @@
+## 2026-02-25 01:11 UTC update (Split join validation from join-link email send)
+
+- Backend `POST /api/group/join` is now validation-only: it checks `(groupId, email)` membership and returns `{ ok: true, traceId }` on success, or explicit errors (`group_not_found`, `not_allowed`, `join_failed`) without sending email.
+- Added new backend `POST /api/group/join-link` endpoint that runs the same access validation, builds the same join URL logic, and sends the ACS email when configured.
+- `group/join-link` returns structured send status (`emailSent`, `provider`, `traceId`) and skips with explicit reasons (`email_not_configured`, `origin_unresolved`) when mail/link preconditions are missing.
+- Added high-signal structured logs on join-link flow with `traceId`, `groupId`, and redacted email only.
+- Frontend join form now calls `/api/group/join-link` (email-me-link path), while `GroupAuthGate` continues using `/api/group/join` for silent access validation.
+- CI/deploy branch isolation remains unchanged: develop -> staging and main -> production.
+
+### Compatibility notes
+
+- Existing callers that relied on `/api/group/join` email side-effects must move to `/api/group/join-link`; auth gate behavior is unchanged except response error semantics are now explicit.
+
+### Verification run
+
+1. `pnpm -r build`
+2. `pnpm -r test || true`
+3. `pnpm -r lint || true`
+4. `rg -n --hidden --no-ignore -S "/api/group/join[^-]" apps/web/src`
+5. `rg -n --hidden --no-ignore -S "group/join-link|/api/group/join-link" apps/web/src api/src`
+6. `find api -maxdepth 2 -name function.json -print`
+7. `rg -n --hidden --no-ignore -S "groupJoinLink|group/join-link" api`
+
 ## 2026-02-25 00:58 UTC update (People editor Phone→Email + backend person email support)
 
 - Replaced People tab editable/display column from **Phone** to **Email** (`Name | Email | Last seen | Actions`), updated input placeholder to `name@example.com`, and widened the email column for longer values.
