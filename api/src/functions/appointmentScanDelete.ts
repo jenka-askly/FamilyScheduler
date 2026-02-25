@@ -10,7 +10,7 @@ export async function appointmentScanDelete(request: HttpRequest, _context: Invo
   const body = await request.json() as { groupId?: unknown; appointmentId?: unknown };
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
   const appointmentId = typeof body.appointmentId === 'string' ? body.appointmentId.trim() : '';
   if (!appointmentId) return errorResponse(400, 'appointment_required', 'appointmentId is required', traceId);

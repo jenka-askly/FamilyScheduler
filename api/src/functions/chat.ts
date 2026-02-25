@@ -279,7 +279,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     traceId = ensureTraceId(body.traceId) || fallbackTraceId;
     const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
     if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-    const sessionAuth = await requireSessionEmail(request, traceId);
+    const sessionAuth = await requireSessionEmail(request, traceId, { groupId });
     if (!sessionAuth.ok) return sessionAuth.response;
     const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
     console.info(JSON.stringify({ traceId, route: '/api/chat', groupId, emailDomain: sessionAuth.email.split('@')[1] ?? 'unknown', messageLen }));

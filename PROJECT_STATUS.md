@@ -1,3 +1,27 @@
+## 2026-02-25 00:27 UTC update (Ignite join 30s scoped grace session)
+
+- Added backend support for a new `igniteGrace` session kind issued by `/api/ignite/join` for unauthenticated joiners after successful join state update.
+- Ignite join now returns `sessionId` + `requiresVerification: true` and `graceExpiresAtUtc` for this grace session.
+- Grace session is constrained to a single group (`scopeGroupId`) and expires in 30 seconds; API auth now enforces expiry + scope checks during session validation.
+- Added structured auth logs with `traceId` for: grace issuance, grace-expired rejection, and scope violations.
+- Existing Ignite joinability and `IGNITE_DEFAULT_GRACE_SECONDS` behavior remained unchanged.
+- Frontend `IgniteJoinPage` already persisted `sessionId` via `fs.sessionId`; no UI/login-modal/window behavior changes were introduced.
+
+### How to test
+
+1. Fresh browser profile (no existing session):
+   - Open `/#/s/:groupId/:sessionId`
+   - Enter name+email and click **Join**
+   - Confirm landing on `/#/g/:breakoutGroupId/app` with no redirect to `/login`.
+2. Wait >30 seconds, refresh `/#/g/:breakoutGroupId/app`
+   - Confirm redirect to `/login` (existing behavior).
+3. During the 30-second grace window, attempt a different group route/API access
+   - Confirm backend denial due to scope enforcement (`AUTH_SESSION_SCOPE_VIOLATION`).
+
+### Follow-ups
+
+- Consider endpoint-by-endpoint tightening if any group-scoped API path does not pass `groupId` into shared auth validation.
+
 ## 2026-02-25 00:00 UTC update (Auth-aware home + dashboard stub + header sign-in cleanup)
 
 - Home route (`/#/`) is now auth-aware:

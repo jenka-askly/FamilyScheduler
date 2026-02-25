@@ -7,7 +7,7 @@ import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { isPlausibleEmail, normalizeEmail, findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
-import { createProvisionalSession, requireSessionFromRequest } from '../lib/auth/sessions.js';
+import { createIgniteGraceSession, requireSessionFromRequest } from '../lib/auth/sessions.js';
 
 type IgniteJoinBody = { groupId?: unknown; name?: unknown; email?: unknown; sessionId?: unknown; traceId?: unknown };
 const normalizeName = (value: unknown): string => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
@@ -22,7 +22,7 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
 
   let authedEmail: string | null = null;
   try {
-    const session = await requireSessionFromRequest(request, traceId);
+    const session = await requireSessionFromRequest(request, traceId, { groupId });
     authedEmail = session.email;
   } catch {
     authedEmail = null;
@@ -68,14 +68,17 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
     console.log(JSON.stringify({ event: 'ignite_join_auth_link_failed', traceId, message: (error as Error)?.message ?? 'unknown' }));
   }
 
-  const provisional = await createProvisionalSession(email);
+  const graceTtlSeconds = 30;
+  const grace = await createIgniteGraceSession(email, groupId, graceTtlSeconds, { scopeIgniteSessionId: sessionId });
+  console.log(JSON.stringify({ event: 'ignite_grace_session_issued', traceId, groupId, igniteSessionId: sessionId, sessionIdPrefix: grace.sessionId.slice(0, 8), expiresAtUtc: grace.expiresAtISO }));
+
   return {
     status: 200,
     jsonBody: {
       ok: true,
       breakoutGroupId: groupId,
-      sessionId: provisional.sessionId,
-      provisionalExpiresAtUtc: provisional.expiresAtISO,
+      sessionId: grace.sessionId,
+      graceExpiresAtUtc: grace.expiresAtISO,
       requiresVerification: true,
       traceId
     }
