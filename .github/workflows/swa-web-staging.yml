@@ -52,8 +52,8 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "apps/web"
-          app_artifact_location: "apps/web/dist"
+          app_location: "apps/web/dist"
+          app_artifact_location: ""
           api_location: ""
           skip_app_build: true
           skip_api_build: true
