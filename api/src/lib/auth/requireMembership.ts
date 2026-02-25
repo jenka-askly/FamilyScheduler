@@ -21,6 +21,17 @@ export const findActiveMemberByEmail = (state: AppState, email: string): Member 
   state.members.find((member) => member.status === 'active' && member.email === normalizeEmail(email)) ?? null
 );
 
+export const findActivePersonByEmail = (state: AppState, email: string): AppState['people'][number] | null => {
+  const normalizedEmail = normalizeEmail(email);
+  return state.people.find((person) => person.status === 'active' && normalizeEmail(person.email ?? '') === normalizedEmail) ?? null;
+};
+
+export const resolveActivePersonIdForEmail = (state: AppState, email: string): string | null => {
+  const activePerson = findActivePersonByEmail(state, email);
+  if (activePerson?.personId) return activePerson.personId;
+  return findActiveMemberByEmail(state, email)?.memberId ?? null;
+};
+
 export type MemberResult =
   | { ok: true; member: Member }
   | { ok: false; response: HttpResponseInit };

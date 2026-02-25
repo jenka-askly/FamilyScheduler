@@ -1199,12 +1199,11 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   const organizerName = (combinedPeopleByPersonId[organizerPersonId]?.name ?? '').trim() || 'Someone';
   const qrLabelGroupName = groupName.trim() || 'group';
+  const displayJoinedCount = Math.max(joinedCount, organizerPersonId ? 1 : 0);
 
   return (
     <Page variant="form">
       <PageHeader
-        title="Yapper"
-        description="Smart coordination for modern groups"
         titleOverride={groupName}
         subtitleOverride={undefined}
         subtitlePulse={joinedBump}
@@ -1215,9 +1214,11 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       {error ? <Alert severity="error">{error}</Alert> : null}
       <Stack alignItems="center" spacing={2} sx={{ px: 2, pt: 1, pb: 2 }}>
         <Stack alignItems="center" spacing={2} sx={{ width: '100%', maxWidth: 520 }}>
-          <Box className="ui-igniteSection ui-igniteHeaderHelper" sx={{ width: '100%', textAlign: 'center' }}>
+          <Box sx={{ width: '100%', textAlign: 'center' }}>
+            <Box className="ui-igniteSection ui-igniteHeaderHelper" sx={{ width: '100%' }}>
             <Typography className="ui-igniteHelperText">{`${organizerName} started this group to move things forward.`}</Typography>
             <Typography className="ui-igniteHelperText">Join to coordinate with everyone.</Typography>
+            </Box>
           </Box>
 
           <div className="ui-igniteSection ui-igniteQrWrap">
@@ -1230,18 +1231,20 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
           </div>
 
           <div className="ui-igniteSection ui-igniteWhoInSection">
-            <Typography variant="subtitle2" className="ui-igniteWhoInLabel">Who’s in</Typography>
-            <div className="ui-igniteCountRow">
-              <Typography className={`ui-meta ${joinedBump ? 'ui-igniteJoinedBump' : ''}`}>{`${joinedCount} people joined`}</Typography>
-              <IconButton
-                size="small"
-                aria-label="Join sound"
-                title={`Join sound ${joinSoundEnabled ? 'on' : 'off'}`}
-                onClick={() => setJoinSoundEnabled((current) => !current)}
-              >
-                {joinSoundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
-              </IconButton>
-            </div>
+            <Stack direction="row" alignItems="baseline" justifyContent="space-between">
+              <Typography variant="subtitle2" className="ui-igniteWhoInLabel">Who’s in</Typography>
+              <div className="ui-igniteCountRow">
+                <Typography className={`ui-meta ${joinedBump ? 'ui-igniteJoinedBump' : ''}`}>{`${displayJoinedCount} ${displayJoinedCount === 1 ? 'person' : 'people'} joined`}</Typography>
+                <IconButton
+                  size="small"
+                  aria-label="Join sound"
+                  title={`Join sound ${joinSoundEnabled ? 'on' : 'off'}`}
+                  onClick={() => setJoinSoundEnabled((current) => !current)}
+                >
+                  {joinSoundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
+                </IconButton>
+              </div>
+            </Stack>
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
             <div className="ui-igniteFolksList">
               {sessionId ? displayedPersonIds.map((personId) => {

@@ -3794,3 +3794,21 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - `usageTables.ts`: typed `next` entity as `Record<string, any> & { partitionKey: string; rowKey: string }` and removed deprecated `updateMode` option.
 - `metrics.ts`: removed deprecated `updateMode` option from `updateEntity` call.
 - Build/test verification in this environment is currently blocked by missing registry access for `@azure/data-tables` package fetch (403), so TypeScript build cannot complete until dependency access is restored.
+
+## 2026-02-25 22:30 UTC update (Ignite identity unification + organizer UI polish)
+
+- Fixed Ignite/person identity mismatch root cause: organizer identity now resolves through active `people.personId` by normalized email (with member fallback), so Ignite session ownership and profile-photo keys align with `createdByPersonId` / `joinedPersonIds` semantics.
+- Updated profile-photo handlers to use canonical `personId` storage keys (`users/<personId>/profile.jpg|json`) instead of directly keying only by member id.
+- Added backward-compatible read fallback for profile-photo meta/image: read canonical `personId` key first, then fallback to legacy member-id key.
+- Added one-release compatibility write-through in profile-photo set: writes canonical key and legacy member-id key when they differ (no deletes in this patch).
+- Updated `ignite/meta` joined count to include organizer and de-duplicate IDs (`joinedPersonIds ∪ {createdByPersonId}`).
+- Ignite organizer UI tweaks:
+  - removed accidental product title/description block from organizer page header area,
+  - centered helper text wrapper above QR,
+  - moved “Who’s in” and joined count + sound toggle into one row,
+  - pluralized joined text (“person/people”) and added frontend safety net to keep minimum 1 when organizer exists.
+
+### Verification notes
+- Added API unit tests covering canonical+legacy profile-photo behavior and joined-count semantics (execution currently blocked in this environment by missing `@azure/data-tables` dependency fetch).
+- Web build passes with organizer layout updates.
+- Manual staging checks still required for end-to-end session #2 organizer-photo continuity and live auth/session flows.

@@ -2,10 +2,15 @@ import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azu
 import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { userProfilePhotoBlobKey } from '../lib/userProfilePhoto.js';
+
+const isBlobNotFound = (error: unknown): boolean => {
+  const details = error as { statusCode?: number; code?: string };
+  return details?.statusCode === 404 || details?.code === 'BlobNotFound';
+};
 
 export async function userProfilePhotoGet(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const url = new URL(request.url);
@@ -35,14 +40,19 @@ export async function userProfilePhotoGet(request: HttpRequest, _context: Invoca
   const membership = requireActiveMember(loaded.state, session.email, traceId);
   if (!membership.ok) return membership.response;
 
-  try {
-    const blob = await storage.getBinary(userProfilePhotoBlobKey(groupId, membership.member.memberId));
-    return { status: 200, headers: { 'Content-Type': blob.contentType, 'Cache-Control': 'private, max-age=300' }, body: blob.stream as any };
-  } catch (error) {
-    const details = error as { statusCode?: number; code?: string };
-    if (details?.statusCode === 404 || details?.code === 'BlobNotFound') {
-      return errorResponse(404, 'profile_photo_not_found', 'Profile photo not found', traceId);
+  const legacyMemberId = membership.member.memberId;
+  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? legacyMemberId;
+  const candidateIds = personId === legacyMemberId ? [personId] : [personId, legacyMemberId];
+
+  for (const candidateId of candidateIds) {
+    try {
+      const blob = await storage.getBinary(userProfilePhotoBlobKey(groupId, candidateId));
+      return { status: 200, headers: { 'Content-Type': blob.contentType, 'Cache-Control': 'private, max-age=300' }, body: blob.stream as any };
+    } catch (error) {
+      if (isBlobNotFound(error)) continue;
+      throw error;
     }
-    throw error;
   }
+
+  return errorResponse(404, 'profile_photo_not_found', 'Profile photo not found', traceId);
 }
