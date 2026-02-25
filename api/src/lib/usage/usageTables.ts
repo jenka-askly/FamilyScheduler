@@ -35,11 +35,11 @@ const updateCounterRow = async (tableName: string, pk: string, rk: string, updat
       if (!isNotFound(error)) throw error;
     }
 
-    const next: Record<string, unknown> = { partitionKey: pk, rowKey: rk, updatedAt: nowIso };
+    const next: Record<string, any> & { partitionKey: string; rowKey: string } = { partitionKey: pk, rowKey: rk, updatedAt: nowIso };
     for (const [key, delta] of Object.entries(updates)) next[key] = getCount(current, key) + delta;
 
     if (current?.etag) {
-      await client.updateEntity(next, 'Merge', { etag: current.etag, updateMode: 'Merge' });
+      await client.updateEntity(next, 'Merge', { etag: current.etag });
       return;
     }
     await client.createEntity(next);

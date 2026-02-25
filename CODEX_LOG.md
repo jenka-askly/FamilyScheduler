@@ -10209,3 +10209,36 @@ Implement requested Ignite organizer fixes: second-session profile photo reliabi
 
 ### Follow-ups
 - Human should run full manual acceptance flow with live API/auth: session #1 photo visible, session #2 photo visible without refresh, and network inspection confirming meta no-store behavior.
+
+## 2026-02-25 21:43 UTC (Azure Tables typing break fix in usage API)
+
+### Objective
+
+Fix `@azure/data-tables` typing break in API usage tables by ensuring entity typing includes `partitionKey`/`rowKey`, and remove deprecated `updateMode` usage from `updateEntity` options.
+
+### Approach
+
+- Searched API sources for `updateMode` usages.
+- Updated `api/src/lib/usage/usageTables.ts` to use an explicitly typed `next` entity object (`Record<string, any> & { partitionKey: string; rowKey: string }`).
+- Removed deprecated `updateMode` option from `updateEntity` options in usage tables.
+- Also removed deprecated `updateMode` option in `api/src/lib/tables/metrics.ts` to avoid lingering deprecated usage in API.
+- Attempted build/test verification for `@familyscheduler/api`.
+
+### Files changed
+
+- `api/src/lib/usage/usageTables.ts`
+- `api/src/lib/tables/metrics.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "updateMode\s*:" api/src || true` ✅ found remaining references.
+- `rg -n "updateEntity\(.*updateMode" -S . || true` ✅ confirmed repo-wide `updateEntity(...updateMode...)` occurrences.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed due missing `@azure/data-tables` dependency in environment (`ERR_PNPM_FETCH_403`).
+- `pnpm install` ⚠️ failed fetching `@azure/data-tables` tarball (`403 Forbidden`, no auth header).
+- `pnpm --filter @familyscheduler/api test || true` ⚠️ blocked because test script runs build first and build fails for same dependency fetch issue.
+
+### Follow-ups
+
+- Restore package registry access/auth for `@azure/data-tables` in this environment, then rerun API build/test to complete compile verification.
