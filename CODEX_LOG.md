@@ -8812,3 +8812,32 @@ Implement requested Ignite updates: make organizer “Join link” use `/#/s/:gr
 ### Follow-ups
 
 - Authenticated auto-join path still joins immediately (no pre-join photo prompt); this was left intentionally as acceptable per requirement fallback.
+
+## 2026-02-25 01:50 UTC (UI rename to Yapper)
+
+### Objective
+
+Replace UI-only occurrences of `Family Scheduler` with the new app name `Yapper`.
+
+### Approach
+
+- Searched for exact `Family Scheduler` occurrences and limited edits to web UI source files.
+- Updated product-name config and base HTML title string used by the frontend.
+- Left non-UI references (API defaults, historical documentation text) untouched.
+
+### Files changed
+
+- `apps/web/src/product.ts`
+- `apps/web/index.html`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Family Scheduler" /workspace/FamilyScheduler` ✅
+- `rg -n "Family Scheduler|Yapper" apps/web/src/product.ts apps/web/index.html` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- If desired, do a separate non-UI terminology sweep for backend defaults and historical docs.
