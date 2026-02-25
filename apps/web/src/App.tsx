@@ -1286,18 +1286,18 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
   const [authStatus, setAuthStatus] = useState<AuthStatus>('checking');
   const [authError, setAuthError] = useState<AuthError | undefined>();
   const [traceId] = useState(() => createTraceId());
-  const [email, setPhone] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
-    const session = readSession();
     const apiSessionId = getSessionId();
     authDebug('gate_decision_snapshot', {
       groupId,
       apiSessionIdPrefix: apiSessionId?.slice(0, 8),
-      session
+      // localSession is joiner-only state; do not gate logged-in access on it.
+      session: readSession()
     });
-    authLog({ stage: 'gate_enter', groupId, hasSession: !!session, hasPhone: !!session?.email, hasApiSession: !!apiSessionId });
+    authLog({ stage: 'gate_enter', groupId, hasApiSession: !!apiSessionId });
     if (!apiSessionId) {
       authDebug('gate_redirect_missing_api_session', {
         groupId,
@@ -1310,46 +1310,18 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
       nav(toSignInRoute(ROOT_SIGN_IN_MESSAGE), { replace: true });
       return;
     }
-    if (!session || !session.email) {
-      authDebug('gate_redirect_no_local_session', {
-        groupId,
-        session
-      });
-      if (canceled) return;
-      setAuthStatus('denied');
-      setAuthError('no_session');
-      authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'no_session' });
-      nav(toJoinRoute(groupId, 'no_session', traceId), { replace: true });
-      return;
-    }
 
-    if (session.groupId !== groupId) {
-      authDebug('gate_redirect_group_mismatch', {
-        groupId,
-        session
-      });
-      clearSession();
-      if (canceled) return;
-      setAuthStatus('denied');
-      setAuthError('group_mismatch');
-      authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'mismatch' });
-      nav(toJoinRoute(groupId, 'group_mismatch', traceId), { replace: true });
-      return;
-    }
-
-    authDebug('gate_allowed', {
-      groupId,
-      email: session.email
-    });
-    setPhone(session.email);
+    // Logged-in access is determined by the server membership check.
+    // Do NOT gate on local familyscheduler.session, which is joiner-only and may be stale/mismatched.
+    const cachedEmail = window.localStorage.getItem('fs.sessionEmail');
+    setEmail(cachedEmail ? sanitizeSessionEmail(cachedEmail) : null);
     authLog({ stage: 'gate_join_request', groupId });
-    void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email: session.email, traceId }) })
+    void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, traceId }) })
       .then(async (response) => {
         const data = await response.json() as { ok?: boolean; error?: AuthError };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
         authLog({ stage: 'gate_join_result', ok: response.ok && !!data.ok, error: responseError ?? null });
         if (!response.ok || !data.ok) {
-          clearSession();
           if (canceled) return;
           const deniedError = responseError ?? 'join_failed';
           setAuthStatus('denied');
@@ -1362,7 +1334,6 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
         setAuthStatus('allowed');
       })
       .catch(() => {
-        clearSession();
         if (canceled) return;
         setAuthStatus('denied');
         setAuthError('join_failed');
@@ -1376,7 +1347,8 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     };
   }, [groupId, traceId]);
 
-  if (authStatus !== 'allowed' || !email) {
+  // email is best-effort (UI); authorization is from server join check.
+  if (authStatus !== 'allowed') {
     return (
       <Page variant="form">
         <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
@@ -1387,7 +1359,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
       </Page>
     );
   }
-  return <>{children(email)}</>;
+  return <>{children(email ?? "")}</>;
 }
 
 function HandoffPage({ groupId, email, next }: { groupId: string; email?: string; next?: string }) {

@@ -1,3 +1,16 @@
+## 2026-02-25 07:10 UTC update (GroupAuthGate uses API session + server membership)
+
+- Updated `GroupAuthGate` to stop requiring local `familyscheduler.session` for already-authenticated users.
+- Gate now only hard-requires durable API session (`fs.sessionId`) and then defers authorization to server membership check via `/api/group/join`.
+- Join request payload no longer includes local session email; server derives identity from API session.
+- Removed local-session clearing on join denial/failure in this gate to avoid clobbering durable auth.
+- Preserved redirect to sign-in when durable API session is missing.
+- UI email is now treated as best-effort display state (`fs.sessionEmail`) and no longer blocks allowed render.
+
+### Verification run
+
+1. `npm -C apps/web run build`
+
 ## 2026-02-25 05:53 UTC update (Stop spinoff session rotation; reuse existing session)
 
 - Updated `ignite/spinoff` auth to require an existing request session via `requireSessionFromRequest(...)` scoped to the source group, then use `session.email` as organizer identity.
