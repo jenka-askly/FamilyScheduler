@@ -1351,7 +1351,8 @@ export function App() {
         <DashboardHomePage
           signedInLabel={sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}
           onCreateGroup={() => nav('/create')}
-          hasRecentGroup={Boolean(recentGroupId)}
+          recentGroupId={recentGroupId ?? undefined}
+          phone={sessionEmail ?? undefined}
           onOpenRecentGroup={recentGroupId ? () => nav(`/g/${recentGroupId}/app`) : undefined}
         />
       </MarketingLayout>

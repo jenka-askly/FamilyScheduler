@@ -6,6 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl } from './lib/apiUrl';
+import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 import {
   Alert,
@@ -1142,36 +1143,22 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (isSpinningOff) return;
     setBreakoutError(null);
     setIsSpinningOff(true);
-    const traceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     try {
-      const response = await apiFetch('/api/ignite/spinoff', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceGroupId: groupId, phone, traceId, groupName: '' })
-      });
-      const data = await response.json() as { ok?: boolean; newGroupId?: string; message?: string; traceId?: string };
-      if (!response.ok || !data.ok || !data.newGroupId) {
-        setBreakoutError(`${data.message ?? 'Unable to create breakout group.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
+      const result = await spinoffBreakoutGroup({ sourceGroupId: groupId, phone });
+      if (!result.ok) {
+        setBreakoutError(`${result.message}${result.traceId ? ` (trace: ${result.traceId})` : ''}`);
         return;
       }
 
-      const nextHash = `/g/${data.newGroupId}/ignite`;
-      const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextHash)}`;
-      const handoffUrl = `${window.location.origin}${handoffPath}`;
-
-      const popup = window.open(handoffUrl, '_blank', 'noopener');
+      const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
       if (!popup) {
-        setBreakoutNotice(handoffUrl);
+        setBreakoutNotice(result.urlToOpen);
         return;
       }
       setBreakoutNotice(null);
       setBreakoutError(null);
       popup.focus?.();
       return;
-    } catch {
-      setBreakoutError(`Unable to create breakout group. (trace: ${traceId})`);
     } finally {
       setIsSpinningOff(false);
     }
