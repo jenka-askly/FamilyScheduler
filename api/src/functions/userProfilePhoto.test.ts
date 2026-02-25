@@ -19,6 +19,20 @@ const sessionPayload = () => {
 
 test.afterEach(() => setStorageAdapterForTests(null));
 
+const readHeader = (headers: unknown, key: string): string | undefined => {
+  if (!headers) return undefined;
+  if (Array.isArray(headers)) {
+    const match = headers.find(([headerKey]) => headerKey.toLowerCase() === key.toLowerCase());
+    return match?.[1];
+  }
+  if (headers instanceof Headers) return headers.get(key) ?? undefined;
+  const record = headers as Record<string, string | undefined>;
+  const exact = record[key];
+  if (exact != null) return exact;
+  const lowerKey = key.toLowerCase();
+  return Object.entries(record).find(([headerKey]) => headerKey.toLowerCase() === lowerKey)?.[1];
+};
+
 test('user profile photo set + metadata round-trip for authenticated member', async () => {
   const binaries = new Map<string, { contentType: string; body: Buffer }>();
 
@@ -73,4 +87,7 @@ test('user profile photo set + metadata round-trip for authenticated member', as
   assert.equal(jsonBody.hasPhoto, true);
   assert.equal(typeof jsonBody.updatedAt, 'string');
   assert.ok((jsonBody.updatedAt ?? '').length > 5);
+  assert.equal(readHeader(metaResponse.headers, 'Cache-Control'), 'no-store, no-cache, must-revalidate');
+  assert.equal(readHeader(metaResponse.headers, 'Pragma'), 'no-cache');
+  assert.equal(readHeader(metaResponse.headers, 'Expires'), '0');
 });

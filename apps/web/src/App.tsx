@@ -681,6 +681,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
+  const [metaReadyTick, setMetaReadyTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
@@ -697,6 +698,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const lastChimeAtRef = useRef(0);
   const photoObjectUrlsRef = useRef<Record<string, { key: string; url: string }>>({});
   const profilePhotoObjectUrlRef = useRef('');
+  const profilePhotoRetryTimeoutRef = useRef<number | null>(null);
+  const profilePhotoLoadAttemptRef = useRef(0);
 
   useEffect(() => {
     photoObjectUrlsRef.current = photoObjectUrlsByPersonId;
@@ -721,6 +724,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     stopScanCaptureStream();
     if (joinBumpTimeoutRef.current != null) window.clearTimeout(joinBumpTimeoutRef.current);
     if (joinedPersonBumpTimeoutRef.current != null) window.clearTimeout(joinedPersonBumpTimeoutRef.current);
+    if (profilePhotoRetryTimeoutRef.current != null) window.clearTimeout(profilePhotoRetryTimeoutRef.current);
     Object.values(photoObjectUrlsRef.current).forEach((photo) => {
       if (photo?.url) URL.revokeObjectURL(photo.url);
     });
@@ -884,6 +888,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       prevJoinedRef.current = nextCount;
       setStatus(data.status ?? 'OPEN');
       setJoinedCount(nextCount);
+      setMetaReadyTick((current) => current + 1);
       setJoinedPersonIds(incomingIds);
       setPhotoUpdatedAtByPersonId(data.photoUpdatedAtByPersonId ?? {});
       setCreatedByPersonId(data.createdByPersonId ?? '');
@@ -908,11 +913,29 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   };
 
   const loadProfilePhoto = async () => {
+    if (!groupId || !sessionId) return;
+
+    const scheduleRetry = () => {
+      if (profilePhotoLoadAttemptRef.current >= 2) return;
+      profilePhotoLoadAttemptRef.current += 1;
+      if (profilePhotoRetryTimeoutRef.current != null) window.clearTimeout(profilePhotoRetryTimeoutRef.current);
+      const retryDelayMs = 750 + Math.floor(Math.random() * 751);
+      profilePhotoRetryTimeoutRef.current = window.setTimeout(() => {
+        profilePhotoRetryTimeoutRef.current = null;
+        void loadProfilePhoto();
+      }, retryDelayMs);
+    };
+
     try {
-      const metaResponse = await apiFetch(`/api/user/profile-photo?groupId=${encodeURIComponent(groupId)}`, { cache: 'no-store' });
+      const metaResponse = await apiFetch(`/api/user/profile-photo?groupId=${encodeURIComponent(groupId)}&t=${Date.now()}`, { cache: 'no-store' });
       if (!metaResponse.ok) return;
       const meta = await metaResponse.json() as { ok?: boolean; hasPhoto?: boolean; updatedAt?: string };
       if (!meta.ok || !meta.hasPhoto || !meta.updatedAt) {
+        if (profilePhotoRetryTimeoutRef.current != null) {
+          window.clearTimeout(profilePhotoRetryTimeoutRef.current);
+          profilePhotoRetryTimeoutRef.current = null;
+        }
+        profilePhotoLoadAttemptRef.current = 0;
         setProfilePhotoUpdatedAt('');
         if (profilePhotoObjectUrlRef.current) URL.revokeObjectURL(profilePhotoObjectUrlRef.current);
         setProfilePhotoObjectUrl('');
@@ -920,9 +943,21 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       }
       setProfilePhotoUpdatedAt(meta.updatedAt);
       const imageResponse = await apiFetch(`/api/user/profile-photo/image?groupId=${encodeURIComponent(groupId)}&t=${encodeURIComponent(meta.updatedAt)}`);
-      if (!imageResponse.ok) return;
+      if (!imageResponse.ok) {
+        scheduleRetry();
+        return;
+      }
       const blob = await imageResponse.blob();
+      if (!blob.size) {
+        scheduleRetry();
+        return;
+      }
       const objectUrl = URL.createObjectURL(blob);
+      if (profilePhotoRetryTimeoutRef.current != null) {
+        window.clearTimeout(profilePhotoRetryTimeoutRef.current);
+        profilePhotoRetryTimeoutRef.current = null;
+      }
+      profilePhotoLoadAttemptRef.current = 0;
       setProfilePhotoObjectUrl((existing) => {
         if (existing) URL.revokeObjectURL(existing);
         return objectUrl;
@@ -1064,6 +1099,15 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     () => createdByPersonId || joinedPersonIds[0] || groupMemberPersonIds[0] || '',
     [createdByPersonId, joinedPersonIds, groupMemberPersonIds]
   );
+
+  useEffect(() => {
+    if (profilePhotoRetryTimeoutRef.current != null) {
+      window.clearTimeout(profilePhotoRetryTimeoutRef.current);
+      profilePhotoRetryTimeoutRef.current = null;
+    }
+    profilePhotoLoadAttemptRef.current = 0;
+  }, [sessionId]);
+
   const displayedPersonIds = Array.from(new Set([organizerPersonId, ...groupMemberPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
   const combinedPeopleByPersonId: Record<string, { name?: string }> = {
     ...Object.fromEntries(groupMetaPeople.map((person) => [person.personId, { name: person.name }])),
@@ -1074,7 +1118,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     if (!groupId) return;
     if (!sessionId) return;
     void loadProfilePhoto();
-  }, [groupId, sessionId, organizerPersonId]);
+  }, [groupId, sessionId, organizerPersonId, metaReadyTick]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -1159,6 +1203,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   return (
     <Page variant="form">
       <PageHeader
+        title="Yapper"
+        description="Smart coordination for modern groups"
         titleOverride={groupName}
         subtitleOverride={undefined}
         subtitlePulse={joinedBump}
@@ -1169,10 +1215,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       {error ? <Alert severity="error">{error}</Alert> : null}
       <Stack alignItems="center" spacing={2} sx={{ px: 2, pt: 1, pb: 2 }}>
         <Stack alignItems="center" spacing={2} sx={{ width: '100%', maxWidth: 520 }}>
-          <div className="ui-igniteSection ui-igniteHeaderHelper">
+          <Box className="ui-igniteSection ui-igniteHeaderHelper" sx={{ width: '100%', textAlign: 'center' }}>
             <Typography className="ui-igniteHelperText">{`${organizerName} started this group to move things forward.`}</Typography>
             <Typography className="ui-igniteHelperText">Join to coordinate with everyone.</Typography>
-          </div>
+          </Box>
 
           <div className="ui-igniteSection ui-igniteQrWrap">
             {!sessionId || qrLoadFailed ? (
