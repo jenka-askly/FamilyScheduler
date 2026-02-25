@@ -8646,3 +8646,53 @@ Clean up Join Group UX to a single dialog/card with one email field, add safe cl
 
 - Human manual verification recommended for close/back behavior from different entry routes (`/#/g/<groupId>` direct load vs in-app navigation).
 
+
+
+## 2026-02-25 00:58 UTC (People email migration in members editor)
+
+### Objective
+
+Switch People editor UI from phone to email, wire backend person email persistence/normalization/snapshots, and enforce active-person email uniqueness with backward compatibility for legacy phone fields.
+
+### Approach
+
+- Added `Person.email` to backend state normalization (`trim+lowercase`) while retaining `cellE164`/`cellDisplay`.
+- Seeded `email` at person creation points (`groupCreate`, `igniteJoin`).
+- Updated `direct` and `chat` snapshot mappers to include `people[].email` (and kept legacy phone fields).
+- Updated direct action handling for `update_person` to accept `email` (plus legacy `phone` fallback), validate plausibility, normalize email, and reject duplicates among active people by normalized email.
+- Updated web `Snapshot.people` typing and members table/editor UX to use email field end-to-end, including edit draft and submit payload.
+- Added lightweight table column width tweak for email readability.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/functions/groupCreate.ts`
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/chat.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅
+- `git rev-parse --abbrev-ref HEAD` ✅
+- `git rev-parse HEAD` ✅
+- `pnpm --filter @familyscheduler/api test` (pending)
+- `pnpm --filter @familyscheduler/web build` (pending)
+- `pnpm --filter @familyscheduler/web typecheck` (pending)
+
+### Follow-ups
+
+- Remove legacy phone identity/request payload paths in a separate, broader migration once all clients are updated.
+
+
+### Verification updates
+
+- `pnpm --filter @familyscheduler/api build` ✅ pass.
+- `pnpm --filter @familyscheduler/web build` ✅ pass.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ pass.
+- `pnpm --filter @familyscheduler/api test` ❌ fails in current branch due pre-existing chat/storage test expectations (`storage_get_binary_not_supported` causing many chat tests to return 500 instead of expected 200/404/502). Not introduced by this change set.
+- Playwright screenshot captured: `browser:/tmp/codex_browser_invocations/8ddc6b12b5d05de4/artifacts/artifacts/people-email-change.png`.

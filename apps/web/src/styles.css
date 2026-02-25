@@ -1302,6 +1302,12 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   white-space: nowrap;
 }
 
+.ui-membersTable th.email-col,
+.ui-membersTable td.email-col {
+  width: 34%;
+  min-width: 240px;
+}
+
 @media (max-width: 640px) {
   .ui-membersTableWrap {
     overflow-x: auto;
