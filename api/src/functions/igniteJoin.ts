@@ -96,7 +96,7 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
     console.log(JSON.stringify({ event: 'ignite_join_auth_link_skipped', traceId, reason: 'missing_request_headers' }));
   } else {
     try {
-      await authRequestLink({ ...request, json: async () => ({ email, traceId, returnTo: `/g/${groupId}/app` }) } as HttpRequest, context);
+      await authRequestLink({ ...request, headers: request.headers, json: async () => ({ email, traceId, returnTo: `/g/${groupId}/app` }) } as HttpRequest, context);
     } catch (error) {
       console.log(JSON.stringify({ event: 'ignite_join_auth_link_failed', traceId, message: (error as Error)?.message ?? 'unknown' }));
     }
