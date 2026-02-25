@@ -1,3 +1,15 @@
+## 2026-02-25 08:09 UTC update (Yapper magic-link email copy refresh)
+
+- Updated auth magic-link email branding from FamilyScheduler to Yapper.
+- Rewrote magic-link subject/body in both plain text and HTML to a more professional tone, including a clearer security explanation and sign-off from The Yapper Team.
+- Kept token/link generation, expiry window, and delivery flow unchanged.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build`
+2. `node --test api/dist/api/src/functions/authRequestLink.test.js` (environment warning: missing `@azure/communication-email` package in this container runtime)
+
+
 ## 2026-02-25 07:56 UTC update (igniteGrace accepted for route/gate auth checks)
 
 - Added `getAuthSessionId()` in web API helpers to treat auth as `fs.sessionId || fs.igniteGraceSessionId` without overwriting durable session semantics.
