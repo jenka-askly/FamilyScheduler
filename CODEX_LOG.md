@@ -9072,3 +9072,33 @@ Stop post-ignite-join `/login` bounce caused by local session clearing and harde
 ### Follow-ups
 
 - Human-run browser repro should confirm no immediate `api_session_cleared` after unauth ignite join and no hard bounce to `/login` during grace window.
+
+## 2026-02-25 02:40 UTC (add build version to home/dashboard)
+
+### Objective
+
+Display the build version number on the home/dashboard page so build provenance is visible to users and testers.
+
+### Approach
+
+- Located the shared layout used by both signed-out home and signed-in dashboard (`MarketingLayout`).
+- Added `buildInfo` import and rendered `Build <short sha>` in footer using existing build metadata with `dev` fallback.
+- Preserved current footer links and spacing while adding the version label in the same row.
+
+### Files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd; rg --files -g 'AGENTS.md'` ✅ no AGENTS.md found under repo root.
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md found in nearby tree.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local dev server for visual verification.
+- Playwright screenshot capture against `http://127.0.0.1:4173/` ✅ artifact created.
+
+### Follow-ups
+
+- Optional: if you want full semantic version (not just short SHA), we can include `package.json` version alongside SHA in the same footer label.
