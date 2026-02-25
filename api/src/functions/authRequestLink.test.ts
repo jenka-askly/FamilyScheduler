@@ -25,6 +25,36 @@ test('authRequestLink tolerates missing headers object', async () => {
   const response = await authRequestLink({ json: async () => ({ email: 'person@example.com', traceId: 't-auth-no-headers' }) } as any, {} as any);
 
   assert.equal(response.status, 500);
-  assert.equal((response.jsonBody as any).error, 'CONFIG_MISSING');
+  assert.equal((response.jsonBody as any).error, 'config_missing');
+  assert.equal((response.jsonBody as any).code, 'CONFIG_MISSING');
   assert.deepEqual((response.jsonBody as any).missing, ['WEB_BASE_URL']);
+});
+
+
+test('authRequestLink returns BAD_JSON for invalid request body', async () => {
+  const response = await authRequestLink({ json: async () => { throw new Error('invalid-json'); } } as any, {} as any);
+
+  assert.equal(response.status, 400);
+  assert.equal((response.jsonBody as any).ok, false);
+  assert.equal((response.jsonBody as any).error, 'bad_request');
+  assert.equal((response.jsonBody as any).code, 'BAD_JSON');
+  assert.equal(typeof (response.jsonBody as any).traceId, 'string');
+});
+
+test('authRequestLink returns CONFIG_MISSING with missing list sorted', async () => {
+  delete process.env.MAGIC_LINK_SECRET;
+  delete process.env.AZURE_COMMUNICATION_CONNECTION_STRING;
+  delete process.env.EMAIL_SENDER_ADDRESS;
+
+  const response = await authRequestLink({ json: async () => ({ email: 'person@example.com', traceId: 't-auth-config-missing' }) } as any, {} as any);
+
+  assert.equal(response.status, 500);
+  assert.equal((response.jsonBody as any).ok, false);
+  assert.equal((response.jsonBody as any).error, 'config_missing');
+  assert.equal((response.jsonBody as any).code, 'CONFIG_MISSING');
+  assert.deepEqual((response.jsonBody as any).missing, [
+    'AZURE_COMMUNICATION_CONNECTION_STRING',
+    'EMAIL_SENDER_ADDRESS',
+    'MAGIC_LINK_SECRET'
+  ]);
 });
