@@ -9311,3 +9311,45 @@ Stop bogus `ignite/meta` calls when required IDs are missing, and improve diagno
 ### Follow-ups
 
 - Optional: if deeper forensic traces are needed, add a dev-only request artifact dump keyed by `traceId` for 400 responses to capture full sanitized payload snapshots.
+
+## 2026-02-25 04:17 UTC (igniteMeta phone_required migration to session/email)
+
+### Objective
+
+Remove `phone_required` failures for authenticated organizer meta polling by migrating `igniteMeta` identity checks to session/email, while preserving unauth fallback behavior.
+
+### Approach
+
+- Reworked `igniteMeta` request validation flow:
+  - parse/validate `groupId` and `sessionId` first,
+  - attempt auth via `x-session-id` (`requireSessionFromRequest` scoped to `groupId`),
+  - authorize authenticated caller via `requireActiveMember` using session email,
+  - fallback for unauth callers to `email` (membership) or `phone` (normalized with `validateAndNormalizePhone` + `findActivePersonByPhone`),
+  - return `identity_required` when no unauth identity is supplied.
+- Updated Ignite organizer page polling payload to stop sending email identity data to `/api/ignite/meta`.
+- Added focused API tests for:
+  - unauth missing identity => `400 identity_required`,
+  - authenticated `x-session-id` request succeeds without phone.
+
+### Files changed
+
+- `api/src/functions/igniteMeta.ts`
+- `api/src/functions/igniteMeta.test.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline` ✅ baseline check.
+- `nl -ba api/src/functions/igniteMeta.ts | sed -n '1,260p'` ✅ confirmed pre-change `validateJoinRequest` phone requirement.
+- `rg -n --hidden --no-ignore -S "phone_required|phone\\b|required\\b|requireSessionFromRequest\\b|x-session-id" api/src/functions/igniteMeta.ts api/src/lib` ✅ confirmed existing identity/session codepaths.
+- `rg -n --hidden --no-ignore -S "/api/ignite/meta|igniteMeta\\b" apps/web/src/App.tsx` ✅ found organizer polling callsite.
+- `pnpm --filter @familyscheduler/api test -- igniteMeta.test.ts` ⚠️ command triggers the package's full test suite in this environment and fails due pre-existing missing dependency (`@azure/communication-email`) plus unrelated existing test failures.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test api/dist/api/src/functions/igniteMeta.test.js` ✅ passed (new focused tests).
+- `pnpm -r build` ✅ passed.
+
+### Follow-ups
+
+- Human runtime check: organizer `/#/g/:groupId/ignite` should show `200` meta polling with no `phone_required` 400 responses.

@@ -3334,3 +3334,21 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Typecheck/build pass.
 - No bogus ignite meta requests with missing `groupId`/`sessionId`.
 - 400 responses are easier to debug on both client (request summary log) and server (code/message in JSON body).
+
+## 2026-02-25 04:17 UTC update (igniteMeta identity via session/email)
+
+- Migrated `POST /api/ignite/meta` identity handling away from mandatory `phone` when `x-session-id` is present:
+  - tries `requireSessionFromRequest(..., { groupId })` first,
+  - authorizes authenticated callers via active membership (`requireActiveMember`) using session email.
+- Added fallback unauth identity behavior for backwards compatibility:
+  - supports `email` identity (`requireActiveMember`),
+  - supports `phone` identity (normalized via `validateAndNormalizePhone` + `findActivePersonByPhone`),
+  - returns `400 identity_required` when unauth callers omit both phone and email.
+- Updated organizer Ignite meta polling payload in `apps/web/src/App.tsx` to send `{ groupId, sessionId, traceId }` only (no phone/email identity fields).
+- Polling remains guarded by a non-empty `sessionId` before `/api/ignite/meta` is called.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build`
+2. `node --test api/dist/api/src/functions/igniteMeta.test.js`
+3. `pnpm -r build`

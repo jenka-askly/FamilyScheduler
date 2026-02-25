@@ -841,7 +841,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       const response = await apiFetch('/api/ignite/meta', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, sessionId, email, traceId: createTraceId() })
+        body: JSON.stringify({ groupId, sessionId, traceId: createTraceId() })
       });
       const data = await response.json() as IgniteMetaResponse;
       if (!response.ok || !data.ok || canceled) return;
