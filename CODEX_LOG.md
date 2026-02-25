@@ -9829,3 +9829,34 @@ Ensure client-side route and gate auth checks accept temporary igniteGrace sessi
 ### Follow-ups
 
 - If organizer-only surfaces should strictly require durable sessions (not grace), isolate those checks to `getSessionId()` explicitly and add route-level comments/tests.
+
+
+## 2026-02-25 08:09 UTC (Yapper magic-link email content update)
+
+### Objective
+
+Find the magic-link email body composition and update product naming/content to professional Yapper messaging.
+
+### Approach
+
+- Located the magic-link email composition in `api/src/functions/authRequestLink.ts` where subject/plainText/html payloads are passed to `sendEmail(...)`.
+- Updated only the email copy surface (subject + plain text + HTML), preserving existing link generation, TTL handling, and error/logging behavior.
+- Added explicit professional sign-off and clarified security/expiry language.
+- Updated `PROJECT_STATUS.md` to record behavior change and verification outcomes.
+
+### Files changed
+
+- `api/src/functions/authRequestLink.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in scope.
+- `rg -n "magic link|magic_link|magic-link|sign in|signin|email" .` ✅ located auth email entrypoints.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test api/dist/api/src/functions/authRequestLink.test.js` ⚠️ failed due missing `@azure/communication-email` package in container runtime (`ERR_MODULE_NOT_FOUND`).
+
+### Follow-ups
+
+- If desired, add direct unit assertions for the updated email copy by mocking `sendEmail(...)` in `authRequestLink.test.ts`.
