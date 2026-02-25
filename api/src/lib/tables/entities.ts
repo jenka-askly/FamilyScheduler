@@ -12,6 +12,9 @@ export type GroupEntity = {
   updatedAt: string;
   createdByUserKey: string;
   isDeleted: boolean;
+  memberCountActive?: number;
+  memberCountInvited?: number;
+  appointmentCountUpcoming?: number;
   deletedAt?: string;
   deletedByUserKey?: string;
   purgeAfterAt?: string;
@@ -103,6 +106,47 @@ export const upsertUserGroup = async (entity: UserGroupsEntity): Promise<void> =
 
 export const upsertGroup = async (entity: GroupEntity): Promise<void> => {
   await getTableClient('Groups').upsertEntity(entity, 'Merge');
+};
+
+const withRetries = async (fn: () => Promise<void>): Promise<void> => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await fn();
+      return;
+    } catch (error) {
+      const status = typeof error === 'object' && error !== null && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : NaN;
+      if ((status === 409 || status === 412) && attempt < 2) continue;
+      throw error;
+    }
+  }
+};
+
+export const adjustGroupCounters = async (
+  groupId: string,
+  deltas: { memberCountActive?: number; memberCountInvited?: number; appointmentCountUpcoming?: number }
+): Promise<void> => {
+  const client = getTableClient('Groups');
+  await withRetries(async () => {
+    const current = await client.getEntity<GroupEntity>('group', groupId);
+    const updatedAt = new Date().toISOString();
+    const next = {
+      partitionKey: 'group' as const,
+      rowKey: groupId,
+      updatedAt,
+      memberCountActive: Math.max(0, getNumeric(current, 'memberCountActive') + (deltas.memberCountActive ?? 0)),
+      memberCountInvited: Math.max(0, getNumeric(current, 'memberCountInvited') + (deltas.memberCountInvited ?? 0)),
+      appointmentCountUpcoming: Math.max(0, getNumeric(current, 'appointmentCountUpcoming') + (deltas.appointmentCountUpcoming ?? 0))
+    };
+    await client.updateEntity(next, 'Merge', { etag: current.etag });
+  });
+};
+
+export const listActiveGroups = async (): Promise<GroupEntity[]> => {
+  const result: GroupEntity[] = [];
+  const client = getTableClient('Groups');
+  const iter = client.listEntities<GroupEntity>({ queryOptions: { filter: `PartitionKey eq 'group' and isDeleted ne true` } });
+  for await (const entity of iter) result.push(entity);
+  return result;
 };
 
 export const getAppointmentIndexEntity = async (groupId: string, rowKey: string): Promise<AppointmentsIndexEntity | null> => {

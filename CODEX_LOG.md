@@ -10243,6 +10243,36 @@ Fix `@azure/data-tables` typing break in API usage tables by ensuring entity typ
 
 - Restore package registry access/auth for `@azure/data-tables` in this environment, then rerun API build/test to complete compile verification.
 
+## 2026-02-26 00:20 UTC — Dashboard 2.0 implementation
+
+- Objective: implement one-call dashboard API, invite decline endpoint, counter plumbing, and dashboard UI updates.
+- Approach:
+  1. Added backend endpoints (`meDashboard`, `groupDeclineInvite`) and registered routes.
+  2. Added table helpers for month summary and user daily usage.
+  3. Added ETag-retry group counter adjust helper and integrated at group create/invite/join/decline + appointment create/delete points.
+  4. Updated dashboard UI to consume `/api/me/dashboard` and render recent/actions, group counters/filter, usage/health/month strip.
+- Files changed:
+  - `api/src/functions/meDashboard.ts`
+  - `api/src/functions/groupDeclineInvite.ts`
+  - `api/src/functions/groupCreate.ts`
+  - `api/src/functions/groupJoin.ts`
+  - `api/src/functions/groupJoinLink.ts`
+  - `api/src/functions/scanAppointment.ts`
+  - `api/src/functions/appointmentScanDelete.ts`
+  - `api/src/index.ts`
+  - `api/src/lib/tables/entities.ts`
+  - `api/src/lib/tables/metrics.ts`
+  - `api/src/lib/usage/usageTables.ts`
+  - `apps/web/src/components/DashboardHomePage.tsx`
+  - `PROJECT_STATUS.md`
+  - `CODEX_LOG.md`
+- Commands run:
+  - inspection with `rg`, `sed`, `cat`
+  - `pnpm --filter @familyscheduler/api build`
+  - `pnpm --filter @familyscheduler/web build`
+- Follow-ups:
+  - Consider adding persisted MRU `lastOpenedAt` when available.
+  - Consider adding explicit UserRecentEvents table if appointment recents become required.
 ## 2026-02-25 22:30 UTC (Ignite organizer identity/photo key unification + UI cleanup)
 
 ### Objective

@@ -75,3 +75,24 @@ export const recordOpenAiError = async (userKey: string, model: string): Promise
     updateCounterRow('DailyUsageByModel', month, `${date}#${model}`, { errors: 1 }, nowIso)
   ]);
 };
+
+
+export const readUserDailyUsage = async (
+  userKey: string,
+  date: string
+): Promise<{ openaiCalls: number; tokensIn: number; tokensOut: number; errors: number } | null> => {
+  await ensureTablesReady();
+  const client = getTableClient('UserDailyUsage');
+  try {
+    const entity = await client.getEntity<Record<string, unknown>>(userKey, date);
+    return {
+      openaiCalls: getCount(entity as TableEntityResult<Record<string, unknown>>, 'openaiCalls'),
+      tokensIn: getCount(entity as TableEntityResult<Record<string, unknown>>, 'openaiTokensIn'),
+      tokensOut: getCount(entity as TableEntityResult<Record<string, unknown>>, 'openaiTokensOut'),
+      errors: getCount(entity as TableEntityResult<Record<string, unknown>>, 'openaiErrors')
+    };
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+};

@@ -2,7 +2,7 @@ import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functio
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
-import { getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
+import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
@@ -44,6 +44,7 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
     const now = new Date().toISOString();
     await upsertGroupMember({ ...membership.member, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
     await upsertUserGroup({ partitionKey: membership.userKey, rowKey: groupId, groupId, status: 'active', invitedAt: membership.member.invitedAt, joinedAt: now, removedAt: undefined, updatedAt: now });
+    await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
     await incrementDailyMetric('invitesAccepted', 1);
   }
 

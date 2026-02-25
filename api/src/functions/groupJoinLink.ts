@@ -4,7 +4,7 @@ import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { normalizeIdentityEmail, userKeyFromEmail } from '../lib/identity/userKey.js';
-import { getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
+import { adjustGroupCounters, getGroupEntity, getGroupMemberEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
@@ -46,9 +46,14 @@ export async function groupJoinLink(request: HttpRequest, _context: InvocationCo
   const inviteeEmail = normalizeIdentityEmail(inviteeEmailRaw);
   const inviteeUserKey = userKeyFromEmail(inviteeEmail);
   const now = new Date().toISOString();
+  const existingInvitee = await getGroupMemberEntity(groupId, inviteeUserKey);
+  if (existingInvitee?.status === 'active') return errorResponse(409, 'already_member', 'User is already active in this group', traceId);
 
-  await upsertGroupMember({ partitionKey: groupId, rowKey: inviteeUserKey, userKey: inviteeUserKey, email: inviteeEmail, status: 'invited', invitedAt: now, updatedAt: now });
-  await upsertUserGroup({ partitionKey: inviteeUserKey, rowKey: groupId, groupId, status: 'invited', invitedAt: now, updatedAt: now });
+  await upsertGroupMember({ partitionKey: groupId, rowKey: inviteeUserKey, userKey: inviteeUserKey, email: inviteeEmail, status: 'invited', invitedAt: now, updatedAt: now, joinedAt: undefined, removedAt: undefined });
+  await upsertUserGroup({ partitionKey: inviteeUserKey, rowKey: groupId, groupId, status: 'invited', invitedAt: now, updatedAt: now, joinedAt: undefined, removedAt: undefined });
+  if (!existingInvitee || existingInvitee.status === 'removed') {
+    await adjustGroupCounters(groupId, { memberCountInvited: 1 });
+  }
   await incrementDailyMetric('invitesSent', 1);
 
   const logEmail = redactEmailForLog(inviteeEmail);

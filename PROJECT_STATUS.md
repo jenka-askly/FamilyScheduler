@@ -3795,6 +3795,30 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - `metrics.ts`: removed deprecated `updateMode` option from `updateEntity` call.
 - Build/test verification in this environment is currently blocked by missing registry access for `@azure/data-tables` package fetch (403), so TypeScript build cannot complete until dependency access is restored.
 
+## 2026-02-26 00:20 UTC update (Dashboard 2.0 API/UI, invite decline, group counters)
+
+- Added `GET /api/me/dashboard` (single-call dashboard payload) returning groups with counters, recent items (invite-first ordering, max 3), per-user usage today, month summary, and inline health.
+- Added `POST /api/group/decline` to move invited/active membership to removed across `UserGroups` + `GroupMembers` and adjust group counters.
+- Extended group entity/counters support (`memberCountActive`, `memberCountInvited`, `appointmentCountUpcoming`) with optimistic ETag retry helper for read-modify-write updates.
+- Wired counter updates at write points:
+  - group create initializes counters,
+  - invite link increments invited count only on non-existent/removed -> invited transitions,
+  - join accept decrements invited + increments active,
+  - decline decrements invited/active accordingly,
+  - appointment create/delete adjusts upcoming count when applicable.
+- Added table helpers:
+  - `getMonthToDateSummary(YYYY-MM)` for DailyMetrics rollups,
+  - `readUserDailyUsage(userKey, YYYY-MM-DD)` for dashboard usage card.
+- Upgraded dashboard UI to consume `/api/me/dashboard` and render:
+  - recent actions with Accept/Decline/Resume/Open,
+  - group rows with status chip + members/upcoming/updated,
+  - active/invited/all filter chips,
+  - usage line, health indicator, and month summary strip.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build`
+2. `pnpm --filter @familyscheduler/web build`
 ## 2026-02-25 22:30 UTC update (Ignite identity unification + organizer UI polish)
 
 - Fixed Ignite/person identity mismatch root cause: organizer identity now resolves through active `people.personId` by normalized email (with member fallback), so Ignite session ownership and profile-photo keys align with `createdByPersonId` / `joinedPersonIds` semantics.

@@ -49,7 +49,19 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
 
   try {
     await ensureTablesReady();
-    await upsertGroup({ partitionKey: 'group', rowKey: groupId, groupId, groupName, createdAt: now, updatedAt: now, createdByUserKey: creatorUserKey, isDeleted: false });
+    await upsertGroup({
+      partitionKey: 'group',
+      rowKey: groupId,
+      groupId,
+      groupName,
+      createdAt: now,
+      updatedAt: now,
+      createdByUserKey: creatorUserKey,
+      isDeleted: false,
+      memberCountActive: 1,
+      memberCountInvited: 0,
+      appointmentCountUpcoming: 0
+    });
     await upsertGroupMember({ partitionKey: groupId, rowKey: creatorUserKey, userKey: creatorUserKey, email: creatorEmail, status: 'active', joinedAt: now, updatedAt: now });
     await upsertUserGroup({ partitionKey: creatorUserKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, updatedAt: now });
     await incrementDailyMetric('newGroups', 1);
