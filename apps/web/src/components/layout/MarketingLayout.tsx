@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { Box, Container, IconButton, Link, Menu, MenuItem, Stack, Switch, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useColorMode } from '../../colorMode';
+import { buildInfo } from '../../lib/buildInfo';
 
 type MarketingLayoutProps = {
   children: ReactNode;
@@ -15,6 +16,7 @@ type MarketingLayoutProps = {
 export function MarketingLayout({ children, hasApiSession = false, sessionEmail, sessionName, onSignIn, onSignOut }: MarketingLayoutProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { mode, toggleMode } = useColorMode();
+  const buildVersion = (typeof buildInfo.sha === 'string' ? buildInfo.sha.trim() : '').slice(0, 7) || 'dev';
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: { xs: '#f8fafc', md: '#f7f9fd' }, display: 'flex', flexDirection: 'column' }}>
@@ -40,10 +42,15 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
 
       <Box component="footer" sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
         <Container maxWidth="lg" sx={{ py: 2.5 }}>
-          <Stack direction="row" spacing={3}>
-            <Link href="#/privacy" underline="hover" color="text.secondary" sx={{ fontSize: 14 }}>Privacy</Link>
-            <Link href="#/terms" underline="hover" color="text.secondary" sx={{ fontSize: 14 }}>Terms</Link>
-            <Link href="#/contact" underline="hover" color="text.secondary" sx={{ fontSize: 14 }}>Contact</Link>
+          <Stack direction="row" spacing={3} justifyContent="space-between" alignItems="center" flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={3}>
+              <Link href="#/privacy" underline="hover" color="text.secondary" sx={{ fontSize: 14 }}>Privacy</Link>
+              <Link href="#/terms" underline="hover" color="text.secondary" sx={{ fontSize: 14 }}>Terms</Link>
+              <Link href="#/contact" underline="hover" color="text.secondary" sx={{ fontSize: 14 }}>Contact</Link>
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+              Build {buildVersion}
+            </Typography>
           </Stack>
         </Container>
       </Box>
