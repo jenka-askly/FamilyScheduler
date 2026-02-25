@@ -1,3 +1,15 @@
+## 2026-02-25 08:52 UTC update (Header back navigation now returns to main landing URL)
+
+- Replaced the app header dashboard icon/action with a left-facing back control displayed immediately to the left of the Yapper wordmark.
+- Updated the control behavior so it navigates to the main landing URL (`window.location.origin + '/'`) instead of switching to the in-app overview section.
+- Kept existing menu/actions/group summary behavior unchanged.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build`
+2. Browser screenshot captured for visual confirmation of left-side back control placement.
+
+
 ## 2026-02-25 08:35 UTC update (App header dashboard navigation + homepage-themed product label)
 
 - Added a dedicated dashboard navigation control in the app header, positioned to the right of the product label.
