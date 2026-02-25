@@ -9924,6 +9924,27 @@ Fix Ignite organizer joined-folks photo rendering so authenticated photo GETs su
 ### Follow-ups
 - Human runtime check: upload organizer photo and verify joined card renders image without unauthenticated GET failures in network panel.
 
+## 2026-02-25 09:09 UTC (Ignite organizer join toggle + group-link cleanup)
+
+### Objective
+
+Implement organizer-side Ignite UX changes: replace Close/Reopen with a join toggle, remove join link, render group link as static copyable text, add a separate Go to group action, and preserve existing backend endpoints/semantics.
+
+### Approach
+
+- Located `IgniteOrganizerPage` flow in `apps/web/src/App.tsx` and updated invite controls/UI with minimal scoped edits.
+- Removed organizer join-link rendering and repurposed copy state for group-link-only affordance.
+- Replaced action buttons with a `Switch`-driven join toggle tied to status (`OPEN`/`CLOSING`/`CLOSED`) and explicit helper copy.
+- Updated close behavior to keep `sessionId` and current page context intact (no session clear, no nav) while still posting `/api/ignite/close`.
+- Added standalone primary `Go to group` button that routes to `/#/g/<groupId>` and does not affect Ignite state.
+- Kept QR generation source unchanged and visually de-emphasized QR when joining is off.
+- Added CSS class for static/non-editable group link presentation with selectable monospace text.
+- Ran workspace builds/lint checks and captured a UI screenshot from local web runtime.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
 ## 2026-02-25 08:52 UTC
 
 ### Objective
@@ -9941,6 +9962,17 @@ Update the "Go to the dashboard" header action so it behaves like a back-to-home
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+
+- `pnpm -w install` ✅ lockfile already up to date.
+- `pnpm -w -r build` ⚠️ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`) because root workspace package has no `build` script.
+- `pnpm -r --if-present build` ✅ passed for `@familyscheduler/api`, `@familyscheduler/web`, and `packages/shared`.
+- `pnpm -w -r lint` ✅ passed (root lint script currently echoes `no lint yet`).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local preview runtime for screenshot capture.
+- Playwright screenshot capture against `http://127.0.0.1:4173/#/g/demo-group/ignite` ✅ artifact created at `browser:/tmp/codex_browser_invocations/a94dd9a8ef24da9a/artifacts/artifacts/ignite-organizer-toggle.png`.
+
+### Follow-ups
+
+- Human runtime verification recommended for live close/open behavior against real backend data: toggle OFF should yield `IGNITE_CLOSED` for join URL attempts while organizer remains on page with same session context.
 - `pwd && rg --files -g 'AGENTS.md'` ✅ confirmed repo path; no additional AGENTS.md discovered via this search.
 - `rg --files | head -n 200` ✅ inspected repository files.
 - `rg -n "Go to the dashboard|Yapper|dashboard" apps/web/src` ✅ located header/button implementation.
