@@ -29,13 +29,15 @@ import { userProfilePhotoMeta } from './functions/userProfilePhotoMeta.js';
 import { userProfilePhotoGet } from './functions/userProfilePhotoGet.js';
 import { ensureTablesInitialized } from './lib/tables/tablesClient.js';
 import { meGroups } from './functions/meGroups.js';
+import { meDashboard } from './functions/meDashboard.js';
+import { groupDeclineInvite } from './functions/groupDeclineInvite.js';
 import { health } from './functions/health.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupMeta', 'groupRename', 'meGroups', 'chat', 'direct', 'diagnoseOpenAi', 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupDeclineInvite', 'groupMeta', 'groupRename', 'meGroups', 'meDashboard', 'chat', 'direct', 'diagnoseOpenAi', 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -88,6 +90,8 @@ registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
 
 registerHttp('groupRename', 'group/rename', ['POST'], groupRename);
 registerHttp('meGroups', 'me/groups', ['GET'], meGroups);
+registerHttp('meDashboard', 'me/dashboard', ['GET'], meDashboard);
+registerHttp('groupDeclineInvite', 'group/decline', ['POST'], groupDeclineInvite);
 
 registerHttp('chat', 'chat', ['POST'], chat);
 

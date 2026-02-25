@@ -8,9 +8,18 @@ import { applyParsedFields, decodeImageBase64, scanBlobKey } from '../lib/scan/a
 import type { Appointment } from '../lib/state.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
-import { rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js';
+import { adjustGroupCounters, rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js';
 import { putAppointmentJson } from '../lib/tables/appointments.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
+
+
+const isUpcomingStart = (startTime: string | undefined, nowIso: string): boolean => {
+  if (!startTime) return false;
+  const startMs = Date.parse(startTime);
+  const nowMs = Date.parse(nowIso);
+  if (!Number.isFinite(startMs) || !Number.isFinite(nowMs)) return false;
+  return startMs >= nowMs;
+};
 
 export async function scanAppointment(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -60,6 +69,9 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
   await putAppointmentJson(groupId, appointment.id, appointment as unknown as Record<string, unknown>);
   const rowKey = rowKeyFromIso(now, appointment.id);
   await upsertAppointmentIndex({ partitionKey: groupId, rowKey, appointmentId: appointment.id, startTime: appointment.start, status: 'pending', hasScan: true, scanCapturedAt: now, createdAt: now, updatedAt: now, isDeleted: false });
+  if (isUpcomingStart(appointment.start, now)) {
+    await adjustGroupCounters(groupId, { appointmentCountUpcoming: 1 });
+  }
   await incrementDailyMetric('newAppointments', 1);
 
   void (async () => {
@@ -70,6 +82,9 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
       appointment.updatedAt = new Date().toISOString();
       await putAppointmentJson(groupId, appointment.id, appointment as unknown as Record<string, unknown>);
       await upsertAppointmentIndex({ partitionKey: groupId, rowKey, appointmentId: appointment.id, startTime: appointment.start, status: appointment.scanStatus ?? 'parsed', hasScan: true, scanCapturedAt: appointment.scanCapturedAt ?? now, createdAt: now, updatedAt: appointment.updatedAt, isDeleted: false });
+      if (isUpcomingStart(appointment.start, appointment.updatedAt)) {
+        await adjustGroupCounters(groupId, { appointmentCountUpcoming: 1 });
+      }
     } catch {
       appointment.scanStatus = 'failed';
       appointment.updatedAt = new Date().toISOString();

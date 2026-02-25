@@ -51,3 +51,21 @@ const upsertCounter = async (column: string, incrementBy = 1, nowIso = new Date(
 export const incrementDailyMetric = async (column: 'newGroups' | 'newAppointments' | 'invitesSent' | 'invitesAccepted', incrementBy = 1): Promise<void> => {
   await upsertCounter(column, incrementBy);
 };
+
+
+export const getMonthToDateSummary = async (
+  month: string
+): Promise<{ newGroups: number; newAppointments: number; invitesSent: number; invitesAccepted: number } | null> => {
+  const client = getTableClient('DailyMetrics');
+  const iter = client.listEntities<TableEntityResult<Record<string, unknown>>>({ queryOptions: { filter: `PartitionKey eq '${month}'` } });
+  let found = false;
+  const totals = { newGroups: 0, newAppointments: 0, invitesSent: 0, invitesAccepted: 0 };
+  for await (const entity of iter) {
+    found = true;
+    totals.newGroups += getNumeric(entity, 'newGroups');
+    totals.newAppointments += getNumeric(entity, 'newAppointments');
+    totals.invitesSent += getNumeric(entity, 'invitesSent');
+    totals.invitesAccepted += getNumeric(entity, 'invitesAccepted');
+  }
+  return found ? totals : null;
+};
