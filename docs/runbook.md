@@ -239,7 +239,7 @@ az functionapp deployment source config-zip \
 az functionapp function list -g familyscheduler-prod-rg -n familyscheduler-api-prod -o table
 ```
 
-2) Invoke `GET /api/group/meta` (contract: `groupId` required, no `phone` parameter required):
+2) Invoke `GET /api/group/meta` (contract: `groupId` required, no legacy identity parameter required):
 
 ```powershell
 $host = "https://familyscheduler-api-prod.azurewebsites.net"

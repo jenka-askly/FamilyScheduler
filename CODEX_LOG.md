@@ -9671,3 +9671,31 @@ Stop breakout spinoff from rotating/publishing a new session id; keep using call
 ### Follow-ups
 
 - Manual browser verification requested: confirm breakout no longer mutates `fs.sessionId` and opens `/#/g/<newGroupId>/ignite` without join dialog.
+
+## 2026-02-25 06:40 UTC — Objective: AUTH_MODEL docs update to email-only + remove docs telephony refs
+
+### Approach
+- Ran discovery commands to inspect current branch, existing auth docs, and docs/repo reference scans.
+- Replaced `docs/AUTH_MODEL.md` with an email/session-only auth model document.
+- Updated docs files still containing legacy telephony wording to satisfy docs-only cleanup goal.
+- Re-ran docs scan and repo-wide informational scan.
+
+### Files changed
+- `docs/AUTH_MODEL.md`
+- `docs/email-env.md`
+- `docs/runbook.md`
+- `docs/discovery-photo-extract-appointment-feasibility.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `git branch --show-current` ✅ (`work`)
+- `git rev-parse HEAD` ✅
+- `ls -la docs` ✅
+- `rg -n --hidden --glob '!.git' "AUTH_MODEL\.md|auth model|Auth Model" -S .` ✅
+- `nl -ba docs/AUTH_MODEL.md | sed -n '1,260p'` ✅ (pre/post inspection)
+- `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\bphone\b" docs -S` ✅ (now empty after edits)
+- `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\bphone\b" -S .` ✅ (informational matches remain outside docs)
+
+### Follow-ups
+- If desired, perform a separate pass for non-doc files and non-doc markdowns (`README.md`, `PROJECT_STATUS.md`) that still mention legacy telephony auth artifacts.

@@ -3536,3 +3536,26 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Build succeeds.
 - Breakout tab opens into organizer ignite route directly.
 - Session id remains present in local storage.
+
+## 2026-02-25 06:40 UTC update (auth docs cleanup to email-only)
+
+- Rewrote `docs/AUTH_MODEL.md` into an email/session-only contract reference and removed legacy telephony identity wording from the auth model spec.
+- Cleaned remaining docs-scoped telephony mentions detected by `rg` in:
+  - `docs/email-env.md`
+  - `docs/runbook.md`
+  - `docs/discovery-photo-extract-appointment-feasibility.md`
+- Scope of this update is documentation-only; no runtime behavior changed in application code.
+
+### Success criteria
+- `docs/AUTH_MODEL.md` presents an email-only model and session header contract.
+- `rg -n "phone_required|validateJoinRequest|\\bphone\\b" docs -S` returns no matches.
+
+### Non-regressions
+- Existing references outside `docs/` remain unchanged (report-only in this task).
+- API and web codepaths are untouched.
+
+### How to verify
+1. Run `nl -ba docs/AUTH_MODEL.md | sed -n '1,220p'` and confirm title and sections describe email/session identity.
+2. Run `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\\bphone\\b" docs -S` and confirm no output.
+3. Optionally run repo-wide informational scan:
+   - `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\\bphone\\b" -S .`
