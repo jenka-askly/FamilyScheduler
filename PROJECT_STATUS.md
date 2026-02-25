@@ -3192,3 +3192,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 3. Manual smoke (human-run):
    - Force `localStorage.fs.sessionEmail = 'signin'` and verify account label does **not** show `signin`.
    - Complete normal auth consume with a real email and verify it still appears as signed-in identity.
+## 2026-02-25 02:40 UTC update (build version shown on home/dashboard footer)
+
+### What changed
+
+- Added a build-version label (`Build <short sha>`) to the shared `MarketingLayout` footer so it is visible on both signed-out home and signed-in dashboard surfaces.
+- Reused existing `buildInfo` env wiring (`VITE_BUILD_SHA`) and fallback behavior (`dev`) to avoid introducing new config paths.
+- Kept existing footer links/structure intact while adding the version readout on the right side.
+
+### How to test
+
+1. Start web app and open `/#/` while signed out; confirm footer shows `Build <value>` on the right.
+2. Set `localStorage.fs.sessionId` and open `/#/` as signed-in dashboard; confirm the same build label remains visible.
+3. Run `pnpm --filter @familyscheduler/web typecheck`.

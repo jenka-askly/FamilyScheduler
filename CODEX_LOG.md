@@ -9096,6 +9096,21 @@ Prevent invalid `fs.sessionEmail` values (e.g. `signin`) from being persisted/re
 - `apps/web/src/lib/validate.ts`
 - `apps/web/src/App.tsx`
 - `apps/web/src/components/layout/PageHeader.tsx`
+## 2026-02-25 02:40 UTC (add build version to home/dashboard)
+
+### Objective
+
+Display the build version number on the home/dashboard page so build provenance is visible to users and testers.
+
+### Approach
+
+- Located the shared layout used by both signed-out home and signed-in dashboard (`MarketingLayout`).
+- Added `buildInfo` import and rendered `Build <short sha>` in footer using existing build metadata with `dev` fallback.
+- Preserved current footer links and spacing while adding the version label in the same row.
+
+### Files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -9114,3 +9129,12 @@ Prevent invalid `fs.sessionEmail` values (e.g. `signin`) from being persisted/re
 ### Follow-ups
 
 - Human-run manual smoke on login/consume flow should confirm that invalid values are removed and never shown as signed-in identity.
+- `pwd; rg --files -g 'AGENTS.md'` ✅ no AGENTS.md found under repo root.
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md found in nearby tree.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local dev server for visual verification.
+- Playwright screenshot capture against `http://127.0.0.1:4173/` ✅ artifact created.
+
+### Follow-ups
+
+- Optional: if you want full semantic version (not just short SHA), we can include `package.json` version alongside SHA in the same footer label.
