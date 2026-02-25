@@ -1,3 +1,16 @@
+## 2026-02-25 02:35 UTC update (Show authenticated user name alongside email)
+
+- Updated authenticated user identity display to prefer **name + email** where available, with graceful fallback to email-only.
+- `PageHeader` menu now shows the member name as primary text and email as secondary text when both exist.
+- `MarketingLayout` authenticated status line now shows `Signed in as <name> (<email>)` when name is known.
+- Added session name plumbing via `fs.sessionName` localStorage key:
+  - populated from group membership in `AppShell` based on signed-in email match
+  - seeded on group create from entered creator name
+  - cleared on sign-in refresh/sign-out to avoid stale identity labels
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
 ## 2026-02-25 02:34 UTC update (Ignite join grace no longer clears local session)
 
 - Updated client auth handling in `apiFetch` so `fs.sessionId` is only cleared for `AUTH_PROVISIONAL_EXPIRED`.

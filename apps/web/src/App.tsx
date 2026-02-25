@@ -23,6 +23,7 @@ const ROOT_SIGN_IN_MESSAGE = 'Please sign in to continue.';
 const PENDING_AUTH_KEY = 'fs.pendingAuth';
 const AUTH_CHANNEL_NAME = 'fs-auth';
 const SESSION_EMAIL_KEY = 'fs.sessionEmail';
+const SESSION_NAME_KEY = 'fs.sessionName';
 const LAST_GROUP_ID_KEY = 'fs.lastGroupId';
 
 
@@ -333,6 +334,7 @@ function CreateGroupPage() {
 
       const link = `${window.location.origin}/#/g/${data.groupId}`;
       writeSession({ groupId: data.groupId, email: creatorEmail.trim(), joinedAt: new Date().toISOString() });
+      if (trimmedCreatorName) window.localStorage.setItem(SESSION_NAME_KEY, trimmedCreatorName);
       setCreatedGroupId(data.groupId);
       setShareLink(link);
       setShowCreateForm(false);
@@ -528,14 +530,16 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
           method: 'POST',
           body: JSON.stringify({ token, traceId })
         });
-        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string; email?: string };
+        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string; email?: string; name?: string };
         if (!response.ok || !data.ok || !data.sessionId) {
           if (!canceled) setError(data?.message ?? data?.error ?? 'Unable to sign in with this link.');
           return;
         }
         if (!canceled) {
           window.localStorage.setItem('fs.sessionId', data.sessionId);
+          window.localStorage.removeItem(SESSION_NAME_KEY);
           if (data.email) window.localStorage.setItem(SESSION_EMAIL_KEY, data.email);
+          if (typeof data.name === 'string' && data.name.trim()) window.localStorage.setItem(SESSION_NAME_KEY, data.name.trim());
           if (typeof window.BroadcastChannel === 'function') {
             const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
             channel.postMessage({ type: 'AUTH_SUCCESS', sessionId: data.sessionId, ts: Date.now() });
@@ -1345,11 +1349,13 @@ export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getSessionId()));
   const sessionEmail = useMemo(() => window.localStorage.getItem(SESSION_EMAIL_KEY), [hash, hasApiSession]);
+  const sessionName = useMemo(() => window.localStorage.getItem(SESSION_NAME_KEY), [hash, hasApiSession]);
   const recentGroupId = useMemo(() => window.localStorage.getItem(LAST_GROUP_ID_KEY), [hash, hasApiSession]);
 
   const signOut = () => {
     window.localStorage.removeItem('fs.sessionId');
     window.localStorage.removeItem(SESSION_EMAIL_KEY);
+    window.localStorage.removeItem(SESSION_NAME_KEY);
     setHasApiSession(false);
     nav('/', { replace: true });
   };
@@ -1360,7 +1366,7 @@ export function App() {
     };
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'fs.sessionId' || event.key === SESSION_EMAIL_KEY) refreshAuth();
+      if (event.key === 'fs.sessionId' || event.key === SESSION_EMAIL_KEY || event.key === SESSION_NAME_KEY) refreshAuth();
     };
 
     let channel: BroadcastChannel | null = null;
@@ -1406,9 +1412,9 @@ export function App() {
       );
     }
     return (
-      <MarketingLayout hasApiSession sessionEmail={sessionEmail} onSignOut={signOut}>
+      <MarketingLayout hasApiSession sessionEmail={sessionEmail} sessionName={sessionName} onSignOut={signOut}>
         <DashboardHomePage
-          signedInLabel={sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}
+          signedInLabel={sessionName ? `Signed in as ${sessionName}${sessionEmail ? ` (${sessionEmail})` : ''}` : sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}
           onCreateGroup={() => nav('/create')}
           recentGroupId={recentGroupId ?? undefined}
           phone={sessionEmail ?? undefined}
