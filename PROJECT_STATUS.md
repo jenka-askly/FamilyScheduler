@@ -1,3 +1,23 @@
+## 2026-02-25 00:58 UTC update (People editor Phone→Email + backend person email support)
+
+- Replaced People tab editable/display column from **Phone** to **Email** (`Name | Email | Last seen | Actions`), updated input placeholder to `name@example.com`, and widened the email column for longer values.
+- Extended backend `Person` normalization/state model to support `email` (normalized as trim+lowercase) while preserving legacy `cellE164`/`cellDisplay` fields for backward compatibility.
+- Seeded `person.email` for group creator and ignite joiners so new records persist email identity from the start.
+- Extended direct/chat snapshot payloads to include `people[].email` (keeping legacy phone fields in payload to avoid breaking older paths).
+- Updated direct `update_person` to accept `email` (and still tolerate legacy `phone` field), validate plausibility, normalize email, and enforce uniqueness among active people by normalized email.
+
+### Known follow-ups
+
+- Full removal of legacy phone-auth/request payloads across all APIs and client calls is still pending and intentionally out of scope for this minimal change.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web typecheck`
+
+- Note: `pnpm --filter @familyscheduler/api test` currently fails on pre-existing chat/storage test expectations unrelated to this email migration; `api build` passes.
+
 ## 2026-02-25 00:43 UTC update (Join dialog cleanup + email-access copy consistency)
 
 - Refined `JoinGroupPage` into a single centered card/dialog surface (`maxWidth: 520`) with one email input, consistent spacing, and clearer hierarchy.

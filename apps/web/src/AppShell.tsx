@@ -43,7 +43,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
-  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
+  people: Array<{ personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: TimeSpec; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -381,7 +381,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
-  const [personDraft, setPersonDraft] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
+  const [personDraft, setPersonDraft] = useState<{ name: string; email: string }>({ name: '', email: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
@@ -643,7 +643,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   const startEditingPerson = (person: Snapshot['people'][0]) => {
     setEditingPersonId(person.personId);
-    setPersonDraft({ name: person.name, phone: person.cellDisplay || person.cellE164 || '' });
+    setPersonDraft({ name: person.name, email: person.email || '' });
     setPersonEditError(null);
   };
 
@@ -653,8 +653,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const draft = personDraft;
     setEditingPersonId(null);
     setPersonEditError(null);
-    setPersonDraft({ name: '', phone: '' });
-    if (pendingId && editingId === pendingId && !draft.name.trim() && !draft.phone.trim()) {
+    setPersonDraft({ name: '', email: '' });
+    if (pendingId && editingId === pendingId && !draft.name.trim() && !draft.email.trim()) {
       await sendDirectAction({ type: 'delete_person', personId: pendingId });
     }
     setPendingBlankPersonId(null);
@@ -662,7 +662,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
   const submitPersonEdit = async () => {
     if (!editingPersonId) return;
-    const result = await sendDirectAction({ type: 'update_person', personId: editingPersonId, name: personDraft.name, phone: personDraft.phone });
+    const result = await sendDirectAction({ type: 'update_person', personId: editingPersonId, name: personDraft.name, email: personDraft.email });
     if (!result.ok) {
       setPersonEditError(result.message);
       return;
@@ -678,7 +678,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const created = result.snapshot?.people.find((person) => person.personId === result.personId);
     setEditingPersonId(result.personId);
     setPendingBlankPersonId(result.personId);
-    setPersonDraft({ name: created?.name ?? '', phone: created?.cellDisplay ?? '' });
+    setPersonDraft({ name: created?.name ?? '', email: created?.email ?? '' });
     setPersonEditError(null);
   };
 
@@ -1564,7 +1564,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               ) : null}
               <div className="ui-membersTableWrap">
                     <table className="ui-membersTable">
-                      <thead><tr><th>Name</th><th>Phone</th><th>Last seen</th><th>Actions</th></tr></thead>
+                      <thead><tr><th>Name</th><th className="email-col">Email</th><th>Last seen</th><th>Actions</th></tr></thead>
                       <tbody>
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
@@ -1576,8 +1576,8 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
                           <td>
                             {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
                           </td>
-                          <td>
-                            {isEditingPerson ? <input value={personDraft.phone} onChange={(event) => setPersonDraft((prev) => ({ ...prev, phone: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} placeholder="(425) 555-1234" /> : <span style={{ fontFamily: 'var(--font-mono)' }}>{person.cellDisplay || '—'}</span>}
+                          <td className="email-col">
+                            {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} placeholder="name@example.com" /> : <span>{person.email || '—'}</span>}
                             {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
                           </td>
                           <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
