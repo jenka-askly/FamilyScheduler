@@ -8607,3 +8607,42 @@ Implement auth-aware root home behavior, remove duplicate sign-in entry points, 
 ### Follow-ups
 
 - Manual staging smoke still recommended for full sign-in/sign-out and recent-group roundtrip flow.
+
+
+## 2026-02-25 00:43 UTC (Join dialog cleanup + email copy fix)
+
+### Objective
+
+Clean up Join Group UX to a single dialog/card with one email field, add safe close behavior, compact route-error alert, and remove remaining phone-based access copy.
+
+### Approach
+
+- Updated `JoinGroupPage` in `apps/web/src/App.tsx`:
+  - removed duplicate email field,
+  - rebuilt join surface into one centered card,
+  - added top-right close icon and cancel button with safe back/home behavior,
+  - mapped supported `err` query codes to compact inline `Alert` content and optional trace text,
+  - preserved existing submit API behavior and session write/nav flow.
+- Updated `PageHeader` default group access note to email wording.
+- Ran validation (lint/build/grep) and captured a screenshot artifact for the frontend change.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Only listed phone numbers" apps/web/src` ✅ no matches.
+- `rg -n "Enter your email" apps/web/src` ✅ no matches.
+- `pnpm -w lint` ✅ pass (`no lint yet`).
+- `pnpm --filter @familyscheduler/web build` ✅ pass.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ app served for screenshot capture; terminated intentionally after capture.
+- `run_playwright_script` ✅ screenshot created at `browser:/tmp/codex_browser_invocations/b174f620a7a9224a/artifacts/artifacts/join-dialog-cleanup.png`.
+
+### Follow-ups
+
+- Human manual verification recommended for close/back behavior from different entry routes (`/#/g/<groupId>` direct load vs in-app navigation).
+

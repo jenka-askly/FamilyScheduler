@@ -8,6 +8,7 @@ import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, getSessionId } from './lib/apiUrl';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -406,9 +407,13 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   const [formError, setFormError] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [groupName, setGroupName] = useState<string | undefined>(undefined);
-  const routeNotice = routeError === 'group_mismatch' || routeError === 'no_session'
-    ? 'Enter your email to join this group.'
-    : null;
+  const routeNotice = useMemo(() => {
+    if (routeError === 'no_session') return 'Please sign in again to continue.';
+    if (routeError === 'group_mismatch') return 'Your active session is for a different group.';
+    if (routeError === 'join_failed') return 'We could not process your join request. Please try again.';
+    if (routeError === 'not_allowed') return 'This email is not allowed for this group.';
+    return null;
+  }, [routeError]);
 
   useEffect(() => {
     authLog({ stage: 'join_page_loaded', groupId, err: routeError ?? null, traceId: traceId ?? null });
@@ -454,18 +459,35 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
     nav(`/g/${groupId}/app`);
   };
 
+  const closeJoinDialog = () => {
+    if (window.history.length > 1 && document.referrer.startsWith(window.location.origin)) {
+      window.history.back();
+      return;
+    }
+    nav('/', { replace: true });
+  };
+
   return (
     <Page variant="form">
-      <PageHeader
-        title={groupName ? `Join “${groupName}”` : 'Join Group'}
-        description="Enter your email to access this schedule."
-        groupName={groupName}
-        groupId={groupId}
-      />
+      <Box sx={{ width: '100%', maxWidth: 520, mx: 'auto' }}>
+        <Stack component="form" spacing={2} onSubmit={submit} sx={{ width: '100%', p: { xs: 2, sm: 3 }, borderRadius: 3, border: '1px solid', borderColor: 'divider', backgroundColor: 'background.paper' }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+            <Box>
+              <Typography variant="h6">{groupName ? `Join “${groupName}”` : 'Join Group'}</Typography>
+              <Typography variant="body2" color="text.secondary">You need access to this group to continue.</Typography>
+            </Box>
+            <IconButton size="small" aria-label="Close join dialog" onClick={closeJoinDialog}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
 
-      <div className="ui-joinContainer">
-        <Stack className="ui-joinForm" component="form" spacing={2} onSubmit={submit}>
-          {routeNotice ? <Typography className="ui-joinNotice">{routeNotice}</Typography> : null}
+          {routeNotice ? (
+            <Alert severity="info" sx={{ py: 0.5, '& .MuiAlert-message': { py: 0 } }}>
+              <Typography variant="body2" component="span">{routeNotice}</Typography>
+              {traceId ? <Typography component="span" variant="caption" color="text.secondary"> {`Trace: ${traceId}`}</Typography> : null}
+            </Alert>
+          ) : null}
+
           <TextField
             label="Email"
             value={email}
@@ -475,26 +497,16 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
             }}
             required
             error={Boolean(formError) && hasSubmitted}
-            helperText={hasSubmitted ? formError || 'Only listed emails can join.' : 'Only listed emails can join.'}
+            helperText={hasSubmitted ? formError || 'Only invited email addresses can join this group.' : 'Only invited email addresses can join this group.'}
             placeholder="you@example.com"
             fullWidth
           />
-          <TextField
-            label="Email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (hasSubmitted) setFormError(null);
-            }}
-            required
-            placeholder="you@example.com"
-            fullWidth
-          />
-          <div className="ui-joinActions">
-            <Button variant="contained" type="submit">Join Group</Button>
-          </div>
+          <Stack direction="row" justifyContent="flex-end" spacing={1}>
+            <Button variant="text" type="button" onClick={closeJoinDialog}>Cancel</Button>
+            <Button variant="contained" type="submit">Request access</Button>
+          </Stack>
         </Stack>
-      </div>
+      </Box>
       <FooterHelp />
     </Page>
   );

@@ -1,3 +1,20 @@
+## 2026-02-25 00:43 UTC update (Join dialog cleanup + email-access copy consistency)
+
+- Refined `JoinGroupPage` into a single centered card/dialog surface (`maxWidth: 520`) with one email input, consistent spacing, and clearer hierarchy.
+- Added top-right close affordance (`X`) and safe close behavior: navigate back only for same-origin history entries; otherwise route to `/#/`.
+- Kept join behavior unchanged (`/api/group/join` email-from-body submit), while updating CTA copy to **Request access** and adding a **Cancel** secondary action.
+- Added compact inline err-code alert support for `no_session`, `group_mismatch`, `join_failed`, and `not_allowed`, including small trace rendering when present.
+- Updated default header access copy from phone-based text to email-based text: “Only invited email addresses can access this group.”
+- Confirmed no `Only listed phone numbers` copy remains under `apps/web/src`.
+
+### Verification run
+
+1. `pnpm -w lint`
+2. `pnpm --filter @familyscheduler/web build`
+3. `rg -n "Only listed phone numbers" apps/web/src` (expect no matches)
+4. `rg -n "Enter your email" apps/web/src` (expect no matches after cleanup)
+5. Visual screenshot: `browser:/tmp/codex_browser_invocations/b174f620a7a9224a/artifacts/artifacts/join-dialog-cleanup.png`
+
 ## 2026-02-25 00:27 UTC update (Ignite join 30s scoped grace session)
 
 - Added backend support for a new `igniteGrace` session kind issued by `/api/ignite/join` for unauthenticated joiners after successful join state update.
