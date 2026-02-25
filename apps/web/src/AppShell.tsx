@@ -1157,6 +1157,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         return;
       }
 
+      console.debug('[BREAKOUT_DEBUG]', { urlToOpen: result.urlToOpen, from: window.location.href });
       const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
       if (!popup) {
         setBreakoutNotice(result.urlToOpen);

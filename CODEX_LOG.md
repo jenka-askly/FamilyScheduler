@@ -9466,3 +9466,35 @@ Eliminate `phone_required`/phone auth contract usage across migrated API+web flo
 ### Follow-ups
 
 - Consider migrating residual naming in app-local session state (`phone` variable names) to `sessionEmail` repo-wide for clarity, though API contracts are now phone-free on migrated paths.
+
+## 2026-02-25 04:51 UTC (Breakout new-tab self-open fix)
+
+### Objective
+
+Fix breakout launch behavior where **Breakout Session** opened a new tab back to the current app route instead of the newly created breakout group's ignite route.
+
+### Approach
+
+- Inspected breakout flow in `AppShell.createBreakoutGroup` and `spinoffBreakoutGroup` URL assembly.
+- Updated breakout spinoff client to rely on server-provided `linkPath` and build absolute URL via `window.location.origin + linkPath`.
+- Removed local handoff URL reconstruction from current location context.
+- Added temporary debug instrumentation immediately before popup open in `AppShell`.
+
+### Files changed
+
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline` ✅
+- `nl -ba apps/web/src/AppShell.tsx | sed -n '1120,1205p'` ✅
+- `nl -ba apps/web/src/lib/ignite/spinoffBreakout.ts | sed -n '1,180p'` ✅
+- `pnpm -r build` ✅
+
+### Follow-ups
+
+- Manual runtime verification in browser: click **Breakout Session** from dashboard and confirm popup target path is `/#/g/<newGroupId>/ignite`.
+- Remove temporary `[BREAKOUT_DEBUG]` console log after validation cycle if no longer needed.
