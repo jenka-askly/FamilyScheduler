@@ -24,9 +24,11 @@ const toAttemptId = (value: unknown): string => {
 };
 
 const resolveOrigin = (request: HttpRequest): string | null => {
-  const origin = request.headers.get('origin');
+  const headerGetter = (request as { headers?: { get?: (name: string) => string | null } }).headers?.get;
+  if (typeof headerGetter !== 'function') return null;
+  const origin = headerGetter('origin');
   if (origin) return origin;
-  const forwardedHost = request.headers.get('x-forwarded-host');
+  const forwardedHost = headerGetter('x-forwarded-host');
   if (!forwardedHost) return null;
   return `https://${forwardedHost}`;
 };

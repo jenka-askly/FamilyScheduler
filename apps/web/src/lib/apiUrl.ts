@@ -31,9 +31,11 @@ const handleProvisionalExpiry = (path: string, payload: { error?: string; code?:
   const code = payload.code ?? payload.error;
   if (!shouldClearSessionId(code)) return;
   const currentHash = window.location.hash || '';
-  console.warn(`[apiFetch] api_session_cleared code=${code ?? 'unknown'} path=${path} traceId=${payload.traceId ?? 'unknown'} hash=${currentHash || '(empty)'}`);
+  const clearPayload = { code, path, traceId: payload.traceId, currentHash };
+  console.warn('[apiFetch] api_session_cleared', clearPayload);
   window.localStorage.removeItem(SESSION_ID_KEY);
-  authLog({ event: 'api_session_cleared', component: 'apiFetch', stage: 'clear_session_id', code, traceId: payload.traceId, path, currentHash });
+  console.warn('[apiFetch] session_id_removed', clearPayload);
+  authLog({ event: 'api_session_cleared', component: 'apiFetch', stage: 'clear_session_id', ...clearPayload });
   if (currentHash.startsWith('#/login')) return;
   if (code !== 'AUTH_PROVISIONAL_EXPIRED') return;
   console.warn(`[apiFetch] provisional_session_expired path=${path}`);

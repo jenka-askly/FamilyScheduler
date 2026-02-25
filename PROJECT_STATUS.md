@@ -3239,3 +3239,33 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - No typecheck errors.
 - Signed-in dashboard renders with improved heading balance (`Dashboard` overline + moderated `Welcome back` size).
+
+## 2026-02-25 03:24 UTC update (ignite unauth join session stability + auth-link guard)
+
+### What changed
+
+- Confirmed `igniteJoin` unauth success returns `sessionId: grace.sessionId` and remains independent of auth-link email success/failure.
+- Hardened ignite join auth-link handoff by explicitly forwarding `headers` into the synthetic `authRequestLink` call payload.
+- Hardened `authRequestLink` origin resolution so missing/non-standard request headers do not throw (`undefined.get`); it now safely skips origin resolution when headers are unavailable.
+- Added targeted API test to verify `authRequestLink` no longer crashes when called without a headers object.
+- Added explicit temporary web console diagnostics at `fs.sessionId` clear time, logging `{ code, path, traceId, currentHash }` immediately when removal occurs.
+
+### Acceptance criteria
+
+- Unauthenticated ignite join returns HTTP 200 with `ok: true`, `breakoutGroupId`, and `sessionId` from grace-session issuance.
+- Missing request headers during auth-link request path do not throw; response degrades to normal config-missing behavior when `WEB_BASE_URL` cannot be resolved.
+- When session clear is triggered client-side, browser console prints structured payload including `code`, `path`, `traceId`, and `currentHash`.
+
+### Non-regressions
+
+- Existing authenticated ignite-join behavior remains unchanged.
+- Auth-link send failures remain non-fatal to ignite join success path.
+
+### How to verify
+
+1. `pnpm --filter @familyscheduler/api test`
+2. `pnpm --filter @familyscheduler/web typecheck`
+3. Staging/manual:
+   - Join via QR as unauth user.
+   - Confirm `fs.sessionId` appears and persists for at least a few seconds.
+   - If cleared, inspect console for `[apiFetch] session_id_removed` payload with `code/path/traceId/currentHash`.

@@ -9173,3 +9173,39 @@ Improve signed-in dashboard home visual hierarchy so `Welcome back` is not dispr
 ### Follow-ups
 
 - If desired, we can do a second pass to soften card borders/spacing for a broader dashboard refresh while preserving current information architecture.
+
+## 2026-02-25 03:24 UTC (targeted ignite join/session clear checks + guards)
+
+### Objective
+
+Address unauth ignite-join sign-in kick path by ensuring grace `sessionId` always returns, preventing `ignite_join_auth_link_failed undefined.get`, and improving client-side session-clear diagnostics.
+
+### Approach
+
+- Inspected `igniteJoin` and confirmed unauth success body already includes `sessionId: grace.sessionId` after grace issuance.
+- Fixed probable `undefined.get` source by explicitly forwarding `request.headers` into the synthetic request passed to `authRequestLink`.
+- Added defensive header getter guard in `authRequestLink.resolveOrigin` (`headers?.get` function check).
+- Added temporary explicit web console logging in `apiFetch` exactly when `SESSION_ID_KEY` is removed, including `{ code, path, traceId, currentHash }`.
+- Added a small API unit test that calls `authRequestLink` without headers and asserts non-throw behavior + expected config response.
+
+### Files changed
+
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/authRequestLink.ts`
+- `api/src/functions/authRequestLink.test.ts`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `nl -ba api/src/functions/igniteJoin.ts | sed -n '1,260p'` ✅ confirmed unauth success includes `sessionId: grace.sessionId`.
+- `rg -n --hidden --no-ignore -S "ignite_join_auth_link_failed|\.get\(|request-link|authRequestLink" api/src` ✅ found auth-link callsites and header-get usage.
+- `nl -ba apps/web/src/lib/apiUrl.ts | sed -n '1,260p'` ✅ inspected existing session-clear handling and logging.
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed in this container due missing runtime dependency (`ERR_MODULE_NOT_FOUND` for `@azure/communication-email`), so full node test execution could not complete here.
+- `pnpm --filter @familyscheduler/api build` ✅ passed (TypeScript compile succeeded with the new guard/test code).
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Human staging check should confirm whether any later API response still clears `fs.sessionId`; if so, use emitted `{code,path,traceId,currentHash}` payload to identify exact endpoint/response responsible.
