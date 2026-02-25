@@ -9945,6 +9945,19 @@ Implement organizer-side Ignite UX changes: replace Close/Reopen with a join tog
 
 - `apps/web/src/App.tsx`
 - `apps/web/src/styles.css`
+## 2026-02-25 08:52 UTC
+
+### Objective
+Update the "Go to the dashboard" header action so it behaves like a back-to-home control, appears to the left of the Yapper title, and sends users to the main landing URL.
+
+### Approach
+- Located header control rendering in `PageHeader.tsx` and swapped the right-side rocket/dashboard icon for a left-side back arrow grouped with the product title.
+- Updated tooltip and aria label from dashboard wording to landing-page wording.
+- Updated `AppShell` callback to navigate to `window.location.origin + '/'` so the action leaves the in-app workspace and returns to the main landing page.
+
+### Files changed
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -9960,3 +9973,11 @@ Implement organizer-side Ignite UX changes: replace Close/Reopen with a join tog
 ### Follow-ups
 
 - Human runtime verification recommended for live close/open behavior against real backend data: toggle OFF should yield `IGNITE_CLOSED` for join URL attempts while organizer remains on page with same session context.
+- `pwd && rg --files -g 'AGENTS.md'` ✅ confirmed repo path; no additional AGENTS.md discovered via this search.
+- `rg --files | head -n 200` ✅ inspected repository files.
+- `rg -n "Go to the dashboard|Yapper|dashboard" apps/web/src` ✅ located header/button implementation.
+- `pnpm --filter @familyscheduler/web build` ✅ build passed.
+- Playwright screenshot script ✅ captured updated header screenshot artifact.
+
+### Follow-ups
+- Optional UX follow-up: if desired, hide the back control when already on the landing surface (currently only shown in app shell where callback is provided).

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -172,28 +173,30 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   return (
     <Stack spacing={2} sx={{ mb: 2 }}>
       <div className="ui-productHeader">
-        <Typography
-          className="ui-productTitle"
-          variant="h4"
-          sx={{
-            fontWeight: 800,
-            letterSpacing: '-0.02em',
-            color: 'primary.main',
-            lineHeight: 1
-          }}
-        >
-          {PRODUCT.name}
-        </Typography>
         <Stack direction="row" spacing={0.75} alignItems="center">
           {onDashboardClick ? (
-            <Tooltip title="Go to dashboard">
+            <Tooltip title="Go to landing page">
               <span>
-                <IconButton onClick={onDashboardClick} aria-label="Go to dashboard">
-                  <RocketLaunchIcon />
+                <IconButton onClick={onDashboardClick} aria-label="Go to landing page">
+                  <ArrowBackIcon />
                 </IconButton>
               </span>
             </Tooltip>
           ) : null}
+          <Typography
+            className="ui-productTitle"
+            variant="h4"
+            sx={{
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+              color: 'primary.main',
+              lineHeight: 1
+            }}
+          >
+            {PRODUCT.name}
+          </Typography>
+        </Stack>
+        <Stack direction="row" spacing={0.75} alignItems="center">
           <Tooltip title="Menu">
             <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
               <MenuIcon />
