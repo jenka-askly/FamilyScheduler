@@ -3470,3 +3470,38 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Build succeeds.
 - New tab opens to spawned group ignite route (no self-dashboard reopening).
+
+## 2026-02-25 05:01 UTC update (Breakout organizer session pre-seeded before popup)
+
+- Updated breakout spinoff client result contract to pass through backend `sessionId` alongside `newGroupId`, `linkPath`, and `urlToOpen`.
+- Updated `AppShell.createBreakoutGroup` to pre-seed `window.localStorage['fs.sessionId']` with the spinoff-returned session id before `window.open(...)`.
+- Added explicit breakout debug event:
+  - `set_session_before_open` with `sessionIdPrefix` when a session id is provided.
+- Preserved existing popup URL behavior (`window.location.origin + linkPath`) and popup-blocked fallback notice.
+- Mirrored session pre-seeding in dashboard breakout launcher for consistency.
+
+### Acceptance criteria
+
+- Clicking **Breakout** writes `fs.sessionId` before opening the new tab when spinoff response includes `sessionId`.
+- New tab opens directly to `/#/g/<newGroupId>/ignite` organizer route without join dialog.
+- Existing breakout error handling (`traceId` in UI) and popup fallback remain unchanged.
+
+### Non-regressions
+
+- `POST /api/ignite/spinoff` request shape remains unchanged (`sourceGroupId`, `traceId`, `groupName`).
+- Existing `urlToOpen` construction remains origin + server-provided `linkPath`.
+- No changes to ignite join API contract or login flow outside breakout launch path.
+
+### How to verify
+
+1. `pnpm -r build`
+2. Run app, authenticate, open home/dashboard, click **Breakout**.
+3. Confirm in devtools Local Storage that `fs.sessionId` is set before/at open.
+4. Confirm new tab lands on `/#/g/<newGroupId>/ignite` with no join dialog/login redirect.
+5. Confirm console shows `[BREAKOUT_DEBUG]` `set_session_before_open` and `before_open`.
+
+### Expected signals
+
+- Build succeeds.
+- Breakout tab opens into organizer ignite route directly.
+- Session id remains present in local storage.

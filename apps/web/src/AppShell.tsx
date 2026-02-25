@@ -1157,12 +1157,20 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         return;
       }
 
+      if (result.sessionId) {
+        window.localStorage.setItem('fs.sessionId', result.sessionId);
+        console.info('[BREAKOUT_DEBUG]', {
+          at: 'set_session_before_open',
+          sessionIdPrefix: result.sessionId.slice(0, 8)
+        });
+      }
       console.info('[BREAKOUT_DEBUG]', {
         at: 'before_open',
         fromHref: window.location.href,
         urlToOpen: result.urlToOpen,
         linkPath: result.linkPath,
-        newGroupId: result.newGroupId
+        newGroupId: result.newGroupId,
+        hasSessionId: Boolean(result.sessionId)
       });
       const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
       console.info('[BREAKOUT_DEBUG]', { at: 'after_open', opened: Boolean(popup) });
