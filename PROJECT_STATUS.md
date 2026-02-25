@@ -3298,3 +3298,39 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
    - Join via QR as unauth user.
    - Confirm `fs.sessionId` appears and persists for at least a few seconds.
    - If cleared, inspect console for `[apiFetch] session_id_removed` payload with `code/path/traceId/currentHash`.
+
+## 2026-02-25 04:02 UTC update (ignite meta guard + 400 diagnostics)
+
+### What changed
+
+- Added an explicit organizer-side guard before polling `POST /api/ignite/meta` so requests are skipped unless both `groupId` and `sessionId` are present.
+- Added required skip diagnostics in web console: `console.debug('[AUTH_DEBUG]', { event: 'ignite_meta_skip', groupId, sessionId })` whenever a meta poll is prevented.
+- Extended `apiFetch` to emit structured 400 diagnostics (`[apiFetch] bad_request`) with request path, method, and a safe request payload summary (JSON keys + key IDs when available).
+- Hardened `igniteMeta` 400 responses to always include both `code` and `message` alongside `traceId` for invalid `groupId`/`phone` request shapes.
+
+### Acceptance criteria
+
+- `ignite/meta` client polling does not execute when either `groupId` or `sessionId` is missing.
+- Skipped polls produce `[AUTH_DEBUG]` log with `event: 'ignite_meta_skip'` and current `groupId`/`sessionId` values.
+- Any 400 response through `apiFetch` logs a `[apiFetch] bad_request` warning that includes request `path` and request payload summary.
+- Server `igniteMeta` 400 responses include JSON `code` and `message` fields (in addition to existing fields).
+
+### Non-regressions
+
+- Existing successful ignite organizer polling path remains unchanged when valid `groupId` + `sessionId` are present.
+- Non-400 `apiFetch` behavior remains unchanged.
+- Existing ignite meta success response schema remains unchanged.
+
+### How to verify
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/api build`
+3. Run web app and reproduce missing-id state before session creation; check browser console for `[AUTH_DEBUG]` `ignite_meta_skip`.
+4. Trigger a known 400 from web API call and confirm `[apiFetch] bad_request` payload logs include `path`, `method`, and `request` summary.
+5. Call `POST /api/ignite/meta` with invalid `groupId` or `phone` and confirm response JSON includes `code` + `message`.
+
+### Expected signals
+
+- Typecheck/build pass.
+- No bogus ignite meta requests with missing `groupId`/`sessionId`.
+- 400 responses are easier to debug on both client (request summary log) and server (code/message in JSON body).
