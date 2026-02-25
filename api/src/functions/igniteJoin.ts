@@ -93,9 +93,21 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
   }
 
   const graceTtlSeconds = 30;
-  const grace = await createIgniteGraceSession(email, groupId, graceTtlSeconds, { scopeIgniteSessionId: sessionId });
-  console.log(JSON.stringify({ event: 'ignite_grace_session_issued', traceId, groupId, igniteSessionId: sessionId, sessionIdPrefix: grace.sessionId.slice(0, 8), expiresAtUtc: grace.expiresAtISO }));
+  let grace: Awaited<ReturnType<typeof createIgniteGraceSession>>;
+  try {
+    grace = await createIgniteGraceSession(email, groupId, graceTtlSeconds, { scopeIgniteSessionId: sessionId });
+  } catch (error) {
+    console.log(JSON.stringify({
+      event: 'ignite_join_grace_session_issue_failed',
+      traceId,
+      breakoutGroupId: groupId,
+      igniteSessionId: sessionId,
+      message: (error as Error)?.message ?? 'unknown'
+    }));
+    return errorResponse(500, 'ignite_grace_session_create_failed', 'Unable to create ignite grace session', traceId);
+  }
 
+  console.log(JSON.stringify({ event: 'ignite_join_grace_session_issued', traceId, breakoutGroupId: groupId, igniteSessionId: sessionId, expiresAt: grace.expiresAtISO }));
   return {
     status: 200,
     jsonBody: {

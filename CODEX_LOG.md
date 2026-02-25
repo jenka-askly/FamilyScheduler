@@ -8829,6 +8829,23 @@ Replace UI-only occurrences of `Family Scheduler` with the new app name `Yapper`
 
 - `apps/web/src/product.ts`
 - `apps/web/index.html`
+## 2026-02-25 01:48 UTC (Ignite unauth join must always return grace sessionId)
+
+### Objective
+
+Ensure unauthenticated `igniteJoin` returns a usable grace `sessionId` every successful join response so the client can store `fs.sessionId` before navigating to `/#/g/:breakoutGroupId/app`, preventing immediate redirect-to-login.
+
+### Approach
+
+- Inspected `api/src/functions/igniteJoin.ts` and auth session helpers to confirm existing `igniteGrace` support and response shape.
+- Kept existing join/member/photo/magic-link flow intact.
+- Added explicit try/catch around `createIgniteGraceSession` for unauth joins.
+- On success, emit required trace event `ignite_join_grace_session_issued` with breakout/ignite scope and expiry metadata.
+- On failure, emit trace-linked failure event and return stable API error `ignite_grace_session_create_failed` (HTTP 500).
+
+### Files changed
+
+- `api/src/functions/igniteJoin.ts`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -8841,3 +8858,16 @@ Replace UI-only occurrences of `Family Scheduler` with the new app name `Yapper`
 ### Follow-ups
 
 - If desired, do a separate non-UI terminology sweep for backend defaults and historical docs.
+- `git status --short` ✅ clean baseline check before changes.
+- `git rev-parse --abbrev-ref HEAD` ✅ on `work` branch.
+- `git log -n 1 --oneline` ✅ captured baseline commit.
+- `nl -ba api/src/functions/igniteJoin.ts | sed -n '1,320p'` ✅ inspected join flow and response contract.
+- `rg -n --hidden --no-ignore -S "igniteGrace|provisional|requiresVerification|request-link|createSession|getSession|setSession|sessionId" api/src/functions/igniteJoin.ts api/src/lib/auth api/src/lib` ✅ traced session issuance and auth gates.
+- `nl -ba api/src/lib/auth/sessions.ts | sed -n '1,240p'` ✅ confirmed `SessionKind` includes `igniteGrace` and scoped session helper exists.
+- `pnpm -r build` ✅ full workspace build passed.
+- `pnpm --filter @familyscheduler/api test -- sessions.test.ts` ⚠️ command triggers full API test suite; failed on pre-existing unrelated chat/storage failures in this environment.
+- `pnpm --filter @familyscheduler/api run build && node --test api/dist/api/src/lib/auth/sessions.test.js` ✅ targeted ignite grace session tests passed.
+
+### Follow-ups
+
+- Human/manual browser verification still required for the exact join flow acceptance scenarios (fresh storage join, 30s expiry, cross-group scope rejection).
