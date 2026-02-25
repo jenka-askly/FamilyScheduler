@@ -9738,3 +9738,31 @@ Prevent ignite join temporary/grace auth from overwriting durable organizer auth
 ### Follow-ups
 
 - Human browser check recommended: verify organizer remains authenticated in existing tab after ignite join in another tab and inspect `[SESSION]` events when `VITE_DEBUG_AUTH_LOGS=true`.
+
+## 2026-02-25 07:10 UTC
+
+### Objective
+Fix `GroupAuthGate` so logged-in users are authorized by durable API session + server membership check, without requiring local joiner session state.
+
+### Approach
+- Removed local `readSession()` gating branches (`no_session`, `group_mismatch`) from `GroupAuthGate`.
+- Kept durable API session guard (`fs.sessionId`) redirect to sign-in when missing.
+- Changed join call body to `{ groupId, traceId }` so server resolves caller identity from session.
+- Stopped clearing local join session on join failure paths in this gate.
+- Renamed `setPhone` state setter to `setEmail`; made email optional UI state only.
+- Relaxed render guard to block only on `authStatus !== 'allowed'`, not on missing local email.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `git branch --show-current && git rev-parse HEAD && nl -ba apps/web/src/App.tsx | sed -n '1268,1388p'`
+- `rg -n "setPhone\(" apps/web/src/App.tsx || true`
+- `npm -C apps/web run build` ❌ initially failed with TS2345 (`children(email)` nullable).
+- `npm -C apps/web run build` ✅ passed after null-safe child arg update.
+
+### Follow-ups
+- Consider adding a focused web unit/integration test around `GroupAuthGate` to lock this auth contract in place.
+
