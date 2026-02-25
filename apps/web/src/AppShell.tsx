@@ -1157,8 +1157,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         return;
       }
 
-      console.debug('[BREAKOUT_DEBUG]', { urlToOpen: result.urlToOpen, from: window.location.href });
+      console.info('[BREAKOUT_DEBUG]', {
+        at: 'before_open',
+        fromHref: window.location.href,
+        urlToOpen: result.urlToOpen,
+        linkPath: result.linkPath,
+        newGroupId: result.newGroupId
+      });
       const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
+      console.info('[BREAKOUT_DEBUG]', { at: 'after_open', opened: Boolean(popup) });
       if (!popup) {
         setBreakoutNotice(result.urlToOpen);
         return;

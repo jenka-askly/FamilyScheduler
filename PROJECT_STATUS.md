@@ -1,3 +1,14 @@
+## 2026-02-25 04:54 UTC update (Breakout click diagnostics + explicit URL construction)
+
+- Added structured `[BREAKOUT_DEBUG]` logs in `AppShell.createBreakoutGroup` immediately before and after `window.open` to capture source URL, destination URL, `linkPath`, new group id, and whether the popup handle was returned.
+- Added structured `[BREAKOUT_DEBUG]` log in `spinoffBreakoutGroup` right after parsing the API response payload (`spinoff_response`) so server-returned breakout path/id can be compared against client open behavior.
+- Confirmed breakout open URL construction uses `window.location.origin + data.linkPath`, avoiding accidental reuse of current hash/path/query.
+- Extended the successful spinoff return shape to include `linkPath` so click-path diagnostics can report both full URL and raw path.
+
+### Verification run
+
+1. `pnpm -r build`
+
 ## 2026-02-25 04:23 UTC update (Ignite identity flexibility + organizer polling guard)
 
 - Updated `ignite/meta` and `ignite/photo` (GET) identity handling to support authenticated callers via `x-session-id` without requiring phone.
