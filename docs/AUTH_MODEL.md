@@ -6,7 +6,7 @@ This repository uses an **email-based, session-backed** authentication model.
 - The client authenticates API requests via the **`x-session-id`** header.
 - The API validates sessions against blob-stored session records and authorizes access by **group membership for the session email**.
 
-Legacy SMS/cell identity is not supported. Any remaining telephony references are legacy and must be removed.
+**Telephony-based identity is not supported.** Any remaining telephony references are legacy and must be removed.
 
 ---
 
@@ -14,8 +14,8 @@ Legacy SMS/cell identity is not supported. Any remaining telephony references ar
 
 ### Identity
 - **Email is the only identity key**.
-- Emails are normalized (trim + lowercase) for matching.
-- Group authorization is based on active membership of the session email.
+- Emails are normalized (trim + lowercase).
+- Group authorization is based on active membership for the session email.
 
 ### Client session storage
 - Durable credential: `localStorage['fs.sessionId']`
@@ -47,7 +47,7 @@ These must remain true across client and server:
 3. Organizer flows (QR/ignite organizer, spinoff, start/close/photo) must require a valid `full` session.
 4. igniteGrace exists **only** to support unauthenticated joiners (who may not have an account/session yet).
 5. `/api/ignite/spinoff` must not rotate or replace `fs.sessionId`.
-6. No telephony-based auth or validation exists.
+6. **No telephony-based auth or validation exists.**
 
 ---
 
@@ -143,4 +143,6 @@ Error responses include `traceId` for correlation.
 
 ## Removal rule (legacy cleanup)
 
-Legacy telephony markers should not exist in docs and contracts. If present, remove or migrate to email/session-based handling.
+Legacy auth markers should not exist in docs.
+
+If present, remove or migrate to email/session-based handling.
