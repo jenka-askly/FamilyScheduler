@@ -2,6 +2,10 @@
 
 FamilyScheduler is a lightweight family coordination scheduler with a hash-routed web app and Azure Functions API.
 
+## Design docs
+
+- Storage + analytics + usage design: [`docs/DESIGN_STORAGE_TABLES_AND_USAGE.md`](docs/DESIGN_STORAGE_TABLES_AND_USAGE.md)
+
 ## v1 group access model
 
 - Anyone can create a group from `/#/` with `groupName`, `groupKey` (ceremony only), and creator phone.
