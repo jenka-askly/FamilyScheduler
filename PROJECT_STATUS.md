@@ -3205,3 +3205,37 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. Start web app and open `/#/` while signed out; confirm footer shows `Build <value>` on the right.
 2. Set `localStorage.fs.sessionId` and open `/#/` as signed-in dashboard; confirm the same build label remains visible.
 3. Run `pnpm --filter @familyscheduler/web typecheck`.
+
+## 2026-02-25 03:18 UTC update (Dashboard home visual hierarchy polish)
+
+### What changed
+
+- Adjusted the signed-in dashboard hero hierarchy so the section label (`Dashboard`) appears as a compact overline and `Welcome back` is no longer oversized relative to surrounding content.
+- Reduced the visual weight/size of `Welcome back` from a large display heading to a responsive `h4` scale for better balance with the signed-in subtitle.
+- Kept dashboard behavior and actions unchanged (create/open recent/breakout flows are untouched).
+
+### Acceptance criteria
+
+- Signed-in home (`/#/` with `fs.sessionId` present) shows `Dashboard` overline above the main heading.
+- `Welcome back` appears clearly but not larger than expected for page context.
+- Existing signed-in label (`Signed in as ...`) still renders below the heading.
+
+### Non-regressions
+
+- Dashboard CTA buttons and recent/group cards remain present and functionally unchanged.
+- Signed-out marketing home remains unchanged.
+
+### How to verify
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`
+3. In browser console on `http://localhost:4173/#/`, run:
+   - `localStorage.setItem('fs.sessionId','demo-session')`
+   - `localStorage.setItem('fs.sessionEmail','alex@example.com')`
+   - `localStorage.setItem('fs.sessionName','Alex')`
+   - `location.reload()`
+
+### Expected signals
+
+- No typecheck errors.
+- Signed-in dashboard renders with improved heading balance (`Dashboard` overline + moderated `Welcome back` size).

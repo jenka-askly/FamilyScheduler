@@ -44,7 +44,19 @@ export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, 
   return (
     <Stack spacing={{ xs: 4, md: 5 }}>
       <Box>
-        <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>Welcome back</Typography>
+        <Typography variant="overline" sx={{ color: '#d97706', fontWeight: 700, letterSpacing: '0.08em' }}>Dashboard</Typography>
+        <Typography
+          variant="h4"
+          sx={{
+            mt: 0.6,
+            fontWeight: 750,
+            letterSpacing: '-0.015em',
+            fontSize: { xs: '1.8rem', md: '2.1rem' },
+            lineHeight: 1.15
+          }}
+        >
+          Welcome back
+        </Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>{signedInLabel}</Typography>
       </Box>
 

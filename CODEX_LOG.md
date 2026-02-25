@@ -9138,3 +9138,38 @@ Display the build version number on the home/dashboard page so build provenance 
 ### Follow-ups
 
 - Optional: if you want full semantic version (not just short SHA), we can include `package.json` version alongside SHA in the same footer label.
+
+## 2026-02-25 03:11 UTC (dashboard home heading hierarchy tweak)
+
+### Objective
+
+Improve signed-in dashboard home visual hierarchy so `Welcome back` is not disproportionately larger than the page title context.
+
+### Approach
+
+- Located signed-in home component (`DashboardHomePage`).
+- Applied a minimal typography-only change:
+  - added a subtle `Dashboard` overline label,
+  - reduced/normalized `Welcome back` sizing/weight to `h4`-scale responsive typography,
+  - left layout, copy flow, and actions unchanged.
+- Captured a fresh screenshot in authenticated dashboard mode using localStorage session keys.
+
+### Files changed
+
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ✅ confirmed no in-repo AGENTS.md files.
+- `find .. -name AGENTS.md -print` ✅ confirmed no parent-scope AGENTS.md files.
+- `rg -n "Welcome back|dashboard|auth" apps/web/src` ✅ located dashboard/home implementation.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started dev server for visual validation.
+- Playwright screenshot via browser tool against `http://127.0.0.1:4173/#/` ✅ captured authenticated dashboard screenshot artifact.
+- `Ctrl+C` to stop dev server ✅ stopped after capture.
+
+### Follow-ups
+
+- If desired, we can do a second pass to soften card borders/spacing for a broader dashboard refresh while preserving current information architecture.
