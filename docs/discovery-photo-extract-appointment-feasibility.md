@@ -11,7 +11,7 @@ Date: 2026-02-20
 1. `POST /api/chat`
    - Entry point: `chat` function.
    - OpenAI invocation path: `chat` -> `parseWithOpenAi` -> `parseToActions` -> `POST https://api.openai.com/v1/chat/completions`.
-   - Request body contract accepted by route: `{ message, groupId, phone, traceId? }`.
+   - Request body contract accepted by route: `{ message, groupId, sessionId/header, traceId? }`.
    - Typical success response contracts are discriminated by `kind` and include an attached `snapshot`:
      - `{ kind: 'reply', assistantText, snapshot }`
      - `{ kind: 'question', message, options?, allowFreeText, snapshot }`
@@ -87,12 +87,12 @@ Date: 2026-02-20
 - Calls are plain `fetch` from `App.tsx` and `AppShell.tsx`.
 - Header usage is currently only `content-type: application/json` for POSTs.
 - No `Authorization` header is sent by the web client today.
-- Auth/identity is body-based (`groupId`, `phone`, optional `traceId`) plus server-side membership checks.
+- Auth/identity is body-based (`groupId`, session identity, optional `traceId`) plus server-side membership checks.
 
 ## Feasibility readout for “Photo -> Extract Appointment” on current architecture
 
 - Technically feasible with current architecture, but it requires:
   1. Extending request contract (likely `POST /api/chat` or a new `POST /api/extract-appointment`) to accept image input reference/payload.
   2. Updating OpenAI client path to a multimodal-capable payload format (not currently implemented).
-  3. Updating frontend API call layer to submit image content and preserve current `groupId/phone` auth model.
+  3. Updating frontend API call layer to submit image content and preserve current `groupId/session` auth model.
 - Deployment-wise, because SWA workflows are BYO API (`api_location: ""`), backend changes for photo extraction must be deployed to the external API host alongside current `/api` endpoints.

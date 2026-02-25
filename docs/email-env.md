@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Join Group API (`/api/group/join`) can send a follow-up email with a join link after a successful phone-based join authorization.
+The Join Group API (`/api/group/join`) can send a follow-up email with a join link after a successful email/session-based join authorization.
 
 ## Required environment variables
 
