@@ -3647,3 +3647,20 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `npm -C apps/web run build`
 2. `pnpm --filter @familyscheduler/api build`
+
+## 2026-02-25 09:09 UTC update (Ignite organizer join toggle + go-to-group split)
+
+- Replaced organizer Close/Reopen action with a dedicated join-availability toggle labeled **Allow new members to join**.
+- Toggle ON posts to `/api/ignite/start`; toggle OFF posts to `/api/ignite/close` and now **does not** clear `sessionId` or navigate away.
+- Removed the organizer **Join link** section entirely.
+- Updated organizer **Group link** display to static, non-editable text styling with copy action retained.
+- Added explicit helper text beneath the toggle for ON/OFF states and transient `Closing…` state.
+- Added a separate primary **Go to group** button that navigates to `/#/g/<groupId>` without changing join state.
+- Kept QR generation path (`api.qrserver.com`), and dimmed QR visibility while joining is OFF.
+- Behavior contract remains: when organizer closes joining, join attempts on session URL are rejected with `IGNITE_CLOSED` (join page renders “This session is closed.”).
+
+### Verification run
+
+1. `pnpm -w -r build`
+2. `pnpm -w -r lint`
+3. `pnpm --filter @familyscheduler/api test -- igniteJoin.test.ts`

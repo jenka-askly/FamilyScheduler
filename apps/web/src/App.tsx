@@ -14,7 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Switch, TextField, Typography } from '@mui/material';
 
 type Session = { groupId: string; email: string; joinedAt: string };
 type AuthStatus = 'checking' | 'allowed' | 'denied';
@@ -682,7 +682,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [copiedJoinLink, setCopiedJoinLink] = useState(false);
+  const [copiedGroupLink, setCopiedGroupLink] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
   const [scanCaptureOpen, setScanCaptureOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -890,16 +890,14 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   const closeSession = async () => {
     if (!sessionId) return;
+    setError(null);
     const response = await apiFetch('/api/ignite/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, sessionId, traceId: createTraceId() }) });
     const data = await response.json() as { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; message?: string };
     if (!response.ok || !data.ok) {
       setError(data.message ?? 'Unable to close session');
       return;
     }
-    setStatus(data.status ?? 'CLOSING');
-    setSessionId(null);
-    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
-    nav(`/g/${groupId}/app`);
+    setStatus(data.status ?? 'CLOSED');
   };
 
   const uploadPhotoBase64 = async (base64: string) => {
@@ -1025,10 +1023,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      setCopiedJoinLink(true);
-      window.setTimeout(() => setCopiedJoinLink(false), 1800);
+      setCopiedGroupLink(true);
+      window.setTimeout(() => setCopiedGroupLink(false), 1800);
     } catch {
-      setCopiedJoinLink(false);
+      setCopiedGroupLink(false);
     }
   };
 
@@ -1101,6 +1099,24 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     };
   }, [displayedPersonIds, groupId, photoUpdatedAtByPersonId, sessionId]);
 
+  const isJoinOpen = status === 'OPEN';
+  const isClosing = status === 'CLOSING';
+
+  const toggleJoining = async (nextChecked: boolean) => {
+    if (isClosing) return;
+    if (nextChecked) {
+      await startSession();
+      return;
+    }
+    await closeSession();
+  };
+
+  const joinAvailabilityText = isClosing
+    ? 'Closing…'
+    : isJoinOpen
+      ? 'Anyone with the QR code can join now.'
+      : 'Joining is closed. People with the link/QR can’t join anymore.';
+
   return (
     <Page variant="form">
       <PageHeader
@@ -1132,11 +1148,6 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
               >
                 {joinSoundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
               </IconButton>
-              {status === 'OPEN' && sessionId ? (
-                <Button variant="contained" type="button" onClick={() => { void closeSession(); }}>Close</Button>
-              ) : (
-                <Button variant="contained" type="button" onClick={() => { void startSession(); }}>Reopen</Button>
-              )}
             </div>
           </div>
 
@@ -1148,37 +1159,42 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
             <div className="ui-igniteSection ui-igniteQrWrap">
               <Typography variant="subtitle2">Scan to join</Typography>
               {qrLoadFailed ? (
-                <Typography className="ui-meta">QR unavailable — use the join link.</Typography>
+                <Typography className="ui-meta">QR unavailable.</Typography>
               ) : (
-                <img className="ui-igniteQrImg" src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
+                <img className="ui-igniteQrImg" style={{ opacity: isJoinOpen ? 1 : 0.5 }} src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
               )}
             </div>
           )}
 
           {sessionId ? (
             <div className="ui-igniteSection">
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Join link</Typography>
-              <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite join link">
-                <Typography component="div" className="ui-igniteJoinLinkText" title={joinUrl}>{joinUrl}</Typography>
-                <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
-              </div>
-              {copiedJoinLink ? <Typography className="ui-meta">✓ Copied</Typography> : null}
-            </div>
-          ) : null}
-
-          {sessionId ? (
-            <div className="ui-igniteSection">
               <Typography variant="subtitle2" sx={{ mb: 1 }}>Group link</Typography>
               <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite group link">
-                <Typography component="div" className="ui-igniteJoinLinkText" title={meetingUrl}>{meetingUrl}</Typography>
+                <Typography component="div" className="ui-igniteStaticLinkText" title={meetingUrl}>{meetingUrl}</Typography>
                 <IconButton type="button" title="Copy group link" aria-label="Copy group link" onClick={() => { void copyJoinLink(meetingUrl); }}>
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
               </div>
+              {copiedGroupLink ? <Typography className="ui-meta">✓ Copied group link</Typography> : null}
             </div>
           ) : null}
+
+          <div className="ui-igniteSection">
+            <Stack spacing={0.5}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Switch
+                  checked={isJoinOpen}
+                  disabled={!sessionId || isClosing}
+                  onChange={(_event, checked) => {
+                    void toggleJoining(checked);
+                  }}
+                  inputProps={{ 'aria-label': 'Allow new members to join' }}
+                />
+                <Typography variant="subtitle2">Allow new members to join</Typography>
+              </Stack>
+              <Typography className="ui-meta">{joinAvailabilityText}</Typography>
+            </Stack>
+          </div>
 
           <div className="ui-igniteSection">
             <div className="ui-igniteHeader">
@@ -1201,6 +1217,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                 );
               }) : null}
             </div>
+          </div>
+
+          <div className="ui-igniteSection">
+            <Button variant="contained" type="button" fullWidth onClick={() => nav(`/g/${groupId}`)}>Go to group</Button>
           </div>
         </div>
       </div>
