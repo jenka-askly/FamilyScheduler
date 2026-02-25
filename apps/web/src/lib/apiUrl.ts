@@ -49,6 +49,29 @@ const handleProvisionalExpiry = (path: string, payload: { error?: string; code?:
   window.location.replace(`${window.location.pathname}${window.location.search}#/login?m=${encodeURIComponent(PROVISIONAL_EXPIRED_NOTICE)}`);
 };
 
+const summarizeRequestBody = (body: RequestInit['body']): Record<string, unknown> | undefined => {
+  if (body == null) return undefined;
+  if (typeof body === 'string') {
+    try {
+      const parsed = JSON.parse(body) as Record<string, unknown>;
+      return {
+        type: 'json_string',
+        keys: Object.keys(parsed),
+        groupId: typeof parsed.groupId === 'string' ? parsed.groupId : undefined,
+        sessionId: typeof parsed.sessionId === 'string' ? parsed.sessionId : undefined,
+        traceId: typeof parsed.traceId === 'string' ? parsed.traceId : undefined
+      };
+    } catch {
+      return { type: 'string', length: body.length };
+    }
+  }
+  if (body instanceof URLSearchParams) return { type: 'urlsearchparams', keys: Array.from(body.keys()) };
+  if (body instanceof FormData) return { type: 'formdata', keys: Array.from(body.keys()) };
+  if (body instanceof Blob) return { type: 'blob', size: body.size, contentType: body.type };
+  if (body instanceof ArrayBuffer) return { type: 'arraybuffer', byteLength: body.byteLength };
+  return { type: typeof body };
+};
+
 const warnMissingSession = (path: string, traceId?: string): void => {
   if (!traceId || warnedUnauthorizedTraceIds.has(traceId)) return;
   warnedUnauthorizedTraceIds.add(traceId);
@@ -60,8 +83,12 @@ export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Re
   if (init.body != null && !headers.has('content-type')) headers.set('content-type', 'application/json');
   const sessionId = getSessionId();
   if (sessionId && !headers.has('x-session-id')) headers.set('x-session-id', sessionId);
+  const requestSummary = summarizeRequestBody(init.body);
   const response = await fetch(apiUrl(path), { ...init, headers });
   const contentType = response.headers.get('content-type') ?? '';
+  if (response.status === 400) {
+    console.warn('[apiFetch] bad_request', { path, method: init.method ?? 'GET', request: requestSummary });
+  }
   if (contentType.includes('application/json')) {
     try {
       const payload = await response.clone().json() as { ok?: boolean; error?: string; code?: string; message?: string; traceId?: string };
