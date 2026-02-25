@@ -827,17 +827,22 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   };
 
   useEffect(() => {
-    if (!sessionId) {
-      if (!email.trim()) return;
-      void startSession();
+    const normalizedSessionId = sessionId?.trim();
+    if (!normalizedSessionId) {
+      if (sessionId === null && email.trim()) {
+        void startSession();
+      } else {
+        console.debug('[AUTH_DEBUG]', { event: 'ignite_meta_skip', groupId, sessionId });
+      }
       return;
     }
     let canceled = false;
     const poll = async () => {
+      if (canceled || !normalizedSessionId) return;
       const response = await apiFetch('/api/ignite/meta', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, sessionId, email, traceId: createTraceId() })
+        body: JSON.stringify({ groupId, sessionId: normalizedSessionId, email, traceId: createTraceId() })
       });
       const data = await response.json() as IgniteMetaResponse;
       if (!response.ok || !data.ok || canceled) return;
@@ -879,6 +884,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       return;
     }
     setStatus(data.status ?? 'CLOSING');
+    setSessionId(null);
     writeSession({ groupId, email, joinedAt: new Date().toISOString() });
     nav(`/g/${groupId}/app`);
   };

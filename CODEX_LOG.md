@@ -9276,3 +9276,34 @@ Ensure `authRequestLink` does not throw and always returns structured JSON failu
 ### Follow-ups
 
 - Deploy API and validate runtime response payloads from real provider failures to confirm downstream client surfaces exact `code` + `traceId` text.
+
+## 2026-02-25 04:10 UTC (ignite organizer /api/ignite/meta 400 spam stop)
+
+### Objective
+
+Stop Ignite organizer QR-screen `/api/ignite/meta` 400 spam by preventing meta polling when `sessionId` is missing/blank and ensuring polling stops cleanly after close.
+
+### Approach
+
+- Inspected `IgniteOrganizerPage` polling `useEffect` in `apps/web/src/App.tsx`.
+- Added normalized `sessionId` guard (`sessionId?.trim()`) and short-circuit skip path.
+- Scoped auto-start behavior so it only runs from initial `null` state (not blank string values).
+- Added optional debug signal for skipped polling (`ignite_meta_skip`).
+- On successful `closeSession`, explicitly set local `sessionId` to `null` before navigation so polling tears down immediately.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline` ✅ baseline repository state.
+- `rg -n --hidden --no-ignore -S "/api/ignite/meta|igniteMeta\b|setInterval\(|poll|joinedCount|joinedPersonIds|closeRequestedAt|graceSeconds" apps/web/src/App.tsx` ✅ located polling implementation.
+- `nl -ba apps/web/src/App.tsx | sed -n '640,980p'` ✅ reviewed organizer page + effect region.
+- `pnpm -r build` ✅ passed for workspace packages.
+
+### Follow-ups
+
+- Human runtime validation requested: confirm network behavior on QR screen pre-start, active session, and post-close lifecycle in browser devtools.
