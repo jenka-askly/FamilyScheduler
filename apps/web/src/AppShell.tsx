@@ -1177,6 +1177,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         onBreakoutClick={() => { void createBreakoutGroup(); }}
         breakoutDisabled={isSpinningOff}
         onRenameGroupName={renameGroupName}
+        sessionEmail={phone}
       />
       {breakoutNotice ? (
         <div
