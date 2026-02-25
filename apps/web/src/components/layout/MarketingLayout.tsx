@@ -5,10 +5,13 @@ import { useColorMode } from '../../colorMode';
 
 type MarketingLayoutProps = {
   children: ReactNode;
+  hasApiSession?: boolean;
+  sessionEmail?: string | null;
   onSignIn?: () => void;
+  onSignOut?: () => void;
 };
 
-export function MarketingLayout({ children, onSignIn }: MarketingLayoutProps) {
+export function MarketingLayout({ children, hasApiSession = false, sessionEmail, onSignIn, onSignOut }: MarketingLayoutProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { mode, toggleMode } = useColorMode();
 
@@ -25,11 +28,6 @@ export function MarketingLayout({ children, onSignIn }: MarketingLayoutProps) {
             </Typography>
           </Box>
           <Stack direction="row" spacing={0.5} alignItems="center">
-            {onSignIn ? (
-              <Link component="button" type="button" underline="hover" color="text.secondary" onClick={onSignIn} sx={{ fontWeight: 500 }}>
-                Sign in
-              </Link>
-            ) : null}
             <IconButton aria-label="Utilities" onClick={(event) => setAnchorEl(event.currentTarget)}>
               <MenuIcon />
             </IconButton>
@@ -50,6 +48,16 @@ export function MarketingLayout({ children, onSignIn }: MarketingLayoutProps) {
       </Box>
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        {!hasApiSession && onSignIn ? (
+          <MenuItem onClick={() => { setAnchorEl(null); onSignIn(); }}>
+            <Typography>Sign in</Typography>
+          </MenuItem>
+        ) : null}
+        {hasApiSession ? (
+          <MenuItem disabled>
+            <Typography>{sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}</Typography>
+          </MenuItem>
+        ) : null}
         <MenuItem>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
             <Typography>Dark mode</Typography>
@@ -61,6 +69,11 @@ export function MarketingLayout({ children, onSignIn }: MarketingLayoutProps) {
             />
           </Stack>
         </MenuItem>
+        {hasApiSession && onSignOut ? (
+          <MenuItem onClick={() => { setAnchorEl(null); onSignOut(); }}>
+            <Typography>Sign out</Typography>
+          </MenuItem>
+        ) : null}
       </Menu>
     </Box>
   );

@@ -1,3 +1,36 @@
+## 2026-02-25 00:00 UTC update (Auth-aware home + dashboard stub + header sign-in cleanup)
+
+- Home route (`/#/`) is now auth-aware:
+  - Signed-out renders marketing home.
+  - Signed-in renders a lightweight dashboard stub (no API dependency).
+- Added signed-in dashboard content with:
+  - Signed-in indicator (`Signed in as <email>` when available, otherwise `Signed in`)
+  - Primary CTA (`Create a group`)
+  - Best-effort recent affordance (`Open recent group`) when `fs.lastGroupId` exists.
+  - Honest `Your groups` placeholder (`Coming soon...`).
+- Removed duplicate marketing hero sign-in button; hero now keeps only `Create a group`.
+- Cleaned header actions:
+  - Removed standalone sign-in link next to menu icon.
+  - Burger menu now shows `Sign in` + dark mode when signed out.
+  - Burger menu now shows signed-in indicator + dark mode + `Sign out` when signed in.
+- Added best-effort recent-group persistence: navigating to `/#/g/:groupId/app` now stores `fs.lastGroupId`.
+- Added best-effort session email persistence on auth consume (`fs.sessionEmail` when email is present in consume response).
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm -w lint`
+2. `pnpm --filter @familyscheduler/web build`
+3. Visual smoke via Playwright screenshot artifact for signed-in dashboard state.
+
 ## 2026-02-24 22:53 UTC update (Breakout handoff guard + Yapper login cleanup + verification branding)
 
 - Confirmed/kept `/#/handoff` route parsing for both `email` and `phone`, with `groupId` and optional `next` passthrough.
