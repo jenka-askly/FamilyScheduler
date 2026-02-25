@@ -6,10 +6,12 @@ import { IGNITE_DEFAULT_GRACE_SECONDS } from '../lib/ignite.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
+import { ignitePhotoBlobKey } from '../lib/ignite.js';
+import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
 import { isPlausibleEmail, normalizeEmail, findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
 import { createIgniteGraceSession, requireSessionFromRequest } from '../lib/auth/sessions.js';
 
-type IgniteJoinBody = { groupId?: unknown; name?: unknown; email?: unknown; sessionId?: unknown; traceId?: unknown };
+type IgniteJoinBody = { groupId?: unknown; name?: unknown; email?: unknown; sessionId?: unknown; photoBase64?: unknown; traceId?: unknown };
 const normalizeName = (value: unknown): string => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
 
 export async function igniteJoin(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
@@ -30,6 +32,7 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
 
   const name = normalizeName(body.name);
   const emailRaw = typeof body.email === 'string' ? body.email : '';
+  const photoBase64 = typeof body.photoBase64 === 'string' ? body.photoBase64.trim() : '';
   const unauthed = !authedEmail;
   if (unauthed) {
     if (!name) return errorResponse(400, 'name_required', 'name is required', traceId);
@@ -55,6 +58,27 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
 
   if (!loaded.state.ignite.joinedPersonIds.includes(personId)) loaded.state.ignite.joinedPersonIds.push(personId);
   loaded.state.ignite.graceSeconds = loaded.state.ignite.graceSeconds ?? IGNITE_DEFAULT_GRACE_SECONDS;
+  loaded.state.ignite.photoUpdatedAtByPersonId = loaded.state.ignite.photoUpdatedAtByPersonId ?? {};
+
+  if (photoBase64) {
+    if (!storage.putBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing putBinary', traceId);
+    let imageBytes: Buffer;
+    try {
+      imageBytes = decodeImageBase64(photoBase64);
+    } catch (error) {
+      const code = (error as Error).message;
+      if (code === 'image_too_large') {
+        console.log(JSON.stringify({ event: 'ignite_join_photo_rejected', reason: 'image_too_large', traceId, groupId, sessionId }));
+        return errorResponse(413, 'ignite_photo_too_large', 'Photo is too large', traceId);
+      }
+      console.log(JSON.stringify({ event: 'ignite_join_photo_rejected', reason: 'invalid_image_base64', traceId, groupId, sessionId }));
+      return errorResponse(400, 'invalid_photo', 'photoBase64 is invalid', traceId);
+    }
+
+    await storage.putBinary(ignitePhotoBlobKey(groupId, sessionId, personId), imageBytes, 'image/jpeg', { groupId, sessionId, personId, kind: 'ignite-photo', uploadedAt: nowISO });
+    loaded.state.ignite.photoUpdatedAtByPersonId[personId] = nowISO;
+    console.log(JSON.stringify({ event: 'ignite_join_photo_accepted', traceId, groupId, sessionId, personId }));
+  }
 
   await storage.save(groupId, loaded.state, loaded.etag);
 

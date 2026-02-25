@@ -1,3 +1,21 @@
+## 2026-02-25 01:19 UTC update (Ignite join-link route fix + optional joiner photo + grace-session continuity)
+
+- Fixed Ignite organizer share-card labeling/behavior so **Join link** now displays and copies the ignite-session URL (`/#/s/:groupId/:sessionId`), matching QR routing.
+- Kept a separate **Group link** row for the meeting URL (`/#/g/:groupId`) to avoid mislabeling.
+- Added optional joiner photo capture/upload on `IgniteJoinPage` (unauthenticated join flow): hidden file input with `accept="image/*"` + `capture="environment"`, preview thumbnail, and explicit remove/skip path.
+- Extended `POST /api/ignite/join` to accept optional `photoBase64`; backend decodes with existing image guardrails, rejects invalid/oversized payloads with clear errors, and emits trace-linked accept/reject logs.
+- On successful join with photo, backend stores the photo blob under existing ignite-photo key conventions and updates `ignite.photoUpdatedAtByPersonId` so organizer member tiles can render it.
+- Continued Option A grace behavior: unauthenticated ignite joins issue a 30s scoped `igniteGrace` API session (`scopeGroupId=<breakoutGroupId>`), preserving `/g/:breakoutGroupId/app` access during the short window and expiring back to login after timeout.
+
+### Verification run
+
+1. `pnpm -r build`
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for visual smoke)
+3. Manual smoke:
+   - Start breakout as organizer and confirm QR + **Join link** both use `/#/s/:groupId/:sessionId`.
+   - In fresh browser session open join URL, add optional photo + name/email, join into `/g/:breakoutGroupId/app` without immediate login redirect.
+   - Wait >30s and refresh `/app`; confirm redirect to `/login`.
+
 ## 2026-02-25 01:11 UTC update (Split join validation from join-link email send)
 
 - Backend `POST /api/group/join` is now validation-only: it checks `(groupId, email)` membership and returns `{ ok: true, traceId }` on success, or explicit errors (`group_not_found`, `not_allowed`, `join_failed`) without sending email.
