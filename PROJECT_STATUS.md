@@ -3659,3 +3659,24 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `npm -C apps/web run build`
 2. `pnpm --filter @familyscheduler/api build`
+
+## 2026-02-25 09:18 UTC update (Ignite organizer join toggle + separate go-to-group action)
+
+- Replaced organizer Close/Reopen buttons with a single join-availability switch labeled **Allow new members to join**.
+- Added explicit helper text states for ON/OFF and transient closing state (`Closing…`).
+- Updated toggle semantics:
+  - OFF posts `/api/ignite/close`, marks session closed, and **does not** clear `sessionId` or navigate away.
+  - ON posts `/api/ignite/start` to reopen using existing endpoint contract.
+- Removed the organizer **Join link** section entirely.
+- Kept QR generation (api.qrserver.com) and now visually de-emphasize QR when joining is closed.
+- Updated organizer **Group link** presentation to static/non-editable text (monospace/selectable) with copy action.
+- Added a separate primary **Go to group** button that routes to `/#/g/<groupId>` without changing ignite join state.
+- Join-closed contract remains enforced by existing backend behavior (`/api/ignite/join` returns `IGNITE_CLOSED`, rendered in join UI as “This session is closed.”).
+
+### Verification run
+
+1. `pnpm -w -r build` *(fails in this repo because recursive `-w -r` script selection has no matching build script)*
+2. `pnpm -r build`
+3. `pnpm -w -r lint` *(fails in this repo because recursive `-w -r` script selection has no matching lint script)*
+4. `pnpm -r lint` *(fails because no workspace package defines a lint script)*
+5. Browser screenshot captured for organizer invite UI change (mocked API responses).

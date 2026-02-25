@@ -9949,3 +9949,33 @@ Update the "Go to the dashboard" header action so it behaves like a back-to-home
 
 ### Follow-ups
 - Optional UX follow-up: if desired, hide the back control when already on the landing surface (currently only shown in app shell where callback is provided).
+
+## 2026-02-25 09:18 UTC
+
+### Objective
+Implement Ignite organizer Option A UX: replace Close/Reopen actions with join toggle semantics, remove Join link, keep static group link copy affordance, and add explicit Go-to-group navigation button.
+
+### Approach
+- Updated `IgniteOrganizerPage` header actions to use a MUI `Switch` bound to ignite open/closed status.
+- Reworked close behavior to call `/api/ignite/close` without clearing session state or navigating away.
+- Kept reopen/start behavior on toggle-on via `/api/ignite/start`.
+- Removed organizer Join link UI and copy action entirely.
+- Kept QR rendering and applied visual de-emphasis while closed.
+- Rendered Group link as static monospace selectable text with copy button.
+- Added separate primary `Go to group` button that only navigates.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -name AGENTS.md -print` ✅ no additional AGENTS.md files found.
+- `pnpm -w -r build` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`, no matching script for selector).
+- `pnpm -r build` ✅ passed (`api`, `apps/web`, `packages/shared`).
+- `pnpm -r lint` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`, no lint scripts defined).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI capture (manually interrupted after screenshot).
+- Browser Playwright screenshot with mocked API routes ✅ captured organizer UI artifact.
+
+### Follow-ups
+- Add workspace/package lint scripts if lint is required in CI verification checklist.
