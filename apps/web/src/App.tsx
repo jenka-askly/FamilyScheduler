@@ -909,7 +909,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   const loadProfilePhoto = async () => {
     try {
-      const metaResponse = await apiFetch(`/api/user/profile-photo?groupId=${encodeURIComponent(groupId)}`);
+      const metaResponse = await apiFetch(`/api/user/profile-photo?groupId=${encodeURIComponent(groupId)}`, { cache: 'no-store' });
       if (!metaResponse.ok) return;
       const meta = await metaResponse.json() as { ok?: boolean; hasPhoto?: boolean; updatedAt?: string };
       if (!meta.ok || !meta.hasPhoto || !meta.updatedAt) {
@@ -931,10 +931,6 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       // Keep Ignite organizer photo fallback.
     }
   };
-
-  useEffect(() => {
-    void loadProfilePhoto();
-  }, [groupId]);
 
   const uploadPhotoBase64 = async (base64: string) => {
     if (!sessionId || !base64) return;
@@ -1060,13 +1056,24 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     authLog({ component: 'IgniteOrganizerPage', stage: 'join_url', hasJoinUrl: Boolean(joinUrl), joinUrl, sessionId, groupId });
   }, [groupId, joinUrl, sessionId]);
 
-  const groupMemberPersonIds = groupMetaPeople.map((person) => person.personId).filter((id) => Boolean(id));
-  const organizerPersonId = createdByPersonId || joinedPersonIds[0] || groupMemberPersonIds[0] || '';
+  const groupMemberPersonIds = useMemo(
+    () => groupMetaPeople.map((person) => person.personId).filter((id) => Boolean(id)),
+    [groupMetaPeople]
+  );
+  const organizerPersonId = useMemo(
+    () => createdByPersonId || joinedPersonIds[0] || groupMemberPersonIds[0] || '',
+    [createdByPersonId, joinedPersonIds, groupMemberPersonIds]
+  );
   const displayedPersonIds = Array.from(new Set([organizerPersonId, ...groupMemberPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
   const combinedPeopleByPersonId: Record<string, { name?: string }> = {
     ...Object.fromEntries(groupMetaPeople.map((person) => [person.personId, { name: person.name }])),
     ...peopleByPersonId
   };
+
+  useEffect(() => {
+    if (!groupId) return;
+    void loadProfilePhoto();
+  }, [groupId, sessionId, organizerPersonId]);
 
   useEffect(() => {
     if (!sessionId) return;

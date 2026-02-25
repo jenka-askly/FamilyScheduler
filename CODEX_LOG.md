@@ -10066,3 +10066,32 @@ Fix Azure Static Web Apps deployment failure: `BadRequest` due to excessive stat
 ### Follow-ups
 - Re-run the failing GitHub Action workflow to confirm SWA upload now accepts artifact count.
 - If Azure still rejects count, add deploy-time artifact file count diagnostics immediately before deploy to capture exact uploaded file volume.
+
+## 2026-02-25 20:24 UTC (Fix organizer profile photo cache + ignite stabilization reload)
+
+### Objective
+
+Fix organizer profile-photo reliability so uploaded photos appear immediately and remain visible across ignite session transitions/meta stabilization.
+
+### Approach
+
+- Updated profile-photo META request to bypass caches using `apiFetch(..., { cache: 'no-store' })`.
+- Replaced one-shot profile-photo load effect (`[groupId]`) with a retry-capable effect keyed on `[groupId, sessionId, organizerPersonId]`.
+- Added `useMemo` computation for `groupMemberPersonIds` and `organizerPersonId` while keeping identity precedence unchanged.
+- Kept existing object URL revoke logic intact to avoid leaks/regressions.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,260p' apps/web/src/App.tsx` ✅ inspected ignite organizer implementation and existing profile-photo flow.
+- `sed -n '1,220p' apps/web/src/lib/apiUrl.ts` ✅ verified `apiFetch` forwards RequestInit (including `cache`) into `fetch`.
+- `npm -C apps/web run build` ✅ passed.
+
+### Follow-ups
+
+- Human browser verification should confirm no blank organizer-photo window when `createdByPersonId` is initially empty and later populated by `/api/ignite/meta`.

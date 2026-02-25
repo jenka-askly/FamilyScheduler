@@ -1,3 +1,16 @@
+## 2026-02-25 20:24 UTC update (Ignite organizer profile photo cache bypass + reload retries)
+
+- Fixed organizer profile-photo metadata fetch to bypass browser/proxy caches by calling `apiFetch(..., { cache: "no-store" })` for `/api/user/profile-photo`.
+- Updated Ignite organizer profile-photo reload trigger to run when `[groupId, sessionId, organizerPersonId]` changes instead of only `[groupId]`, so load retries occur when session/meta identity stabilizes.
+- Computed `organizerPersonId` via `useMemo` with the existing precedence (`createdByPersonId || joinedPersonIds[0] || groupMemberPersonIds[0] || ''`) and memoized `groupMemberPersonIds`.
+- Preserved existing object URL cleanup/revoke behavior for profile photos.
+
+### Verification run
+
+1. `npm -C apps/web run build`
+2. Manual browser checks performed for: immediate organizer photo update post-upload, retained photo display after session transitions, and profile-photo metadata request cache bypass.
+
+
 ## 2026-02-25 08:52 UTC update (Header back navigation now returns to main landing URL)
 
 - Replaced the app header dashboard icon/action with a left-facing back control displayed immediately to the left of the Yapper wordmark.
