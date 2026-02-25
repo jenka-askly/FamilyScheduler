@@ -6,7 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl, getAuthSessionId, getSessionId } from './lib/apiUrl';
+import { apiFetch, getAuthSessionId, getSessionId } from './lib/apiUrl';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
@@ -676,6 +676,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [joinedPersonIds, setJoinedPersonIds] = useState<string[]>([]);
   const [newlyJoinedPersonIds, setNewlyJoinedPersonIds] = useState<string[]>([]);
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
+  const [photoObjectUrlsByPersonId, setPhotoObjectUrlsByPersonId] = useState<Record<string, { key: string; url: string }>>({});
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
@@ -694,6 +695,11 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const joinedPersonBumpTimeoutRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastChimeAtRef = useRef(0);
+  const photoObjectUrlsRef = useRef<Record<string, { key: string; url: string }>>({});
+
+  useEffect(() => {
+    photoObjectUrlsRef.current = photoObjectUrlsByPersonId;
+  }, [photoObjectUrlsByPersonId]);
 
   const stopScanCaptureStream = () => {
     if (!scanCaptureStreamRef.current) return;
@@ -710,6 +716,9 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     stopScanCaptureStream();
     if (joinBumpTimeoutRef.current != null) window.clearTimeout(joinBumpTimeoutRef.current);
     if (joinedPersonBumpTimeoutRef.current != null) window.clearTimeout(joinedPersonBumpTimeoutRef.current);
+    Object.values(photoObjectUrlsRef.current).forEach((photo) => {
+      if (photo?.url) URL.revokeObjectURL(photo.url);
+    });
   }, []);
 
   useEffect(() => {
@@ -1035,6 +1044,63 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     ...peopleByPersonId
   };
 
+  useEffect(() => {
+    if (!sessionId) return;
+    const activePersonIds = new Set(displayedPersonIds);
+    const withPhotos = displayedPersonIds.filter((personId) => Boolean(photoUpdatedAtByPersonId[personId]));
+
+    setPhotoObjectUrlsByPersonId((existing) => {
+      let changed = false;
+      const next: Record<string, { key: string; url: string }> = {};
+      Object.entries(existing).forEach(([personId, value]) => {
+        if (!activePersonIds.has(personId) || !photoUpdatedAtByPersonId[personId]) {
+          if (value?.url) URL.revokeObjectURL(value.url);
+          changed = true;
+          return;
+        }
+        next[personId] = value;
+      });
+      return changed ? next : existing;
+    });
+
+    let canceled = false;
+    withPhotos.forEach((personId) => {
+      const photoKey = photoUpdatedAtByPersonId[personId] ?? '';
+      if (!photoKey) return;
+      const current = photoObjectUrlsRef.current[personId];
+      if (current?.key === photoKey && current.url) return;
+
+      void (async () => {
+        try {
+          const params = new URLSearchParams({ groupId, sessionId, personId, t: photoKey });
+          const response = await apiFetch(`/api/ignite/photo?${params.toString()}`, { method: 'GET' });
+          if (!response.ok) return;
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          if (canceled) {
+            URL.revokeObjectURL(objectUrl);
+            return;
+          }
+          setPhotoObjectUrlsByPersonId((existing) => {
+            const prior = existing[personId];
+            if (prior?.key === photoKey && prior.url) {
+              URL.revokeObjectURL(objectUrl);
+              return existing;
+            }
+            if (prior?.url) URL.revokeObjectURL(prior.url);
+            return { ...existing, [personId]: { key: photoKey, url: objectUrl } };
+          });
+        } catch {
+          // Ignore photo fetch errors; fallback UI remains visible.
+        }
+      })();
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [displayedPersonIds, groupId, photoUpdatedAtByPersonId, sessionId]);
+
   return (
     <Page variant="form">
       <PageHeader
@@ -1127,7 +1193,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                   <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
                     {hasPhoto
                       ? <>
-                          <img className="ui-ignitePersonThumb" src={apiUrl(`/api/ignite/photo?groupId=${encodeURIComponent(groupId)}&email=${encodeURIComponent(email)}&sessionId=${encodeURIComponent(sessionId)}&personId=${encodeURIComponent(personId)}&t=${encodeURIComponent(photoUpdatedAtByPersonId[personId] ?? '')}`)} alt={personName} />
+                          {photoObjectUrlsByPersonId[personId]?.url ? <img className="ui-ignitePersonThumb" src={photoObjectUrlsByPersonId[personId].url} alt={personName} /> : null}
                           <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
                         </>
                       : <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>}
