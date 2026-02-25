@@ -1,3 +1,35 @@
+## 2026-02-25 07:21 UTC (Fix group/join session-authoritative identity)
+
+### Objective
+
+Fix `/api/group/join` so authorization uses session identity when `x-session-id` is present, and only falls back to body email for unauthenticated requests, without changing existing error/status shapes.
+
+### Approach
+
+- Located join handler and session helper usage paths in `api/src/functions/groupJoin.ts`, `api/src/lib/groupAuth.ts`, and `api/src/lib/auth/sessions.ts`.
+- Implemented minimal handler change to check for `x-session-id`; when present, resolve email via `requireSessionFromRequest(request, traceId, { groupId })` and use `session.email` for join validation.
+- Preserved prior behavior by keeping body-email path for requests without session headers.
+- Returned `HttpError.response` directly for session auth failures, preserving existing unauthorized response structure.
+- Added targeted tests to cover session-driven join success (without body email) and invalid-session unauthorized result.
+
+### Files changed
+
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/groupJoin.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test api/dist/api/src/functions/groupJoin.test.js` ✅ passed (5/5).
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed due pre-existing unrelated test/environment issues (missing `@azure/communication-email` in test runtime and unrelated chat suite failures).
+
+### Follow-ups
+
+- If needed, stabilize the full API test environment so package/runtime deps for all dist test files are consistently available.
+
+
 ## 2026-02-25 06:05 UTC (Breakout spinoff without global session rotation)
 
 ### Objective
