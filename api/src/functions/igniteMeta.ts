@@ -18,8 +18,43 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
     ?? url.searchParams.get('traceId')
   );
 
-  const groupId = ((typeof body.groupId === 'string' ? body.groupId : undefined) ?? url.searchParams.get('groupId') ?? '').trim();
-  if (!uuidV4Pattern.test(groupId)) return errorResponse(400, 'invalid_group_id', 'groupId must be a valid UUID', traceId);
+  const groupId = (typeof body.groupId === 'string' ? body.groupId : undefined) ?? url.searchParams.get('groupId');
+  const email = (typeof body.email === 'string' ? body.email : undefined) ?? url.searchParams.get('email');
+  const phone = (typeof body.phone === 'string' ? body.phone : undefined) ?? url.searchParams.get('phone');
+
+  const hasSessionHeader = Boolean(request.headers.get('x-session-id')?.trim());
+  let caller: { kind: 'email'; email: string } | { kind: 'phone'; phoneE164: string };
+  let validatedGroupId = '';
+  if (hasSessionHeader) {
+    const gid = typeof groupId === 'string' ? groupId.trim() : '';
+    if (!gid) return errorResponse(400, 'invalid_group_id', 'groupId must be a valid UUID', traceId);
+    const session = await requireSessionFromRequest(request, traceId, { groupId: gid });
+    validatedGroupId = gid;
+    caller = { kind: 'email', email: session.email };
+  } else {
+    const identity = validateIdentityRequest(groupId, email, phone);
+    if (!identity.ok) {
+      const payload = (identity.response.jsonBody as Record<string, unknown>) ?? {};
+      if (identity.response.status === 400) {
+        const code = typeof payload.code === 'string' ? payload.code : (typeof payload.error === 'string' ? payload.error : 'bad_request');
+        const message = typeof payload.message === 'string'
+          ? payload.message
+          : code === 'invalid_group_id'
+            ? 'groupId must be a valid UUID'
+            : code === 'identity_required'
+              ? 'email or phone is required'
+              : code === 'invalid_email'
+                ? 'email is invalid'
+                : code === 'invalid_phone'
+                  ? 'phone is invalid'
+                  : 'Bad request';
+        return { ...identity.response, jsonBody: { ...payload, code, message, traceId } };
+      }
+      return { ...identity.response, jsonBody: { ...payload, traceId } };
+    }
+    validatedGroupId = identity.groupId;
+    caller = identity.identity;
+  }
 
   const sessionId = ((typeof body.sessionId === 'string' ? body.sessionId : undefined) ?? url.searchParams.get('sessionId') ?? '').trim();
   if (!sessionId) return errorResponse(400, 'sessionId_required', 'sessionId is required', traceId);
@@ -49,22 +84,17 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
   const storage = createStorageAdapter();
   let loaded;
   try {
-    loaded = await storage.load(groupId);
+    loaded = await storage.load(validatedGroupId);
   } catch (error) {
     if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
     throw error;
   }
 
-  if (authedEmail) {
-    const membership = requireActiveMember(loaded.state, authedEmail, traceId);
-    if (!membership.ok) return membership.response;
-  } else if (email) {
-    const membership = requireActiveMember(loaded.state, normalizeEmail(email), traceId);
-    if (!membership.ok) return membership.response;
-  } else if (!phoneE164 || !findActivePersonByPhone(loaded.state, phoneE164)) {
+  if (caller.kind === 'email') {
+    if (!findActiveMemberByEmail(loaded.state, caller.email)) return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
+  } else if (!findActivePersonByPhone(loaded.state, caller.phoneE164)) {
     return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
   }
-
   if (!loaded.state.ignite || loaded.state.ignite.sessionId !== sessionId) return errorResponse(404, 'ignite_not_found', 'Ignite session not found', traceId);
 
   const ignite = loaded.state.ignite;
