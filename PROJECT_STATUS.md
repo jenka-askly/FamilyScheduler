@@ -3299,6 +3299,39 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
    - Confirm `fs.sessionId` appears and persists for at least a few seconds.
    - If cleared, inspect console for `[apiFetch] session_id_removed` payload with `code/path/traceId/currentHash`.
 
+## 2026-02-25 04:10 UTC update (ignite organizer meta polling guard)
+
+### What changed
+
+- Tightened Ignite organizer polling gate so `/api/ignite/meta` only runs when `sessionId` is non-empty after trimming.
+- Added a debug skip event when polling is skipped due to missing/blank `sessionId`: `console.debug('[AUTH_DEBUG]', { event: 'ignite_meta_skip', groupId, sessionId })`.
+- Prevented unintended auto-restart loops by only auto-calling `startSession()` when `sessionId === null` (initial state), not when it is an empty string.
+- Stopped post-close polling immediately by clearing local organizer `sessionId` on successful close.
+
+### Acceptance criteria
+
+- On organizer QR screen with no active session (`sessionId` empty/missing), no `/api/ignite/meta` polling requests are sent.
+- After session start, `/api/ignite/meta` polling resumes normally with joined counts.
+- After session close succeeds, organizer polling stops and no repeated 400 spam occurs.
+
+### Non-regressions
+
+- Existing session start/reopen behavior remains unchanged for valid organizer emails.
+- Existing joined-count and joined-person bump/chime behavior remains unchanged while session is open.
+
+### How to verify
+
+1. `pnpm -r build`
+2. Run web app and open Ignite organizer route:
+   - Before starting session: verify no `/api/ignite/meta` requests fire.
+   - Start session: verify `/api/ignite/meta` returns 200 and updates joined info.
+   - Close session: verify polling ceases (no further `/api/ignite/meta` spam).
+
+### Expected signals
+
+- Build succeeds.
+- Browser Network tab shows no meta polling before/after session lifecycle except during active open session.
+- Console may show one `[AUTH_DEBUG]` `ignite_meta_skip` event when `sessionId` is absent.
 ## 2026-02-25 04:02 UTC update (ignite meta guard + 400 diagnostics)
 
 ### What changed
