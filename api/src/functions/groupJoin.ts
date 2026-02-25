@@ -2,6 +2,7 @@ import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functio
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { findActiveMemberByEmail, isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.js';
+import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 
@@ -61,7 +62,18 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
 
-  const emailRaw = typeof body.email === 'string' ? body.email.trim() : '';
+  let emailRaw = typeof body.email === 'string' ? body.email.trim() : '';
+  const hasSessionHeader = !!request.headers?.get('x-session-id')?.trim();
+  if (hasSessionHeader) {
+    try {
+      const session = await requireSessionFromRequest(request, traceId, { groupId });
+      emailRaw = session.email;
+    } catch (error) {
+      if (error instanceof HttpError) return error.response;
+      throw error;
+    }
+  }
+
   const validation = await validateGroupJoinAccess(groupId, emailRaw, traceId);
   if (!validation.ok) return validation.response;
 

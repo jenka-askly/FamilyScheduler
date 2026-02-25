@@ -1,3 +1,17 @@
+## 2026-02-25 07:21 UTC update (group/join prefers session identity when x-session-id present)
+
+- Updated `/api/group/join` handler to resolve authorization email from session identity when `x-session-id` is provided.
+- When no session header is present, join auth still falls back to request body `email` exactly as before.
+- Preserved existing status/error behavior for invalid/missing body email in unauthenticated flows (`403 not_allowed`).
+- Preserved unauthorized behavior when session header is present but invalid (`401 unauthorized`).
+- Added API tests for: session-email authorization without body email, and invalid-session rejection path.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build`
+2. `node --test api/dist/api/src/functions/groupJoin.test.js`
+3. `pnpm --filter @familyscheduler/api test` (known pre-existing unrelated failures in this container; see CODEX_LOG entry)
+
 ## 2026-02-25 07:10 UTC update (GroupAuthGate uses API session + server membership)
 
 - Updated `GroupAuthGate` to stop requiring local `familyscheduler.session` for already-authenticated users.
