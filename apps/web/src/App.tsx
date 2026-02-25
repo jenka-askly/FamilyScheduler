@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from './AppShell';
+import { DashboardHomePage } from './components/DashboardHomePage';
 import { ProductHomePage } from './components/ProductHomePage';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { MarketingLayout } from './components/layout/MarketingLayout';
@@ -20,6 +21,8 @@ const SESSION_KEY = 'familyscheduler.session';
 const ROOT_SIGN_IN_MESSAGE = 'Please sign in to continue.';
 const PENDING_AUTH_KEY = 'fs.pendingAuth';
 const AUTH_CHANNEL_NAME = 'fs-auth';
+const SESSION_EMAIL_KEY = 'fs.sessionEmail';
+const LAST_GROUP_ID_KEY = 'fs.lastGroupId';
 
 
 const readSession = (): Session | null => {
@@ -513,13 +516,14 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
           method: 'POST',
           body: JSON.stringify({ token, traceId })
         });
-        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string };
+        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string; email?: string };
         if (!response.ok || !data.ok || !data.sessionId) {
           if (!canceled) setError(data?.message ?? data?.error ?? 'Unable to sign in with this link.');
           return;
         }
         if (!canceled) {
           window.localStorage.setItem('fs.sessionId', data.sessionId);
+          if (data.email) window.localStorage.setItem(SESSION_EMAIL_KEY, data.email);
           if (typeof window.BroadcastChannel === 'function') {
             const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
             channel.postMessage({ type: 'AUTH_SUCCESS', sessionId: data.sessionId, ts: Date.now() });
@@ -1269,6 +1273,15 @@ function HandoffPage({ groupId, email, phone, next }: { groupId: string; email?:
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getSessionId()));
+  const sessionEmail = useMemo(() => window.localStorage.getItem(SESSION_EMAIL_KEY), [hash, hasApiSession]);
+  const recentGroupId = useMemo(() => window.localStorage.getItem(LAST_GROUP_ID_KEY), [hash, hasApiSession]);
+
+  const signOut = () => {
+    window.localStorage.removeItem('fs.sessionId');
+    window.localStorage.removeItem(SESSION_EMAIL_KEY);
+    setHasApiSession(false);
+    nav('/', { replace: true });
+  };
   useEffect(() => {
     const refreshAuth = () => {
       setHasApiSession(Boolean(getSessionId()));
@@ -1276,7 +1289,7 @@ export function App() {
     };
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key === 'fs.sessionId' && event.newValue) refreshAuth();
+      if (event.key === 'fs.sessionId' || event.key === SESSION_EMAIL_KEY) refreshAuth();
     };
 
     let channel: BroadcastChannel | null = null;
@@ -1307,8 +1320,31 @@ export function App() {
     setHasApiSession(Boolean(getSessionId()));
   }, [hash]);
 
+  useEffect(() => {
+    if (route.type !== 'app') return;
+    window.localStorage.setItem(LAST_GROUP_ID_KEY, route.groupId);
+  }, [route]);
+
   if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
-  if (route.type === 'home') return <MarketingLayout onSignIn={() => nav('/login')}><ProductHomePage onCreateGroup={() => nav('/create')} onSignIn={() => nav('/login')} /></MarketingLayout>;
+  if (route.type === 'home') {
+    if (!hasApiSession) {
+      return (
+        <MarketingLayout hasApiSession={false} onSignIn={() => nav('/login')}>
+          <ProductHomePage onCreateGroup={() => nav('/create')} />
+        </MarketingLayout>
+      );
+    }
+    return (
+      <MarketingLayout hasApiSession sessionEmail={sessionEmail} onSignOut={signOut}>
+        <DashboardHomePage
+          signedInLabel={sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}
+          onCreateGroup={() => nav('/create')}
+          hasRecentGroup={Boolean(recentGroupId)}
+          onOpenRecentGroup={recentGroupId ? () => nav(`/g/${recentGroupId}/app`) : undefined}
+        />
+      </MarketingLayout>
+    );
+  }
   if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
   if (route.type === 'create' && !hasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;

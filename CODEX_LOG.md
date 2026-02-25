@@ -8529,3 +8529,39 @@ Implement breakout QR join contract so authenticated users auto-join immediately
 ### Follow-ups
 
 - Human staging smoke still required for organizer QR and mailbox delivery confirmation end-to-end.
+
+
+## 2026-02-25 00:00 UTC (Auth-aware home routing + dashboard stub + sign-in action cleanup)
+
+### Objective
+
+Implement auth-aware root home behavior, remove duplicate sign-in entry points, and add a lightweight signed-in dashboard stub with a recent-group affordance.
+
+### Approach
+
+- Added a new `DashboardHomePage` component and routed signed-in `/#/` traffic to it.
+- Kept signed-out `/#/` on marketing home.
+- Updated marketing/header menu behavior to be auth-aware and removed standalone sign-in link in header row.
+- Removed hero-level duplicate sign-in button from product home.
+- Added best-effort local persistence for `fs.lastGroupId` when navigating into `/g/:groupId/app`.
+- Added best-effort persistence for `fs.sessionEmail` from auth consume response payload when available.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -w lint` ✅ passed (`no lint yet`).
+- `pnpm --filter @familyscheduler/web build` ✅ passed (Vite build successful; non-blocking chunk-size warning).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual verification; stopped after screenshot.
+- `run_playwright_script` ✅ captured signed-in dashboard screenshot at `browser:/tmp/codex_browser_invocations/bb968eea7fbd1b7b/artifacts/artifacts/dashboard-home.png`.
+
+### Follow-ups
+
+- Manual staging smoke still recommended for full sign-in/sign-out and recent-group roundtrip flow.

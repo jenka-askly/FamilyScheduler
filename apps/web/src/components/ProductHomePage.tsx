@@ -5,7 +5,6 @@ import { Box, Button, Stack, Typography } from '@mui/material';
 
 type ProductHomePageProps = {
   onCreateGroup: () => void;
-  onSignIn: () => void;
 };
 
 const features = [
@@ -41,7 +40,7 @@ const steps = [
   }
 ];
 
-export function ProductHomePage({ onCreateGroup, onSignIn }: ProductHomePageProps) {
+export function ProductHomePage({ onCreateGroup }: ProductHomePageProps) {
   return (
     <Stack spacing={{ xs: 7, md: 9 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 4, md: 6 }} alignItems="stretch">
@@ -56,9 +55,6 @@ export function ProductHomePage({ onCreateGroup, onSignIn }: ProductHomePageProp
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <Button variant="contained" onClick={onCreateGroup} sx={{ px: 2.5, py: 1.1, transition: 'transform 140ms ease, box-shadow 140ms ease', '&:hover': { transform: 'translateY(-1px)' } }}>
               Create a group
-            </Button>
-            <Button variant="outlined" onClick={onSignIn} sx={{ px: 2.5, py: 1.1, transition: 'background-color 140ms ease' }}>
-              Sign in
             </Button>
           </Stack>
         </Stack>
