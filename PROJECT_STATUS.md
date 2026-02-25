@@ -1,3 +1,16 @@
+## 2026-02-25 04:23 UTC update (Ignite identity flexibility + organizer polling guard)
+
+- Updated `ignite/meta` and `ignite/photo` (GET) identity handling to support authenticated callers via `x-session-id` without requiring phone.
+- For unauthenticated callers, both endpoints now accept either `email` or `phone`; if both are missing they return `400` with `identity_required`.
+- Added `validateIdentityRequest` in `api/src/lib/groupAuth.ts` to keep identity parsing/validation centralized while leaving existing phone-only flows unchanged.
+- Tightened organizer meta polling guard in `IgniteOrganizerPage` to skip requests unless a trimmed `sessionId` exists, preventing avoidable 400 polling noise.
+- Preserved backward compatibility for phone-based joiner usage by continuing to accept and authorize by normalized phone.
+
+### Verification run
+
+1. `pnpm -r build`
+2. `pnpm --filter @familyscheduler/api test` (fails in this container due pre-existing test/dependency environment issues; see CODEX_LOG)
+
 ## 2026-02-25 03:57 UTC update (Auth redirect/clear visibility instrumentation)
 
 - Added a global `authDebug(event, data)` helper in `apps/web/src/App.tsx` that prints a structured `[AUTH_DEBUG]` snapshot (`hash`, `fs.sessionId`, `fs.sessionEmail`, and `familyscheduler.session`) for auth-flow diagnostics.
