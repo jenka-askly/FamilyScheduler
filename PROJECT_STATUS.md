@@ -1,3 +1,24 @@
+## 2026-02-25 23:36 UTC update (Dashboard layout refactor + authenticated header tweaks)
+
+- Dashboard home for authenticated users now removes the welcome/recent/diagnostics blocks and uses a streamlined CTA + groups-first layout.
+- Replaced top actions with primary `⚡ Break Out` (quick create + route to `/#/g/:id/ignite`) and secondary `+ Create Group` (`/#/create` flow unchanged).
+- Converted “Your groups” card into a flat `YOUR GROUPS` section with compact divider-separated rows, chevrons for active rows, and invite rows keeping Accept/Decline controls with click propagation blocked.
+- Updated marketing header branding with a new Yapper product icon and conditional tagline rendering (tagline hidden when authenticated; preserved for logged-out marketing).
+
+### Files changed
+
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/assets/yapper-icon.svg`
+- `apps/web/src/App.tsx`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for UI smoke + screenshot; API unavailable in container, so dashboard list fetch shows expected proxy warning)
+
+
 ## 2026-02-25 20:58 UTC update (Ignite organizer second-session photo + header/text parity)
 
 - **Bug root cause:** Organizer profile photo meta could be served stale and profile-photo reload only depended on limited triggers, so second Ignite sessions could miss refreshed metadata and keep fallback initials.

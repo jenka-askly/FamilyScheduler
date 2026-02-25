@@ -1555,7 +1555,6 @@ export function App() {
     return sanitizedSessionEmail;
   }, [hash, hasApiSession]);
   const sessionName = useMemo(() => window.localStorage.getItem(SESSION_NAME_KEY), [hash, hasApiSession]);
-  const recentGroupId = useMemo(() => window.localStorage.getItem(LAST_GROUP_ID_KEY), [hash, hasApiSession]);
 
   const signOut = () => {
     window.localStorage.removeItem('fs.sessionId');
@@ -1636,10 +1635,7 @@ export function App() {
     return (
       <MarketingLayout hasApiSession sessionEmail={sessionEmail} sessionName={sessionName} onSignOut={signOut}>
         <DashboardHomePage
-          signedInLabel={sessionName ? `Signed in as ${sessionName}${sessionEmail ? ` (${sessionEmail})` : ''}` : sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}
           onCreateGroup={() => nav('/create')}
-          recentGroupId={recentGroupId ?? undefined}
-          onOpenRecentGroup={recentGroupId ? () => nav(`/g/${recentGroupId}/app`) : undefined}
         />
       </MarketingLayout>
     );
