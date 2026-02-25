@@ -1,3 +1,20 @@
+## 2026-02-25 03:57 UTC update (Auth redirect/clear visibility instrumentation)
+
+- Added a global `authDebug(event, data)` helper in `apps/web/src/App.tsx` that prints a structured `[AUTH_DEBUG]` snapshot (`hash`, `fs.sessionId`, `fs.sessionEmail`, and `familyscheduler.session`) for auth-flow diagnostics.
+- Added explicit logging when Ignite join writes `fs.sessionId` (`ignite_join_set_session`) with breakout group id and session id prefix.
+- Added route-level render/redirect logging so app/ignite guard decisions now emit `route_render` and `route_redirect_login` with `routeType` + `hasApiSession`.
+- Added `GroupAuthGate` decision-time snapshots and redirect reason logs:
+  - `gate_decision_snapshot`
+  - `gate_redirect_missing_api_session`
+  - `gate_redirect_no_local_session`
+  - `gate_redirect_group_mismatch`
+  - `gate_allowed`
+- Added an `[AUTH_DEBUG]` log in `apiFetch` immediately before `fs.sessionId` removal (`apiFetch_clear_session`) to make session clearing explicit and attributable.
+
+### Verification run
+
+1. `pnpm -r build`
+
 ## 2026-02-25 03:45 UTC update (authRequestLink structured failure responses)
 
 - Hardened `POST /api/auth/request-link` so handler-level failures no longer escape as thrown exceptions; all known failures now return explicit JSON with `ok:false`, `error`, `code`, and `traceId`.

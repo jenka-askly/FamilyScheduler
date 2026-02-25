@@ -33,6 +33,13 @@ const handleProvisionalExpiry = (path: string, payload: { error?: string; code?:
   const currentHash = window.location.hash || '';
   const clearPayload = { code, path, traceId: payload.traceId, currentHash };
   console.warn('[apiFetch] api_session_cleared', clearPayload);
+  console.debug('[AUTH_DEBUG]', {
+    event: 'apiFetch_clear_session',
+    code,
+    path,
+    currentHash: window.location.hash,
+    sessionIdBefore: window.localStorage.getItem(SESSION_ID_KEY)?.slice(0, 8)
+  });
   window.localStorage.removeItem(SESSION_ID_KEY);
   console.warn('[apiFetch] session_id_removed', clearPayload);
   authLog({ event: 'api_session_cleared', component: 'apiFetch', stage: 'clear_session_id', ...clearPayload });
