@@ -27,7 +27,6 @@ export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, 
         return;
       }
 
-      if (result.sessionId) window.localStorage.setItem('fs.sessionId', result.sessionId);
       const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
       if (!popup) {
         setBreakoutNotice(result.urlToOpen);

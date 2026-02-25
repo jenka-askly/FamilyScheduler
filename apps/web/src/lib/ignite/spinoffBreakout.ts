@@ -9,14 +9,15 @@ type SpinoffPayload = {
   ok?: boolean;
   newGroupId?: string;
   linkPath?: string;
-  sessionId?: string;
   message?: string;
   traceId?: string;
 };
 
 export type SpinoffBreakoutResult =
-  | { ok: true; urlToOpen: string; newGroupId: string; linkPath: string; sessionId?: string }
+  | { ok: true; urlToOpen: string; newGroupId: string; linkPath: string }
   | { ok: false; message: string; traceId?: string };
+
+let spinoffInFlight = false;
 
 export async function spinoffBreakoutGroup({
   sourceGroupId,
@@ -25,7 +26,10 @@ export async function spinoffBreakoutGroup({
   sourceGroupId: string;
   groupName?: string;
 }): Promise<SpinoffBreakoutResult> {
+  if (spinoffInFlight) return { ok: false, message: 'Breakout request already in progress.' };
+
   const traceId = createTraceId();
+  spinoffInFlight = true;
   try {
     const response = await apiFetch('/api/ignite/spinoff', {
       method: 'POST',
@@ -51,7 +55,6 @@ export async function spinoffBreakoutGroup({
       ok: true,
       newGroupId: data.newGroupId,
       linkPath: data.linkPath,
-      sessionId: data.sessionId,
       urlToOpen: `${window.location.origin}${data.linkPath}`
     };
   } catch {
@@ -60,5 +63,7 @@ export async function spinoffBreakoutGroup({
       traceId,
       message: 'Unable to create breakout group.'
     };
+  } finally {
+    spinoffInFlight = false;
   }
 }

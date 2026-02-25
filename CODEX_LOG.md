@@ -9597,3 +9597,37 @@ Ensure breakout organizer launches directly into the new group's ignite organize
 ### Follow-ups
 
 - Human browser validation: from authenticated home/dashboard click **Breakout** and confirm no join dialog and no login redirect in popup.
+
+## 2026-02-25 05:53 UTC (Spinoff: stop sessionId rotation and session write)
+
+### Objective
+
+Stop breakout spinoff from rotating/publishing a new session id; keep using caller's existing authenticated session.
+
+### Approach
+
+- Switched API spinoff auth to `requireSessionFromRequest` and normalized `session.email` for organizer membership seeding.
+- Removed `sessionId` from spinoff success response payload.
+- Removed web-side `fs.sessionId` write in breakout flows and added in-flight guarding to avoid duplicate requests.
+- Added test assertion that spinoff response does not include `sessionId`.
+
+### Files changed
+
+- `api/src/functions/igniteSpinoff.ts`
+- `api/src/functions/igniteSpinoff.test.ts`
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅
+- `git rev-parse --abbrev-ref HEAD` ✅
+- `git log -n 1 --oneline` ✅
+- `pnpm -r build` ✅
+
+### Follow-ups
+
+- Manual browser verification requested: confirm breakout no longer mutates `fs.sessionId` and opens `/#/g/<newGroupId>/ignite` without join dialog.

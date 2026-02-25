@@ -59,6 +59,7 @@ test('igniteSpinoff seeds organizer person with source name and email', async ()
   assert.equal(response.status, 200);
   const body = response.jsonBody as any;
   assert.equal(body.ok, true);
+  assert.equal('sessionId' in body, false);
 
   const breakout = groups.get(body.newGroupId);
   assert.ok(breakout);

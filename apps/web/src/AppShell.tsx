@@ -397,6 +397,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const [breakoutNotice, setBreakoutNotice] = useState<string | null>(null);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
+  const breakoutInFlightRef = useRef(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
@@ -1147,7 +1148,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }, []);
 
   const createBreakoutGroup = async () => {
-    if (isSpinningOff) return;
+    if (isSpinningOff || breakoutInFlightRef.current) return;
+    breakoutInFlightRef.current = true;
     setBreakoutError(null);
     setIsSpinningOff(true);
     try {
@@ -1157,20 +1159,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         return;
       }
 
-      if (result.sessionId) {
-        window.localStorage.setItem('fs.sessionId', result.sessionId);
-        console.info('[BREAKOUT_DEBUG]', {
-          at: 'set_session_before_open',
-          sessionIdPrefix: result.sessionId.slice(0, 8)
-        });
-      }
       console.info('[BREAKOUT_DEBUG]', {
         at: 'before_open',
         fromHref: window.location.href,
         urlToOpen: result.urlToOpen,
         linkPath: result.linkPath,
-        newGroupId: result.newGroupId,
-        hasSessionId: Boolean(result.sessionId)
+        newGroupId: result.newGroupId
       });
       const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
       console.info('[BREAKOUT_DEBUG]', { at: 'after_open', opened: Boolean(popup) });
@@ -1183,6 +1177,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       popup.focus?.();
       return;
     } finally {
+      breakoutInFlightRef.current = false;
       setIsSpinningOff(false);
     }
   };

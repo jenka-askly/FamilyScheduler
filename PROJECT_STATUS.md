@@ -1,3 +1,15 @@
+## 2026-02-25 05:53 UTC update (Stop spinoff session rotation; reuse existing session)
+
+- Updated `ignite/spinoff` auth to require an existing request session via `requireSessionFromRequest(...)` scoped to the source group, then use `session.email` as organizer identity.
+- Spinoff response no longer returns `sessionId`; success payload is now `{ ok, newGroupId, groupName, linkPath, traceId }`.
+- Breakout web flow no longer writes `fs.sessionId` from spinoff. New-tab URL is consistently built as `${window.location.origin}${data.linkPath}`.
+- Added in-flight guarding for breakout creation in both UI and spinoff client helper to prevent double-click/double-request races.
+- Added API regression assertion that spinoff response does not expose `sessionId`.
+
+### Verification run
+
+1. `pnpm -r build`
+
 ## 2026-02-25 05:27 UTC update (Breakout organizer tab uses spinoff-returned session before open)
 
 - Verified `spinoffBreakoutGroup` success payload/return shape includes `newGroupId`, `linkPath`, optional `sessionId`, and computed `urlToOpen`.
