@@ -1,3 +1,33 @@
+## 2026-02-25 05:27 UTC (Validation: spinoff-returned sessionId used before breakout open)
+
+### Objective
+
+Validate and, if needed, implement breakout flow changes so organizer opens the new breakout tab without join dialog by using spinoff-returned `sessionId` prior to `window.open`.
+
+### Approach
+
+- Inspected breakout spinoff helper return type and success object contents.
+- Inspected `AppShell.createBreakoutGroup` call path for `sessionId` persistence timing relative to `window.open`.
+- Verified search results for all relevant fields/log hooks (`sessionId`, `linkPath`, `urlToOpen`, `set_session_before_open`).
+- Ran full monorepo build to confirm no regressions.
+
+### Files changed
+
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline && nl -ba apps/web/src/lib/ignite/spinoffBreakout.ts | sed -n '1,220p' && nl -ba apps/web/src/AppShell.tsx | sed -n '1125,1215p'` ✅ confirmed requested implementation is already present.
+- `rg -n "SpinoffBreakoutResult|sessionId|linkPath|urlToOpen" apps/web/src/lib/ignite/spinoffBreakout.ts` ✅ confirmed return shape includes `linkPath`, optional `sessionId`, and `urlToOpen`.
+- `rg -n "createBreakoutGroup|set_session_before_open|window.open\(|fs.sessionId" apps/web/src/AppShell.tsx` ✅ confirmed session is set before open.
+- `pnpm -r build` ✅ passed across workspace projects.
+
+### Follow-ups
+
+- Human runtime verification still recommended in browser: click Breakout from authenticated home and confirm direct organizer open for new group with no join dialog/login redirect.
+
+
 ## 2026-02-25 03:57 UTC (Auth bounce instrumentation for join/login redirects)
 
 ### Objective
