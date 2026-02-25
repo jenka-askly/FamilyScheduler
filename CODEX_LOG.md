@@ -9534,3 +9534,36 @@ Add targeted breakout click-path diagnostics and verify/fix URL construction so 
 ### Follow-ups
 
 - Human-run browser verification: click **Breakout Session** and paste emitted `[BREAKOUT_DEBUG]` lines (`spinoff_response`, `before_open`, `after_open`) to confirm `urlToOpen` and `linkPath` match expected `/#/g/<newGroupId>/ignite` shape.
+
+## 2026-02-25 05:01 UTC (Use spinoff sessionId before breakout popup open)
+
+### Objective
+
+Ensure breakout organizer launches directly into the new group's ignite organizer route without showing join dialog by writing the spinoff-returned API session id before opening the popup.
+
+### Approach
+
+- Inspected `spinoffBreakoutGroup` return contract and `AppShell.createBreakoutGroup` open flow.
+- Extended `SpinoffPayload`/`SpinoffBreakoutResult` to include optional `sessionId` from `/api/ignite/spinoff` response.
+- In `AppShell.createBreakoutGroup`, set `window.localStorage.setItem('fs.sessionId', result.sessionId)` before `window.open` when present.
+- Added structured debug signal `set_session_before_open` with `sessionIdPrefix`.
+- Applied same pre-seeding in `DashboardHomePage` breakout launcher to keep breakout entry points aligned.
+
+### Files changed
+
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short; git rev-parse --abbrev-ref HEAD; git log -n 1 --oneline` ✅
+- `nl -ba apps/web/src/lib/ignite/spinoffBreakout.ts | sed -n '1,200p'` ✅
+- `nl -ba apps/web/src/AppShell.tsx | sed -n '1125,1205p'` ✅
+- `pnpm -r build` ✅
+
+### Follow-ups
+
+- Human browser validation: from authenticated home/dashboard click **Breakout** and confirm no join dialog and no login redirect in popup.
