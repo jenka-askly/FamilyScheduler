@@ -81,6 +81,18 @@ This generates a new commit SHA. Since the web build injects `VITE_BUILD_SHA`, t
 
 
 
+
+## Required API environment variables
+
+- `AZURE_TABLES_CONNECTION_STRING`
+- `STORAGE_ACCOUNT_URL`
+- `STATE_CONTAINER`
+- `STATE_BLOB_PREFIX` (optional, defaults to `familyscheduler/groups`)
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `AZURE_OPENAI_DEPLOYMENT` (optional deployment identifier for usage attribution)
+- `AZURE_COMMUNICATION_CONNECTION_STRING` / `EMAIL_SENDER_ADDRESS` (for invite email)
+
 ## OpenAI production diagnostics
 
 - Chat logs are structured JSON and include a `traceId` plus OpenAI request lifecycle markers (`chat_openai_before_fetch`, `chat_openai_after_fetch`, `chat_openai_exception`).

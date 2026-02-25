@@ -27,12 +27,15 @@ import { igniteSpinoff } from './functions/igniteSpinoff.js';
 import { userProfilePhotoSet } from './functions/userProfilePhotoSet.js';
 import { userProfilePhotoMeta } from './functions/userProfilePhotoMeta.js';
 import { userProfilePhotoGet } from './functions/userProfilePhotoGet.js';
+import { ensureTablesInitialized } from './lib/tables/tablesClient.js';
+import { meGroups } from './functions/meGroups.js';
+import { health } from './functions/health.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupMeta', 'groupRename', 'meGroups', 'chat', 'direct', 'diagnoseOpenAi', 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -56,6 +59,8 @@ startupLog('loading-functions-entrypoint', {
   nodeVersion: process.version
 });
 
+
+void ensureTablesInitialized().catch((error) => startupLog('tables-init-failed', { error: error instanceof Error ? error.message : String(error) }));
 
 startupLog('time-resolve-ai-config', {
   timeResolveModel: process.env.TIME_RESOLVE_MODEL ?? null,
@@ -82,12 +87,14 @@ registerHttp('groupJoinLink', 'group/join-link', ['POST'], groupJoinLink);
 registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
 
 registerHttp('groupRename', 'group/rename', ['POST'], groupRename);
+registerHttp('meGroups', 'me/groups', ['GET'], meGroups);
 
 registerHttp('chat', 'chat', ['POST'], chat);
 
 registerHttp('direct', 'direct', ['POST'], direct);
 
 registerHttp('diagnoseOpenAi', 'diagnose/openai', ['GET'], diagnoseOpenAi);
+registerHttp('health', 'health', ['GET'], health);
 
 registerHttp('usage', 'usage', ['GET'], usage);
 
