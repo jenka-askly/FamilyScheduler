@@ -10273,3 +10273,42 @@ Fix `@azure/data-tables` typing break in API usage tables by ensuring entity typ
 - Follow-ups:
   - Consider adding persisted MRU `lastOpenedAt` when available.
   - Consider adding explicit UserRecentEvents table if appointment recents become required.
+## 2026-02-25 22:30 UTC (Ignite organizer identity/photo key unification + UI cleanup)
+
+### Objective
+Implement organizer profile-photo persistence fix across Ignite sessions by unifying on Ignite person identity, preserve backward compatibility for legacy member-keyed blobs, and apply requested organizer UI polish.
+
+### Approach
+- Traced Ignite identity usage and confirmed mismatch between `createdByPersonId`/`joinedPersonIds` and profile-photo keying paths.
+- Added shared resolver `resolveActivePersonIdForEmail(state, email)` in membership auth helpers.
+- Updated ignite start flow to persist organizer `createdByPersonId` via resolved active person id.
+- Updated profile-photo set/meta/get flows to:
+  - use canonical personId key,
+  - fallback reads to legacy memberId key,
+  - dual-write canonical + legacy keys (when ids differ) for one release.
+- Updated ignite meta joined-count computation to include organizer with dedupe.
+- Updated organizer page rendering: removed accidental title block, centered helper text wrapper, aligned “Who’s in” + joined count row, and added singular/plural count text with organizer-minimum safety net.
+- Added/updated unit tests for new backend behavior.
+
+### Files changed
+- `api/src/lib/auth/requireMembership.ts`
+- `api/src/functions/igniteStart.ts`
+- `api/src/functions/igniteMeta.ts`
+- `api/src/functions/igniteMeta.test.ts`
+- `api/src/functions/userProfilePhotoSet.ts`
+- `api/src/functions/userProfilePhotoMeta.ts`
+- `api/src/functions/userProfilePhotoGet.ts`
+- `api/src/functions/userProfilePhoto.test.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "userProfilePhoto|profile-photo|ignite/meta|joinedCount|createdByPersonId|joinedPersonIds|IgniteOrganizerPage|Who's in|Yapper|Smart coordination" /workspace/FamilyScheduler` ✅ located change targets.
+- `pnpm --filter @familyscheduler/api test` ⚠️ blocked by missing `@azure/data-tables` fetch (403) in this environment.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Playwright screenshot capture against organizer route ✅ captured artifact.
+
+### Follow-ups
+- Run manual staging verification for session #1/#2 organizer-photo continuity where `personId !== memberId` may occur in migrated groups.

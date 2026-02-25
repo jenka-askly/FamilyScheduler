@@ -56,6 +56,10 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
     peopleByPersonId[personId] = { name: personId };
   });
   const status = igniteEffectiveStatus(ignite);
+  const joinedCount = new Set<string>([
+    ...ignite.joinedPersonIds,
+    ...(ignite.createdByPersonId ? [ignite.createdByPersonId] : [])
+  ]).size;
   return {
     status: 200,
     jsonBody: {
@@ -63,7 +67,7 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
       status,
       graceSeconds: ignite.graceSeconds,
       closeRequestedAt: ignite.closeRequestedAt,
-      joinedCount: ignite.joinedPersonIds.length,
+      joinedCount,
       joinedPersonIds: ignite.joinedPersonIds,
       photoUpdatedAtByPersonId: ignite.photoUpdatedAtByPersonId ?? {},
       createdByPersonId: ignite.createdByPersonId,
