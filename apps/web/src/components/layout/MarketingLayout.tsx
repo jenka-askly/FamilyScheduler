@@ -7,11 +7,12 @@ type MarketingLayoutProps = {
   children: ReactNode;
   hasApiSession?: boolean;
   sessionEmail?: string | null;
+  sessionName?: string | null;
   onSignIn?: () => void;
   onSignOut?: () => void;
 };
 
-export function MarketingLayout({ children, hasApiSession = false, sessionEmail, onSignIn, onSignOut }: MarketingLayoutProps) {
+export function MarketingLayout({ children, hasApiSession = false, sessionEmail, sessionName, onSignIn, onSignOut }: MarketingLayoutProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { mode, toggleMode } = useColorMode();
 
@@ -55,7 +56,7 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
         ) : null}
         {hasApiSession ? (
           <MenuItem disabled>
-            <Typography>{sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}</Typography>
+            <Typography>{sessionName ? `Signed in as ${sessionName}${sessionEmail ? ` (${sessionEmail})` : ''}` : sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}</Typography>
           </MenuItem>
         ) : null}
         <MenuItem>

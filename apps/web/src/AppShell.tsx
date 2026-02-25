@@ -814,6 +814,15 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
+  const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === phone.trim().toLowerCase())?.name?.trim() || null;
+
+  useEffect(() => {
+    if (!signedInPersonName) {
+      window.localStorage.removeItem('fs.sessionName');
+      return;
+    }
+    window.localStorage.setItem('fs.sessionName', signedInPersonName);
+  }, [signedInPersonName]);
   const headerTitle = activeSection === 'todos' ? 'Todos' : activeSection === 'overview' ? 'Overview' : activeSection === 'settings' ? 'Settings' : undefined;
   const headerDescription = activeSection === 'todos'
       ? 'Track personal and family todos.'
@@ -1178,6 +1187,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         breakoutDisabled={isSpinningOff}
         onRenameGroupName={renameGroupName}
         sessionEmail={phone}
+        sessionName={signedInPersonName}
       />
       {breakoutNotice ? (
         <div

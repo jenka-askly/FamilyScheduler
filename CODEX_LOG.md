@@ -9007,3 +9007,41 @@ Implement organizer close behavior so closing Ignite returns to `/#/g/:groupId/a
 ### Follow-ups
 
 - Manual browser verification should confirm organizer Close returns to `/#/g/:groupId/app` and does not bounce to login.
+
+## 2026-02-25 02:35 UTC (Authenticated identity shows name + email)
+
+### Objective
+
+Add authenticated user name to identity display areas that currently show only email.
+
+### Approach
+
+- Extended `PageHeader` props/state to support `sessionName` and localStorage-backed detection (`fs.sessionName`) with storage event updates.
+- Updated PageHeader account menu identity row to render:
+  - primary: name (fallback email/sign-in)
+  - secondary: email when name is present.
+- Added signed-in user name derivation in `AppShell` by matching authenticated email (`phone` prop) against active people list.
+- Persisted derived name to `localStorage.fs.sessionName` and clear it when no matching person is found (prevents stale display).
+- Wired `sessionName` through `App` to `MarketingLayout`, and updated dashboard signed-in label to include both name and email when available.
+- Seeded `fs.sessionName` on create-group success from entered creator name.
+- Cleared `fs.sessionName` on auth consume refresh and sign-out flows.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd; rg --files -g 'AGENTS.md'` ✅ no AGENTS.md discovered in repo scope.
+- `find .. -maxdepth 3 -name AGENTS.md` ✅ no AGENTS.md discovered in nearby parent scopes.
+- `rg "email" apps/web/src -n` ✅ located authenticated identity display surfaces.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Optional: return user display name directly from auth consume endpoint in future for immediate name display before app-shell profile fetch.

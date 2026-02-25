@@ -1,3 +1,17 @@
+## 2026-02-25 02:35 UTC update (Show authenticated user name alongside email)
+
+- Updated authenticated user identity display to prefer **name + email** where available, with graceful fallback to email-only.
+- `PageHeader` menu now shows the member name as primary text and email as secondary text when both exist.
+- `MarketingLayout` authenticated status line now shows `Signed in as <name> (<email>)` when name is known.
+- Added session name plumbing via `fs.sessionName` localStorage key:
+  - populated from group membership in `AppShell` based on signed-in email match
+  - seeded on group create from entered creator name
+  - cleared on sign-in refresh/sign-out to avoid stale identity labels
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+
 ## 2026-02-25 02:11 UTC update (Organizer close routes to app + targeted sessionId clearing)
 
 - Updated Ignite organizer **Close** action to persist a fresh local app session (`writeSession`) and navigate directly to `/#/g/:groupId/app` only after `/api/ignite/close` returns success.
