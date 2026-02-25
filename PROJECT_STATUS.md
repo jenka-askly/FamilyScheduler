@@ -3034,3 +3034,17 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Popup blockers can prevent auto-open of breakout tab; dashboard and in-group flows both surface a manual-open link when `window.open` returns null.
 - Dashboard group listing currently uses recent-group context on home and only shows rows when a recent group exists.
+
+## 2026-02-25 01:48 UTC update (Ignite join grace-session response hardening)
+
+- Hardened `POST /api/ignite/join` unauth join behavior so successful joins always return a grace `sessionId` sourced from `createIgniteGraceSession` (30s, `kind=igniteGrace`, scoped by breakout `groupId` and ignite `sessionId`).
+- Added explicit error handling for grace-session issuance failures: backend now logs a trace-linked failure event and returns stable `500 ignite_grace_session_create_failed` instead of throwing.
+- Added required trace log event `ignite_join_grace_session_issued` with `{ traceId, breakoutGroupId, igniteSessionId, expiresAt }` so join/session continuity can be diagnosed.
+- Preserved existing join semantics: member/person updates and joined-person tracking unchanged; magic-link request remains best-effort and non-blocking.
+
+### How to test
+
+1. Fresh browser storage: open `/#/s/:groupId/:igniteSessionId`, submit name+email (+optional photo), confirm `fs.sessionId` appears in Local Storage and app navigates to `/#/g/:breakoutGroupId/app` without redirecting to `/login`.
+2. Wait >30s, refresh `/#/g/:breakoutGroupId/app`, confirm redirect to `/login` (grace expiry expected).
+3. Within 30s window, navigate to `/#/g/<differentGroupId>/app`, confirm access is denied by scope enforcement and UI routes to existing join/login behavior.
+4. Build validation: `pnpm -r build`.
