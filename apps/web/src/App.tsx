@@ -6,7 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl, getSessionId } from './lib/apiUrl';
+import { apiFetch, apiUrl, getAuthSessionId, getSessionId } from './lib/apiUrl';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
@@ -69,6 +69,7 @@ function authDebug(event: string, data?: unknown) {
       event,
       hash: window.location.hash,
       sessionId: window.localStorage.getItem('fs.sessionId'),
+      igniteGraceSessionId: window.localStorage.getItem('fs.igniteGraceSessionId'),
       sessionEmail: window.localStorage.getItem('fs.sessionEmail'),
       localSession: sessionStorage.getItem('familyscheduler.session'),
       ...(typeof data === 'object' && data !== null ? data : { data })
@@ -300,7 +301,7 @@ function CreateGroupPage() {
     if (session?.email) setCreatorEmail(session.email);
   }, []);
 
-  const hasApiSession = Boolean(getSessionId());
+  const hasApiSession = Boolean(getAuthSessionId());
   const hasSessionEmail = Boolean(readSession()?.email);
   const hasSignedInSession = hasApiSession && hasSessionEmail;
   const trimmedGroupName = groupName.trim();
@@ -1154,7 +1155,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 }
 
 function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
-  const hasApiSession = Boolean(getSessionId());
+  const hasApiSession = Boolean(getAuthSessionId());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [photoBase64, setPhotoBase64] = useState<string>('');
@@ -1290,7 +1291,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
 
   useEffect(() => {
     let canceled = false;
-    const apiSessionId = getSessionId();
+    const apiSessionId = getAuthSessionId();
     authDebug('gate_decision_snapshot', {
       groupId,
       apiSessionIdPrefix: apiSessionId?.slice(0, 8),
@@ -1387,7 +1388,7 @@ function HandoffPage({ groupId, email, next }: { groupId: string; email?: string
 
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
-  const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getSessionId()));
+  const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getAuthSessionId()));
   const sessionEmail = useMemo(() => {
     const rawSessionEmail = window.localStorage.getItem(SESSION_EMAIL_KEY);
     const sanitizedSessionEmail = sanitizeSessionEmail(rawSessionEmail);
@@ -1413,7 +1414,7 @@ export function App() {
   };
   useEffect(() => {
     const refreshAuth = () => {
-      setHasApiSession(Boolean(getSessionId()));
+      setHasApiSession(Boolean(getAuthSessionId()));
       setHash(window.location.hash || '#/');
     };
 
@@ -1446,7 +1447,7 @@ export function App() {
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   useEffect(() => {
-    setHasApiSession(Boolean(getSessionId()));
+    setHasApiSession(Boolean(getAuthSessionId()));
   }, [hash]);
 
   useEffect(() => {

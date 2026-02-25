@@ -1,3 +1,15 @@
+## 2026-02-25 07:56 UTC update (igniteGrace accepted for route/gate auth checks)
+
+- Added `getAuthSessionId()` in web API helpers to treat auth as `fs.sessionId || fs.igniteGraceSessionId` without overwriting durable session semantics.
+- Updated web route/gate checks (`hasApiSession` + `GroupAuthGate`) to use `getAuthSessionId()` so joiners on igniteGrace are not redirected to `/#/login`.
+- Kept `apiFetch` precedence unchanged (durable session first, then igniteGrace fallback).
+- Added igniteGrace visibility in `authDebug` payload to make auth state diagnostics explicit in console traces.
+
+### Verification run
+
+1. `npm -C apps/web run build`
+
+
 ## 2026-02-25 07:21 UTC update (group/join prefers session identity when x-session-id present)
 
 - Updated `/api/group/join` handler to resolve authorization email from session identity when `x-session-id` is provided.
