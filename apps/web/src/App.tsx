@@ -7,6 +7,7 @@ import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, getSessionId } from './lib/apiUrl';
+import { sanitizeSessionEmail } from './lib/validate';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -530,7 +531,7 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
           method: 'POST',
           body: JSON.stringify({ token, traceId })
         });
-        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string; email?: string; name?: string };
+        const data = await response.json() as { ok?: boolean; error?: string; message?: string; sessionId?: string; email?: string; name?: string; traceId?: string };
         if (!response.ok || !data.ok || !data.sessionId) {
           if (!canceled) setError(data?.message ?? data?.error ?? 'Unable to sign in with this link.');
           return;
@@ -538,7 +539,15 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
         if (!canceled) {
           window.localStorage.setItem('fs.sessionId', data.sessionId);
           window.localStorage.removeItem(SESSION_NAME_KEY);
-          if (data.email) window.localStorage.setItem(SESSION_EMAIL_KEY, data.email);
+          const sanitizedEmail = sanitizeSessionEmail(data.email);
+          if (sanitizedEmail) {
+            window.localStorage.setItem(SESSION_EMAIL_KEY, sanitizedEmail);
+          } else {
+            window.localStorage.removeItem(SESSION_EMAIL_KEY);
+            if (typeof data.email === 'string' && data.email.trim()) {
+              authLog({ event: 'session_email_rejected', value: data.email, traceId: data.traceId ?? traceId });
+            }
+          }
           if (typeof data.name === 'string' && data.name.trim()) window.localStorage.setItem(SESSION_NAME_KEY, data.name.trim());
           if (typeof window.BroadcastChannel === 'function') {
             const channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
@@ -1348,7 +1357,15 @@ function HandoffPage({ groupId, email, phone, next }: { groupId: string; email?:
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getSessionId()));
-  const sessionEmail = useMemo(() => window.localStorage.getItem(SESSION_EMAIL_KEY), [hash, hasApiSession]);
+  const sessionEmail = useMemo(() => {
+    const rawSessionEmail = window.localStorage.getItem(SESSION_EMAIL_KEY);
+    const sanitizedSessionEmail = sanitizeSessionEmail(rawSessionEmail);
+    if (!sanitizedSessionEmail && rawSessionEmail !== null) {
+      window.localStorage.removeItem(SESSION_EMAIL_KEY);
+      authLog({ event: 'session_email_rejected', source: 'app_read', value: rawSessionEmail });
+    }
+    return sanitizedSessionEmail;
+  }, [hash, hasApiSession]);
   const sessionName = useMemo(() => window.localStorage.getItem(SESSION_NAME_KEY), [hash, hasApiSession]);
   const recentGroupId = useMemo(() => window.localStorage.getItem(LAST_GROUP_ID_KEY), [hash, hasApiSession]);
 
