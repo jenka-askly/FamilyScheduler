@@ -3715,3 +3715,14 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `rg -n "@azure/static-web-apps-cli|\bnpx\b.*static-web-apps-cli|\bswa\b" .github/workflows`
+
+## 2026-02-25 19:10 UTC update (SWA deploy file-count rejection fix)
+
+- Updated all SWA deploy workflows to point `app_location` at the prebuilt `apps/web/dist` directory directly.
+- Cleared `app_artifact_location` in those workflows to avoid uploading the full source tree alongside build output.
+- This keeps deploy payload constrained to static build artifacts and addresses Azure SWA `BadRequest` failures caused by excessive static file counts.
+
+### Verification run
+
+1. `python - <<'PY' ...` (workflow sanity replacement for `app_location`/`app_artifact_location`)
+2. `pnpm --filter @familyscheduler/web build`

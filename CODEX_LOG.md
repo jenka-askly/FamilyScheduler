@@ -10041,3 +10041,28 @@ Fix GitHub Actions SWA deployment 403/npm issues by removing `npx @azure/static-
 
 ### Follow-ups
 - Trigger staging/prod workflows on GitHub to validate successful upload via `Azure/static-web-apps-deploy@v1` with repository secrets.
+
+## 2026-02-25 19:10 UTC
+
+### Objective
+Fix Azure Static Web Apps deployment failure: `BadRequest` due to excessive static file count during upload.
+
+### Approach
+- Inspected SWA workflows and identified they were using `app_location: apps/web` while also providing prebuilt `app_artifact_location: apps/web/dist` with `skip_app_build: true`.
+- Applied minimal workflow-only fix to target the built output directory directly by setting `app_location: apps/web/dist` and empty `app_artifact_location`.
+- Kept build/deploy flow unchanged otherwise (same tokens, same action, same skip flags).
+
+### Files changed
+- `.github/workflows/azure-static-web-apps-red-cliff-0f62ac31e.yml`
+- `.github/workflows/swa-web.yml`
+- `.github/workflows/swa-web-staging.yml`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "static-web-apps-deploy|app_artifact_location|output_location|skip_app_build|apps/web|swa" .github/workflows apps/web package.json pnpm-workspace.yaml` ✅ located all SWA workflow usages.
+- `pnpm --filter @familyscheduler/web build` ✅ passed; produced `apps/web/dist` artifacts.
+
+### Follow-ups
+- Re-run the failing GitHub Action workflow to confirm SWA upload now accepts artifact count.
+- If Azure still rejects count, add deploy-time artifact file count diagnostics immediately before deploy to capture exact uploaded file volume.
