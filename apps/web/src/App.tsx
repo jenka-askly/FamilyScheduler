@@ -11,7 +11,6 @@ import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CloseIcon from '@mui/icons-material/Close';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Switch, TextField, Typography } from '@mui/material';
@@ -677,12 +676,13 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [newlyJoinedPersonIds, setNewlyJoinedPersonIds] = useState<string[]>([]);
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [photoObjectUrlsByPersonId, setPhotoObjectUrlsByPersonId] = useState<Record<string, { key: string; url: string }>>({});
+  const [profilePhotoUpdatedAt, setProfilePhotoUpdatedAt] = useState<string>('');
+  const [profilePhotoObjectUrl, setProfilePhotoObjectUrl] = useState('');
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [copiedGroupLink, setCopiedGroupLink] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
   const [scanCaptureOpen, setScanCaptureOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -696,10 +696,15 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastChimeAtRef = useRef(0);
   const photoObjectUrlsRef = useRef<Record<string, { key: string; url: string }>>({});
+  const profilePhotoObjectUrlRef = useRef('');
 
   useEffect(() => {
     photoObjectUrlsRef.current = photoObjectUrlsByPersonId;
   }, [photoObjectUrlsByPersonId]);
+
+  useEffect(() => {
+    profilePhotoObjectUrlRef.current = profilePhotoObjectUrl;
+  }, [profilePhotoObjectUrl]);
 
   const stopScanCaptureStream = () => {
     if (!scanCaptureStreamRef.current) return;
@@ -719,6 +724,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     Object.values(photoObjectUrlsRef.current).forEach((photo) => {
       if (photo?.url) URL.revokeObjectURL(photo.url);
     });
+    if (profilePhotoObjectUrlRef.current) URL.revokeObjectURL(profilePhotoObjectUrlRef.current);
   }, []);
 
   useEffect(() => {
@@ -888,17 +894,47 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     return () => { canceled = true; window.clearInterval(interval); };
   }, [groupId, email, sessionId, joinSoundEnabled]);
 
-  const closeSession = async () => {
-    if (!sessionId) return;
+  const closeSession = async (): Promise<boolean> => {
+    if (!sessionId) return true;
     setError(null);
     const response = await apiFetch('/api/ignite/close', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, sessionId, traceId: createTraceId() }) });
     const data = await response.json() as { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'; message?: string };
     if (!response.ok || !data.ok) {
       setError(data.message ?? 'Unable to close session');
-      return;
+      return false;
     }
     setStatus(data.status ?? 'CLOSED');
+    return true;
   };
+
+  const loadProfilePhoto = async () => {
+    try {
+      const metaResponse = await apiFetch(`/api/user/profile-photo?groupId=${encodeURIComponent(groupId)}`);
+      if (!metaResponse.ok) return;
+      const meta = await metaResponse.json() as { ok?: boolean; hasPhoto?: boolean; updatedAt?: string };
+      if (!meta.ok || !meta.hasPhoto || !meta.updatedAt) {
+        setProfilePhotoUpdatedAt('');
+        if (profilePhotoObjectUrlRef.current) URL.revokeObjectURL(profilePhotoObjectUrlRef.current);
+        setProfilePhotoObjectUrl('');
+        return;
+      }
+      setProfilePhotoUpdatedAt(meta.updatedAt);
+      const imageResponse = await apiFetch(`/api/user/profile-photo/image?groupId=${encodeURIComponent(groupId)}&t=${encodeURIComponent(meta.updatedAt)}`);
+      if (!imageResponse.ok) return;
+      const blob = await imageResponse.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      setProfilePhotoObjectUrl((existing) => {
+        if (existing) URL.revokeObjectURL(existing);
+        return objectUrl;
+      });
+    } catch {
+      // Keep Ignite organizer photo fallback.
+    }
+  };
+
+  useEffect(() => {
+    void loadProfilePhoto();
+  }, [groupId]);
 
   const uploadPhotoBase64 = async (base64: string) => {
     if (!sessionId || !base64) return;
@@ -913,6 +949,12 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         const organizerId = createdByPersonId || joinedPersonIds[0];
         if (organizerId) {
           setPhotoUpdatedAtByPersonId((existing) => ({ ...existing, [organizerId]: new Date().toISOString() }));
+        }
+        const profileResponse = await apiFetch('/api/user/profile-photo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
+        const profileData = await profileResponse.json() as { ok?: boolean; updatedAt?: string };
+        if (profileResponse.ok && profileData.ok && profileData.updatedAt) {
+          setProfilePhotoUpdatedAt(profileData.updatedAt);
+          await loadProfilePhoto();
         }
       }
     } catch {
@@ -1011,7 +1053,6 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   const base = `${window.location.origin}${window.location.pathname}${window.location.search}#`;
   const joinUrl = sessionId ? `${base}/s/${groupId}/${sessionId}` : '';
-  const meetingUrl = `${window.location.origin}/#/g/${groupId}`;
   const qrImageUrl = joinUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(joinUrl)}` : '';
 
   useEffect(() => {
@@ -1019,24 +1060,9 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     authLog({ component: 'IgniteOrganizerPage', stage: 'join_url', hasJoinUrl: Boolean(joinUrl), joinUrl, sessionId, groupId });
   }, [groupId, joinUrl, sessionId]);
 
-  const copyJoinLink = async (value: string) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopiedGroupLink(true);
-      window.setTimeout(() => setCopiedGroupLink(false), 1800);
-    } catch {
-      setCopiedGroupLink(false);
-    }
-  };
-
-  const cancelBreakout = () => {
-    nav(`/g/${groupId}/app`);
-  };
-
   const groupMemberPersonIds = groupMetaPeople.map((person) => person.personId).filter((id) => Boolean(id));
-  const organizerPersonIds = createdByPersonId ? [createdByPersonId] : [];
-  const displayedPersonIds = Array.from(new Set([...groupMemberPersonIds, ...organizerPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
+  const organizerPersonId = createdByPersonId || joinedPersonIds[0] || groupMemberPersonIds[0] || '';
+  const displayedPersonIds = Array.from(new Set([organizerPersonId, ...groupMemberPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
   const combinedPeopleByPersonId: Record<string, { name?: string }> = {
     ...Object.fromEntries(groupMetaPeople.map((person) => [person.personId, { name: person.name }])),
     ...peopleByPersonId
@@ -1111,17 +1137,22 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     await closeSession();
   };
 
-  const joinAvailabilityText = isClosing
-    ? 'Closing…'
-    : isJoinOpen
-      ? 'Anyone with the QR code can join now.'
-      : 'Joining is closed. People with the link/QR can’t join anymore.';
+  const finishInvitingAndContinue = async () => {
+    if (isJoinOpen) {
+      const closed = await closeSession();
+      if (!closed) return;
+    }
+    nav(`/g/${groupId}`);
+  };
+
+  const organizerName = (combinedPeopleByPersonId[organizerPersonId]?.name ?? '').trim() || 'Someone';
+  const qrLabelGroupName = groupName.trim() || 'group';
 
   return (
     <Page variant="form">
       <PageHeader
         titleOverride={groupName}
-        subtitleOverride={`Joined: ${joinedCount}`}
+        subtitleOverride={undefined}
         subtitlePulse={joinedBump}
         onRenameGroupName={renameGroupName}
         groupId={groupId}
@@ -1129,17 +1160,24 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       {error ? <Alert severity="error">{error}</Alert> : null}
       <div className="ui-igniteOrg">
         <div className="ui-igniteOrgInner">
-          <div className="ui-igniteSection ui-igniteCardHeader">
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
-            <div className="ui-igniteHeaderLeft">
-              <IconButton type="button" title="Add optional photo" aria-label="Add optional photo" onClick={() => { void openCapture(); }} disabled={!sessionId || isUploading}>
-                <CameraAltIcon />
-              </IconButton>
-              <Typography className="ui-igniteOptionalLabel">Add photo (optional)</Typography>
-            </div>
-            <Typography variant="h6" className="ui-igniteCardTitle">Ignition Session</Typography>
-            <div className="ui-igniteHeaderRight">
-              <Button variant="text" type="button" onClick={cancelBreakout}>Cancel</Button>
+          <div className="ui-igniteSection ui-igniteHeaderHelper">
+            <Typography className="ui-igniteHelperText">{`${organizerName} started this group to move things forward.`}</Typography>
+            <Typography className="ui-igniteHelperText">Join to coordinate with everyone.</Typography>
+          </div>
+
+          <div className="ui-igniteSection ui-igniteQrWrap">
+            {!sessionId || qrLoadFailed ? (
+              <Typography className="ui-meta">QR unavailable.</Typography>
+            ) : (
+              <img className="ui-igniteQrImg" style={{ opacity: isJoinOpen ? 1 : 0.5 }} src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
+            )}
+            <Typography className="ui-igniteQrLabel">{`Join ${organizerName}’s ${qrLabelGroupName}`}</Typography>
+          </div>
+
+          <div className="ui-igniteSection ui-igniteWhoInSection">
+            <Typography variant="subtitle2" className="ui-igniteWhoInLabel">Who’s in</Typography>
+            <div className="ui-igniteCountRow">
+              <Typography className={`ui-meta ${joinedBump ? 'ui-igniteJoinedBump' : ''}`}>{`${joinedCount} people joined`}</Typography>
               <IconButton
                 size="small"
                 aria-label="Join sound"
@@ -1149,78 +1187,45 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                 {joinSoundEnabled ? <VolumeUpIcon fontSize="small" /> : <VolumeOffIcon fontSize="small" />}
               </IconButton>
             </div>
-          </div>
-
-          {!sessionId ? (
-            <div className="ui-igniteSection">
-              <Typography className="ui-meta">No active session right now.</Typography>
-            </div>
-          ) : (
-            <div className="ui-igniteSection ui-igniteQrWrap">
-              <Typography variant="subtitle2">Scan to join</Typography>
-              {qrLoadFailed ? (
-                <Typography className="ui-meta">QR unavailable.</Typography>
-              ) : (
-                <img className="ui-igniteQrImg" style={{ opacity: isJoinOpen ? 1 : 0.5 }} src={qrImageUrl} alt="Ignite join QR code" onError={() => setQrLoadFailed(true)} />
-              )}
-            </div>
-          )}
-
-          {sessionId ? (
-            <div className="ui-igniteSection">
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Group link</Typography>
-              <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite group link">
-                <Typography component="div" className="ui-igniteStaticLinkText" title={meetingUrl}>{meetingUrl}</Typography>
-                <IconButton type="button" title="Copy group link" aria-label="Copy group link" onClick={() => { void copyJoinLink(meetingUrl); }}>
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
-              </div>
-              {copiedGroupLink ? <Typography className="ui-meta">✓ Copied group link</Typography> : null}
-            </div>
-          ) : null}
-
-          <div className="ui-igniteSection">
-            <Stack spacing={0.5}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Switch
-                  checked={isJoinOpen}
-                  disabled={!sessionId || isClosing}
-                  onChange={(_event, checked) => {
-                    void toggleJoining(checked);
-                  }}
-                  inputProps={{ 'aria-label': 'Allow new members to join' }}
-                />
-                <Typography variant="subtitle2">Allow new members to join</Typography>
-              </Stack>
-              <Typography className="ui-meta">{joinAvailabilityText}</Typography>
-            </Stack>
-          </div>
-
-          <div className="ui-igniteSection">
-            <div className="ui-igniteHeader">
-              <Typography variant="subtitle2">Joined folks ({displayedPersonIds.length})</Typography>
-            </div>
-            {!sessionId || displayedPersonIds.length === 0 ? <Typography className="ui-meta">No one joined yet.</Typography> : null}
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { void uploadPhoto(e.currentTarget); }} disabled={!sessionId || isUploading} />
             <div className="ui-igniteFolksList">
               {sessionId ? displayedPersonIds.map((personId) => {
                 const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
                 const personName = combinedPeopleByPersonId[personId]?.name || personId;
+                const isOrganizer = personId === organizerPersonId;
+                const personPhotoUrl = isOrganizer && profilePhotoObjectUrl
+                  ? profilePhotoObjectUrl
+                  : (hasPhoto ? photoObjectUrlsByPersonId[personId]?.url : '');
                 return (
-                  <div key={personId} className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''}`}>
-                    {hasPhoto
-                      ? <>
-                          {photoObjectUrlsByPersonId[personId]?.url ? <img className="ui-ignitePersonThumb" src={photoObjectUrlsByPersonId[personId].url} alt={personName} /> : null}
-                          <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
-                        </>
-                      : <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>}
+                  <div
+                    key={personId}
+                    className={`ui-ignitePersonCard ${newlyJoinedPersonIds.includes(personId) ? 'ui-igniteJoinedBump' : ''} ${isOrganizer ? 'ui-igniteOrganizerCard' : ''}`}
+                    onClick={isOrganizer ? () => { void openCapture(); } : undefined}
+                    role={isOrganizer ? 'button' : undefined}
+                    aria-label={isOrganizer ? 'Add or replace profile photo' : undefined}
+                  >
+                    {personPhotoUrl ? <img className="ui-ignitePersonThumb" src={personPhotoUrl} alt={personName} /> : <div className="ui-ignitePersonInitials">{personName.trim().charAt(0).toUpperCase() || '?'}</div>}
+                    {isOrganizer ? <CameraAltIcon className="ui-igniteCameraOverlay" fontSize="small" /> : null}
+                    <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
                   </div>
                 );
               }) : null}
             </div>
           </div>
 
-          <div className="ui-igniteSection">
-            <Button variant="contained" type="button" fullWidth onClick={() => nav(`/g/${groupId}`)}>Go to group</Button>
+          <div className="ui-igniteSection ui-igniteFooterControls">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Switch
+                checked={isJoinOpen}
+                disabled={!sessionId || isClosing}
+                onChange={(_event, checked) => {
+                  void toggleJoining(checked);
+                }}
+                inputProps={{ 'aria-label': 'Allow new members to join' }}
+              />
+              <Typography variant="subtitle2">Allow new members to join</Typography>
+            </Stack>
+            <Button variant="contained" type="button" fullWidth onClick={() => { void finishInvitingAndContinue(); }}>Finish inviting &amp; continue</Button>
           </div>
         </div>
       </div>
@@ -1232,7 +1237,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         </DialogContent>
         <DialogActions>
           <Button onClick={closeScanCaptureModal}>Cancel</Button>
-          <Button variant="contained" onClick={() => { void capturePhoto(); }}>Capture</Button>
+          <Button variant="contained" onClick={() => { void capturePhoto(); }}>{profilePhotoUpdatedAt ? 'Replace profile photo' : 'Add as profile photo'}</Button>
         </DialogActions>
       </Dialog>
       <FooterHelp />

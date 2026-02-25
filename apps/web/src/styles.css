@@ -1754,14 +1754,31 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 .ui-igniteOrg {
   display: flex;
   justify-content: center;
-  padding: 16px;
+  padding: 8px 16px 12px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .ui-igniteOrgInner {
   width: 100%;
   max-width: 520px;
-  display: grid;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.ui-igniteHeaderHelper {
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.ui-igniteHelperText {
+  max-width: 38ch;
+  margin: 0 auto;
 }
 
 .ui-igniteGroupTitleRow {
@@ -1828,52 +1845,37 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 }
 
 .ui-igniteQrWrap {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
-.ui-igniteJoinLinkRow {
+.ui-igniteQrLabel {
+  text-align: center;
+  font-weight: 600;
+  max-width: 34ch;
+}
+
+.ui-igniteWhoInSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-igniteWhoInLabel {
+  margin-top: 4px;
+}
+
+.ui-igniteCountRow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: hidden;
-}
-
-.ui-igniteJoinLinkRow > .MuiIconButton-root {
-  flex: 0 0 auto;
-}
-
-.ui-igniteJoinLinkText {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 8px 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #fff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-}
-
-
-.ui-igniteStaticLinkText {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 2px 0;
-  background: transparent;
-  border: 0;
-  user-select: text;
-  -webkit-user-select: text;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  gap: 6px;
 }
 
 .ui-igniteJoinedBadge {
@@ -1912,7 +1914,6 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 }
 
 .ui-igniteSection {
-  margin-top: 16px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -2070,34 +2071,61 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 }
 
 .ui-igniteFolksList {
-  margin-top: 8px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
-  max-height: 220px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  max-height: 128px;
+  overflow-y: hidden;
+  overflow-x: auto;
   overscroll-behavior: contain;
-  align-content: flex-start;
+  align-content: center;
+  padding-bottom: 4px;
 }
 
 .ui-ignitePersonCard {
   width: 96px;
-  min-height: 96px;
+  min-height: 112px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 6px;
   background: #fff;
   display: grid;
   gap: 4px;
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .ui-ignitePersonThumb {
   width: 100%;
-  height: 72px;
+  height: 64px;
   object-fit: cover;
   border-radius: 8px;
   background: #f1f5f9;
+}
+
+.ui-ignitePersonInitials {
+  width: 100%;
+  height: 64px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.ui-igniteOrganizerCard {
+  cursor: pointer;
+}
+
+.ui-igniteCameraOverlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 999px;
+  padding: 2px;
 }
 
 .ui-ignitePersonName {
@@ -2109,5 +2137,12 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
-  min-height: 72px;
+  min-height: unset;
+}
+
+.ui-igniteFooterControls {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }

@@ -24,12 +24,15 @@ import { ignitePhoto } from './functions/ignitePhoto.js';
 import { ignitePhotoGet } from './functions/ignitePhotoGet.js';
 import { igniteMeta } from './functions/igniteMeta.js';
 import { igniteSpinoff } from './functions/igniteSpinoff.js';
+import { userProfilePhotoSet } from './functions/userProfilePhotoSet.js';
+import { userProfilePhotoMeta } from './functions/userProfilePhotoMeta.js';
+import { userProfilePhotoGet } from './functions/userProfilePhotoGet.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -104,6 +107,9 @@ registerHttp('ignitePhoto', 'ignite/photo', ['POST'], ignitePhoto);
 registerHttp('ignitePhotoGet', 'ignite/photo', ['GET'], ignitePhotoGet);
 registerHttp('igniteMeta', 'ignite/meta', ['GET', 'POST'], igniteMeta);
 registerHttp('igniteSpinoff', 'ignite/spinoff', ['POST'], igniteSpinoff);
+registerHttp('userProfilePhotoSet', 'user/profile-photo', ['POST'], userProfilePhotoSet);
+registerHttp('userProfilePhotoMeta', 'user/profile-photo', ['GET'], userProfilePhotoMeta);
+registerHttp('userProfilePhotoGet', 'user/profile-photo/image', ['GET'], userProfilePhotoGet);
 
 startupLog('registration-summary', {
   expectedFunctions,
