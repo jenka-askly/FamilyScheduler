@@ -9,13 +9,12 @@ type SpinoffPayload = {
   ok?: boolean;
   newGroupId?: string;
   linkPath?: string;
-  sessionId?: string;
   message?: string;
   traceId?: string;
 };
 
 export type SpinoffBreakoutResult =
-  | { ok: true; urlToOpen: string; newGroupId: string; linkPath: string; sessionId?: string }
+  | { ok: true; urlToOpen: string; newGroupId: string; linkPath: string }
   | { ok: false; message: string; traceId?: string };
 
 export async function spinoffBreakoutGroup({
@@ -51,7 +50,6 @@ export async function spinoffBreakoutGroup({
       ok: true,
       newGroupId: data.newGroupId,
       linkPath: data.linkPath,
-      sessionId: data.sessionId,
       urlToOpen: `${window.location.origin}${data.linkPath}`
     };
   } catch {
