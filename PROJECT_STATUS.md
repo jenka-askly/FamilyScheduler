@@ -1,3 +1,14 @@
+## 2026-02-25 05:27 UTC update (Breakout organizer tab uses spinoff-returned session before open)
+
+- Verified `spinoffBreakoutGroup` success payload/return shape includes `newGroupId`, `linkPath`, optional `sessionId`, and computed `urlToOpen`.
+- Verified `AppShell.createBreakoutGroup` persists `fs.sessionId` from spinoff result (when present) **before** calling `window.open`, with structured `[BREAKOUT_DEBUG]` log event `set_session_before_open`.
+- Verified breakout tab open call remains `window.open(result.urlToOpen, '_blank', 'noopener,noreferrer')` and retains existing before/after open diagnostics.
+- No additional code changes were required for this task because requested behavior is already in place; validation/build run completed successfully.
+
+### Verification run
+
+1. `pnpm -r build`
+
 ## 2026-02-25 04:54 UTC update (Breakout click diagnostics + explicit URL construction)
 
 - Added structured `[BREAKOUT_DEBUG]` logs in `AppShell.createBreakoutGroup` immediately before and after `window.open` to capture source URL, destination URL, `linkPath`, new group id, and whether the popup handle was returned.
