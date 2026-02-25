@@ -3398,3 +3398,34 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/api build`
 2. `node --test api/dist/api/src/functions/igniteMeta.test.js`
 3. `pnpm -r build`
+
+## 2026-02-25 05:05 UTC update (Phone identity removed from session-era contracts)
+
+- Removed phone-based identity from key API contracts and switched these flows to session/email identity only:
+  - `ignite/meta` now authenticates via `x-session-id` with optional unauthenticated email fallback (no phone fallback).
+  - `ignite/photo` GET is now session-required + membership-checked by session email.
+  - `appointmentScanImage` is now session-required and no longer accepts `phone` query params.
+  - `groupRename`/`direct`/`chat` web callers no longer send `phone` in payloads.
+- Added `requireIdentityFromRequest` in `api/src/lib/groupAuth.ts` to centralize identity resolution: session first, optional validated email fallback.
+- Removed `validateJoinRequest` / `phone_required` usage from the migrated paths.
+- Updated breakout spinoff client pathing to stop threading phone in request body or handoff URL.
+- Updated tests for migrated contracts (`igniteMeta`, `ignitePhoto`, `groupRename`, `groupAuth` email validation).
+
+### Backward compatibility decision
+
+- **Removed** phone identity compatibility for the migrated contracts listed above to eliminate `phone_required`/phone contract drift and align with the session/email auth model.
+- Person/contact phone fields inside group member data remain supported for scheduling/person records (non-auth identity use).
+
+### Verification run
+
+1. `pnpm -r build`
+2. `cd api && node --test dist/api/src/functions/igniteMeta.test.js dist/api/src/functions/ignitePhoto.test.js dist/api/src/functions/groupRename.test.js dist/api/src/lib/groupAuth.test.js`
+3. Optional environment-wide check: `pnpm --filter @familyscheduler/api test` (currently fails in this container due missing runtime deps + pre-existing unrelated test assumptions).
+
+### Staging verification steps
+
+1. Organizer in `/#/g/:groupId/ignite`: confirm `/api/ignite/meta` succeeds without `phone_required` noise.
+2. Organizer thumbnails: confirm `/api/ignite/photo` loads with session header and no phone query.
+3. Breakout handoff URL: confirm it no longer contains `phone=`.
+4. Appointment scan image/delete: confirm requests succeed with session auth and no phone params/body.
+5. Chat/direct/group rename actions: confirm network payloads omit `phone` and actions still succeed.

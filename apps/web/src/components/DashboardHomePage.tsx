@@ -7,10 +7,9 @@ type DashboardHomePageProps = {
   onCreateGroup: () => void;
   onOpenRecentGroup?: () => void;
   recentGroupId?: string;
-  phone?: string;
 };
 
-export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, onOpenRecentGroup, recentGroupId, phone }: DashboardHomePageProps) {
+export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, onOpenRecentGroup, recentGroupId }: DashboardHomePageProps) {
   const [isSpinningOffGroupId, setIsSpinningOffGroupId] = useState<string | null>(null);
   const [breakoutNotice, setBreakoutNotice] = useState<string | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
@@ -18,11 +17,11 @@ export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, 
   const groups = recentGroupId ? [recentGroupId] : [];
 
   const createBreakoutGroup = async (groupId: string) => {
-    if (!phone || isSpinningOffGroupId) return;
+    if (isSpinningOffGroupId) return;
     setBreakoutError(null);
     setIsSpinningOffGroupId(groupId);
     try {
-      const result = await spinoffBreakoutGroup({ sourceGroupId: groupId, phone });
+      const result = await spinoffBreakoutGroup({ sourceGroupId: groupId });
       if (!result.ok) {
         setBreakoutError(`${result.message}${result.traceId ? ` (trace: ${result.traceId})` : ''}`);
         return;
@@ -97,7 +96,7 @@ export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, 
                 <Button
                   variant="contained"
                   size="small"
-                  disabled={!phone || Boolean(isSpinningOffGroupId)}
+                  disabled={Boolean(isSpinningOffGroupId)}
                   onClick={() => { void createBreakoutGroup(groupId); }}
                 >
                   {isSpinningOffGroupId === groupId ? 'Breaking Out…' : 'Break Out'}

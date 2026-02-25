@@ -62,7 +62,7 @@ type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
 type CalendarView = 'month' | 'list' | 'week' | 'day';
 type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
 
-type Session = { groupId: string; phone: string; joinedAt: string };
+type Session = { groupId: string; email: string; joinedAt: string };
 
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SESSION_KEY = 'familyscheduler.session';
@@ -315,7 +315,7 @@ const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
   return (a.startTime ?? '').localeCompare(b.startTime ?? '');
 });
 
-export function AppShell({ groupId, phone, groupName: initialGroupName }: { groupId: string; phone: string; groupName?: string }) {
+export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }: { groupId: string; sessionEmail: string; groupName?: string }) {
   const [message, setMessage] = useState('');
   const [groupName, setGroupName] = useState<string | undefined>(initialGroupName);
   const [usage, setUsage] = useState<UsageStatus>({ status: 'loading' });
@@ -347,7 +347,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const response = await apiFetch('/api/group/rename', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, phone, groupName: normalized, traceId })
+      body: JSON.stringify({ groupId, groupName: normalized, traceId })
     });
 
     const payload = await response.json() as { groupName?: string; traceId?: string; message?: string };
@@ -452,7 +452,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setTranscript((p) => [...p, { role: 'user', text: trimmed }]);
     setIsSubmitting(true);
     try {
-      const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, phone, ...extraBody }) });
+      const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, ...extraBody }) });
       if (!response.ok) {
         setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]);
         return;
@@ -474,7 +474,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   };
 
   const sendDirectAction = async (action: Record<string, unknown>) => {
-    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, phone }) });
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId }) });
     const json = await response.json() as { ok?: boolean; snapshot?: Snapshot; message?: string; personId?: string };
     if (json.snapshot) setSnapshot(json.snapshot);
     if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
@@ -565,7 +565,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           groupId,
-          phone,
           action: {
             type: 'resolve_appointment_time',
             appointmentId: appointment.code,
@@ -696,7 +695,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
 
   const refreshSnapshot = async () => {
-    const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) });
+    const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId }) });
     if (!response.ok) return;
     const json = await response.json() as ChatResponse;
     if (json.snapshot) setSnapshot(json.snapshot);
@@ -732,7 +731,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     const arrayBuffer = await file.arrayBuffer();
     const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
     const endpoint = appointmentId ? '/api/appointmentScanRescan' : '/api/scanAppointment';
-    const payload: Record<string, unknown> = { groupId, phone, imageBase64: base64, imageMime: file.type || 'image/jpeg', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+    const payload: Record<string, unknown> = { groupId, imageBase64: base64, imageMime: file.type || 'image/jpeg', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
     if (appointmentId) payload.appointmentId = appointmentId;
     const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
     const json = await response.json() as { snapshot?: Snapshot };
@@ -814,7 +813,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     : null;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
-  const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === phone.trim().toLowerCase())?.name?.trim() || null;
+  const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === sessionEmail.trim().toLowerCase())?.name?.trim() || null;
 
   useEffect(() => {
     if (!signedInPersonName) {
@@ -910,7 +909,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
       const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: outgoing, groupId, phone, ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
+        body: JSON.stringify({ message: outgoing, groupId, ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
       });
       const json = (await response.json()) as Record<string, unknown> & { snapshot?: Snapshot; kind?: string; message?: string };
       if (json.snapshot) setSnapshot(json.snapshot);
@@ -962,7 +961,6 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         body: JSON.stringify({
           message: rulePrompt.trim(),
           groupId,
-          phone,
           ruleMode: 'confirm',
           personId: rulePromptModal.person.personId,
           promptId,
@@ -995,13 +993,13 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     if (didInitialLoad.current) return;
     didInitialLoad.current = true;
     authLog({ stage: 'initial_chat_triggered' });
-    apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, phone }) })
+    apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId }) })
       .then(async (response) => {
         if (!response.ok) return;
         const json = (await response.json()) as ChatResponse;
         if (json.snapshot) setSnapshot(json.snapshot);
       });
-  }, [groupId, phone]);
+  }, [groupId, sessionEmail]);
 
   useEffect(() => {
     if (!whenEditorCode) return;
@@ -1153,7 +1151,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
     setBreakoutError(null);
     setIsSpinningOff(true);
     try {
-      const result = await spinoffBreakoutGroup({ sourceGroupId: groupId, phone });
+      const result = await spinoffBreakoutGroup({ sourceGroupId: groupId });
       if (!result.ok) {
         setBreakoutError(`${result.message}${result.traceId ? ` (trace: ${result.traceId})` : ''}`);
         return;
@@ -1186,7 +1184,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
         onBreakoutClick={() => { void createBreakoutGroup(); }}
         breakoutDisabled={isSpinningOff}
         onRenameGroupName={renameGroupName}
-        sessionEmail={phone}
+        sessionEmail={sessionEmail}
         sessionName={signedInPersonName}
       />
       {breakoutNotice ? (
@@ -1785,7 +1783,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
             <Box
               component="img"
               sx={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 1 }}
-              src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&phone=${encodeURIComponent(phone)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)}
+              src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)}
             />
           ) : null}
         </DialogContent>
@@ -1810,7 +1808,7 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
               void apiFetch('/api/appointmentScanDelete', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ groupId, phone, appointmentId })
+                body: JSON.stringify({ groupId, appointmentId })
               }).then(() => refreshSnapshot());
               setScanViewerAppointment(null);
             }}

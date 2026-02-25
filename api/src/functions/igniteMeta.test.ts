@@ -33,7 +33,7 @@ const baseState = (now: string): AppState => ({
   }
 });
 
-test('igniteMeta returns identity_required for unauthenticated requests missing phone/email', async () => {
+test('igniteMeta returns unauthorized for unauthenticated requests', async () => {
   const now = new Date().toISOString();
   const adapter: StorageAdapter = {
     async initIfMissing() {},
@@ -50,8 +50,8 @@ test('igniteMeta returns identity_required for unauthenticated requests missing 
     json: async () => ({ groupId: GROUP_ID, sessionId: IGNITE_SESSION_ID, traceId: 'trace-1' })
   } as any, {} as any);
 
-  assert.equal(response.status, 400);
-  assert.equal((response.jsonBody as any).error, 'identity_required');
+  assert.equal(response.status, 401);
+  assert.equal((response.jsonBody as any).error, 'unauthorized');
 });
 
 test('igniteMeta accepts x-session-id authentication without phone', async () => {

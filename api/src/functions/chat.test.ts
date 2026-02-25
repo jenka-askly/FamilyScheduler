@@ -26,7 +26,7 @@ test.afterEach(() => {
 test('chat returns group_not_found when group is missing', async () => {
   const adapter: StorageAdapter = { async initIfMissing() {}, async save() { throw new Error('not used'); }, async load() { throw new GroupNotFoundError(); } };
   setStorageAdapterForTests(adapter);
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'help', traceId: 't1' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'help', traceId: 't1' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 404);
   assert.equal((response.jsonBody as any).traceId, 't1');
 });
@@ -35,7 +35,7 @@ test('chat returns 502 for OpenAI failures only', async () => {
   setStorageAdapterForTests(okAdapter());
   process.env.OPENAI_API_KEY = 'sk-invalid';
   globalThis.fetch = (async () => ({ ok: false, status: 401, text: async () => 'invalid api key' })) as any;
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'list people', traceId: 't-openai' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'list people', traceId: 't-openai' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 502);
   assert.equal((response.jsonBody as any).error, 'OPENAI_CALL_FAILED');
   assert.equal((response.jsonBody as any).traceId, 't-openai');
@@ -53,7 +53,7 @@ test('rule draft defaults missing model personId from request personId', async (
     })
   })) as any;
 
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'I am not available March 3 2026.', ruleMode: 'draft', personId: 'P-1', traceId: 't-draft-default-person' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'I am not available March 3 2026.', ruleMode: 'draft', personId: 'P-1', traceId: 't-draft-default-person' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).draftError, undefined);
   assert.equal(Array.isArray((response.jsonBody as any).draftRules), true);
@@ -71,7 +71,7 @@ test('rule draft question returns deterministic draftError metadata', async () =
     })
   })) as any;
 
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'not available', ruleMode: 'draft', personId: 'P-1', traceId: 't-draft-question' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'not available', ruleMode: 'draft', personId: 'P-1', traceId: 't-draft-question' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).draftError?.code, 'MODEL_QUESTION');
   assert.equal((response.jsonBody as any).draftError?.traceId, 't-draft-question');
@@ -88,7 +88,7 @@ test('rule confirm persists draftedIntervals without OpenAI call', async () => {
   const response = await chat({
     json: async () => ({
       groupId: GROUP_ID,
-      phone: PHONE,
+     
       message: 'confirm this',
       ruleMode: 'confirm',
       personId: 'P-1',
@@ -117,7 +117,7 @@ test('rule confirm rejects draftedIntervals with mismatched personId', async () 
   const response = await chat({
     json: async () => ({
       groupId: GROUP_ID,
-      phone: PHONE,
+     
       message: 'confirm this',
       ruleMode: 'confirm',
       personId: 'P-1',
@@ -146,7 +146,7 @@ test('chat updates active person lastSeen on authenticated access', async () => 
   };
   setStorageAdapterForTests(adapter);
 
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'help', traceId: 't-last-seen' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'help', traceId: 't-last-seen' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 200);
   assert.equal(typeof savedState.people[0].lastSeen, 'string');
   assert.equal(Number.isNaN(Date.parse(savedState.people[0].lastSeen)), false);
@@ -159,7 +159,7 @@ test('chat returns CONFIG_MISSING when storage env is missing', async () => {
   const prevContainer = process.env.STATE_CONTAINER;
   delete process.env.STORAGE_ACCOUNT_URL;
   delete process.env.STATE_CONTAINER;
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'help', traceId: 't-config' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'help', traceId: 't-config' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 500);
   assert.equal((response.jsonBody as any).error, 'CONFIG_MISSING');
   assert.deepEqual((response.jsonBody as any).missing, ['STATE_CONTAINER', 'STORAGE_ACCOUNT_URL']);
@@ -192,7 +192,7 @@ test('chat records usage meter on successful OpenAI call', async () => {
     })
   })) as any;
 
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'list people', traceId: 't-usage-ok' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'list people', traceId: 't-usage-ok' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 200);
   assert.equal(updates.length > 0, true);
   assert.equal(updates.at(-1)?.requests, 1);
@@ -215,7 +215,7 @@ test('chat records usage meter error on OpenAI failure', async () => {
   });
 
   globalThis.fetch = (async () => ({ ok: false, status: 401, text: async () => 'invalid api key' })) as any;
-  const response = await chat({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, message: 'list people', traceId: 't-usage-err' }), headers: { get: () => 's1' } } as any, {} as any);
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'list people', traceId: 't-usage-err' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 502);
   assert.equal(updates.length > 0, true);
   assert.equal(typeof updates.at(-1)?.lastErrorAtISO, 'string');
