@@ -14,7 +14,7 @@ type SpinoffPayload = {
 };
 
 export type SpinoffBreakoutResult =
-  | { ok: true; urlToOpen: string; newGroupId: string }
+  | { ok: true; urlToOpen: string; newGroupId: string; linkPath: string }
   | { ok: false; message: string; traceId?: string };
 
 export async function spinoffBreakoutGroup({
@@ -32,6 +32,11 @@ export async function spinoffBreakoutGroup({
       body: JSON.stringify({ sourceGroupId, traceId, groupName })
     });
     const data = await response.json() as SpinoffPayload;
+    console.info('[BREAKOUT_DEBUG]', {
+      at: 'spinoff_response',
+      data
+    });
+
     if (!response.ok || !data.ok || !data.newGroupId || !data.linkPath) {
       const resolvedTraceId = data.traceId ?? traceId;
       return {
@@ -44,6 +49,7 @@ export async function spinoffBreakoutGroup({
     return {
       ok: true,
       newGroupId: data.newGroupId,
+      linkPath: data.linkPath,
       urlToOpen: `${window.location.origin}${data.linkPath}`
     };
   } catch {

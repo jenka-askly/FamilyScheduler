@@ -9498,3 +9498,39 @@ Fix breakout launch behavior where **Breakout Session** opened a new tab back to
 
 - Manual runtime verification in browser: click **Breakout Session** from dashboard and confirm popup target path is `/#/g/<newGroupId>/ignite`.
 - Remove temporary `[BREAKOUT_DEBUG]` console log after validation cycle if no longer needed.
+
+## 2026-02-25 04:54 UTC (Breakout diagnostics instrumentation + URL open guard)
+
+### Objective
+
+Add targeted breakout click-path diagnostics and verify/fix URL construction so breakout opens the intended ignite route in a new tab.
+
+### Approach
+
+- Located breakout click path in `AppShell.createBreakoutGroup` and spinoff API helper in `spinoffBreakoutGroup`.
+- Replaced prior lightweight debug line with structured pre-open and post-open `[BREAKOUT_DEBUG]` logs in `AppShell`:
+  - `before_open` includes `fromHref`, `urlToOpen`, `linkPath`, `newGroupId`
+  - `after_open` includes `opened` boolean
+- Added structured `spinoff_response` log after API JSON parse in `spinoffBreakoutGroup`.
+- Kept URL construction explicit as `const urlToOpen = `${window.location.origin}${data.linkPath}`;`.
+- Extended success return type to include `linkPath` for diagnostics continuity at the click site.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅ inspected working tree baseline.
+- `git rev-parse --abbrev-ref HEAD` ✅ confirmed branch (`work`).
+- `git log -n 1 --oneline` ✅ captured HEAD baseline commit.
+- `nl -ba apps/web/src/AppShell.tsx | sed -n '1110,1195p'` ✅ inspected breakout click handler.
+- `nl -ba apps/web/src/lib/ignite/spinoffBreakout.ts | sed -n '1,120p'` ✅ inspected spinoff URL construction path.
+- `pnpm -r build` ✅ passed (web/shared/api builds succeeded).
+
+### Follow-ups
+
+- Human-run browser verification: click **Breakout Session** and paste emitted `[BREAKOUT_DEBUG]` lines (`spinoff_response`, `before_open`, `after_open`) to confirm `urlToOpen` and `linkPath` match expected `/#/g/<newGroupId>/ignite` shape.
