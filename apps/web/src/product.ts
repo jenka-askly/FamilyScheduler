@@ -1,3 +1,3 @@
 export const PRODUCT = {
-  name: 'Family Scheduler',
+  name: 'Yapper',
 } as const;

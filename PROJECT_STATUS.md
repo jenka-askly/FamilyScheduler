@@ -3035,6 +3035,25 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Popup blockers can prevent auto-open of breakout tab; dashboard and in-group flows both surface a manual-open link when `window.open` returns null.
 - Dashboard group listing currently uses recent-group context on home and only shows rows when a recent group exists.
 
+## 2026-02-25 01:50 UTC update (UI product rename: Family Scheduler -> Yapper)
+
+### What changed
+
+- Updated UI-facing product name string to `Yapper` in the shared web product config.
+- Updated base HTML document title to `Yapper` so the initial browser tab label reflects the new app name.
+- Scope intentionally limited to UI-only references; backend defaults and historical logs/docs were not modified as part of this rename request.
+
+### Files touched
+
+- `apps/web/src/product.ts`
+- `apps/web/index.html`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### How verified
+
+- `rg -n "Family Scheduler|Yapper" apps/web/src/product.ts apps/web/index.html`
+- `pnpm --filter @familyscheduler/web build`
 ## 2026-02-25 01:48 UTC update (Ignite join grace-session response hardening)
 
 - Hardened `POST /api/ignite/join` unauth join behavior so successful joins always return a grace `sessionId` sourced from `createIgniteGraceSession` (30s, `kind=igniteGrace`, scoped by breakout `groupId` and ignite `sessionId`).
