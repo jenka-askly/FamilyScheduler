@@ -31,11 +31,12 @@ type Props = {
   subtitleOverride?: string;
   subtitlePulse?: boolean;
   hasApiSession?: boolean;
+  sessionEmail?: string | null;
   onSignOut?: () => void;
   showGroupSummary?: boolean;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, onSignOut, showGroupSummary = true }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, onSignOut, showGroupSummary = true }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -43,6 +44,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isRenamePending, setIsRenamePending] = useState(false);
   const [detectedApiSession, setDetectedApiSession] = useState<boolean>(() => Boolean(window.localStorage.getItem('fs.sessionId')));
+  const [detectedSessionEmail, setDetectedSessionEmail] = useState<string | null>(() => window.localStorage.getItem('fs.sessionEmail'));
   const { mode, toggleMode } = useColorMode();
 
   const signOut = () => {
@@ -70,11 +72,15 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === 'fs.sessionId') setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
+      if (event.key === 'fs.sessionEmail') setDetectedSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
     };
     window.addEventListener('storage', onStorage);
     setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
+    setDetectedSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  const effectiveSessionEmail = sessionEmail ?? detectedSessionEmail;
 
   const copyGroupLink = async () => {
     if (!groupId || typeof window === 'undefined') return;
@@ -269,6 +275,12 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </MenuItem>
           ) : null}
           {onBreakoutClick ? <Divider /> : null}
+          {(hasApiSession ?? detectedApiSession) ? (
+            <MenuItem disabled>
+              <ListItemText primary={effectiveSessionEmail || 'Signed in'} secondary={effectiveSessionEmail ? 'Signed in email' : undefined} />
+            </MenuItem>
+          ) : null}
+          {(hasApiSession ?? detectedApiSession) ? <Divider /> : null}
           {(hasApiSession ?? detectedApiSession) ? (
             <MenuItem
               onClick={(event) => {

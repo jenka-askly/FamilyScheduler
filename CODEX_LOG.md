@@ -8871,3 +8871,36 @@ Ensure unauthenticated `igniteJoin` returns a usable grace `sessionId` every suc
 ### Follow-ups
 
 - Human/manual browser verification still required for the exact join flow acceptance scenarios (fresh storage join, 30s expiry, cross-group scope rejection).
+
+## 2026-02-25 02:00 UTC (Show authenticated email in workspace burger menu)
+
+### Objective
+
+Ensure authenticated users always see their signed-in email inside the workspace/burger menu.
+
+### Approach
+
+- Located the workspace menu implementation in `PageHeader` (used by `AppShell`).
+- Added `sessionEmail` support in `PageHeader` props and an internal localStorage fallback (`fs.sessionEmail`) with storage-event syncing.
+- Added a disabled menu row that displays the email before the sign-out action whenever an API session is active.
+- Passed `phone` (signed-in email identity in `AppShell`) to `PageHeader` as `sessionEmail`.
+- Kept the diff minimal; no routing/auth flow changes.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "burger|hamburger|menu|dropdown|email|user" apps/web -S` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (used for screenshot capture; stopped with SIGINT)
+- Playwright screenshot capture against `http://127.0.0.1:4173/#/g/demo/app` with mocked `fs.sessionId` + `fs.sessionEmail` ✅ (artifact: `artifacts/pageheader-menu-email.png`)
+
+### Follow-ups
+
+- Optional: add a component-level UI test for PageHeader menu content if/when frontend test harness is introduced.

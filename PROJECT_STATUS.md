@@ -3067,3 +3067,24 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. Wait >30s, refresh `/#/g/:breakoutGroupId/app`, confirm redirect to `/login` (grace expiry expected).
 3. Within 30s window, navigate to `/#/g/<differentGroupId>/app`, confirm access is denied by scope enforcement and UI routes to existing join/login behavior.
 4. Build validation: `pnpm -r build`.
+
+## 2026-02-25 02:00 UTC update (always show signed-in email in workspace burger menu)
+
+### What changed
+
+- Updated the shared workspace `PageHeader` burger menu to always show the authenticated user's email (when signed in) as a dedicated disabled menu item above `Sign out`.
+- Added session-email detection in `PageHeader` via `fs.sessionEmail` localStorage listener so the menu still shows the email even when the prop is not explicitly passed.
+- Wired `AppShell` to pass the signed-in email (`phone` session value) into `PageHeader` as `sessionEmail` for deterministic display.
+
+### Files touched
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### How verified
+
+- `pnpm --filter @familyscheduler/web typecheck`
+- `pnpm --filter @familyscheduler/web build`
+- Visual check using Playwright screenshot against local web dev server with mocked auth localStorage.
