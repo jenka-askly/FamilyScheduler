@@ -1,13 +1,10 @@
-import { Alert, Box, Button, Chip, Stack, Typography } from '@mui/material';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import { Alert, Box, Button, Chip, Divider, List, ListItem, ListItemButton, ListItemText, Stack, Typography } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
-import { spinoffBreakoutGroup } from '../lib/ignite/spinoffBreakout';
 import { apiFetch } from '../lib/apiUrl';
 
 type DashboardHomePageProps = {
-  signedInLabel?: string;
   onCreateGroup: () => void;
-  onOpenRecentGroup?: () => void;
-  recentGroupId?: string;
 };
 
 type DashboardGroup = {
@@ -23,37 +20,22 @@ type DashboardGroup = {
   appointmentCountUpcoming: number;
 };
 
-type DashboardRecent = {
-  type: 'invite' | 'group';
-  label: string;
-  groupId?: string;
-  status?: 'active' | 'invited';
-  timestamp: string;
-  actions: string[];
-};
-
 type DashboardPayload = {
   traceId: string;
   groups: DashboardGroup[];
-  recent: DashboardRecent[];
-  usageToday: { openaiCalls: number; tokensIn: number; tokensOut: number; errors: number } | null;
-  monthSummary: { newGroups: number; newAppointments: number; invitesSent: number; invitesAccepted: number } | null;
-  health: { ok: boolean; time: string };
 };
 
 const navToGroup = (groupId: string): void => {
   window.location.hash = `/g/${groupId}/app`;
 };
 
-export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, onOpenRecentGroup, recentGroupId }: DashboardHomePageProps) {
-  const [isSpinningOffGroupId, setIsSpinningOffGroupId] = useState<string | null>(null);
-  const [breakoutNotice, setBreakoutNotice] = useState<string | null>(null);
+export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
+  const [isBreakingOut, setIsBreakingOut] = useState(false);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupsError, setGroupsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'invited'>('all');
-  const hasRecentGroup = Boolean(recentGroupId);
 
   const loadDashboard = async () => {
     setLoadingGroups(true);
@@ -77,27 +59,36 @@ export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, 
     void loadDashboard();
   }, []);
 
-  const createBreakoutGroup = async (groupId: string) => {
-    if (isSpinningOffGroupId) return;
+  const createBreakoutGroup = async () => {
+    if (isBreakingOut) return;
     setBreakoutError(null);
-    setIsSpinningOffGroupId(groupId);
+    setIsBreakingOut(true);
     try {
-      const result = await spinoffBreakoutGroup({ sourceGroupId: groupId });
-      if (!result.ok) {
-        setBreakoutError(`${result.message}${result.traceId ? ` (trace: ${result.traceId})` : ''}`);
+      const creatorName = window.localStorage.getItem('fs.sessionName')?.trim();
+      const creatorEmail = window.localStorage.getItem('fs.sessionEmail')?.trim();
+      if (!creatorEmail) {
+        setBreakoutError('Missing signed-in email. Please sign in again and retry.');
         return;
       }
-
-      const popup = window.open(result.urlToOpen, '_blank', 'noopener,noreferrer');
-      if (!popup) {
-        setBreakoutNotice(result.urlToOpen);
+      const response = await apiFetch('/api/group/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupName: `Break Out ${new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
+          creatorEmail,
+          creatorName: creatorName || creatorEmail
+        })
+      });
+      const data = await response.json() as { groupId?: string; message?: string; traceId?: string };
+      if (!response.ok || !data.groupId) {
+        setBreakoutError(`${data.message ?? 'Unable to break out right now.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
         return;
       }
-      popup.focus?.();
-      setBreakoutNotice(null);
-      setBreakoutError(null);
+      window.location.hash = `/g/${data.groupId}/ignite`;
+    } catch {
+      setBreakoutError('Unable to break out right now.');
     } finally {
-      setIsSpinningOffGroupId(null);
+      setIsBreakingOut(false);
     }
   };
 
@@ -118,117 +109,93 @@ export function DashboardHomePage({ signedInLabel = 'Signed in', onCreateGroup, 
   };
 
   return (
-    <Stack spacing={{ xs: 4, md: 5 }}>
-      <Box>
-        <Typography variant="overline" sx={{ color: '#d97706', fontWeight: 700, letterSpacing: '0.08em' }}>Dashboard</Typography>
-        <Typography
-          variant="h4"
-          sx={{
-            mt: 0.6,
-            fontWeight: 750,
-            letterSpacing: '-0.015em',
-            fontSize: { xs: '1.8rem', md: '2.1rem' },
-            lineHeight: 1.15
-          }}
-        >
-          Welcome back
-        </Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>{signedInLabel}</Typography>
-      </Box>
-
-      {breakoutNotice ? (
-        <Alert severity="info" onClose={() => setBreakoutNotice(null)}>
-          Opening Breakout in a new tab. If nothing happened, <a href={breakoutNotice} target="_blank" rel="noopener noreferrer">open it manually</a>.
-        </Alert>
-      ) : null}
+    <Stack spacing={{ xs: 3, md: 4 }}>
       {breakoutError ? <Alert severity="error" onClose={() => setBreakoutError(null)}>{breakoutError}</Alert> : null}
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-        <Button variant="contained" onClick={onCreateGroup}>Create a group</Button>
-        {hasRecentGroup && onOpenRecentGroup ? <Button variant="outlined" onClick={onOpenRecentGroup}>Open recent group</Button> : null}
+      <Stack spacing={1.25}>
+        <Button variant="contained" fullWidth onClick={() => { void createBreakoutGroup(); }} disabled={isBreakingOut}>{isBreakingOut ? 'Breaking Out…' : '⚡ Break Out'}</Button>
+        <Button variant="outlined" fullWidth onClick={onCreateGroup} disabled={isBreakingOut}>+ Create Group</Button>
       </Stack>
 
-      <Box sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 3, bgcolor: 'background.paper' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Recent</Typography>
-        {loadingGroups ? <Typography color="text.secondary">Loading…</Typography> : null}
-        {!loadingGroups && (dashboard?.recent?.length ?? 0) === 0 ? <Typography color="text.secondary">No recent activity yet.</Typography> : null}
-        <Stack spacing={1}>
-          {(dashboard?.recent ?? []).map((item, idx) => (
-            <Stack key={`${item.type}-${item.groupId ?? idx}`} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" sx={{ py: 1, borderBottom: '1px solid', borderBottomColor: 'divider', '&:last-of-type': { borderBottom: 'none' } }}>
-              <Box>
-                <Typography sx={{ fontWeight: 600 }}>{item.label}</Typography>
-                <Typography variant="body2" color="text.secondary">{new Date(item.timestamp).toLocaleString()}</Typography>
-              </Box>
-              <Stack direction="row" spacing={1}>
-                {item.actions.includes('accept') && item.groupId ? <Button size="small" variant="contained" onClick={() => { void handleAccept(item.groupId!); }}>Accept</Button> : null}
-                {item.actions.includes('decline') && item.groupId ? <Button size="small" variant="outlined" color="warning" onClick={() => { void handleDecline(item.groupId!); }}>Decline</Button> : null}
-                {item.actions.includes('resume') && item.groupId ? <Button size="small" variant="outlined" onClick={() => navToGroup(item.groupId!)}>Resume</Button> : null}
-                {item.actions.includes('open') && item.groupId ? <Button size="small" variant="text" onClick={() => navToGroup(item.groupId!)}>Open</Button> : null}
-              </Stack>
-            </Stack>
-          ))}
-        </Stack>
-      </Box>
-
-      <Box sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 3, bgcolor: 'background.paper' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>Your groups</Typography>
-        <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+      <Box>
+        <Typography
+          variant="caption"
+          sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.78, fontWeight: 700, display: 'block', mb: 1.25 }}
+        >
+          YOUR GROUPS
+        </Typography>
+        <Stack direction="row" spacing={1} sx={{ mb: 1.25 }}>
           <Chip size="small" clickable label="All" color={filter === 'all' ? 'primary' : 'default'} onClick={() => setFilter('all')} />
           <Chip size="small" clickable label="Active" color={filter === 'active' ? 'success' : 'default'} onClick={() => setFilter('active')} />
           <Chip size="small" clickable label="Invited" color={filter === 'invited' ? 'warning' : 'default'} onClick={() => setFilter('invited')} />
         </Stack>
+
         {loadingGroups ? <Typography color="text.secondary">Loading…</Typography> : null}
         {groupsError ? <Typography color="error" variant="body2">{groupsError}</Typography> : null}
         {!loadingGroups && !groupsError && groups.length > 0 ? (
-          <Stack spacing={1.25}>
-            {groups.map((group) => (
-              <Stack
-                key={group.groupId}
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                onClick={() => navToGroup(group.groupId)}
-                sx={{ py: 0.75, borderBottom: '1px solid', borderBottomColor: 'divider', '&:last-of-type': { borderBottom: 'none' }, cursor: 'pointer' }}
-              >
-                <Box>
-                  <Typography sx={{ fontWeight: 600 }}>{group.groupName}</Typography>
-                  <Typography color="text.secondary" variant="body2">{group.memberCountActive} members · {group.appointmentCountUpcoming} upcoming</Typography>
-                  <Typography color="text.secondary" variant="caption">Updated {new Date(group.updatedAt).toLocaleString()}</Typography>
+          <List disablePadding>
+            {groups.map((group, index) => {
+              const invited = group.myStatus === 'invited';
+              const content = (
+                <>
+                  <ListItemText
+                    primary={<Typography sx={{ fontWeight: 600 }}>{group.groupName}</Typography>}
+                    secondary={(
+                      <Typography color="text.secondary" variant="body2" sx={{ mt: 0.35, lineHeight: 1.35 }}>
+                        {group.memberCountActive} members · {group.appointmentCountUpcoming} upcoming · Updated {new Date(group.updatedAt).toLocaleDateString()}
+                      </Typography>
+                    )}
+                  />
+                  <Stack direction="row" spacing={1} alignItems="center" onClick={(event) => event.stopPropagation()}>
+                    <Chip size="small" label={invited ? 'Invited' : 'Active'} color={invited ? 'warning' : 'success'} />
+                    {invited ? (
+                      <>
+                        <Button variant="contained" size="small" onClick={(event) => { event.stopPropagation(); void handleAccept(group.groupId); }}>Accept</Button>
+                        <Button variant="outlined" color="warning" size="small" onClick={(event) => { event.stopPropagation(); void handleDecline(group.groupId); }}>Decline</Button>
+                      </>
+                    ) : <ChevronRightIcon color="action" fontSize="small" />}
+                  </Stack>
+                </>
+              );
+
+              return (
+                <Box key={group.groupId}>
+                  <ListItem disablePadding sx={{ py: 0 }}>
+                    {invited ? (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          px: 0.5,
+                          py: 1.1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1
+                        }}
+                      >
+                        {content}
+                      </Box>
+                    ) : (
+                      <ListItemButton
+                        onClick={() => navToGroup(group.groupId)}
+                        sx={{
+                          px: 0.5,
+                          py: 1.1,
+                          borderRadius: 1,
+                          '&:hover': { bgcolor: 'action.hover' }
+                        }}
+                      >
+                        {content}
+                      </ListItemButton>
+                    )}
+                  </ListItem>
+                  {index < groups.length - 1 ? <Divider /> : null}
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center" onClick={(event) => event.stopPropagation()}>
-                  <Chip size="small" label={group.myStatus === 'active' ? 'Active' : 'Invited'} color={group.myStatus === 'active' ? 'success' : 'warning'} />
-                  {group.myStatus === 'invited' ? (
-                    <>
-                      <Button variant="contained" size="small" onClick={() => { void handleAccept(group.groupId); }}>Accept</Button>
-                      <Button variant="outlined" color="warning" size="small" onClick={() => { void handleDecline(group.groupId); }}>Decline</Button>
-                    </>
-                  ) : null}
-                  <Button
-                    variant="contained"
-                    size="small"
-                    disabled={Boolean(isSpinningOffGroupId)}
-                    onClick={() => { void createBreakoutGroup(group.groupId); }}
-                  >
-                    {isSpinningOffGroupId === group.groupId ? 'Breaking Out…' : 'Break Out'}
-                  </Button>
-                </Stack>
-              </Stack>
-            ))}
-          </Stack>
+              );
+            })}
+          </List>
         ) : null}
         {!loadingGroups && !groupsError && groups.length === 0 ? <Typography color="text.secondary">No groups yet.</Typography> : null}
-      </Box>
-
-      <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 3, bgcolor: 'background.paper' }}>
-        <Typography variant="body2" color="text.secondary">
-          AI today: {dashboard?.usageToday ? `${dashboard.usageToday.openaiCalls} calls (${dashboard.usageToday.tokensIn}/${dashboard.usageToday.tokensOut})` : 'No usage'}
-        </Typography>
-        <Typography variant="body2" sx={{ color: dashboard?.health.ok ? 'success.main' : 'error.main' }}>
-          Health: {dashboard?.health.ok ? `ok (${new Date(dashboard.health.time).toLocaleTimeString()})` : 'down'}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Month: {dashboard?.monthSummary ? `${dashboard.monthSummary.newGroups} groups · ${dashboard.monthSummary.newAppointments} appointments · ${dashboard.monthSummary.invitesSent} invites sent · ${dashboard.monthSummary.invitesAccepted} invites accepted` : 'No metrics yet'}
-        </Typography>
       </Box>
     </Stack>
   );

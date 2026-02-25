@@ -3,6 +3,7 @@ import { Box, Container, IconButton, Link, Menu, MenuItem, Stack, Switch, Typogr
 import MenuIcon from '@mui/icons-material/Menu';
 import { useColorMode } from '../../colorMode';
 import { buildInfo } from '../../lib/buildInfo';
+import yapperIcon from '../../assets/yapper-icon.svg';
 
 type MarketingLayoutProps = {
   children: ReactNode;
@@ -23,12 +24,17 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
       <Container maxWidth="lg" sx={{ pt: { xs: 3, md: 5 }, pb: { xs: 7, md: 10 }, flexGrow: 1 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: { xs: 4, md: 7 } }}>
           <Box>
-            <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: 'primary.main', lineHeight: 1 }}>
-              Yapper
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              The friendlier way to move plans forward.
-            </Typography>
+            <Stack direction="row" spacing={1.1} alignItems="center">
+              <Box component="img" src={yapperIcon} alt="Yapper" sx={{ width: 26, height: 26 }} />
+              <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: 'primary.main', lineHeight: 1 }}>
+                Yapper
+              </Typography>
+            </Stack>
+            {!hasApiSession ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                The friendlier way to move plans forward.
+              </Typography>
+            ) : null}
           </Box>
           <Stack direction="row" spacing={0.5} alignItems="center">
             <IconButton aria-label="Utilities" onClick={(event) => setAnchorEl(event.currentTarget)}>

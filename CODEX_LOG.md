@@ -10312,3 +10312,38 @@ Implement organizer profile-photo persistence fix across Ignite sessions by unif
 
 ### Follow-ups
 - Run manual staging verification for session #1/#2 organizer-photo continuity where `personId !== memberId` may occur in migrated groups.
+
+## 2026-02-25 23:36 UTC
+
+### Objective
+Implement authenticated dashboard UX lock-ins: remove welcome/recent/cards, add quick Break Out CTA, flatten group rows, and adjust marketing header branding/tagline behavior for authenticated users.
+
+### Approach
+- Ran discovery on `App.tsx` create/ignite paths to reuse `POST /api/group/create` and confirm Ignite organizer auto-start behavior via `/api/ignite/start` in organizer effect.
+- Reworked `DashboardHomePage` to:
+  - remove welcome/recent/diagnostics UI blocks,
+  - add top CTA stack (`⚡ Break Out`, `+ Create Group`),
+  - implement quick breakout create -> `/#/g/:groupId/ignite`,
+  - render flat compact groups list with divider rows and chevrons on non-invited rows,
+  - preserve invite Accept/Decline controls with event propagation stopped.
+- Updated `MarketingLayout` to include a new left-aligned icon next to the Yapper wordmark and conditionally hide tagline when `hasApiSession` is true.
+- Added `apps/web/src/assets/yapper-icon.svg` and simplified dashboard props passed from `App.tsx`.
+
+### Files changed
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/assets/yapper-icon.svg`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -name AGENTS.md -print` ✅ no additional AGENTS files found in container tree.
+- `rg -n "route.type === 'create'|/api/group/create|ignite|DashboardHomePage|MarketingLayout" ...` ✅ discovery of create/ignite/header/dashboard callsites.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (with existing Vite chunk-size warning).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ served for screenshot; dashboard API proxy failed in-container (no local API), expected for this environment.
+- Playwright screenshot capture via browser tool ✅ artifact: `browser:/tmp/codex_browser_invocations/457b44adfa2c9cf2/artifacts/artifacts/dashboard-auth-refactor.png`.
+
+### Follow-ups
+- Human should verify in a full local stack that quick Break Out lands on organizer with live QR/session data once API is running.
