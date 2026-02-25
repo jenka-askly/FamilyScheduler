@@ -1197,6 +1197,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         onRenameGroupName={renameGroupName}
         sessionEmail={sessionEmail}
         sessionName={signedInPersonName}
+        onDashboardClick={() => setActiveSection('overview')}
       />
       {breakoutNotice ? (
         <div

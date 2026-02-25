@@ -1,3 +1,16 @@
+## 2026-02-25 08:35 UTC update (App header dashboard navigation + homepage-themed product label)
+
+- Added a dedicated dashboard navigation control in the app header, positioned to the right of the product label.
+- Wired the new header control so it routes users back to the Dashboard/overview section from inside the app shell.
+- Updated the in-app product label styling to match the homepage branding theme (larger weight, tighter tracking, primary color).
+- Preserved existing menu actions and group controls; no backend/API behavior changed.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build`
+2. Browser screenshot captured (mocked API responses) for visual confirmation of header layout/style update.
+
+
 ## 2026-02-25 08:09 UTC update (Yapper magic-link email copy refresh)
 
 - Updated auth magic-link email branding from FamilyScheduler to Yapper.
