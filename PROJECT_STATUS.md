@@ -1,3 +1,22 @@
+## 2026-02-25 20:58 UTC update (Ignite organizer second-session photo + header/text parity)
+
+- **Bug root cause:** Organizer profile photo meta could be served stale and profile-photo reload only depended on limited triggers, so second Ignite sessions could miss refreshed metadata and keep fallback initials.
+- Added frontend cache busting on profile-photo metadata reads via `/api/user/profile-photo?groupId=...&t=${Date.now()}` while preserving image fetch cache keying on `meta.updatedAt`.
+- Added resilient profile-photo loading with bounded retries (up to 2 retries, 750–1500ms delay) when metadata reports a photo but image fetch fails or returns empty blob.
+- Added `metaReadyTick` increment on each successful `/api/ignite/meta` parse and included it in profile-photo load effect dependencies with session/group/organizer readiness guards.
+- Added cleanup for pending profile-photo retry timers when `sessionId` changes and on component unmount.
+- Added no-store response headers on `/api/user/profile-photo` meta endpoint (`Cache-Control`, `Pragma`, `Expires`) without changing image endpoint caching.
+- Centered Ignite helper copy above QR by forcing full-width centered container (`width: '100%', textAlign: 'center'`).
+- Applied Landing/Dashboard-like title block treatment to Ignite organizer header by setting `PageHeader` title/description to `Yapper` + `Smart coordination for modern groups`.
+- Verified Ignite organizer does not render the `Only invited email addresses can access this group.` sentence by keeping `showGroupAccessNote={false}`.
+
+### Manual verification performed
+
+1. Built web and API successfully.
+2. Ran compiled API profile-photo test asserting no-store headers are present.
+3. Captured Ignite organizer screenshot for visual confirmation of centered helper text and title block treatment.
+4. Manual multi-session organizer-photo lifecycle remains a human-run check in a fully running auth/API environment.
+
 ## 2026-02-25 20:24 UTC update (Ignite organizer profile photo cache bypass + reload retries)
 
 - Fixed organizer profile-photo metadata fetch to bypass browser/proxy caches by calling `apiFetch(..., { cache: "no-store" })` for `/api/user/profile-photo`.

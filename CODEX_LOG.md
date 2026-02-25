@@ -10121,3 +10121,35 @@ Fix three Ignite organizer issues: profile photo not reliably showing across sec
 
 ### Follow-ups
 - Browser/manual session lifecycle verification should still be run in full auth-backed environment (session 1 -> session 2 transition) to confirm end-to-end user flow.
+
+
+## 2026-02-25 20:58 UTC
+
+### Objective
+Implement requested Ignite organizer fixes: second-session profile photo reliability, helper-text centering, title-block parity with Landing/Dashboard, and confirm access-note sentence removal.
+
+### Approach
+- Traced Ignite organizer `loadProfilePhoto` + meta polling lifecycle in `apps/web/src/App.tsx` and found reload timing/cache risk points.
+- Added metadata cache-buster query param + bounded retry logic around image fetch failures/empty blobs.
+- Added `metaReadyTick` state incremented on each successful `/api/ignite/meta` response and wired it into photo-load effect deps.
+- Added retry timer cleanup on `sessionId` changes/unmount to prevent stale retries crossing sessions.
+- Added no-store headers to `/api/user/profile-photo` GET meta handler and strengthened existing unit test with header assertions.
+- Updated Ignite organizer header/text layout to match requested visual alignment and title treatment.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `api/src/functions/userProfilePhotoMeta.ts`
+- `api/src/functions/userProfilePhoto.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "IgniteOrganizerPage|profile-photo|Only invited email addresses|started this group|Yapper|ignite/meta" apps/web/src/App.tsx api/src` ✅ located frontend/backend targets.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test api/dist/api/src/functions/userProfilePhoto.test.js` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started; used for screenshot capture (expected proxy warnings without API server).
+- Playwright screenshot script against `/#/g/demo-group/ignite` ✅ captured `browser:/tmp/codex_browser_invocations/fc07722e107ac1b0/artifacts/artifacts/ignite-organizer-page.png`.
+
+### Follow-ups
+- Human should run full manual acceptance flow with live API/auth: session #1 photo visible, session #2 photo visible without refresh, and network inspection confirming meta no-store behavior.
