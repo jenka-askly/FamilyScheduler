@@ -9072,3 +9072,45 @@ Stop post-ignite-join `/login` bounce caused by local session clearing and harde
 ### Follow-ups
 
 - Human-run browser repro should confirm no immediate `api_session_cleared` after unauth ignite join and no hard bounce to `/login` during grace window.
+
+## 2026-02-25 02:45 UTC (Prevent non-email values from being treated as signed-in identity)
+
+### Objective
+
+Prevent invalid `fs.sessionEmail` values (e.g. `signin`) from being persisted/read as authenticated identity in web UI.
+
+### Approach
+
+- Added shared validator helpers in `apps/web/src/lib/validate.ts`:
+  - `isValidEmail(value)`
+  - `sanitizeSessionEmail(value)`
+- Updated auth consume write path in `apps/web/src/App.tsx`:
+  - set `fs.sessionEmail` only when `sanitizeSessionEmail(data.email)` succeeds,
+  - otherwise remove key and emit `authLog({ event: 'session_email_rejected', ... })` for diagnosability.
+- Updated read/display paths:
+  - `App` `sessionEmail` memo now sanitizes and clears invalid persisted values on read,
+  - `PageHeader` initial state + storage listener now sanitize and clear invalid values before setting state.
+
+### Files changed
+
+- `apps/web/src/lib/validate.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline` ✅ baseline check.
+- `nl -ba apps/web/src/App.tsx | sed -n '480,620p'` ✅ inspected auth consume flow.
+- `rg -n "SESSION_EMAIL_KEY|fs\.sessionEmail|isValidEmail|validate" apps/web/src/App.tsx apps/web/src/components/layout/PageHeader.tsx apps/web/src/lib` ✅ located write/read surfaces.
+- `rg -n --hidden --no-ignore -S "setItem\((SESSION_EMAIL_KEY|'fs\.sessionEmail')" apps/web/src` ✅ confirmed only guarded writer remains.
+- `pnpm -r build` ❌ initial TS narrowing error after first patch (`data.email` type handling).
+- `pnpm -r build` ❌ second TS check surfaced `possibly undefined` on `data.email.trim()`.
+- `pnpm -r build` ✅ passed after switching write-path to `sanitizeSessionEmail`.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ dev server started.
+- Playwright screenshot attempt via browser tool ⚠️ failed to locate `Menu` on `/#/` route within timeout, so no usable screenshot artifact was captured.
+
+### Follow-ups
+
+- Human-run manual smoke on login/consume flow should confirm that invalid values are removed and never shown as signed-in identity.

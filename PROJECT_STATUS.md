@@ -3173,3 +3173,22 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - `pnpm --filter @familyscheduler/web typecheck`
 - `pnpm --filter @familyscheduler/web build`
+
+## 2026-02-25 02:45 UTC update (Sanitize session email identity in web auth flow)
+
+### What changed
+
+- Added a shared web email validator utility (`isValidEmail` + `sanitizeSessionEmail`) in `apps/web/src/lib/validate.ts`.
+- Hardened auth consume write boundary (`AuthConsumePage`) so `fs.sessionEmail` is written only for valid emails; invalid/non-email values are now removed from localStorage and logged via `authLog` as `session_email_rejected`.
+- Hardened read/display boundaries:
+  - `App` now sanitizes `fs.sessionEmail` on read and clears invalid persisted values before passing identity props.
+  - `PageHeader` now sanitizes `fs.sessionEmail` in initial state and in storage-event refresh paths, clearing invalid values so labels cannot show garbage identities like `signin`.
+- Result: UI no longer treats non-email strings as signed-in identity labels.
+
+### Verification run
+
+1. `rg -n --hidden --no-ignore -S "setItem\((SESSION_EMAIL_KEY|'fs\.sessionEmail')" apps/web/src`
+2. `pnpm -r build`
+3. Manual smoke (human-run):
+   - Force `localStorage.fs.sessionEmail = 'signin'` and verify account label does **not** show `signin`.
+   - Complete normal auth consume with a real email and verify it still appears as signed-in identity.

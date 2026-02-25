@@ -8,6 +8,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import TextField from '@mui/material/TextField';
 import { useColorMode } from '../../colorMode';
 import { PRODUCT } from '../../product';
+import { sanitizeSessionEmail } from '../../lib/validate';
 
 const ContentCopyIcon = () => (
   <SvgIcon fontSize="small">
@@ -45,7 +46,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isRenamePending, setIsRenamePending] = useState(false);
   const [detectedApiSession, setDetectedApiSession] = useState<boolean>(() => Boolean(window.localStorage.getItem('fs.sessionId')));
-  const [detectedSessionEmail, setDetectedSessionEmail] = useState<string | null>(() => window.localStorage.getItem('fs.sessionEmail'));
+  const [detectedSessionEmail, setDetectedSessionEmail] = useState<string | null>(() => sanitizeSessionEmail(window.localStorage.getItem('fs.sessionEmail')));
   const [detectedSessionName, setDetectedSessionName] = useState<string | null>(() => window.localStorage.getItem('fs.sessionName'));
   const { mode, toggleMode } = useColorMode();
 
@@ -75,12 +76,18 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === 'fs.sessionId') setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
-      if (event.key === 'fs.sessionEmail') setDetectedSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
+      if (event.key === 'fs.sessionEmail') {
+        const nextSessionEmail = sanitizeSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
+        if (!nextSessionEmail && window.localStorage.getItem('fs.sessionEmail') !== null) window.localStorage.removeItem('fs.sessionEmail');
+        setDetectedSessionEmail(nextSessionEmail);
+      }
       if (event.key === 'fs.sessionName') setDetectedSessionName(window.localStorage.getItem('fs.sessionName'));
     };
     window.addEventListener('storage', onStorage);
     setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
-    setDetectedSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
+    const nextSessionEmail = sanitizeSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
+    if (!nextSessionEmail && window.localStorage.getItem('fs.sessionEmail') !== null) window.localStorage.removeItem('fs.sessionEmail');
+    setDetectedSessionEmail(nextSessionEmail);
     setDetectedSessionName(window.localStorage.getItem('fs.sessionName'));
     return () => window.removeEventListener('storage', onStorage);
   }, []);
