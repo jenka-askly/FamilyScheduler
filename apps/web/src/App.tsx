@@ -1156,6 +1156,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
 function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: string }) {
   const hasApiSession = Boolean(getAuthSessionId());
+  // "Unauth" here means no durable login session. Joiners may still have/receive igniteGrace.
+  const hasDurableSession = Boolean(getSessionId());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [photoBase64, setPhotoBase64] = useState<string>('');
@@ -1259,6 +1261,11 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
     <Page variant="form">
       <PageHeader title="Join session" description="Enter your name and email to join this live session." groupId={groupId} />
       <Stack component="form" spacing={2} onSubmit={submit}>
+        {!hasDurableSession ? (
+          <Alert severity="info">
+            We’ll email you a sign-in link. You’ll join now, and the link helps you keep participating if this temporary session expires.
+          </Alert>
+        ) : null}
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth />
         <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
         <input
