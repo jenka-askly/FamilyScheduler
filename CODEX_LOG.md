@@ -8773,3 +8773,42 @@ Implement a minimal backend/frontend split so `/api/group/join` performs access 
 ### Follow-ups
 
 - Optional: add dedicated tests for `groupJoinLink` email-skip/send branches with injectable email sender abstraction for easier deterministic testing.
+
+## 2026-02-25 01:19 UTC (Ignite join-link routing fix + optional joiner photo)
+
+### Objective
+
+Implement requested Ignite updates: make organizer “Join link” use `/#/s/:groupId/:sessionId`, add optional joiner photo upload on `IgniteJoinPage`, and keep Option A 30s scoped `igniteGrace` behavior intact.
+
+### Approach
+
+- Updated organizer share card so “Join link” row now renders/copies `joinUrl`, while preserving a distinct “Group link” row for `meetingUrl`.
+- Added optional joiner photo selection UI on unauthenticated ignite-join form using the existing capture/file pattern (`accept=image/*`, `capture=environment`) plus preview/remove controls.
+- Extended ignite join request payload to include optional `photoBase64` from web join flow.
+- Extended backend `igniteJoin` handler to:
+  - accept optional `photoBase64`,
+  - validate/decode with shared `decodeImageBase64` size/format safeguards,
+  - log trace-linked accept/reject events,
+  - persist blob via existing `ignitePhotoBlobKey` convention,
+  - set `ignite.photoUpdatedAtByPersonId[personId]` for organizer visibility.
+- Kept existing 30-second scoped `igniteGrace` session issuance and scope enforcement path unchanged.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `api/src/functions/igniteJoin.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅
+- `git rev-parse --abbrev-ref HEAD` ✅
+- `git log -n 1 --oneline` ✅
+- `rg -n "Join link|meetingUrl|joinUrl|IgniteJoinPage|uploadPhotoBase64|igniteGrace" apps/web/src/App.tsx api/src/functions` ✅
+- `pnpm -r build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for visual capture, then stopped)
+
+### Follow-ups
+
+- Authenticated auto-join path still joins immediately (no pre-join photo prompt); this was left intentionally as acceptable per requirement fallback.

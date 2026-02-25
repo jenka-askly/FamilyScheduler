@@ -1050,12 +1050,24 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
             <div className="ui-igniteSection">
               <Typography variant="subtitle2" sx={{ mb: 1 }}>Join link</Typography>
               <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite join link">
-                <Typography component="div" className="ui-igniteJoinLinkText" title={meetingUrl}>{meetingUrl}</Typography>
-                <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(meetingUrl); }}>
+                <Typography component="div" className="ui-igniteJoinLinkText" title={joinUrl}>{joinUrl}</Typography>
+                <IconButton type="button" title="Copy join link" aria-label="Copy join link" onClick={() => { void copyJoinLink(joinUrl); }}>
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
               </div>
               {copiedJoinLink ? <Typography className="ui-meta">✓ Copied</Typography> : null}
+            </div>
+          ) : null}
+
+          {sessionId ? (
+            <div className="ui-igniteSection">
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Group link</Typography>
+              <div className="ui-igniteJoinLinkRow" role="group" aria-label="Ignite group link">
+                <Typography component="div" className="ui-igniteJoinLinkText" title={meetingUrl}>{meetingUrl}</Typography>
+                <IconButton type="button" title="Copy group link" aria-label="Copy group link" onClick={() => { void copyJoinLink(meetingUrl); }}>
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </div>
             </div>
           ) : null}
 
@@ -1103,10 +1115,37 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   const hasApiSession = Boolean(getSessionId());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [photoBase64, setPhotoBase64] = useState<string>('');
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const joinPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
-  const join = async (payload: { name?: string; email?: string }) => {
+  const onPhotoSelected = async (input: HTMLInputElement) => {
+    const file = input.files?.[0];
+    if (!file) return;
+    setError(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ''));
+        reader.onerror = () => reject(new Error('read_failed'));
+        reader.readAsDataURL(file);
+      });
+      const [, base64 = ''] = dataUrl.split(',', 2);
+      if (!base64) throw new Error('invalid_photo');
+      setPhotoPreviewUrl(dataUrl);
+      setPhotoBase64(base64);
+    } catch {
+      setError('Unable to read photo. You can skip this step and join without a photo.');
+      setPhotoPreviewUrl('');
+      setPhotoBase64('');
+    } finally {
+      input.value = '';
+    }
+  };
+
+  const join = async (payload: { name?: string; email?: string; photoBase64?: string }) => {
     setError(null);
     setJoining(true);
     try {
@@ -1142,7 +1181,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       setError('Name and email are required.');
       return;
     }
-    await join({ name, email });
+    await join({ name, email, photoBase64: photoBase64 || undefined });
   };
 
   if (hasApiSession) {
@@ -1164,6 +1203,20 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       <Stack component="form" spacing={2} onSubmit={submit}>
         <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required fullWidth />
         <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
+        <input
+          ref={joinPhotoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={(e) => { void onPhotoSelected(e.currentTarget); }}
+          disabled={joining}
+        />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Button variant="outlined" type="button" onClick={() => joinPhotoInputRef.current?.click()} disabled={joining}>Add photo (optional)</Button>
+          {photoBase64 ? <Button variant="text" type="button" onClick={() => { setPhotoBase64(''); setPhotoPreviewUrl(''); }} disabled={joining}>Remove</Button> : null}
+        </Stack>
+        {photoPreviewUrl ? <img src={photoPreviewUrl} alt="Join photo preview" style={{ width: 88, height: 88, borderRadius: 10, objectFit: 'cover' }} /> : null}
         <Stack direction="row" spacing={1}><Button variant="contained" type="submit" disabled={joining}>{joining ? 'Joining…' : 'Join meeting'}</Button></Stack>
         {error ? <Alert severity="error">{error}</Alert> : null}
       </Stack>
