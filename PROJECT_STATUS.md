@@ -3102,3 +3102,22 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - `pnpm --filter @familyscheduler/web typecheck`
 - `pnpm --filter @familyscheduler/web build`
 - Visual check using Playwright screenshot against local web dev server with mocked auth localStorage.
+
+## 2026-02-25 02:05 UTC update (Ignite organizer: cancel breakout back to original group)
+
+### What changed
+
+- Added a `Cancel` button to the Organizer Breakout QR (`Ignition Session`) header actions.
+- `Cancel` now navigates back to the breakout group's main app route (`/#/g/:groupId/app`) instead of leaving the organizer in the QR page.
+- Kept existing `Close`/`Reopen` behavior unchanged.
+
+### Files touched
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### How verified
+
+- `pnpm --filter @familyscheduler/web typecheck`
+- `pnpm --filter @familyscheduler/web build`

@@ -985,6 +985,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     }
   };
 
+  const cancelBreakout = () => {
+    nav(`/g/${groupId}/app`);
+  };
+
   const groupMemberPersonIds = groupMetaPeople.map((person) => person.personId).filter((id) => Boolean(id));
   const organizerPersonIds = createdByPersonId ? [createdByPersonId] : [];
   const displayedPersonIds = Array.from(new Set([...groupMemberPersonIds, ...organizerPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
@@ -1015,6 +1019,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
             </div>
             <Typography variant="h6" className="ui-igniteCardTitle">Ignition Session</Typography>
             <div className="ui-igniteHeaderRight">
+              <Button variant="text" type="button" onClick={cancelBreakout}>Cancel</Button>
               <IconButton
                 size="small"
                 aria-label="Join sound"

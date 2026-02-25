@@ -8936,6 +8936,22 @@ Ensure breakout creation (`ignite/spinoff`) seeds the organizer person with both
 
 - `api/src/functions/igniteSpinoff.ts`
 - `api/src/functions/igniteSpinoff.test.ts`
+## 2026-02-25 02:05 UTC (Organizer breakout QR: add Cancel back navigation)
+
+### Objective
+
+Add a cancel action on the Organizer Breakout QR (Ignite organizer) page so organizer can exit QR flow and return to the original breakout group.
+
+### Approach
+
+- Located organizer QR page implementation in `IgniteOrganizerPage` (`apps/web/src/App.tsx`).
+- Added a minimal `cancelBreakout` handler that navigates to `/g/${groupId}/app`.
+- Added a `Cancel` button in the existing header-right action cluster before sound toggle and close/reopen controls.
+- Kept all existing start/poll/close session logic unchanged.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -8950,3 +8966,10 @@ Ensure breakout creation (`ignite/spinoff`) seeds the organizer person with both
 ### Follow-ups
 
 - None required for this bugfix; organizer profile copy can be expanded later if additional person attributes are introduced.
+- `rg -n "IgniteOrganizerPage|ui-igniteHeaderRight|Close|Reopen" apps/web/src/App.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Manual browser smoke still recommended for end-to-end breakout organizer flow with real auth + group data.
