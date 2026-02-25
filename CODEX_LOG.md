@@ -9860,3 +9860,33 @@ Find the magic-link email body composition and update product naming/content to 
 ### Follow-ups
 
 - If desired, add direct unit assertions for the updated email copy by mocking `sendEmail(...)` in `authRequestLink.test.ts`.
+
+## 2026-02-25 09:00 UTC
+
+### Objective
+Fix Ignite organizer joined-folks photo rendering so authenticated photo GETs succeed, and ensure `ignitePhotoGet` returns proper auth errors instead of throwing.
+
+### Approach
+- Replaced direct organizer thumbnail `<img src={apiUrl('/api/ignite/photo?...')}>` path with authenticated binary fetches via `apiFetch`.
+- Added per-person ObjectURL state cache keyed by photo update timestamp; revoke stale URLs on replacement, participant removal, and component unmount.
+- Added a dedicated effect to prefetch/update person photos based on `displayedPersonIds + photoUpdatedAtByPersonId` changes.
+- Hardened API photo handler to catch `HttpError` from `requireSessionFromRequest` and return structured 401/403 responses.
+- Updated project status doc with behavior and verification notes.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `api/src/functions/ignitePhotoGet.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `git -C /workspace/FamilyScheduler branch --show-current && git -C /workspace/FamilyScheduler rev-parse HEAD && git -C /workspace/FamilyScheduler status --short` ✅
+- `nl -ba apps/web/src/App.tsx | sed -n '1085,1165p'` ✅
+- `nl -ba api/src/functions/ignitePhotoGet.ts | sed -n '1,240p'` ✅
+- `rg -n "function IgniteHostPage|apiFetch\(|photoUpdatedAtByPersonId|sessionId\b" apps/web/src/App.tsx -S` ✅
+- `rg -n "class HttpError|instanceof HttpError|toResponse\(" api/src -S` ✅
+- `npm -C apps/web run build` ✅
+- `pnpm --filter @familyscheduler/api build` ✅
+
+### Follow-ups
+- Human runtime check: upload organizer photo and verify joined card renders image without unauthenticated GET failures in network panel.

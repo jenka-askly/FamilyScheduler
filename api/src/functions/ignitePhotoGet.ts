@@ -1,5 +1,6 @@
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { uuidV4Pattern } from '../lib/groupAuth.js';
+import { HttpError } from '../lib/auth/sessions.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ignitePhotoBlobKey } from '../lib/ignite.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
@@ -19,7 +20,13 @@ export async function ignitePhotoGet(request: HttpRequest, _context: InvocationC
   if (!sessionId) return errorResponse(400, 'sessionId_required', 'sessionId is required', traceId);
   if (!personId) return errorResponse(400, 'personId_required', 'personId is required', traceId);
 
-  const session = await requireSessionFromRequest(request, traceId, { groupId });
+  let session;
+  try {
+    session = await requireSessionFromRequest(request, traceId, { groupId });
+  } catch (error) {
+    if (error instanceof HttpError) return error.response;
+    throw error;
+  }
 
   const storage = createStorageAdapter();
   if (!storage.getBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing getBinary', traceId);

@@ -3623,3 +3623,14 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. `pnpm --filter @familyscheduler/web build`
+## 2026-02-25 09:00 UTC update (Ignite organizer photo render via authenticated fetch)
+
+- Fixed organizer "Joined folks" photo rendering by replacing direct `<img src="/api/ignite/photo...">` with client-side `apiFetch` + Blob/ObjectURL flow so `x-session-id` auth header is sent.
+- Added in-memory per-person photo ObjectURL cache keyed by `photoUpdatedAtByPersonId`, with cleanup/revoke on replacement, person removal, and page unmount.
+- Updated `ignitePhotoGet` to convert session auth failures into structured HTTP responses (`401/403`) instead of bubbling exceptions.
+- Behavior change: when a photo exists but the fetch is still in-flight/fails, the card now temporarily shows name-only fallback instead of broken image state.
+
+### Verification run
+
+1. `npm -C apps/web run build`
+2. `pnpm --filter @familyscheduler/api build`
