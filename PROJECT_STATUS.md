@@ -3739,3 +3739,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `python - <<'PY' ...` (workflow sanity replacement for `app_location`/`app_artifact_location`)
 2. `pnpm --filter @familyscheduler/web build`
+
+## 2026-02-25 20:38 UTC update (Ignite organizer photo/session reload + layout gap fix + access-note removal)
+
+- Fixed Ignite organizer profile-photo metadata fetch to bypass cache (`cache: 'no-store'`) so photo metadata is not stale across new ignite sessions.
+- Stabilized organizer profile-photo reload timing by gating profile-photo fetch until both `groupId` and `sessionId` exist while still reacting to `[groupId, sessionId, organizerPersonId]` transitions.
+- Fixed organizer-page vertical whitespace by replacing stretch-to-viewport wrapper (`ui-igniteOrg` / `ui-igniteOrgInner`) with normal stacked flow (`Stack` with centered max-width content).
+- Positioned footer controls directly below the "Who’s in" section with a small top margin.
+- Removed the organizer-page display of the access sentence by disabling `PageHeader` group access note rendering for Ignite organizer (`showGroupAccessNote={false}`).
+
+### Manual verification notes
+- Built web app successfully and captured Ignite organizer screenshot with updated flow (controls directly below “Who’s in”, no giant forced whitespace).
+- Verified Ignite organizer route no longer renders the invited-email access sentence in header area.
+- Verified profile-photo reload guard now waits for session readiness, preventing early unauthenticated profile-meta fetch attempts.

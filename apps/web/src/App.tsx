@@ -1072,6 +1072,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   useEffect(() => {
     if (!groupId) return;
+    if (!sessionId) return;
     void loadProfilePhoto();
   }, [groupId, sessionId, organizerPersonId]);
 
@@ -1161,12 +1162,13 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         titleOverride={groupName}
         subtitleOverride={undefined}
         subtitlePulse={joinedBump}
+        showGroupAccessNote={false}
         onRenameGroupName={renameGroupName}
         groupId={groupId}
       />
       {error ? <Alert severity="error">{error}</Alert> : null}
-      <div className="ui-igniteOrg">
-        <div className="ui-igniteOrgInner">
+      <Stack alignItems="center" spacing={2} sx={{ px: 2, pt: 1, pb: 2 }}>
+        <Stack alignItems="center" spacing={2} sx={{ width: '100%', maxWidth: 520 }}>
           <div className="ui-igniteSection ui-igniteHeaderHelper">
             <Typography className="ui-igniteHelperText">{`${organizerName} started this group to move things forward.`}</Typography>
             <Typography className="ui-igniteHelperText">Join to coordinate with everyone.</Typography>
@@ -1220,7 +1222,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
             </div>
           </div>
 
-          <div className="ui-igniteSection ui-igniteFooterControls">
+          <div className="ui-igniteSection ui-igniteFooterControls" style={{ marginTop: 16 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <Switch
                 checked={isJoinOpen}
@@ -1234,8 +1236,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
             </Stack>
             <Button variant="contained" type="button" fullWidth onClick={() => { void finishInvitingAndContinue(); }}>Finish inviting &amp; continue</Button>
           </div>
-        </div>
-      </div>
+        </Stack>
+      </Stack>
       <Dialog open={scanCaptureOpen} onClose={closeScanCaptureModal} maxWidth="sm" fullWidth>
         <DialogTitle>Capture photo</DialogTitle>
         <DialogContent>
