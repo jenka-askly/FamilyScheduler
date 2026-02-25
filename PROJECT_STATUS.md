@@ -3429,3 +3429,33 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 3. Breakout handoff URL: confirm it no longer contains `phone=`.
 4. Appointment scan image/delete: confirm requests succeed with session auth and no phone params/body.
 5. Chat/direct/group rename actions: confirm network payloads omit `phone` and actions still succeed.
+
+## 2026-02-25 04:51 UTC update (Breakout opens new group ignite URL)
+
+- Fixed breakout tab opening logic to use the server-returned `linkPath` directly when creating the breakout URL, so the new tab targets the spawned group route instead of reconstructing a handoff URL from current location context.
+- Added a temporary debug log before popup open in `AppShell`:
+  - `console.debug('[BREAKOUT_DEBUG]', { urlToOpen: result.urlToOpen, from: window.location.href })`
+- Breakout open behavior now uses `window.open(result.urlToOpen, '_blank', 'noopener,noreferrer')` with `urlToOpen` passed through verbatim from spinoff result.
+
+### Acceptance criteria
+
+- Clicking **Breakout Session** opens a new tab at the new group ignite route (`/#/g/<newGroupId>/ignite`).
+- Existing tab remains on current page with no navigation side effects.
+- Spinoff API payload/response contracts remain unchanged beyond client usage of existing `linkPath`.
+
+### Non-regressions
+
+- Breakout spinoff request still sends the same body fields (`sourceGroupId`, `traceId`, `groupName`).
+- Existing popup-blocked fallback notice behavior remains unchanged.
+
+### How to verify
+
+1. `pnpm -r build`
+2. Run app, authenticate, go to dashboard/home, click **Breakout Session**.
+3. Confirm new tab URL is `/#/g/<newGroupId>/ignite` and current tab is unchanged.
+4. Confirm browser console logs `[BREAKOUT_DEBUG]` with `urlToOpen` and current `from` URL.
+
+### Expected signals
+
+- Build succeeds.
+- New tab opens to spawned group ignite route (no self-dashboard reopening).

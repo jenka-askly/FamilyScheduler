@@ -5,7 +5,13 @@ const createTraceId = (): string => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-type SpinoffPayload = { ok?: boolean; newGroupId?: string; message?: string; traceId?: string };
+type SpinoffPayload = {
+  ok?: boolean;
+  newGroupId?: string;
+  linkPath?: string;
+  message?: string;
+  traceId?: string;
+};
 
 export type SpinoffBreakoutResult =
   | { ok: true; urlToOpen: string; newGroupId: string }
@@ -26,7 +32,7 @@ export async function spinoffBreakoutGroup({
       body: JSON.stringify({ sourceGroupId, traceId, groupName })
     });
     const data = await response.json() as SpinoffPayload;
-    if (!response.ok || !data.ok || !data.newGroupId) {
+    if (!response.ok || !data.ok || !data.newGroupId || !data.linkPath) {
       const resolvedTraceId = data.traceId ?? traceId;
       return {
         ok: false,
@@ -35,12 +41,10 @@ export async function spinoffBreakoutGroup({
       };
     }
 
-    const nextHash = `/g/${data.newGroupId}/ignite`;
-    const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&next=${encodeURIComponent(nextHash)}`;
     return {
       ok: true,
       newGroupId: data.newGroupId,
-      urlToOpen: `${window.location.origin}${handoffPath}`
+      urlToOpen: `${window.location.origin}${data.linkPath}`
     };
   } catch {
     return {
