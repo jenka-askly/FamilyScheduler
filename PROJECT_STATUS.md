@@ -3752,3 +3752,19 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Built web app successfully and captured Ignite organizer screenshot with updated flow (controls directly below “Who’s in”, no giant forced whitespace).
 - Verified Ignite organizer route no longer renders the invited-email access sentence in header area.
 - Verified profile-photo reload guard now waits for session readiness, preventing early unauthenticated profile-meta fetch attempts.
+
+## 2026-02-26 00:00 UTC update (Tables-first groups/membership + me/groups + health + appointment index)
+
+- Added Azure Tables client + auto-provision (`AZURE_TABLES_CONNECTION_STRING`) with lazy/startup initialization for: Groups, UserGroups, GroupMembers, AppointmentsIndex, DailyMetrics, UserDailyUsage, UserDailyUsageByModel, DailyUsageByModel.
+- Added deterministic user identity keying via `sha256(normalizedEmail)`.
+- Reworked group APIs (`groupCreate`, `groupJoin`, `groupJoinLink`, `groupMeta`, `groupRename`) to use table-backed group/membership entities and invited tracking (invited→active acceptance in join).
+- Added `GET /api/me/groups` endpoint and wired dashboard “Your groups” UI to fetch/render active+invited memberships.
+- Added `GET /api/health` endpoint (`{ ok, time, version }`).
+- Reworked scan appointment endpoints to store canonical appointment JSON blob per appointment and promoted fields in `AppointmentsIndex`; removed reliance on `state.appointments[]` in scan image/delete/rescan paths.
+- Added table-backed daily metrics increments (`newGroups`, `newAppointments`, `invitesSent`, `invitesAccepted`).
+- Added table-backed OpenAI usage recorder (`UserDailyUsage`, `UserDailyUsageByModel`, `DailyUsageByModel`) and wired into chat OpenAI success paths.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build` (pending in this container due dependency install issue for `@azure/data-tables`)
+2. `pnpm --filter @familyscheduler/web build`

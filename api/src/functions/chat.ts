@@ -17,6 +17,8 @@ import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { requireActiveMember } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { recordUsageError, recordUsageSuccess } from '../lib/usageMeter.js';
+import { userKeyFromEmail } from '../lib/identity/userKey.js';
+import { recordOpenAiSuccess } from '../lib/usage/usageTables.js';
 
 type ChatRequest = { message?: unknown; groupId?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
@@ -43,6 +45,7 @@ const getSessionState = (sessionId: string): SessionRuntimeState => {
   return created;
 };
 const trimHistory = (session: SessionRuntimeState): void => { const max = Number(process.env.OPENAI_SESSION_HISTORY_MAX ?? '120'); if (session.chatHistory.length > max) session.chatHistory = session.chatHistory.slice(-max); };
+const usageModel = (): string => process.env.AZURE_OPENAI_DEPLOYMENT?.trim() || process.env.OPENAI_MODEL?.trim() || 'unknown-model';
 
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
   if (!start || !end) return { date: start?.slice(0, 10) ?? '', isAllDay: true };
@@ -204,7 +207,7 @@ const parseDraftedIntervals = (value: unknown): { ok: true; intervals: DraftedIn
   return { ok: true, intervals };
 };
 
-const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; now: string; traceId: string; groupSnapshot: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[]; opId?: string }> => {
+const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | 'confirm'; personId: string; timezone: string; now: string; traceId: string; groupSnapshot: string; email: string; }): Promise<{ kind: 'proposal' | 'question'; message: string; action?: RuleModeModelAction; actionTypes: string[]; opId?: string }> => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
   const model = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
@@ -222,6 +225,7 @@ const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | '
   const opId = payload.id;
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_result', mode: params.mode, model, opId: opId ?? null }));
   await recordUsageSuccess(payload.usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
+  await recordOpenAiSuccess(userKeyFromEmail(params.email), usageModel(), Number(payload.usage?.input_tokens ?? payload.usage?.prompt_tokens ?? 0), Number(payload.usage?.output_tokens ?? payload.usage?.completion_tokens ?? 0)).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_tables_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI rule parse missing content');
   if (process.env.RULES_DRAFT_DEBUG_RAW === '1') {
@@ -251,7 +255,7 @@ const validateReferencedCodes = (state: AppState, actions: Action[]): string | n
 };
 const getIdentityName = (state: AppState, activePersonId: string | null): string | null => state.people.find((person) => person.personId === activePersonId)?.name ?? null;
 
-const parseWithOpenAi = async (params: { message: string; state: AppState; session: SessionRuntimeState; sessionId: string; traceId: string; }): Promise<{ parsed: ReturnType<typeof ParsedModelResponseSchema.parse>; opId?: string }> => {
+const parseWithOpenAi = async (params: { message: string; state: AppState; session: SessionRuntimeState; sessionId: string; traceId: string; email: string; }): Promise<{ parsed: ReturnType<typeof ParsedModelResponseSchema.parse>; opId?: string }> => {
   const contextEnvelope = buildContext({ state: params.state, identityName: getIdentityName(params.state, params.session.activePersonId), pendingProposal: params.session.pendingProposal ? { summary: 'Pending proposal', actions: params.session.pendingProposal.actions } : null, pendingClarification: params.session.pendingQuestion ? { question: params.session.pendingQuestion.message, partialAction: { type: 'help' }, missing: ['action'] } : null, history: params.session.chatHistory });
   const contextLen = JSON.stringify(contextEnvelope).length;
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_openai_before_fetch', model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini', messageLen: params.message.length, contextLen }));
@@ -265,6 +269,7 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
     onModelUsage: (modelUsage) => { usage = modelUsage; }
   });
   await recordUsageSuccess(usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
+  await recordOpenAiSuccess(userKeyFromEmail(params.email), usageModel(), Number(usage?.input_tokens ?? usage?.prompt_tokens ?? 0), Number(usage?.output_tokens ?? usage?.completion_tokens ?? 0)).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_tables_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   return { parsed: ParsedModelResponseSchema.parse(rawModel.parsed), opId: rawModel.opId };
 };
 
@@ -410,7 +415,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       openAiCallInFlight = true;
       let ruleParse;
       try {
-        ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', now: new Date().toISOString(), traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)) });
+        ruleParse = await parseRulesWithOpenAi({ message, mode: ruleMode, personId: requestedPersonId, timezone: process.env.TZ ?? 'America/Los_Angeles', now: new Date().toISOString(), traceId, groupSnapshot: JSON.stringify(toResponseSnapshot(state)), email: sessionAuth.email });
         opId = ruleParse.opId;
       } catch (error) {
         openAiCallInFlight = false;
@@ -496,7 +501,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
     openAiCallInFlight = true;
-    const openAiParsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, groupId), traceId });
+    const openAiParsed = await parseWithOpenAi({ message, state, session, sessionId: getSessionId(request, groupId), traceId, email: sessionAuth.email });
     opId = openAiParsed.opId;
     const parsed = openAiParsed.parsed;
     openAiCallInFlight = false;

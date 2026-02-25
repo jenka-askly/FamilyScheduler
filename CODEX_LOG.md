@@ -10121,3 +10121,60 @@ Fix three Ignite organizer issues: profile photo not reliably showing across sec
 
 ### Follow-ups
 - Browser/manual session lifecycle verification should still be run in full auth-backed environment (session 1 -> session 2 transition) to confirm end-to-end user flow.
+
+## 2026-02-26 00:00 UTC (Tables-first storage slice implementation)
+
+### Objective
+
+Implement one-slice migration to Azure Tables authority for groups/membership/usage metrics + canonical appointment docs in blob + dashboard groups endpoint/UI.
+
+### Approach
+
+- Added Azure Tables client module with auto-provision list + single-flight init.
+- Added table entity helpers for Groups/UserGroups/GroupMembers/AppointmentsIndex and counters.
+- Reworked group + scan endpoints to table-first authorization/membership and canonical appointment JSON docs.
+- Added `/api/me/groups` and `/api/health` handlers + route registration.
+- Wired dashboard groups list to API response and status badges.
+- Added table usage recorder and wired chat OpenAI success accounting.
+- Updated docs (`README`, `PROJECT_STATUS`, `WISHLIST`).
+
+### Files changed
+
+- `api/package.json`
+- `api/src/index.ts`
+- `api/src/functions/groupCreate.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/groupJoinLink.ts`
+- `api/src/functions/groupMeta.ts`
+- `api/src/functions/groupRename.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/appointmentScanImage.ts`
+- `api/src/functions/appointmentScanDelete.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/meGroups.ts`
+- `api/src/functions/health.ts`
+- `api/src/lib/identity/userKey.ts`
+- `api/src/lib/tables/tablesClient.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/tables/metrics.ts`
+- `api/src/lib/tables/membership.ts`
+- `api/src/lib/tables/appointments.ts`
+- `api/src/lib/tables/withTables.ts`
+- `api/src/lib/usage/usageTables.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `README.md`
+- `PROJECT_STATUS.md`
+- `docs/WISHLIST.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ❌ (no AGENTS discovered via that command)
+- `find .. -name AGENTS.md -maxdepth 4` ✅ (none found)
+- `pnpm install --filter @familyscheduler/api` ⚠️ failed with npm registry 403 for `@azure/data-tables`
+
+### Follow-ups
+
+- Run `pnpm install` / `pnpm --filter @familyscheduler/api build` in a registry-enabled environment.
+- Add/update API tests for new tables-backed handlers and membership transitions.

@@ -1,10 +1,10 @@
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { createStorageAdapter } from '../lib/storage/storageFactory.js';
-import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { ensureTablesReady } from '../lib/tables/withTables.js';
+import { getGroupEntity, upsertGroup } from '../lib/tables/entities.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
 
 type GroupRenameBody = {
   groupId?: unknown;
@@ -26,21 +26,15 @@ export async function groupRename(request: HttpRequest, _context: InvocationCont
   if (!nextName) return errorResponse(400, 'bad_request', 'groupName is required', traceId);
   if (nextName.length > 60) return errorResponse(400, 'bad_request', 'groupName must be 60 characters or less', traceId);
 
-  const storage = createStorageAdapter();
-  let loaded;
-  try {
-    loaded = await storage.load(groupId);
-  } catch (error) {
-    if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
-    throw error;
-  }
-
-  const caller = requireActiveMember(loaded.state, session.email, traceId);
+  await ensureTablesReady();
+  const caller = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!caller.ok) return caller.response;
 
-  loaded.state.groupName = nextName;
-  loaded.state.updatedAt = new Date().toISOString();
-  await storage.save(groupId, loaded.state, loaded.etag);
+  const group = await getGroupEntity(groupId);
+  if (!group || group.isDeleted) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+
+  const now = new Date().toISOString();
+  await upsertGroup({ ...group, groupName: nextName, updatedAt: now });
 
   return {
     status: 200,

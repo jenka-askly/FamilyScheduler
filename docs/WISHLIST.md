@@ -29,3 +29,9 @@
 - TODO: recurrence later (including `last Thursday of every month`).
 - TODO: timezone change/travel behavior later.
 - TODO: richer fuzzy phrases and per-user meaning preferences.
+
+## Status updates (2026-02-26)
+
+- ✅ Implemented: Dashboard "Your groups" now loads from `GET /api/me/groups` (active + invited).
+- NYI: Group activity feed (events model + endpoints).
+- NYI: Purge job for soft-deleted groups/appointments after `purgeAfterAt`.

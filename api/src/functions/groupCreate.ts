@@ -6,6 +6,10 @@ import { createEmptyAppState } from '../lib/state.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
+import { userKeyFromEmail } from '../lib/identity/userKey.js';
+import { incrementDailyMetric } from '../lib/tables/metrics.js';
+import { upsertGroup, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
+import { ensureTablesReady } from '../lib/tables/withTables.js';
 
 type CreateGroupBody = { groupName?: unknown; creatorEmail?: unknown; creatorName?: unknown; traceId?: unknown };
 
@@ -35,6 +39,7 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
 
   const groupId = randomUUID();
   const now = new Date().toISOString();
+  const creatorUserKey = userKeyFromEmail(creatorEmail);
   const creatorPersonId = newPersonId();
   const state = createEmptyAppState(groupId, groupName);
   state.createdAt = now;
@@ -43,6 +48,12 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
   state.members = [{ memberId: creatorPersonId, email: creatorEmail, status: 'active', joinedAt: now }];
 
   try {
+    await ensureTablesReady();
+    await upsertGroup({ partitionKey: 'group', rowKey: groupId, groupId, groupName, createdAt: now, updatedAt: now, createdByUserKey: creatorUserKey, isDeleted: false });
+    await upsertGroupMember({ partitionKey: groupId, rowKey: creatorUserKey, userKey: creatorUserKey, email: creatorEmail, status: 'active', joinedAt: now, updatedAt: now });
+    await upsertUserGroup({ partitionKey: creatorUserKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, updatedAt: now });
+    await incrementDailyMetric('newGroups', 1);
+
     const storage = createStorageAdapter();
     await storage.initIfMissing(groupId, state);
   } catch (error) {
