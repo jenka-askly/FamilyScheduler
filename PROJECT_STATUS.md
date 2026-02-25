@@ -1,3 +1,21 @@
+## 2026-02-25 02:11 UTC update (Organizer close routes to app + targeted sessionId clearing)
+
+- Updated Ignite organizer **Close** action to persist a fresh local app session (`writeSession`) and navigate directly to `/#/g/:groupId/app` only after `/api/ignite/close` returns success.
+- This avoids landing on the join gate route after close and prevents unnecessary login prompts for an already-authorized organizer context.
+- Narrowed `apiFetch` local `fs.sessionId` clearing to explicit expiry codes only:
+  - `AUTH_PROVISIONAL_EXPIRED`
+  - `AUTH_IGNITE_GRACE_EXPIRED`
+- Added `authLog` emission when `fs.sessionId` is cleared, including `code`, `traceId`, and request `path` for easier auth-flow debugging.
+- Preserved existing provisional-expiry login redirect UX (`AUTH_PROVISIONAL_EXPIRED`) while avoiding blanket session clearing on other 401/unauthorized responses.
+
+### Verification run
+
+1. `pnpm -r build`
+2. Manual organizer flow:
+   - Start in authenticated group app.
+   - Open Ignite organizer QR page.
+   - Click **Close**.
+   - Confirm redirect to `/#/g/:groupId/app` with no login bounce.
 ## 2026-02-25 01:33 UTC update (Ignite spinoff organizer identity seeding)
 
 - Fixed `POST /api/ignite/spinoff` organizer bootstrap behavior for breakout groups.
