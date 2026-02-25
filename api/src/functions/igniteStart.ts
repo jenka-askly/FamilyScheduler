@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { IGNITE_DEFAULT_GRACE_SECONDS } from '../lib/ignite.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -24,13 +24,14 @@ export async function igniteStart(request: HttpRequest, _context: InvocationCont
   const membership = requireActiveMember(loaded.state, session.email, traceId);
   if (!membership.ok) return membership.response;
   const caller = membership.member;
+  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? caller.memberId;
 
   const nowISO = new Date().toISOString();
   loaded.state.ignite = {
     sessionId: randomUUID(),
     status: 'OPEN',
     createdAt: nowISO,
-    createdByPersonId: caller.memberId,
+    createdByPersonId: personId,
     graceSeconds: IGNITE_DEFAULT_GRACE_SECONDS,
     joinedPersonIds: [],
     photoUpdatedAtByPersonId: {}

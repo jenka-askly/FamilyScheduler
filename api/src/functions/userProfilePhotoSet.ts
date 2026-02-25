@@ -5,7 +5,7 @@ import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { userProfilePhotoBlobKey, userProfilePhotoMetaBlobKey } from '../lib/userProfilePhoto.js';
 
 type SetProfilePhotoBody = { groupId?: unknown; imageBase64?: unknown; imageMime?: unknown; traceId?: unknown };
@@ -36,8 +36,11 @@ export async function userProfilePhotoSet(request: HttpRequest, _context: Invoca
   if (!membership.ok) return membership.response;
 
   const nowISO = new Date().toISOString();
-  const personId = membership.member.memberId;
-  await storage.putBinary(userProfilePhotoBlobKey(groupId, personId), decodeImageBase64(body.imageBase64), body.imageMime, {
+  const legacyMemberId = membership.member.memberId;
+  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? legacyMemberId;
+  const imageBytes = decodeImageBase64(body.imageBase64);
+
+  await storage.putBinary(userProfilePhotoBlobKey(groupId, personId), imageBytes, body.imageMime, {
     groupId,
     personId,
     kind: 'user-profile-photo',
@@ -49,6 +52,21 @@ export async function userProfilePhotoSet(request: HttpRequest, _context: Invoca
     kind: 'user-profile-photo-meta',
     updatedAt: nowISO
   });
+
+  if (legacyMemberId !== personId) {
+    await storage.putBinary(userProfilePhotoBlobKey(groupId, legacyMemberId), imageBytes, body.imageMime, {
+      groupId,
+      personId: legacyMemberId,
+      kind: 'user-profile-photo-legacy',
+      updatedAt: nowISO
+    });
+    await storage.putBinary(userProfilePhotoMetaBlobKey(groupId, legacyMemberId), Buffer.from(JSON.stringify({ contentType: body.imageMime, updatedAt: nowISO }), 'utf8'), 'application/json', {
+      groupId,
+      personId: legacyMemberId,
+      kind: 'user-profile-photo-meta-legacy',
+      updatedAt: nowISO
+    });
+  }
 
   return { status: 200, jsonBody: { ok: true, personId, updatedAt: nowISO, traceId } };
 }
