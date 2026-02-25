@@ -36,6 +36,16 @@ jobs:
           VITE_API_BASE_URL: "https://familyscheduler-api-staging.azurewebsites.net"
         run: pnpm --filter @familyscheduler/web build
 
+      - name: Verify dist exists
+        run: |
+          ls -la apps/web/dist
+          python - <<'PY'
+          import pathlib
+          dist = pathlib.Path("apps/web/dist")
+          files = [p for p in dist.rglob("*") if p.is_file()]
+          print("dist file count:", len(files))
+          PY
+
       - name: Deploy via SWA GitHub Action (staging)
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -43,5 +53,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "apps/web"
-          output_location: "dist"
+          app_artifact_location: "apps/web/dist"
+          api_location: ""
           skip_app_build: true
+          skip_api_build: true
