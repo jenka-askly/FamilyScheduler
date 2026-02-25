@@ -1148,7 +1148,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }, []);
 
   const createBreakoutGroup = async () => {
-    if (isSpinningOff || breakoutInFlightRef.current) return;
+    if (breakoutInFlightRef.current) return;
     breakoutInFlightRef.current = true;
     setBreakoutError(null);
     setIsSpinningOff(true);

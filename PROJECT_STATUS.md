@@ -5,10 +5,18 @@
 - Breakout web flow no longer writes `fs.sessionId` from spinoff. New-tab URL is consistently built as `${window.location.origin}${data.linkPath}`.
 - Added in-flight guarding for breakout creation in both UI and spinoff client helper to prevent double-click/double-request races.
 - Added API regression assertion that spinoff response does not expose `sessionId`.
+## 2026-02-25 06:05 UTC update (Breakout spinoff keeps global session stable)
+
+- Removed breakout spinoff behavior that wrote returned `sessionId` into `localStorage` (`fs.sessionId`) on the web client.
+- Added an explicit in-flight ref guard in `AppShell.createBreakoutGroup` so repeated clicks during an active spinoff request are ignored deterministically.
+- Kept breakout URL open behavior as `window.location.origin + linkPath`.
+- Updated `igniteSpinoff` API to authenticate via `requireSessionFromRequest`, seed organizer membership in the new group from session email, and stop returning `sessionId` in response payload.
+- Confirmed session scope enforcement remains limited to `igniteGrace` sessions (full sessions are not group-scoped).
 
 ### Verification run
 
 1. `pnpm -r build`
+2. `cd api && pnpm run build && node --test dist/api/src/functions/igniteSpinoff.test.js`
 
 ## 2026-02-25 05:27 UTC update (Breakout organizer tab uses spinoff-returned session before open)
 

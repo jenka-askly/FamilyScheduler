@@ -1,3 +1,43 @@
+## 2026-02-25 06:05 UTC (Breakout spinoff without global session rotation)
+
+### Objective
+
+Implement breakout spinoff flow so it no longer rotates/removes `fs.sessionId`, while preserving ability to open breakout in a new tab and continue operating in the original tab.
+
+### Approach
+
+- Inspected breakout click path in `AppShell` and `spinoffBreakoutGroup` to remove client dependency on spinoff-returned `sessionId`.
+- Added explicit in-flight lock (`breakoutInFlightRef`) in `AppShell.createBreakoutGroup` to harden against double-click races.
+- Updated API `igniteSpinoff` auth source to `requireSessionFromRequest` and retained organizer seeding into `people` + `members` from authenticated session email.
+- Removed `sessionId` from successful `igniteSpinoff` response payload and updated web-side result typing.
+- Added assertion in spinoff API test to verify `sessionId` is not returned.
+- Verified session scope rules in `api/src/lib/auth/sessions.ts` remain enforced only for `igniteGrace` session kind.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `api/src/functions/igniteSpinoff.ts`
+- `api/src/functions/igniteSpinoff.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short; git rev-parse --abbrev-ref HEAD; git log -n 1 --oneline` ✅ baseline branch/HEAD check.
+- `nl -ba apps/web/src/AppShell.tsx | sed -n '1120,1215p'` ✅ inspected breakout click handler.
+- `nl -ba apps/web/src/lib/ignite/spinoffBreakout.ts | sed -n '1,220p'` ✅ inspected spinoff client helper.
+- `nl -ba api/src/functions/igniteSpinoff.ts | sed -n '1,320p'` ✅ inspected spinoff API handler.
+- `rg -n --hidden --no-ignore -S "scopeGroupId|scopeIgniteSessionId|AUTH_SESSION_SCOPE_VIOLATION" api/src/lib/auth/sessions.ts` ✅ validated scope enforcement placement.
+- `pnpm -r build` ✅ passed after applying dependent web updates.
+- `pnpm --filter @familyscheduler/api test -- igniteSpinoff.test.ts` ❌ failed because project test script still executes full `dist/**/*.test.js` suite (and environment has existing dependency/test failures unrelated to this change).
+- `cd api && pnpm run build && node --test dist/api/src/functions/igniteSpinoff.test.js` ✅ passed targeted spinoff regression test.
+
+### Follow-ups
+
+- Human-run staging verification should confirm no `fs.sessionId` write/remove during spinoff path in SESSION_WATCH, and repeated breakout from original tab remains authorized.
+
 ## 2026-02-25 05:27 UTC (Validation: spinoff-returned sessionId used before breakout open)
 
 ### Objective

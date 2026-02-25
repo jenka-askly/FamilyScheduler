@@ -17,9 +17,10 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   const traceId = ensureTraceId(body.traceId);
   const sourceGroupId = typeof body.sourceGroupId === 'string' ? body.sourceGroupId.trim() : '';
   if (!sourceGroupId) return errorResponse(400, 'invalid_group_id', 'sourceGroupId is required', traceId);
-  let session;
+  let sessionEmail = '';
   try {
-    session = await requireSessionFromRequest(request, traceId, { groupId: sourceGroupId });
+    const session = await requireSessionFromRequest(request, traceId, { groupId: sourceGroupId });
+    sessionEmail = session.email;
   } catch (error) {
     if (error instanceof HttpError) return error.response;
     throw error;
@@ -28,7 +29,6 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   const storage = createStorageAdapter();
   let loadedA;
   try { loadedA = await storage.load(sourceGroupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
-  const sessionEmail = session.email.trim().toLowerCase();
   const membership = requireActiveMember(loadedA.state, sessionEmail, traceId);
   if (!membership.ok) return membership.response;
   const organizer = loadedA.state.people.find((person) => person.personId === membership.member.memberId);
@@ -42,7 +42,7 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   stateB.people = [{
     personId: memberId,
     name: organizer?.name?.trim() || 'Organizer',
-    email: sessionEmail,
+    email: sessionEmail.trim().toLowerCase(),
     status: 'active',
     createdAt: nowISO,
     timezone: organizer?.timezone ?? process.env.TZ ?? 'America/Los_Angeles',
@@ -50,7 +50,7 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
     cellE164: organizer?.cellE164 ?? '',
     cellDisplay: organizer?.cellDisplay ?? ''
   }];
-  stateB.members = [{ memberId, email: sessionEmail, status: 'active', joinedAt: nowISO }];
+  stateB.members = [{ memberId, email: sessionEmail.trim().toLowerCase(), status: 'active', joinedAt: nowISO }];
   await storage.initIfMissing(newGroupId, stateB);
 
   const loadedB = await storage.load(newGroupId);
