@@ -11,14 +11,13 @@ import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import type { StorageAdapter } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { isPlausibleEmail, normalizeEmail, requireActiveMember } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
-import { PhoneValidationError, validateAndNormalizePhone } from '../lib/validation/phone.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
-  people: Array<{ personId: string; name: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
+  people: Array<{ personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -37,7 +36,7 @@ type DirectAction =
   | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string; timeResolved?: ResolvedInterval; durationAcceptance?: 'auto' | 'user_confirmed' | 'user_edited' }
   | { type: 'resolve_appointment_time'; appointmentId?: string; whenText: string; timezone?: string }
   | { type: 'create_blank_person' }
-  | { type: 'update_person'; personId: string; name?: string; phone?: string }
+  | { type: 'update_person'; personId: string; name?: string; email?: string; phone?: string }
   | { type: 'delete_person'; personId: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -83,7 +82,7 @@ export const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       scanCapturedAt: appointment.scanCapturedAt ?? null
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, cellDisplay: person.cellDisplay ?? person.cellE164 ?? '', cellE164: person.cellE164 ?? '', status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
+  people: state.people.map((person) => ({ personId: person.personId, name: person.name, email: person.email ?? '', cellDisplay: person.cellDisplay ?? person.cellE164 ?? '', cellE164: person.cellE164 ?? '', status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
@@ -223,8 +222,9 @@ const parseDirectAction = (value: unknown): DirectAction => {
     const personId = asString(value.personId);
     if (!personId) throw new Error('personId is required');
     const name = typeof value.name === 'string' ? value.name : undefined;
+    const email = typeof value.email === 'string' ? value.email : undefined;
     const phone = typeof value.phone === 'string' ? value.phone : undefined;
-    return { type, personId, name, phone };
+    return { type, personId, name, email, phone };
   }
   if (type === 'delete_person') {
     const personId = asString(value.personId);
@@ -366,7 +366,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   if (directAction.type === 'create_blank_person') {
     const personId = nextPersonId(loaded.state);
     const now = new Date().toISOString();
-    loaded.state.people.push({ personId, name: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
+    loaded.state.people.push({ personId, name: '', email: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
     try {
       const written = await storage.save(groupId, loaded.state, loaded.etag);
       return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } }, traceId, context);
@@ -384,32 +384,27 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
     if (!person) return withDirectMeta(badRequest('Person not found', traceId), traceId, context);
     const nextName = directAction.name === undefined ? person.name : directAction.name.trim();
-    const nextPhoneRaw = directAction.phone === undefined ? person.cellDisplay ?? person.cellE164 : directAction.phone;
+    const nextEmailRaw = directAction.email ?? directAction.phone ?? person.email ?? '';
+    const nextEmail = normalizeEmail(nextEmailRaw);
 
     if (!nextName) return withDirectMeta(badRequest('Name is required', traceId), traceId, context);
-    if (!nextPhoneRaw?.trim()) return withDirectMeta(badRequest('Invalid phone number', traceId), traceId, context);
+    if (!nextEmail || !isPlausibleEmail(nextEmail)) return withDirectMeta(badRequest('Invalid email', traceId), traceId, context);
 
+    const duplicate = loaded.state.people.find((entry) => entry.status === 'active' && entry.personId !== person.personId && normalizeEmail(entry.email ?? '') === nextEmail);
+    if (duplicate) return withDirectMeta(badRequest(`That email is already used by ${duplicate.name || duplicate.personId}`, traceId), traceId, context);
+
+    person.name = nextName;
+    person.email = nextEmail;
+    person.lastSeen = new Date().toISOString();
     try {
-      const normalizedPhone = validateAndNormalizePhone(nextPhoneRaw);
-      const duplicate = loaded.state.people.find((entry) => entry.status === 'active' && entry.personId !== person.personId && entry.cellE164 === normalizedPhone.e164);
-      if (duplicate) return withDirectMeta(badRequest(`That phone is already used by ${duplicate.name || duplicate.personId}`, traceId), traceId, context);
-      person.name = nextName;
-      person.cellE164 = normalizedPhone.e164;
-      person.cellDisplay = normalizedPhone.display;
-      person.lastSeen = new Date().toISOString();
-      try {
-        const written = await storage.save(groupId, loaded.state, loaded.etag);
-        return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
-      } catch (error) {
-        if (error instanceof MissingConfigError) {
-          logConfigMissing('direct', traceId, error.missing);
-          return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
-        }
-        if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
-        throw error;
-      }
+      const written = await storage.save(groupId, loaded.state, loaded.etag);
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
     } catch (error) {
-      if (error instanceof PhoneValidationError) return withDirectMeta(badRequest('Invalid phone number', traceId), traceId, context);
+      if (error instanceof MissingConfigError) {
+        logConfigMissing('direct', traceId, error.missing);
+        return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
+      }
+      if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
       throw error;
     }
   }

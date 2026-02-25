@@ -50,7 +50,7 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
   const personId = existingMember?.memberId ?? randomUUID();
   if (!existingMember) {
     loaded.state.members.push({ memberId: personId, email, status: 'active', joinedAt: nowISO });
-    loaded.state.people.push({ personId, name: name || (email.split('@')[0] || 'Guest'), status: 'active', createdAt: nowISO, lastSeen: nowISO, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '', cellE164: '', cellDisplay: '' });
+    loaded.state.people.push({ personId, name: name || (email.split('@')[0] || 'Guest'), email, status: 'active', createdAt: nowISO, lastSeen: nowISO, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '', cellE164: '', cellDisplay: '' });
   }
 
   if (!loaded.state.ignite.joinedPersonIds.includes(personId)) loaded.state.ignite.joinedPersonIds.push(personId);

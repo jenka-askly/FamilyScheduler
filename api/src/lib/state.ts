@@ -4,6 +4,7 @@ import { normalizeLocation } from './location/normalize.js';
 export type Person = {
   personId: string;
   name: string;
+  email?: string;
   cellE164?: string;
   cellDisplay?: string;
   status: 'active' | 'removed';
@@ -147,6 +148,8 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     if (seen.has(key)) continue;
     seen.add(key);
     const status = raw?.status === 'removed' || raw?.status === 'inactive' ? 'removed' : 'active';
+    const emailValue = typeof raw?.email === 'string' ? normalizeEmail(raw.email) : '';
+    const email = emailValue || undefined;
     const cellE164 = typeof raw?.cellE164 === 'string' ? raw.cellE164.trim() : undefined;
     const cellDisplay = typeof raw?.cellDisplay === 'string' ? raw.cellDisplay.trim() : cellE164;
     const createdAt = typeof raw?.createdAt === 'string' && raw.createdAt.trim() ? raw.createdAt.trim() : undefined;
@@ -154,7 +157,7 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     const timezone = typeof raw?.timezone === 'string' && raw.timezone.trim() ? raw.timezone.trim() : DEFAULT_TZ;
     const notes = typeof raw?.notes === 'string' ? raw.notes.trim().slice(0, 500) : '';
 
-    people.push({ personId, name, cellE164, cellDisplay, status, createdAt, lastSeen, timezone, notes });
+    people.push({ personId, name, email, cellE164, cellDisplay, status, createdAt, lastSeen, timezone, notes });
   }
   return people;
 };
