@@ -9699,3 +9699,42 @@ Stop breakout spinoff from rotating/publishing a new session id; keep using call
 
 ### Follow-ups
 - If desired, perform a separate pass for non-doc files and non-doc markdowns (`README.md`, `PROJECT_STATUS.md`) that still mention legacy telephony auth artifacts.
+
+## 2026-02-25 06:51 UTC (Fix igniteGrace clobber + add grace lifecycle client logs)
+
+### Objective
+
+Prevent ignite join temporary/grace auth from overwriting durable organizer auth and improve client-side grace lifecycle observability behind debug gating.
+
+### Approach
+
+- Added a dedicated web logging helper `sessionLog` gated by `VITE_DEBUG_AUTH_LOGS`.
+- Updated ignite join (`IgniteJoinPage`) to store `data.sessionId` in `fs.igniteGraceSessionId` (+ optional expiry key), not `fs.sessionId`.
+- Updated API fetch session header logic to prefer durable `fs.sessionId`, fallback to grace key when durable auth is missing.
+- Added explicit `AUTH_IGNITE_GRACE_EXPIRED` handling to clear only grace keys and emit structured lifecycle logs.
+- Updated sign-out to clear both durable and grace session keys and emit clear events.
+
+### Files changed
+
+- `apps/web/src/lib/sessionLog.ts`
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git branch --show-current` ✅
+- `git rev-parse HEAD` ✅
+- `rg -n --hidden --glob '!.git' 'IgniteJoinPage|/api/ignite/join' apps/web/src -S` ✅
+- `nl -ba apps/web/src/lib/apiUrl.ts | sed -n '1,520p'` ✅
+- `nl -ba apps/web/src/App.tsx | sed -n '480,820p'` ✅
+- `nl -ba apps/web/src/App.tsx | sed -n '1320,1560p'` ✅
+- `rg -n --hidden --glob '!.git' 'igniteGraceSessionId|fs\.igniteGrace' apps/web/src -S` ✅
+- `rg -n --hidden --glob '!.git' 'setItem\(\s*["\']fs\.sessionId["\']\s*,\s*data\.sessionId' apps/web/src -S` ✅ (no matches)
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Human browser check recommended: verify organizer remains authenticated in existing tab after ignite join in another tab and inspect `[SESSION]` events when `VITE_DEBUG_AUTH_LOGS=true`.
