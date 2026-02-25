@@ -16,6 +16,19 @@
    - Open Ignite organizer QR page.
    - Click **Close**.
    - Confirm redirect to `/#/g/:groupId/app` with no login bounce.
+## 2026-02-25 01:33 UTC update (Ignite spinoff organizer identity seeding)
+
+- Fixed `POST /api/ignite/spinoff` organizer bootstrap behavior for breakout groups.
+- New breakout now seeds organizer person row using the authenticated organizer's source-group profile where available:
+  - `people[0].name` uses organizer name (fallback remains `Organizer`)
+  - `people[0].email` is now explicitly set to organizer session email
+  - timezone/notes/phone display fields are copied from source person when present
+- Membership seeding remains unchanged (`members[0].email` continues to use normalized session email).
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test`
+2. `pnpm --filter @familyscheduler/api build`
 
 ## 2026-02-25 01:19 UTC update (Ignite join-link route fix + optional joiner photo + grace-session continuity)
 

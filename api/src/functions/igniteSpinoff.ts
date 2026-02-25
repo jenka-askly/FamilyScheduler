@@ -25,6 +25,7 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   try { loadedA = await storage.load(sourceGroupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
   const membership = requireActiveMember(loadedA.state, session.email, traceId);
   if (!membership.ok) return membership.response;
+  const organizer = loadedA.state.people.find((person) => person.personId === membership.member.memberId);
 
   const newGroupId = randomUUID();
   const nowISO = new Date().toISOString();
@@ -32,7 +33,17 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   const memberId = newPersonId();
 
   const stateB = createEmptyAppState(newGroupId, newGroupName);
-  stateB.people = [{ personId: memberId, name: 'Organizer', status: 'active', createdAt: nowISO, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '', cellE164: '', cellDisplay: '' }];
+  stateB.people = [{
+    personId: memberId,
+    name: organizer?.name?.trim() || 'Organizer',
+    email: session.email.trim().toLowerCase(),
+    status: 'active',
+    createdAt: nowISO,
+    timezone: organizer?.timezone ?? process.env.TZ ?? 'America/Los_Angeles',
+    notes: organizer?.notes ?? '',
+    cellE164: organizer?.cellE164 ?? '',
+    cellDisplay: organizer?.cellDisplay ?? ''
+  }];
   stateB.members = [{ memberId, email: session.email.trim().toLowerCase(), status: 'active', joinedAt: nowISO }];
   await storage.initIfMissing(newGroupId, stateB);
 
