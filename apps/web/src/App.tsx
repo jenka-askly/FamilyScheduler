@@ -7,6 +7,7 @@ import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, getSessionId } from './lib/apiUrl';
+import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CloseIcon from '@mui/icons-material/Close';
@@ -1191,7 +1192,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
     setJoining(true);
     try {
       const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
-      const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string };
+      const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string };
       if (!response.ok || !data.ok || !data.breakoutGroupId) {
         if ((data.code ?? data.error) === 'IGNITE_CLOSED') {
           setError('This session is closed.');
@@ -1201,10 +1202,19 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
         return;
       }
       if (data.sessionId) {
-        window.localStorage.setItem('fs.sessionId', data.sessionId);
-        authDebug('ignite_join_set_session', {
+        window.localStorage.setItem('fs.igniteGraceSessionId', data.sessionId);
+        if (data.graceExpiresAtUtc) {
+          window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', data.graceExpiresAtUtc);
+        }
+        sessionLog('GRACE_START', {
           breakoutGroupId: data.breakoutGroupId,
-          sessionIdPrefix: data.sessionId?.slice(0, 8)
+          sessionIdPrefix: data.sessionId.slice(0, 8),
+          graceExpiresAtUtc: data.graceExpiresAtUtc
+        });
+        authDebug('ignite_join_set_grace_session', {
+          breakoutGroupId: data.breakoutGroupId,
+          sessionIdPrefix: data.sessionId.slice(0, 8),
+          graceExpiresAtUtc: data.graceExpiresAtUtc
         });
       }
       writeSession({ groupId: data.breakoutGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
@@ -1420,8 +1430,12 @@ export function App() {
 
   const signOut = () => {
     window.localStorage.removeItem('fs.sessionId');
+    window.localStorage.removeItem('fs.igniteGraceSessionId');
+    window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
     window.localStorage.removeItem(SESSION_EMAIL_KEY);
     window.localStorage.removeItem(SESSION_NAME_KEY);
+    sessionLog('DURABLE_CLEAR', { reason: 'sign_out' });
+    sessionLog('GRACE_CLEARED', { reason: 'sign_out' });
     setHasApiSession(false);
     nav('/', { replace: true });
   };

@@ -3559,3 +3559,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. Run `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\\bphone\\b" docs -S` and confirm no output.
 3. Optionally run repo-wide informational scan:
    - `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\\bphone\\b" -S .`
+
+## 2026-02-25 06:51 UTC update (Isolate igniteGrace session + lifecycle logs)
+
+- Fixed Ignite join flow to persist temporary joiner auth into `fs.igniteGraceSessionId` (and optional `fs.igniteGraceExpiresAtUtc`) instead of overwriting durable `fs.sessionId`.
+- Updated API client header injection to prefer durable `fs.sessionId` and fallback to ignite grace session only when durable auth is absent.
+- Added targeted handling for `AUTH_IGNITE_GRACE_EXPIRED` to clear only ignite grace keys and keep durable auth untouched.
+- Updated sign-out cleanup to clear both durable and ignite grace keys.
+- Added `sessionLog` helper (`[SESSION]` events) gated behind `VITE_DEBUG_AUTH_LOGS=true` for grace start/end and sign-out clear lifecycle visibility.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
