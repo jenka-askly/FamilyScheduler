@@ -2964,3 +2964,32 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - `api/src/lib/auth/sessions.ts`
 - `apps/web/src/App.tsx`
 - `apps/web/src/lib/apiUrl.ts`
+
+## 2026-02-25 01:01 UTC update (Dashboard Break Out launcher + shared spinoff helper)
+
+### What changed
+
+- Added a shared web helper for breakout spinoff flow in `apps/web/src/lib/ignite/spinoffBreakout.ts` so breakout creation, traceId handling, error normalization, and handoff URL construction are centralized.
+- Refactored `AppShell` breakout action to call the shared helper with no backend or routing contract changes.
+- Updated signed-in dashboard UI to show a `Break Out` button in the `Your groups` list (currently populated from recent group context), launching the same spinoff + handoff flow in a new tab.
+- Added dashboard inline `Alert` UX for breakout success fallback (manual-open link when popup blocked) and errors (including traceId suffix when available).
+
+### Files touched
+
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### How verified
+
+- Ran `pnpm -r test` (fails in existing API chat tests unrelated to this dashboard change; see output for baseline failures around storage_get_binary_not_supported/chat status assertions).
+- Ran `pnpm --filter @familyscheduler/web build` (passes).
+- Manual smoke prep (local): started web dev server, loaded signed-in dashboard state, and captured screenshot showing `Break Out` action in dashboard groups list.
+
+### Known edge cases
+
+- Popup blockers can prevent auto-open of breakout tab; dashboard and in-group flows both surface a manual-open link when `window.open` returns null.
+- Dashboard group listing currently uses recent-group context on home and only shows rows when a recent group exists.

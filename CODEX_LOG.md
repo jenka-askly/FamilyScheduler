@@ -8647,6 +8647,33 @@ Clean up Join Group UX to a single dialog/card with one email field, add safe cl
 - Human manual verification recommended for close/back behavior from different entry routes (`/#/g/<groupId>` direct load vs in-app navigation).
 
 
+## 2026-02-25 01:01 UTC (Dashboard Break Out launcher + shared spinoff helper)
+
+### Objective
+
+Add a dashboard-level Break Out launcher for signed-in users and deduplicate breakout spinoff logic into one shared helper used by both dashboard and in-group header actions.
+
+### Approach
+
+- Added `spinoffBreakoutGroup` helper in `apps/web/src/lib/ignite/spinoffBreakout.ts` to encapsulate:
+  - `POST /api/ignite/spinoff`,
+  - traceId creation/fallback,
+  - error normalization,
+  - handoff URL construction to `/#/handoff?...&next=/g/<newGroupId>/ignite`.
+- Refactored `AppShell.createBreakoutGroup()` to use the helper while preserving existing breakout notice/error UI behavior.
+- Updated `DashboardHomePage` to:
+  - render a group row with `Break Out` action from recent-group context,
+  - call shared helper,
+  - open result URL in new tab,
+  - surface popup-block fallback + error alerts inline.
+- Updated `App.tsx` dashboard props to pass `recentGroupId` and signed-in email (`phone`) needed for spinoff requests.
+
+### Files changed
+
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/App.tsx`
 
 ## 2026-02-25 00:58 UTC (People email migration in members editor)
 
@@ -8677,6 +8704,14 @@ Switch People editor UI from phone to email, wire backend person email persisten
 
 ### Commands run + outcomes
 
+- `pnpm -r test` ❌ fails in pre-existing API tests (`api/src/functions/chat.test` status assertions currently returning 500 due to storage fixture/env conditions).
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual validation; stopped after capture.
+- `run_playwright_script` ✅ captured screenshot at `browser:/tmp/codex_browser_invocations/44e846adcd08a321/artifacts/artifacts/dashboard-breakout-launcher.png`.
+
+### Follow-ups
+
+- Human manual staging smoke remains required for end-to-end auth + breakout spinoff launch on deployed environment.
 - `git status --short` ✅
 - `git rev-parse --abbrev-ref HEAD` ✅
 - `git rev-parse HEAD` ✅
