@@ -1,3 +1,36 @@
+## 2026-02-25 08:35 UTC (Add dashboard nav button in header + match homepage product-label theme)
+
+### Objective
+
+Implement a "home navigation" action that takes users to the dashboard, place it on the right side of the product label, and align the product label visual theme with the homepage branding.
+
+### Approach
+
+- Inspected app header composition in `PageHeader` and routing/section state in `AppShell`.
+- Added an optional `onDashboardClick` callback prop to `PageHeader` and rendered a right-aligned dashboard IconButton in the existing header action cluster.
+- Restyled the product label typography in `PageHeader` to match homepage-style branding cues (weight, letter-spacing, primary color).
+- Passed `onDashboardClick` from `AppShell` to set active section to `overview` (dashboard).
+- Built web app and captured a browser screenshot using routed mock API responses to validate layout and styling in a deterministic way.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local app for screenshot capture.
+- Playwright screenshot script (with API route mocks) ✅ captured `browser:/tmp/codex_browser_invocations/45c2f7db94c3be63/artifacts/artifacts/dashboard-home-nav.png`.
+- `Ctrl+C` on dev server ⚠️ expected SIGINT shutdown after screenshot capture.
+
+### Follow-ups
+
+- Optional UX follow-up: swap the temporary rocket icon used for dashboard navigation with a dedicated home/dashboard icon if product wants a different visual metaphor.
+
+
 ## 2026-02-25 07:21 UTC (Fix group/join session-authoritative identity)
 
 ### Objective

@@ -36,9 +36,10 @@ type Props = {
   sessionName?: string | null;
   onSignOut?: () => void;
   showGroupSummary?: boolean;
+  onDashboardClick?: () => void;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -171,12 +172,34 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   return (
     <Stack spacing={2} sx={{ mb: 2 }}>
       <div className="ui-productHeader">
-        <Typography className="ui-productTitle" variant="h5" sx={{ fontWeight: 700 }}>{PRODUCT.name}</Typography>
-        <Tooltip title="Menu">
-          <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
-            <MenuIcon />
-          </IconButton>
-        </Tooltip>
+        <Typography
+          className="ui-productTitle"
+          variant="h4"
+          sx={{
+            fontWeight: 800,
+            letterSpacing: '-0.02em',
+            color: 'primary.main',
+            lineHeight: 1
+          }}
+        >
+          {PRODUCT.name}
+        </Typography>
+        <Stack direction="row" spacing={0.75} alignItems="center">
+          {onDashboardClick ? (
+            <Tooltip title="Go to dashboard">
+              <span>
+                <IconButton onClick={onDashboardClick} aria-label="Go to dashboard">
+                  <RocketLaunchIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          ) : null}
+          <Tooltip title="Menu">
+            <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
+              <MenuIcon />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </div>
       {showGroupSummary ? (
       <Paper>
