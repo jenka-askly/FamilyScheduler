@@ -39,11 +39,15 @@ jobs:
           VITE_API_BASE_URL: "https://familyscheduler-api-prod-c4cuakggcff8bvbh.westus-01.azurewebsites.net"
         run: pnpm --filter @familyscheduler/web build
 
-      - name: Verify built output (diagnostic)
+      - name: Verify dist exists
         run: |
-          set -euo pipefail
           ls -la apps/web/dist
-          grep -n "<script" apps/web/dist/index.html || true
+          python - <<'PY'
+          import pathlib
+          dist = pathlib.Path("apps/web/dist")
+          files = [p for p in dist.rglob("*") if p.is_file()]
+          print("dist file count:", len(files))
+          PY
 
       - name: Deploy via SWA GitHub Action
         uses: Azure/static-web-apps-deploy@v1
@@ -52,8 +56,10 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "apps/web"
-          output_location: "dist"
+          app_artifact_location: "apps/web/dist"
+          api_location: ""
           skip_app_build: true
+          skip_api_build: true
 
       - name: Verify production HTML updated
         run: |
