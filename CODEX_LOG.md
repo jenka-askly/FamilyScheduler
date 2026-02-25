@@ -9409,3 +9409,60 @@ Remove `phone_required` failures for authenticated organizer meta polling by mig
 ### Follow-ups
 
 - Human runtime check: organizer `/#/g/:groupId/ignite` should show `200` meta polling with no `phone_required` 400 responses.
+
+## 2026-02-25 05:05 UTC (Remove phone identity contracts; session/email only)
+
+### Objective
+
+Eliminate `phone_required`/phone auth contract usage across migrated API+web flows and standardize on session/email identity.
+
+### Approach
+
+- Added `requireIdentityFromRequest` in `api/src/lib/groupAuth.ts`:
+  - validates UUID `groupId`,
+  - resolves identity from `x-session-id` first,
+  - optionally allows fallback to validated email (no phone fallback).
+- Rewrote `api/src/functions/igniteMeta.ts` to use email/session identity only.
+- Rewrote `api/src/functions/ignitePhotoGet.ts` to require session + member email auth.
+- Rewrote `api/src/functions/appointmentScanImage.ts` to require session + member email auth.
+- Removed direct endpoint contract fallback from `direct.ts` `update_person` (`phone` field removed from action parsing and email fallback logic).
+- Updated web callers to remove phone from API contracts:
+  - `apps/web/src/AppShell.tsx` (`/api/chat`, `/api/direct`, `/api/group/rename`, `/api/appointmentScanDelete`, `/api/appointmentScanImage` URL).
+  - `apps/web/src/lib/ignite/spinoffBreakout.ts` (no phone in body/handoff URL).
+  - `apps/web/src/components/DashboardHomePage.tsx` and `apps/web/src/App.tsx` handoff routing (no phone query identity).
+- Updated affected tests:
+  - `igniteMeta.test.ts` expects unauthorized without identity/session,
+  - `ignitePhoto.test.ts` switched to session auth fixture,
+  - `groupRename.test.ts` switched to session auth fixture,
+  - `groupAuth.test.ts` now validates email-only identity helper.
+
+### Files changed
+
+- `api/src/lib/groupAuth.ts`
+- `api/src/lib/groupAuth.test.ts`
+- `api/src/functions/igniteMeta.ts`
+- `api/src/functions/ignitePhotoGet.ts`
+- `api/src/functions/appointmentScanImage.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/igniteMeta.test.ts`
+- `api/src/functions/ignitePhoto.test.ts`
+- `api/src/functions/groupRename.test.ts`
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short; git rev-parse --abbrev-ref HEAD; git log -n 1 --oneline` ✅
+- `rg -n --hidden --no-ignore -S "phone_required|\bphone\b" api/src apps/web/src` ✅ inventory + follow-up checks
+- `rg -n --hidden --no-ignore -S "validateJoinRequest\b" api/src` ✅ callsite audit
+- `pnpm -r build` ✅
+- `pnpm --filter @familyscheduler/api test` ⚠️ fails in this container due missing runtime dependency (`@azure/communication-email`) and unrelated pre-existing suite assumptions.
+- `cd api && node --test dist/api/src/functions/igniteMeta.test.js dist/api/src/functions/ignitePhoto.test.js dist/api/src/functions/groupRename.test.js dist/api/src/lib/groupAuth.test.js` ✅
+
+### Follow-ups
+
+- Consider migrating residual naming in app-local session state (`phone` variable names) to `sessionEmail` repo-wide for clarity, though API contracts are now phone-free on migrated paths.

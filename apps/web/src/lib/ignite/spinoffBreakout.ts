@@ -13,11 +13,9 @@ export type SpinoffBreakoutResult =
 
 export async function spinoffBreakoutGroup({
   sourceGroupId,
-  phone,
   groupName = ''
 }: {
   sourceGroupId: string;
-  phone: string;
   groupName?: string;
 }): Promise<SpinoffBreakoutResult> {
   const traceId = createTraceId();
@@ -25,7 +23,7 @@ export async function spinoffBreakoutGroup({
     const response = await apiFetch('/api/ignite/spinoff', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sourceGroupId, phone, traceId, groupName })
+      body: JSON.stringify({ sourceGroupId, traceId, groupName })
     });
     const data = await response.json() as SpinoffPayload;
     if (!response.ok || !data.ok || !data.newGroupId) {
@@ -38,7 +36,7 @@ export async function spinoffBreakoutGroup({
     }
 
     const nextHash = `/g/${data.newGroupId}/ignite`;
-    const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(nextHash)}`;
+    const handoffPath = `/#/handoff?groupId=${encodeURIComponent(data.newGroupId)}&next=${encodeURIComponent(nextHash)}`;
     return {
       ok: true,
       newGroupId: data.newGroupId,

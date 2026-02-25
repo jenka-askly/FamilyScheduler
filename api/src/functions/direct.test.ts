@@ -32,7 +32,7 @@ test.afterEach(() => {
 test('direct returns group_not_found when group is missing', async () => {
   const adapter: StorageAdapter = { async initIfMissing() {}, async save() { throw new Error('not used'); }, async load() { throw new GroupNotFoundError(); } };
   setStorageAdapterForTests(adapter);
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'create_blank_appointment' } }) } as any, context());
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'create_blank_appointment' } }) } as any, context());
   assert.equal(response.status, 404);
 });
 
@@ -43,7 +43,7 @@ test('direct maps conflict to 409 with traceId', async () => {
     async save() { throw new ConflictError(); }
   };
   setStorageAdapterForTests(adapter);
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'create_blank_appointment' } }) } as any, context());
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'create_blank_appointment' } }) } as any, context());
   assert.equal(response.status, 409);
   assert.ok((response.jsonBody as any).traceId);
   assert.equal((response.jsonBody as any).directVersion, 'unknown');
@@ -86,7 +86,7 @@ test('resolve_appointment_time returns suggested duration for single-point input
     async save() { saveCalls += 1; throw new Error('save should not be called'); }
   };
   setStorageAdapterForTests(adapter);
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: '3/3 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: '3/3 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
   assert.equal(response.status, 200);
   assert.equal(saveCalls, 0);
   assert.equal((response.jsonBody as any).ok, true);
@@ -137,7 +137,7 @@ test('resolve_appointment_time marks explicit duration when user provides durati
   };
   setStorageAdapterForTests(adapter);
 
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'dinner at 6pm tomorrow for 2 hours', timezone: 'America/Los_Angeles' } }) } as any, context());
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'dinner at 6pm tomorrow for 2 hours', timezone: 'America/Los_Angeles' } }) } as any, context());
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).fallbackAttempted, true);
   assert.equal((response.jsonBody as any).usedFallback, true);
@@ -161,7 +161,7 @@ test('resolve_appointment_time returns 502 when AI call fails', async () => {
   };
   setStorageAdapterForTests(adapter);
 
-  const response = await direct({ json: async () => ({ groupId: GROUP_ID, phone: PHONE, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 1pm', timezone: 'America/Los_Angeles' } }) } as any, context());
   assert.equal(response.status, 502);
   assert.equal((response.jsonBody as any).ok, false);
   assert.equal((response.jsonBody as any).error?.code, 'OPENAI_CALL_FAILED');

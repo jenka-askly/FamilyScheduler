@@ -36,7 +36,7 @@ type DirectAction =
   | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string; timeResolved?: ResolvedInterval; durationAcceptance?: 'auto' | 'user_confirmed' | 'user_edited' }
   | { type: 'resolve_appointment_time'; appointmentId?: string; whenText: string; timezone?: string }
   | { type: 'create_blank_person' }
-  | { type: 'update_person'; personId: string; name?: string; email?: string; phone?: string }
+  | { type: 'update_person'; personId: string; name?: string; email?: string }
   | { type: 'delete_person'; personId: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -223,8 +223,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (!personId) throw new Error('personId is required');
     const name = typeof value.name === 'string' ? value.name : undefined;
     const email = typeof value.email === 'string' ? value.email : undefined;
-    const phone = typeof value.phone === 'string' ? value.phone : undefined;
-    return { type, personId, name, email, phone };
+    return { type, personId, name, email };
   }
   if (type === 'delete_person') {
     const personId = asString(value.personId);
@@ -384,7 +383,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
     if (!person) return withDirectMeta(badRequest('Person not found', traceId), traceId, context);
     const nextName = directAction.name === undefined ? person.name : directAction.name.trim();
-    const nextEmailRaw = directAction.email ?? directAction.phone ?? person.email ?? '';
+    const nextEmailRaw = directAction.email ?? person.email ?? '';
     const nextEmail = normalizeEmail(nextEmailRaw);
 
     if (!nextName) return withDirectMeta(badRequest('Name is required', traceId), traceId, context);

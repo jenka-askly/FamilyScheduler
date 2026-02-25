@@ -94,7 +94,7 @@ const sanitizeReturnTo = (value?: string): string => {
   return trimmed;
 };
 
-const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notice?: string; next?: string } | { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email?: string; phone?: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
+const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notice?: string; next?: string } | { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email?: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
   const cleaned = (hash || '#/').replace(/^#/, '');
   const [rawPath, queryString = ''] = cleaned.split('?');
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
@@ -132,7 +132,6 @@ const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notic
       type: 'handoff',
       groupId: query.get('groupId') ?? '',
       email: query.get('email') ?? undefined,
-      phone: query.get('phone') ?? undefined,
       next: query.get('next') ?? undefined
     };
   }
@@ -1381,17 +1380,17 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
   return <>{children(email)}</>;
 }
 
-function HandoffPage({ groupId, email, phone, next }: { groupId: string; email?: string; phone?: string; next?: string }) {
+function HandoffPage({ groupId, email, next }: { groupId: string; email?: string; next?: string }) {
   useEffect(() => {
-    const identity = email?.trim() || phone?.trim() || '';
-    if (!groupId || (!email && !phone)) {
+    const identity = email?.trim() || '';
+    if (!groupId || !email) {
       nav('/');
       return;
     }
     const safeNext = typeof next === 'string' && next.startsWith('/g/') ? next : `/g/${groupId}/ignite`;
     writeSession({ groupId, email: identity, joinedAt: new Date().toISOString() });
     nav(safeNext, { replace: true });
-  }, [groupId, email, phone, next]);
+  }, [groupId, email, next]);
 
   return (
     <Page variant="form">
@@ -1497,7 +1496,6 @@ export function App() {
           signedInLabel={sessionName ? `Signed in as ${sessionName}${sessionEmail ? ` (${sessionEmail})` : ''}` : sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}
           onCreateGroup={() => nav('/create')}
           recentGroupId={recentGroupId ?? undefined}
-          phone={sessionEmail ?? undefined}
           onOpenRecentGroup={recentGroupId ? () => nav(`/g/${recentGroupId}/app`) : undefined}
         />
       </MarketingLayout>
@@ -1506,7 +1504,7 @@ export function App() {
   if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
   if (route.type === 'create' && !hasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;
-  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} phone={route.phone} next={route.next} />;
+  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
   if (route.type === 'authConsume') return <AuthConsumePage token={route.token} attemptId={route.attemptId} returnTo={route.returnTo} />;
   if (route.type === 'authDone') return <AuthDonePage returnTo={route.returnTo} />;
@@ -1520,7 +1518,7 @@ export function App() {
   }
   return (
     <GroupAuthGate groupId={route.groupId}>
-      {(email) => <AppShell groupId={route.groupId} phone={email} />}
+      {(email) => <AppShell groupId={route.groupId} sessionEmail={email} />}
     </GroupAuthGate>
   );
 }
