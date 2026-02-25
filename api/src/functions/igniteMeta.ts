@@ -18,7 +18,23 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
   const groupId = (typeof body.groupId === 'string' ? body.groupId : undefined) ?? url.searchParams.get('groupId');
   const phone = (typeof body.phone === 'string' ? body.phone : undefined) ?? url.searchParams.get('phone');
   const identity = validateJoinRequest(groupId, phone);
-  if (!identity.ok) return { ...identity.response, jsonBody: { ...(identity.response.jsonBody as Record<string, unknown>), traceId } };
+  if (!identity.ok) {
+    const payload = (identity.response.jsonBody as Record<string, unknown>) ?? {};
+    if (identity.response.status === 400) {
+      const code = typeof payload.code === 'string' ? payload.code : (typeof payload.error === 'string' ? payload.error : 'bad_request');
+      const message = typeof payload.message === 'string'
+        ? payload.message
+        : code === 'invalid_group_id'
+          ? 'groupId must be a valid UUID'
+          : code === 'phone_required'
+            ? 'phone is required'
+            : code === 'invalid_phone'
+              ? 'phone is invalid'
+              : 'Bad request';
+      return { ...identity.response, jsonBody: { ...payload, code, message, traceId } };
+    }
+    return { ...identity.response, jsonBody: { ...payload, traceId } };
+  }
 
   const sessionId = ((typeof body.sessionId === 'string' ? body.sessionId : undefined) ?? url.searchParams.get('sessionId') ?? '').trim();
   if (!sessionId) return errorResponse(400, 'sessionId_required', 'sessionId is required', traceId);

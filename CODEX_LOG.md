@@ -9290,10 +9290,24 @@ Stop Ignite organizer QR-screen `/api/ignite/meta` 400 spam by preventing meta p
 - Scoped auto-start behavior so it only runs from initial `null` state (not blank string values).
 - Added optional debug signal for skipped polling (`ignite_meta_skip`).
 - On successful `closeSession`, explicitly set local `sessionId` to `null` before navigation so polling tears down immediately.
+## 2026-02-25 04:05 UTC (ignite/meta bogus-call guard + 400 payload diagnostics)
+
+### Objective
+
+Stop bogus `ignite/meta` calls when required IDs are missing, and improve diagnosability by logging client payload context on 400 + ensuring server 400s return `code` + `message`.
+
+### Approach
+
+- Located web `ignite/meta` polling callsite and inserted a preflight guard in `poll()` to return early unless both `groupId` and `sessionId` are truthy.
+- Added requested client debug event on skip: `console.debug('[AUTH_DEBUG]', { event: 'ignite_meta_skip', groupId, sessionId })`.
+- Updated shared `apiFetch` wrapper to compute a lightweight request payload summary from `init.body` and emit `[apiFetch] bad_request` warnings when `response.status === 400`.
+- Updated API `igniteMeta` handler so validation-driven 400 responses always include `code` and `message` (plus `traceId`) even when originating from shared `validateJoinRequest` helper.
 
 ### Files changed
 
 - `apps/web/src/App.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `api/src/functions/igniteMeta.ts`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -9307,3 +9321,14 @@ Stop Ignite organizer QR-screen `/api/ignite/meta` 400 spam by preventing meta p
 ### Follow-ups
 
 - Human runtime validation requested: confirm network behavior on QR screen pre-start, active session, and post-close lifecycle in browser devtools.
+- `rg -n --hidden --no-ignore -S "/api/ignite/meta|igniteMeta\\b" apps/web/src/App.tsx apps/web/src` ✅ found web meta poll callsite.
+- `sed -n '760,920p' apps/web/src/App.tsx` ✅ inspected poll lifecycle and dependency context.
+- `sed -n '1,220p' apps/web/src/lib/apiUrl.ts` ✅ inspected shared fetch wrapper and response handling.
+- `sed -n '1,220p' api/src/functions/igniteMeta.ts` ✅ inspected server handler + existing validation envelope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `rg -n --hidden --no-ignore -g '!node_modules' -S "ignite/meta|igniteMeta|ignite_meta|ignite meta" .` ✅ repo-wide check for competing definitions/calls.
+
+### Follow-ups
+
+- Optional: if deeper forensic traces are needed, add a dev-only request artifact dump keyed by `traceId` for 400 responses to capture full sanitized payload snapshots.

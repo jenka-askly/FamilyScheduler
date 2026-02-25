@@ -838,7 +838,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     }
     let canceled = false;
     const poll = async () => {
-      if (canceled || !normalizedSessionId) return;
+      if (!groupId || !sessionId) {
+        console.debug('[AUTH_DEBUG]', { event: 'ignite_meta_skip', groupId, sessionId });
+        return;
+      }
       const response = await apiFetch('/api/ignite/meta', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
