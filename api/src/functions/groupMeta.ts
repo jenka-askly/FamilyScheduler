@@ -12,7 +12,7 @@ export async function groupMeta(request: HttpRequest, _context: InvocationContex
   const groupId = new URL(request.url).searchParams.get('groupId')?.trim() ?? '';
   if (!groupId) return errorResponse(400, 'groupId_required', 'groupId is required', traceId);
 
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
 
   try {

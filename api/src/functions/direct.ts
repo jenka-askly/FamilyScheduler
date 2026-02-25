@@ -242,7 +242,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return withDirectMeta(errorResponse(400, 'invalid_group_id', 'groupId is required', traceId), traceId, context);
 
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return withDirectMeta(session.response, traceId, context);
   logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: session.email.split('@')[1] ?? 'unknown' });
 

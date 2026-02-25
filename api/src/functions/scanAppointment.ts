@@ -13,7 +13,7 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
   const body = await request.json() as { groupId?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
   const imageMime = body.imageMime === 'image/jpeg' || body.imageMime === 'image/png' || body.imageMime === 'image/webp' ? body.imageMime : null;
   if (!imageMime || typeof body.imageBase64 !== 'string' || !body.imageBase64.trim()) return errorResponse(400, 'invalid_scan_payload', 'imageBase64 and valid imageMime are required', traceId);

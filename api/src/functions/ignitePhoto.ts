@@ -15,7 +15,7 @@ export async function ignitePhoto(request: HttpRequest, _context: InvocationCont
   const traceId = ensureTraceId(body.traceId);
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
 
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';

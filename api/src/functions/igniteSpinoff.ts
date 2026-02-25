@@ -17,7 +17,7 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
   const traceId = ensureTraceId(body.traceId);
   const sourceGroupId = typeof body.sourceGroupId === 'string' ? body.sourceGroupId.trim() : '';
   if (!sourceGroupId) return errorResponse(400, 'invalid_group_id', 'sourceGroupId is required', traceId);
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId: sourceGroupId });
   if (!session.ok) return session.response;
 
   const storage = createStorageAdapter();

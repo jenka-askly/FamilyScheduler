@@ -1,3 +1,45 @@
+## 2026-02-25 00:27 UTC UTC
+
+### Objective
+Implement Option A: issue a scoped 30s Ignite join grace session that prevents immediate `/login` redirect after unauthenticated join, while preserving expiry/scope enforcement.
+
+### Approach
+- Traced current auth contract in web (`GroupAuthGate` + `fs.sessionId`) and API (`requireSessionFromRequest`/`requireSessionEmail`).
+- Added `igniteGrace` session kind with optional scope fields in `sessions.ts`; added creator helper and extended status handling.
+- Enforced `igniteGrace` expiry and `groupId` scope at request-auth validation time with stable auth codes and structured logs.
+- Switched unauth Ignite join from provisional session issuance to scoped 30-second igniteGrace session issuance post-save.
+- Threaded `groupId` into all group-scoped `requireSessionEmail` callsites.
+- Added unit tests for igniteGrace acceptance and scope rejection.
+
+### Files changed
+- `api/src/functions/igniteJoin.ts`
+- `api/src/lib/auth/sessions.ts`
+- `api/src/lib/auth/requireSession.ts`
+- `api/src/functions/groupMeta.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `api/src/functions/appointmentScanDelete.ts`
+- `api/src/functions/ignitePhoto.ts`
+- `api/src/functions/igniteStart.ts`
+- `api/src/functions/igniteSpinoff.ts`
+- `api/src/functions/igniteClose.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/groupRename.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/lib/auth/sessions.test.ts`
+- `PROJECT_STATUS.md`
+
+### Commands run + outcomes
+- `git status --short && git rev-parse --abbrev-ref HEAD && git log -n 1 --oneline`
+- `find .. -name AGENTS.md -print`
+- `rg -n --hidden --no-ignore -S "GroupAuthGate|hasApiSession|/api/session|session\b|fs\.sessionId|requiresVerification" apps/web/src api/src`
+- `rg -n --hidden --no-ignore -S "getSession|readSession|createSession|sessionStore|Set-Cookie|cookie" api/src`
+- (verification/build commands listed in this task run after code edits)
+
+### Follow-ups
+- Add focused integration test coverage around `requireSessionEmail(..., { groupId })` for additional endpoints if needed.
+
+
 
 ## 2026-02-24 22:37 UTC UTC (Yapper marketing home + marketing layout split)
 

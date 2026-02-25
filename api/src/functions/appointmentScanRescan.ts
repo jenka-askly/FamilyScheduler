@@ -12,7 +12,7 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   const body = await request.json() as { groupId?: unknown; appointmentId?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-  const session = await requireSessionEmail(request, traceId);
+  const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
   const appointmentId = typeof body.appointmentId === 'string' ? body.appointmentId.trim() : '';
   const imageMime = body.imageMime === 'image/jpeg' || body.imageMime === 'image/png' || body.imageMime === 'image/webp' ? body.imageMime : null;
