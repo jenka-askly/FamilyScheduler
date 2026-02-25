@@ -3676,3 +3676,31 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm -w -r build`
 2. `pnpm -w -r lint`
 3. `pnpm --filter @familyscheduler/api test -- igniteJoin.test.ts`
+
+## 2026-02-25 10:25 UTC update (Ignite organizer QR-first layout + persisted organizer profile photo)
+
+- Redesigned `IgniteOrganizerPage` into four centered groups: helper copy, QR-first block, "Who’s in" activity strip, and pinned footer controls.
+- Removed organizer Cancel, Join link, and Group link from Ignite organizer dialog.
+- Replaced prior close/reopen button semantics with:
+  - Switch: **Allow new members to join** (OFF closes joining only; ON reopens/starts).
+  - Primary CTA: **Finish inviting & continue** (closes first when open, then navigates to the group).
+- Added organizer-first avatar behavior with camera overlay; clicking organizer avatar opens capture flow.
+- Added persisted profile photo APIs for authenticated users and wired organizer capture flow to set/replace this photo.
+- Storage note: `personId` is currently group-scoped in this codebase, so persisted profile photo is currently group-scoped (`familyscheduler/groups/<groupId>/users/<personId>/...`) with an inline migration note for future global identity.
+- Added design language doc for Ignite dialog to mirror into joiner dialog work later.
+
+### TODO
+- Add **Edit profile photo** entry to the burger menu (global profile settings).
+  - Current implementation allows profile photo set/replace only from Ignite organizer avatar.
+
+### Success criteria
+- Organizer screen is centered, QR-first, and avoids vertical-scroll layouts.
+- No Cancel, Join link, or Group link is shown on organizer screen.
+- "Who’s in" section uses horizontal avatar strip and always-visible names.
+- Switch OFF posts close without navigation and without clearing session id.
+- "Finish inviting & continue" closes if needed, then navigates.
+- Organizer profile photo set/replace persists and reloads via authenticated API.
+
+### Non-regressions
+- Ignite join gating semantics remain OPEN/CLOSING/CLOSED; `IGNITE_CLOSED` behavior remains unchanged.
+- Existing ignite photo endpoints and join polling behavior remain in place.

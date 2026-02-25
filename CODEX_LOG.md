@@ -9981,3 +9981,39 @@ Update the "Go to the dashboard" header action so it behaves like a back-to-home
 
 ### Follow-ups
 - Optional UX follow-up: if desired, hide the back control when already on the landing surface (currently only shown in app shell where callback is provided).
+
+## 2026-02-25 18:19 UTC (Ignite organizer no-scroll QR-first + persisted profile photo)
+
+### Objective
+Implement final Ignite organizer UX updates (centered, QR-first, no vertical scrolling, footer ops controls), remove legacy link/cancel controls, and add persisted user profile photo APIs wired into organizer capture flow.
+
+### Approach
+- Updated `IgniteOrganizerPage` structure to 4 stacked groups and moved sound toggle into joined cluster.
+- Removed organizer Join link / Group link / Cancel affordances and replaced footer with switch + "Finish inviting & continue" CTA.
+- Kept ignite join gating semantics untouched (`OPEN`/`CLOSING`/`CLOSED`) and maintained close/start endpoint usage.
+- Added organizer avatar-first strip behavior with camera overlay and capture click target.
+- Added authenticated user profile photo API endpoints (`GET meta`, `GET image`, `POST set`) and frontend fetch/upload wiring.
+- Verified `personId` scope in current model (`groupCreate` generates per-group person ids), so profile persistence is currently group-scoped with explicit migration comment for future stable identity.
+- Added short design-language source doc for Ignite dialog.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `apps/web/src/styles.css`
+- `api/src/index.ts`
+- `api/src/lib/userProfilePhoto.ts`
+- `api/src/functions/userProfilePhotoSet.ts`
+- `api/src/functions/userProfilePhotoMeta.ts`
+- `api/src/functions/userProfilePhotoGet.ts`
+- `api/src/functions/userProfilePhoto.test.ts`
+- `docs/design/ignite-dialog.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd; rg --files -g 'AGENTS.md'` ✅
+- `rg -n "IgniteOrganizerPage|igniteStart|igniteClose|igniteJoin|IGNITE_CLOSED" apps/web/src api/src -S` ✅
+- `pnpm -w -r build` ✅
+- `pnpm -w -r lint` ✅
+
+### Follow-ups
+- Add burger-menu profile photo editing entry in a future pass (tracked in `PROJECT_STATUS.md` TODO).
