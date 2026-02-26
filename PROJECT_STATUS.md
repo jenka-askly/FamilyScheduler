@@ -1,3 +1,22 @@
+## 2026-02-27 00:05 UTC update (Members tab invite menu + QR modal for current group)
+
+- Replaced Members tab `+` behavior so it opens an anchored Invite menu instead of creating a blank person row.
+- Added invite actions:
+  - `Show QR (Anyone can join)` starts an Ignite session for the current `groupId`, builds `/#/s/:groupId/:sessionId`, and opens a modal with QR, copy link, close, and close-invite controls.
+  - `Invite by email (NYI)` shows an inline info notice (`Invite by email is not yet implemented.`) with no backend email call.
+- Added invite error handling notices:
+  - start failure: `Could not create invite QR`
+  - close failure: `Could not close invite`
+- Removed Members blank-row creation flow (`create_blank_person`, pending blank row state, and row-specific accept/cancel keyboard path).
+- Preserved existing person edit/save/delete actions for existing rows.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual check (then stopped with SIGINT intentionally).
+3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/e8b628ce9a6035c0/artifacts/artifacts/members-invite-menu.png`.
+
+
 ## 2026-02-26 23:25 UTC update (appointment drawer/spec backend groundwork + notification snapshot/ICS utilities)
 
 - Extended appointment event model v1 with suggestion lifecycle/reaction event types and normalized actor shape to `actor.kind` + `email`.
