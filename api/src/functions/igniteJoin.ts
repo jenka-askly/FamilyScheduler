@@ -107,7 +107,7 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
   const graceTtlSeconds = Math.max(60, Number.parseInt(graceTtlSecondsRaw, 10) || 1800);
   let grace: Awaited<ReturnType<typeof createIgniteGraceSession>>;
   try {
-    grace = await createIgniteGraceSession(email, groupId, graceTtlSeconds, { scopeIgniteSessionId: sessionId });
+    grace = await createIgniteGraceSession(email, groupId, graceTtlSeconds, { scopeIgniteSessionId: sessionId, scopeBreakoutGroupId: groupId });
   } catch (error) {
     console.log(JSON.stringify({
       event: 'ignite_join_grace_session_issue_failed',

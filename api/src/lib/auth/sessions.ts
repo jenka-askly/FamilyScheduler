@@ -14,6 +14,7 @@ type SessionBlob = {
   kind?: 'full' | 'provisional' | 'igniteGrace';
   scopeGroupId?: string;
   scopeIgniteSessionId?: string;
+  scopeBreakoutGroupId?: string;
 };
 
 type SessionKind = 'full' | 'provisional' | 'igniteGrace';
@@ -73,7 +74,7 @@ const createSessionInternal = async (
   email: string,
   kind: SessionKind,
   ttlSeconds: number,
-  options: { scopeGroupId?: string; scopeIgniteSessionId?: string } = {}
+  options: { scopeGroupId?: string; scopeIgniteSessionId?: string; scopeBreakoutGroupId?: string } = {}
 ): Promise<{ sessionId: string; expiresAtISO: string }> => {
   const adapter = createStorageAdapter();
   if (!adapter.putBinary) throw new Error('storage_put_binary_not_supported');
@@ -88,7 +89,8 @@ const createSessionInternal = async (
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     scopeGroupId: options.scopeGroupId,
-    scopeIgniteSessionId: options.scopeIgniteSessionId
+    scopeIgniteSessionId: options.scopeIgniteSessionId,
+    scopeBreakoutGroupId: options.scopeBreakoutGroupId
   };
 
   await adapter.putBinary(blobNameForSession(sessionId), Buffer.from(JSON.stringify(body), 'utf8'), 'application/json');
@@ -103,8 +105,8 @@ export const createIgniteGraceSession = async (
   email: string,
   scopeGroupId: string,
   ttlSeconds: number,
-  options: { scopeIgniteSessionId?: string } = {}
-): Promise<{ sessionId: string; expiresAtISO: string }> => createSessionInternal(email, 'igniteGrace', ttlSeconds, { scopeGroupId, scopeIgniteSessionId: options.scopeIgniteSessionId });
+  options: { scopeIgniteSessionId?: string; scopeBreakoutGroupId?: string } = {}
+): Promise<{ sessionId: string; expiresAtISO: string }> => createSessionInternal(email, 'igniteGrace', ttlSeconds, { scopeGroupId, scopeIgniteSessionId: options.scopeIgniteSessionId, scopeBreakoutGroupId: options.scopeBreakoutGroupId });
 
 export const getSession = async (sessionId: string): Promise<{ email: string; expiresAtISO: string } | null> => {
   const resolved = await getSessionWithStatus(sessionId);
@@ -113,7 +115,7 @@ export const getSession = async (sessionId: string): Promise<{ email: string; ex
 };
 
 export const getSessionWithStatus = async (sessionId: string): Promise<
-  | { ok: true; email: string; expiresAtISO: string; kind: SessionKind; scopeGroupId?: string; scopeIgniteSessionId?: string }
+  | { ok: true; email: string; expiresAtISO: string; kind: SessionKind; scopeGroupId?: string; scopeIgniteSessionId?: string; scopeBreakoutGroupId?: string }
   | { ok: false; code: 'missing' | 'invalid' | 'expired' | 'provisional_expired' | 'ignite_grace_expired' }
 > => {
   const adapter = createStorageAdapter();
@@ -142,8 +144,9 @@ export const getSessionWithStatus = async (sessionId: string): Promise<
 
     const scopeGroupId = typeof parsed.scopeGroupId === 'string' && parsed.scopeGroupId.trim() ? parsed.scopeGroupId.trim() : undefined;
     const scopeIgniteSessionId = typeof parsed.scopeIgniteSessionId === 'string' && parsed.scopeIgniteSessionId.trim() ? parsed.scopeIgniteSessionId.trim() : undefined;
+    const scopeBreakoutGroupId = typeof parsed.scopeBreakoutGroupId === 'string' && parsed.scopeBreakoutGroupId.trim() ? parsed.scopeBreakoutGroupId.trim() : undefined;
 
-    return { ok: true, email: parsed.email, expiresAtISO: expiresAt.toISOString(), kind, scopeGroupId, scopeIgniteSessionId };
+    return { ok: true, email: parsed.email, expiresAtISO: expiresAt.toISOString(), kind, scopeGroupId, scopeIgniteSessionId, scopeBreakoutGroupId };
   } catch (error) {
     const details = error as { statusCode?: number; code?: string };
     if (details?.statusCode === 404 || details?.code === 'BlobNotFound') return { ok: false, code: 'missing' };
@@ -169,15 +172,19 @@ export const requireSessionFromRequest = async (
     throw new HttpError(401, 'unauthorized', 'Invalid session', traceId);
   }
 
-  if (session.kind === 'igniteGrace' && options.groupId && session.scopeGroupId && session.scopeGroupId !== options.groupId) {
+  if (session.kind === 'igniteGrace' && options.groupId) {
+    const allowedGroupIds = [session.scopeGroupId, session.scopeBreakoutGroupId].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    if (allowedGroupIds.length > 0 && !allowedGroupIds.includes(options.groupId)) {
     console.log(JSON.stringify({
       event: 'ignite_grace_scope_violation',
       traceId,
       sessionIdPrefix: sessionId.slice(0, 8),
       expectedGroupId: session.scopeGroupId,
+      breakoutGroupId: session.scopeBreakoutGroupId,
       requestGroupId: options.groupId
     }));
-    throw new HttpError(403, 'forbidden', 'Session is not allowed for this group', traceId, { code: 'AUTH_SESSION_SCOPE_VIOLATION' });
+      throw new HttpError(403, 'forbidden', 'Session is not allowed for this group', traceId, { code: 'AUTH_SESSION_SCOPE_VIOLATION' });
+    }
   }
 
   console.log(JSON.stringify({ event: 'session_resolved', traceId, emailDomain: getEmailDomain(session.email), sessionIdPrefix: sessionId.slice(0, 8), kind: session.kind }));

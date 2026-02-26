@@ -84,7 +84,7 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         setBreakoutError(`${data.message ?? 'Unable to break out right now.'}${data.traceId ? ` (trace: ${data.traceId})` : ''}`);
         return;
       }
-      window.location.hash = `/g/${data.groupId}/ignite`;
+      window.location.hash = `/g/${data.groupId}/app`;
     } catch {
       setBreakoutError('Unable to break out right now.');
     } finally {
