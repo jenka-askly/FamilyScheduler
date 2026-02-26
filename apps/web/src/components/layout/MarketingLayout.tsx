@@ -25,7 +25,12 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: { xs: 4, md: 7 } }}>
           <Box>
             <Stack direction="row" spacing={1.1} alignItems="center">
-              <Box component="img" src={yapperIcon} alt="Yapper" sx={{ width: 26, height: 26 }} />
+              <Box
+                component="img"
+                src={yapperIcon}
+                alt="Yapper"
+                sx={{ width: 'auto', height: '0.95em', transform: 'translateY(0.03em)' }}
+              />
               <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: 'primary.main', lineHeight: 1 }}>
                 Yapper
               </Typography>

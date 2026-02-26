@@ -10584,6 +10584,27 @@ Promote passwordless sign-in discoverability on logged-out marketing home by add
 ### Follow-ups
 - Human-run browser check should confirm logged-in home does not show header **Sign in** button and still renders dashboard-only content.
 
+## 2026-02-26 01:40 UTC (Marketing home CTA/copy cleanup + header icon alignment)
+
+### Objective
+
+Implement agreed logged-out/home polish set: remove redundant hero sign-in CTAs and slogan, add passwordless explanatory text, refresh 1/2/3 copy, improve hero placeholder visual, and tune header icon alignment.
+
+### Approach
+
+- Inspected `App.tsx`, `MarketingLayout.tsx`, `ProductHomePage.tsx`, and `DashboardHomePage.tsx` first to confirm wiring and avoid duplicating existing dashboard changes.
+- Updated only marketing/header presentation surfaces with minimal diffs:
+  - removed hero slogan + large CTA blocks,
+  - added inline passwordless subtext with understated `Try it now` action,
+  - replaced step copy and typography hierarchy,
+  - swapped gray-like placeholder treatment for a richer temporary illustration,
+  - adjusted logo icon sizing/alignment using `em`-based dimensions.
+- Kept authenticated dashboard flow and breakout creation route behavior unchanged since it already matched requested behavior.
+
+### Files changed
+
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
 ## 2026-02-26 01:43 UTC (Fix joiner-only "Joined" completion navigation)
 
 ### Objective
@@ -10601,6 +10622,17 @@ Ensure joiner completion always navigates into app route (`/#/g/:id/app`) and ne
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ✅
+- `find .. -name AGENTS.md -print` ✅ (none found)
+- `sed -n '1,220p' apps/web/src/App.tsx; sed -n '1,260p' apps/web/src/components/layout/MarketingLayout.tsx; sed -n '1,320p' apps/web/src/components/ProductHomePage.tsx; sed -n '1,360p' apps/web/src/components/DashboardHomePage.tsx` ✅
+- `rg "<MarketingLayout|onSignIn" apps/web/src/App.tsx apps/web/src/components -n` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Human QA should validate invite accept/decline interactions against a real signed-in account and API data in staging.
 - `rg -n -S "Joined\b|I joined|I've joined|joined.*continue|continue.*joined|onJoined|handleJoined" apps/web/src/App.tsx apps/web/src/AppShell.tsx apps/web/src` ⚠️ no literal match in current codebase (flow is labeled by Ignite join/session UI instead of “Joined” text).
 - `rg -n -S "nav\(" apps/web/src/App.tsx` ✅ identified relevant navigation callsites for organizer and joiner completion paths.
 - `rg -n -S 'nav\(`/g/\$\{groupId\}`\)' apps/web/src/App.tsx` ✅ no matching callsites.
