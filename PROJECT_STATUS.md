@@ -3976,3 +3976,24 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm --filter @familyscheduler/web build`
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for screenshot capture)
 4. Playwright screenshot capture against `/#/` (mobile viewport)
+
+## 2026-02-26 01:40 UTC update (Marketing simplification + header lockup polish)
+
+- Simplified logged-out marketing home hero by removing the slogan line and large sign-in CTA buttons, while keeping passwordless sign-in guidance as understated body copy with inline `Try it now` action.
+- Updated “How it works” copy to a clearer decision-focused 1/2/3 sequence and tightened typography hierarchy so the section reads as final product copy.
+- Improved hero visual from obvious placeholder blocks to a richer temporary illustration (participants panel + QR-inspired card) while preserving responsive layout and aspect stability.
+- Polished header brand lockup by sizing the Y icon in `em` and applying slight optical vertical alignment so icon and `Yapper` wordmark read as one unit.
+- Dashboard behavior remains aligned with the agreed compact logged-in home: top `⚡ Break Out` quick-create CTA routes to `/#/g/:groupId/ignite`, secondary `+ Create Group` is preserved, and groups render as flat divider-separated list rows.
+
+### Files changed
+
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for visual smoke + screenshot)
