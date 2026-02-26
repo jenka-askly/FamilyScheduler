@@ -11506,3 +11506,43 @@ Make `AzureWebJobsStorage` the primary blob client config for appointment events
 - Verify runtime scenarios:
   1. `AzureWebJobsStorage + STATE_CONTAINER` only (Drawer + `get_appointment_detail` path succeeds)
   2. fallback mode with missing `AzureWebJobsStorage` and present `STORAGE_ACCOUNT_URL` + identity.
+
+## 2026-02-26 23:05 UTC update (UI-03 title proposal detection + countdown flow)
+
+### Objective
+Implement title-only proposal detection/apply lifecycle for appointment discussion with 5-second countdown UX, matching backend event-log behavior and single-active-proposal guard.
+
+### Approach
+- Extended direct action parsing/handling with:
+  - title intent detector (`update/change title to`, `rename to`)
+  - active proposal detection from recent events
+  - proposal dismissal action (`dismiss_appointment_proposal`)
+- Updated proposal event payloads to `{ field, from, to, proposalId }` and apply payloads to `{ field, from, to }`.
+- Added apply-time active proposal validation and title length check.
+- Wired reconciliation re-evaluation after apply; append reconciliation change + system confirmation when status flips.
+- Updated Drawer proposal UI in `AppShell` to show from→to, countdown seconds, and controls:
+  - Apply Now
+  - Pause
+  - Cancel (backend dismissal)
+  - Edit (modal save/apply)
+- Added UI rule to clear pending proposal when matching title `FIELD_CHANGED` is observed in event stream.
+
+### Files changed
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed due missing `@azure/data-tables` typings in environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for visual capture (then stopped via SIGINT).
+- Playwright capture generated artifact:
+  - `browser:/tmp/codex_browser_invocations/1871a372d452efd5/artifacts/artifacts/title-proposal-ui.png`
+
+### Follow-ups
+- Add direct-function unit tests for:
+  1) `title_proposal_pending` rejection,
+  2) apply active-proposal validation,
+  3) dismiss proposal append path,
+  once API build environment includes `@azure/data-tables` typings.

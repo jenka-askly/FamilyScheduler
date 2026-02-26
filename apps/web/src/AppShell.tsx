@@ -398,7 +398,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [detailsTab, setDetailsTab] = useState<'discussion' | 'changes' | 'constraints'>('discussion');
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [detailsMessageText, setDetailsMessageText] = useState('');
-  const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; value: string; countdownEndsAt: number; paused: boolean }>(null);
+  const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; from: string; to: string; countdownEndsAt: number; paused: boolean }>(null);
+  const [titleEditDraft, setTitleEditDraft] = useState('');
+  const [isEditProposalOpen, setIsEditProposalOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
@@ -448,14 +450,18 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   useEffect(() => {
     if (!pendingProposal || pendingProposal.paused) return;
-    const timer = window.setInterval(() => {
-      if (Date.now() >= pendingProposal.countdownEndsAt) {
-        window.clearInterval(timer);
-        void applyPendingProposal();
-      }
-    }, 200);
-    return () => window.clearInterval(timer);
+    const timeoutMs = Math.max(0, pendingProposal.countdownEndsAt - Date.now());
+    const timer = window.setTimeout(() => {
+      void applyPendingProposal();
+    }, timeoutMs);
+    return () => window.clearTimeout(timer);
   }, [pendingProposal]);
+
+  useEffect(() => {
+    const latestChange = detailsData?.eventsPage.find((event) => event.type === 'FIELD_CHANGED' && event.payload.field === 'title');
+    if (!latestChange || !pendingProposal) return;
+    if (latestChange.proposalId && latestChange.proposalId === pendingProposal.proposalId) setPendingProposal(null);
+  }, [detailsData?.eventsPage, pendingProposal]);
 
   useEffect(() => {
     const hash = window.location.hash || '';
@@ -515,7 +521,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'append_appointment_message', appointmentId: detailsAppointmentId, text, clientRequestId }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; value: string } | null };
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; from: string; to: string } | null };
     if (!response.ok || !payload.ok) return;
     const newEvents = payload.appendedEvents ?? [];
     setDetailsData((prev) => prev ? {
@@ -529,13 +535,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (payload.proposal) setPendingProposal({ ...payload.proposal, countdownEndsAt: Date.now() + 5000, paused: false });
   };
 
-  const applyPendingProposal = async () => {
+  const applyPendingProposal = async (valueOverride?: string) => {
     if (!detailsAppointmentId || !pendingProposal) return;
+    const value = (valueOverride ?? pendingProposal.to).trim();
+    if (!value) return;
     const clientRequestId = createTraceId();
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action: { type: 'apply_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value: pendingProposal.value, clientRequestId }, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, action: { type: 'apply_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value, clientRequestId }, traceId: createTraceId() })
     });
     const payload = await response.json() as { ok?: boolean; appointment?: Snapshot['appointments'][0]; appendedEvents?: AppointmentDetailEvent[] };
     if (!response.ok || !payload.ok) return;
@@ -552,6 +560,27 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (payload.appointment) {
       setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
     }
+  };
+
+  const dismissPendingProposal = async () => {
+    if (!detailsAppointmentId || !pendingProposal) return;
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, action: { type: 'dismiss_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, clientRequestId }, traceId: createTraceId() })
+    });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
+    if (!response.ok || !payload.ok) return;
+    setPendingProposal(null);
+    setDetailsData((prev) => prev ? {
+      ...prev,
+      eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
+      projections: {
+        discussionEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
+        changeEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'FIELD_CHANGED')
+      }
+    } : prev);
   };
 
   const closeRulePromptModal = () => {
@@ -2317,17 +2346,24 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 {[...detailsData.projections.discussionEvents].reverse().map((event) => (
                   <Paper key={event.id} variant="outlined" sx={{ p: 1, bgcolor: event.type === 'SYSTEM_CONFIRMATION' ? 'action.hover' : 'background.paper' }}>
                     <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography>
-                    <Typography variant="body2">{String(event.payload.text ?? event.payload.value ?? '')}</Typography>
+                    <Typography variant="body2">{String(event.payload.message ?? event.payload.text ?? event.payload.value ?? '')}</Typography>
                   </Paper>
                 ))}
                 {pendingProposal ? (
                   <Paper variant="outlined" sx={{ p: 1 }}>
-                    <Typography variant="body2">Detected: Title → {pendingProposal.value}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Proposed title change:</Typography>
+                    <Typography variant="body2">"{pendingProposal.from || 'Untitled'}" → "{pendingProposal.to}"</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {pendingProposal.paused ? 'Paused' : `Auto-apply in ${Math.max(0, Math.ceil((pendingProposal.countdownEndsAt - Date.now()) / 1000))}s`}
+                    </Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                      <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply now</Button>
-                      <Button size="small" onClick={() => setPendingProposal((prev) => prev ? { ...prev, paused: !prev.paused } : prev)}>{pendingProposal.paused ? 'Resume' : 'Pause'}</Button>
-                      <Button size="small" onClick={() => setPendingProposal(null)}>Cancel</Button>
-                      <TextField size="small" value={pendingProposal.value} onChange={(event) => setPendingProposal((prev) => prev ? { ...prev, value: event.target.value } : prev)} />
+                      <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply Now</Button>
+                      <Button size="small" onClick={() => setPendingProposal((prev) => prev ? { ...prev, paused: true } : prev)}>Pause</Button>
+                      <Button size="small" onClick={() => void dismissPendingProposal()}>Cancel</Button>
+                      <Button size="small" onClick={() => {
+                        setTitleEditDraft(pendingProposal.to);
+                        setIsEditProposalOpen(true);
+                      }}>Edit</Button>
                     </Stack>
                   </Paper>
                 ) : null}
@@ -2341,7 +2377,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               <Stack spacing={1}>
                 {detailsData.projections.changeEvents.map((event) => (
                   <Paper key={event.id} variant="outlined" sx={{ p: 1 }} title={event.sourceTextSnapshot || ''}>
-                    <Typography variant="body2">{String(event.payload.field)}: {String(event.payload.oldValue ?? '')} → {String(event.payload.newValue ?? '')}</Typography>
+                    <Typography variant="body2">{String(event.payload.field)}: {String(event.payload.from ?? event.payload.oldValue ?? '')} → {String(event.payload.to ?? event.payload.newValue ?? '')}</Typography>
                     <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography>
                   </Paper>
                 ))}
@@ -2351,6 +2387,27 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           </Stack>
         ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
       </Drawer>
+
+      <Dialog open={isEditProposalOpen} onClose={() => setIsEditProposalOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Edit proposed title</DialogTitle>
+        <DialogContent>
+          <TextField fullWidth autoFocus value={titleEditDraft} onChange={(event) => setTitleEditDraft(event.target.value)} label="Title" sx={{ mt: 1 }} />
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" variant="outlined" onClick={() => setIsEditProposalOpen(false)}>Cancel</Button>
+          <Button
+            type="button"
+            variant="contained"
+            onClick={() => {
+              setIsEditProposalOpen(false);
+              void applyPendingProposal(titleEditDraft);
+            }}
+            disabled={!titleEditDraft.trim()}
+          >
+            Save & Apply
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Drawer open={editingTodo != null} title="Edit todo" onClose={closeTodoEditor}>
         {editingTodo ? (
