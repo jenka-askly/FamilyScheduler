@@ -686,6 +686,11 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [diagRunning, setDiagRunning] = useState(false);
+  const [diagOutput, setDiagOutput] = useState('');
+  const [diagName, setDiagName] = useState('Test Joiner');
+  const [diagEmail, setDiagEmail] = useState('anon-test@example.com');
   const [scanCaptureOpen, setScanCaptureOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scanCaptureVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -709,6 +714,25 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   useEffect(() => {
     profilePhotoObjectUrlRef.current = profilePhotoObjectUrl;
   }, [profilePhotoObjectUrl]);
+
+  async function rawPostNoSession(path: string, body: unknown) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const text = await res.text();
+    let data: any = null;
+    try { data = text ? JSON.parse(text) : null; }
+    catch { data = { _nonJson: text }; }
+
+    return {
+      ok: res.ok,
+      status: res.status,
+      data
+    };
+  }
 
   const stopScanCaptureStream = () => {
     if (!scanCaptureStreamRef.current) return;
@@ -1058,6 +1082,83 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     await uploadPhotoBase64(base64);
   };
 
+  const runAnonymousDiagnostic = async () => {
+    if (!sessionId) {
+      setDiagOutput('ERROR: No ignite sessionId yet.');
+      return;
+    }
+
+    setDiagRunning(true);
+
+    const traceId = createTraceId();
+
+    const snapshot = {
+      timestampUtc: new Date().toISOString(),
+      currentHash: window.location.hash,
+      localStorage: {
+        fs_sessionId: localStorage.getItem('fs.sessionId'),
+        fs_igniteGraceSessionId: localStorage.getItem('fs.igniteGraceSessionId'),
+        fs_igniteGraceExpiresAtUtc: localStorage.getItem('fs.igniteGraceExpiresAtUtc'),
+        fs_sessionEmail: localStorage.getItem('fs.sessionEmail')
+      },
+      igniteContext: {
+        groupId,
+        igniteSessionIdPrefix: sessionId.slice(0, 8)
+      }
+    };
+
+    const stepA = await rawPostNoSession('/api/ignite/join', {
+      groupId,
+      sessionId,
+      name: diagName.trim(),
+      email: diagEmail.trim(),
+      traceId
+    });
+
+    let stepB = null;
+
+    const breakoutGroupId = stepA.data?.breakoutGroupId;
+    const graceSessionId = stepA.data?.sessionId;
+
+    if (breakoutGroupId && graceSessionId) {
+      const res = await fetch('/api/group/join', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-session-id': String(graceSessionId)
+        },
+        body: JSON.stringify({
+          groupId: breakoutGroupId,
+          traceId: createTraceId()
+        })
+      });
+
+      const text = await res.text();
+      let data: any = null;
+      try { data = text ? JSON.parse(text) : null; }
+      catch { data = { _nonJson: text }; }
+
+      stepB = {
+        ok: res.ok,
+        status: res.status,
+        data
+      };
+    }
+
+    const finalOutput = {
+      snapshot,
+      stepA_igniteJoin: stepA,
+      derived: {
+        breakoutGroupId,
+        graceSessionIdPrefix: graceSessionId ? String(graceSessionId).slice(0, 8) : null
+      },
+      stepB_groupJoin: stepB
+    };
+
+    setDiagOutput(JSON.stringify(finalOutput, null, 2));
+    setDiagRunning(false);
+  };
+
   useEffect(() => {
     if (!scanCaptureOpen) return;
     let frameId: number | null = null;
@@ -1286,6 +1387,15 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
               <Typography variant="subtitle2">Allow new members to join</Typography>
             </Stack>
             <Button variant="contained" type="button" fullWidth onClick={() => { void finishInvitingAndContinue(); }}>Finish inviting &amp; continue</Button>
+            {import.meta.env.MODE !== 'production' && (
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setDiagOpen(true)}
+              >
+                Debug: Anonymous Join Diagnostic
+              </Button>
+            )}
           </div>
         </Stack>
       </Stack>
@@ -1298,6 +1408,39 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         <DialogActions>
           <Button onClick={closeScanCaptureModal}>Cancel</Button>
           <Button variant="contained" onClick={() => { void capturePhoto(); }}>{profilePhotoUpdatedAt ? 'Replace profile photo' : 'Add as profile photo'}</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={diagOpen} onClose={() => setDiagOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Anonymous Join Diagnostic</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField label="Name" value={diagName} onChange={(e) => setDiagName(e.target.value)} fullWidth />
+            <TextField label="Email" value={diagEmail} onChange={(e) => setDiagEmail(e.target.value)} fullWidth />
+
+            <Button variant="contained" onClick={() => { void runAnonymousDiagnostic(); }} disabled={diagRunning}>
+              {diagRunning ? 'Running…' : 'Run Diagnostic'}
+            </Button>
+
+            <TextField
+              label="Diagnostic Output (Copy All)"
+              multiline
+              minRows={16}
+              value={diagOutput}
+              fullWidth
+              InputProps={{ readOnly: true }}
+            />
+
+            <Button
+              variant="outlined"
+              onClick={() => { void navigator.clipboard.writeText(diagOutput); }}
+              disabled={!diagOutput}
+            >
+              Copy to Clipboard
+            </Button>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDiagOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
       <FooterHelp />
