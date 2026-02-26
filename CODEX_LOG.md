@@ -11141,3 +11141,34 @@ Add temporary always-visible copyable debug payloads to diagnose phone QR join r
 
 ### Follow-ups
 - Human phone flow validation requested: scan QR, proceed to Join Group if redirected, tap **Copy Debug**, and paste JSON for analysis.
+
+## 2026-02-26 05:57 UTC (fix stale hasApiSession race in route gating)
+
+### Objective
+Fix first-run joiner redirect race where app/ignite routes could bounce to login due to stale `hasApiSession` state despite a valid auth/grace session in storage.
+
+### Approach
+- Located route gating and session state usage in `apps/web/src/App.tsx`.
+- Added live computed `effectiveHasApiSession = Boolean(getAuthSessionId())` immediately after route parse.
+- Switched routing decisions that represent auth-gating to use `effectiveHasApiSession`:
+  - app/ignite redirect guard,
+  - home branch (marketing vs dashboard),
+  - create redirect guard.
+- Kept `hasApiSession` state intact for existing UI/state updates and debug context.
+- Extended `authDebug('route_render')` and redirect debug payloads to include both `hasApiSession` and `effectiveHasApiSession` for diagnostics.
+- Verified `getAuthSessionId()` implementation in `apps/web/src/lib/apiUrl.ts` already returns `getSessionId() || getIgniteGraceSessionId()` (includes ignite grace).
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "hasApiSession|setHasApiSession|route\.type === 'app'|route\.type === 'ignite'" apps/web/src/App.tsx` ✅ located stale-state gating and affected branches.
+- `rg -n -S "function getAuthSessionId|getAuthSessionId\(" apps/web/src/lib apps/web/src/App.tsx` ✅ confirmed callsites and definition locations.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+- Human validation requested for phone first-run flow:
+  - QR scan/join should route directly into `/#/g/<breakoutGroupId>/app` without login redirect.
+  - Organizer ignite/session-1 start should succeed first try.

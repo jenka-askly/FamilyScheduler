@@ -4310,3 +4310,26 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck`
+
+## 2026-02-26 05:57 UTC update (joiner first-run auth gate uses live session id)
+
+- Fixed routing auth gating in `apps/web/src/App.tsx` to use a live computed `effectiveHasApiSession = Boolean(getAuthSessionId())` for route decisions instead of relying on potentially stale `hasApiSession` React state.
+- Updated route gating checks to use live auth presence for:
+  - app/ignite redirect-to-login guard,
+  - home branch selection (marketing vs dashboard),
+  - create page redirect.
+- `getAuthSessionId()` already includes ignite grace (`getSessionId() || getIgniteGraceSessionId()`), so first-run joiners with grace session are now treated as authenticated for routing decisions.
+- This removes a race where brand-new joiners could be redirected to `/#/login` before state caught up.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. Manual acceptance (human run):
+   - brand-new phone/no storage: scan QR -> join -> lands on `/#/g/<breakoutGroupId>/app` without detouring to `/#/login`.
+   - organizer start session 1 works on first attempt.

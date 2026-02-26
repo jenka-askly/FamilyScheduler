@@ -1769,6 +1769,7 @@ export function App() {
   }, []);
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
+  const effectiveHasApiSession = Boolean(getAuthSessionId());
   useEffect(() => {
     setHasApiSession(Boolean(getAuthSessionId()));
   }, [hash]);
@@ -1781,19 +1782,21 @@ export function App() {
   useEffect(() => {
     authDebug('route_render', {
       routeType: route.type,
-      hasApiSession
+      hasApiSession,
+      effectiveHasApiSession
     });
-  }, [route, hasApiSession]);
+  }, [route, hasApiSession, effectiveHasApiSession]);
 
-  if ((route.type === 'app' || route.type === 'ignite') && !hasApiSession) {
+  if ((route.type === 'app' || route.type === 'ignite') && !effectiveHasApiSession) {
     authDebug('route_redirect_login', {
       routeType: route.type,
-      hasApiSession
+      hasApiSession,
+      effectiveHasApiSession
     });
     return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
   }
   if (route.type === 'home') {
-    if (!hasApiSession) {
+    if (!effectiveHasApiSession) {
       return (
         <MarketingLayout hasApiSession={false} onSignIn={() => nav('/login')}>
           <ProductHomePage onSignIn={() => nav('/login')} />
@@ -1809,7 +1812,7 @@ export function App() {
     );
   }
   if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
-  if (route.type === 'create' && !hasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
+  if (route.type === 'create' && !effectiveHasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
