@@ -4,7 +4,7 @@ import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
 import { Box, Button, Stack, Typography } from '@mui/material';
 
 type ProductHomePageProps = {
-  onCreateGroup: () => void;
+  onSignIn: () => void;
 };
 
 const features = [
@@ -40,7 +40,7 @@ const steps = [
   }
 ];
 
-export function ProductHomePage({ onCreateGroup }: ProductHomePageProps) {
+export function ProductHomePage({ onSignIn }: ProductHomePageProps) {
   return (
     <Stack spacing={{ xs: 7, md: 9 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 4, md: 6 }} alignItems="stretch">
@@ -50,11 +50,11 @@ export function ProductHomePage({ onCreateGroup }: ProductHomePageProps) {
             Plan together without the scheduling spiral.
           </Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 620, fontSize: { xs: '1rem', md: '1.08rem' } }}>
-            Yapper gives your people one clear place to create plans, run quick breakout moments, and keep progress visible.
+            Yapper gives your people one clear place to create plans, run quick breakout moments, and keep progress visible. No password—get a sign-in link by email.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <Button variant="contained" onClick={onCreateGroup} sx={{ px: 2.5, py: 1.1, transition: 'transform 140ms ease, box-shadow 140ms ease', '&:hover': { transform: 'translateY(-1px)' } }}>
-              Create a group
+            <Button variant="contained" onClick={onSignIn} sx={{ px: 2.5, py: 1.1, transition: 'transform 140ms ease, box-shadow 140ms ease', '&:hover': { transform: 'translateY(-1px)' } }}>
+              Sign in with email
             </Button>
           </Stack>
         </Stack>
@@ -79,6 +79,26 @@ export function ProductHomePage({ onCreateGroup }: ProductHomePageProps) {
           <Box sx={{ position: 'absolute', top: '58%', left: '22%', width: 10, height: 10, borderRadius: '50%', bgcolor: 'rgba(217,119,6,0.65)' }} />
         </Box>
       </Stack>
+
+
+      <Box
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          borderRadius: 2.5,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper'
+        }}
+      >
+        <Stack spacing={1.25} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Passwordless sign-in</Typography>
+          <Typography color="text.secondary" sx={{ maxWidth: 720 }}>
+            Enter your email and we’ll send a secure sign-in link (a ‘magic link’). No password to remember.
+          </Typography>
+          <Typography variant="caption" color="text.secondary">Links expire quickly for safety.</Typography>
+          <Button size="small" variant="outlined" onClick={onSignIn}>Send me a sign-in link</Button>
+        </Stack>
+      </Box>
 
       <Box>
         <Typography variant="h5" sx={{ mb: 2.6, fontWeight: 700 }}>Bring your group together in three steps</Typography>

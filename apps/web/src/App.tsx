@@ -1195,7 +1195,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       const closed = await closeSession();
       if (!closed) return;
     }
-    nav(`/g/${groupId}`);
+    // Must route to /app, not /g/:id, otherwise gate redirects to Join on deny.
+    nav(`/g/${groupId}/app`);
   };
 
   const organizerName = (combinedPeopleByPersonId[organizerPersonId]?.name ?? '').trim() || 'Someone';
@@ -1629,7 +1630,7 @@ export function App() {
     if (!hasApiSession) {
       return (
         <MarketingLayout hasApiSession={false} onSignIn={() => nav('/login')}>
-          <ProductHomePage onCreateGroup={() => nav('/create')} />
+          <ProductHomePage onSignIn={() => nav('/login')} />
         </MarketingLayout>
       );
     }

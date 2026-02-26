@@ -26,6 +26,14 @@
 2. `pnpm -r build` ⚠️ fails in this container for pre-existing API dependency resolution issue: `@azure/data-tables` module/types not found during API TypeScript build.
 3. Playwright screenshot attempt ⚠️ browser process crashed with `SIGSEGV` in container (`BrowserType.launch`), so no artifact could be captured.
 
+## 2026-02-26 01:05 UTC update (Ignite organizer continue route correction)
+
+- **Bug description:** Organizer `Finish inviting & continue` in Ignite was navigating to `/#/g/:groupId` (join route), which could trigger join gating and show the Join dialog instead of entering the app directly.
+- **Root cause:** `finishInvitingAndContinue` used the base group route (`/g/${groupId}`) instead of the app route (`/g/${groupId}/app`).
+- **Fix summary:** Updated organizer continue navigation to `/#/g/:groupId/app` and added an in-code guard comment documenting why `/app` is required.
+- **Verification notes:**
+  - Organizer continue path now targets `/#/g/<newGroupId>/app`.
+  - Joiner success navigation remains on `/#/g/<newGroupId>/app` (unchanged by this patch).
 
 ## 2026-02-26 00:08 UTC update (Ignite breakout join regression fix)
 
@@ -3954,3 +3962,17 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
    - AppShell breakout success navigates to `/#/g/:newGroupId/ignite`.
    - AppShell custom breakout QR dialog strings are no longer present.
 3. Manual browser verification still required for full end-to-end acceptance (Dashboard breakout, menu breakout, Organizer Ignite continue-to-app, and joiner QR scan grace-flow).
+
+## 2026-02-26 01:10 UTC update (Marketing home passwordless sign-in promotion)
+
+- Logged-out marketing header now shows a visible **Sign in** button (keeps burger menu entry as well), so sign-in is accessible without opening the menu.
+- Logged-out hero primary CTA updated from **Create a group** to **Sign in with email**, routed to existing `/#/login` flow.
+- Added a new **Passwordless sign-in** explainer card under hero CTA with magic-link copy, safety note, and secondary CTA to `/#/login`.
+- Updated logged-out home wiring in `App.tsx` to pass `onSignIn` into `ProductHomePage`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for screenshot capture)
+4. Playwright screenshot capture against `/#/` (mobile viewport)
