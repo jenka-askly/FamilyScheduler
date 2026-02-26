@@ -1,3 +1,19 @@
+## 2026-02-26 02:06 UTC update (Marketing header brand icon prominence)
+
+- Updated marketing header brand lockup so the Y icon scales to the same em-height as the `Yapper` wordmark (`height: 1em`) for stronger icon prominence.
+- Added modest right spacing (`mr: 0.3em`) and retained optical alignment (`verticalAlign: middle`, `translateY(1px)`) so the wordmark remains visually dominant.
+
+### Files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. Marketing header screenshot captured: `browser:/tmp/codex_browser_invocations/ae9e347bcc30b749/artifacts/artifacts/marketing-layout-header.png` ✅
+
 ## 2026-02-26 01:56 UTC update (Ignite grace joiners authorized in group/join + session upgrade)
 
 - **Root cause:** `/api/group/join` always enforced existing table membership by session email. Grace-only Ignite joiners often have no pre-existing `GroupMembers` row for the breakout group, so gate calls returned `not_allowed` and the web app fell back to the Join Group route.

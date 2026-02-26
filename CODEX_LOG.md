@@ -1,3 +1,28 @@
+
+## 2026-02-26 02:06 UTC (Marketing header icon prominence tuning)
+
+### Objective
+Increase the header brand icon prominence in `MarketingLayout` while preserving wordmark dominance via optical alignment.
+
+### Approach
+- Adjusted brand row spacing and icon sizing directly in `MarketingLayout`.
+- Set icon height to match wordmark em-height (`1em`), applied modest right margin (`0.3em`), and kept `verticalAlign: middle` with `translateY(1px)`.
+- Ran web typecheck and captured a screenshot of the updated header.
+
+### Files changed
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `git status --short` ✅ showed only intended working tree change before docs update.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started local dev server for visual validation.
+- Playwright screenshot via browser tool ✅ captured `browser:/tmp/codex_browser_invocations/ae9e347bcc30b749/artifacts/artifacts/marketing-layout-header.png`.
+
+### Follow-ups
+- None.
+
 ## 2026-02-26 01:56 UTC (Grace-only joiners can pass group/join and upgrade session)
 
 ### Objective
