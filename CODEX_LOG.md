@@ -11114,3 +11114,30 @@ Eliminate stale `familyscheduler.session` resurrection after logout by clearing 
 - Human manual check in browser DevTools after Sign out:
   - `localStorage.getItem('familyscheduler.session') === null`
   - `sessionStorage.getItem('familyscheduler.session') === null`
+
+## 2026-02-26 05:43 UTC (temporary always-on Copy Debug panel for joiner/gate/join-group)
+
+### Objective
+Add temporary always-visible copyable debug payloads to diagnose phone QR join redirects from Ignite Join → Group Auth Gate → Join Group, without changing navigation behavior.
+
+### Approach
+- Added `collectClientSessionSnapshot(extra?)` near `authDebug` in `apps/web/src/App.tsx` to gather timestamp, URL context, derived session IDs, storage keys, and `readSession()`.
+- Added reusable `CopyDebugPanel` component (floating button + dialog + read-only JSON + clipboard copy).
+- Instrumented:
+  - `IgniteJoinPage` with `debugState` snapshots at start/result/after-storage and panel in both render branches.
+  - `GroupAuthGate` with `debugGate` snapshots at init/join-start/join-result/redirect-to-join and panel in checking/denied UI.
+  - `JoinGroupPage` with `debugJoinGroup` snapshots at init/mount/close-click and panel in page UI.
+- Kept all existing redirect/navigation logic intact; only state capture + UI diagnostics were added.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "function authDebug|function IgniteJoinPage\(|function GroupAuthGate\(|function JoinGroupPage\(" apps/web/src/App.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `rg -n "CopyDebugPanel title=\"Debug" apps/web/src/App.tsx` ✅ confirmed panel renders in targeted pages only.
+
+### Follow-ups
+- Human phone flow validation requested: scan QR, proceed to Join Group if redirected, tap **Copy Debug**, and paste JSON for analysis.
