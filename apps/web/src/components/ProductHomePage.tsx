@@ -43,17 +43,35 @@ const steps = [
 export function ProductHomePage({ onSignIn }: ProductHomePageProps) {
   return (
     <Stack spacing={{ xs: 7, md: 9 }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 4, md: 6 }} alignItems="stretch">
-        <Stack spacing={2.2} sx={{ flex: 1.15, pt: { md: 2 } }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 3.2, md: 5.2 }} alignItems="stretch">
+        <Stack spacing={1.8} sx={{ flex: 1.15, pt: { md: 2 } }}>
           <Typography variant="h2" sx={{ fontWeight: 800, letterSpacing: '-0.02em', maxWidth: 650, fontSize: { xs: '2.2rem', md: '3rem' } }}>
             Plan together without the scheduling spiral.
           </Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 620, fontSize: { xs: '1rem', md: '1.08rem' } }}>
             Yapper gives your people one clear place to create plans, run quick breakout moments, and keep progress visible.
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.2 }}>
             Sign in with your email. We&apos;ll send a secure link — no password required.{' '}
-            <Link component="button" type="button" underline="hover" color="inherit" onClick={onSignIn} sx={{ fontWeight: 600 }}>
+            <Link
+              component="button"
+              type="button"
+              underline="none"
+              color="primary.main"
+              onClick={onSignIn}
+              sx={{
+                p: 0,
+                border: 0,
+                background: 'none',
+                font: 'inherit',
+                fontSize: 'inherit',
+                lineHeight: 'inherit',
+                display: 'inline',
+                cursor: 'pointer',
+                verticalAlign: 'baseline',
+                '&:hover': { textDecoration: { xs: 'none', md: 'underline' } }
+              }}
+            >
               Try it now
             </Link>
           </Typography>

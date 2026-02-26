@@ -29,7 +29,7 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
                 component="img"
                 src={yapperIcon}
                 alt="Yapper"
-                sx={{ width: 'auto', height: '0.95em', transform: 'translateY(0.03em)' }}
+                sx={{ width: 'auto', height: '0.8em', mr: '8px', verticalAlign: 'middle', transform: 'translateY(1px)' }}
               />
               <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: 'primary.main', lineHeight: 1 }}>
                 Yapper

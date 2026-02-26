@@ -10676,3 +10676,33 @@ Ensure joiner completion always navigates into app route (`/#/g/:id/app`) and ne
 ### Follow-ups
 - Human browser verification recommended for both organizer and joiner flows to confirm runtime hash routes end at `/#/g/<newGroupId>/app` and refresh remains stable on `/app`.
 
+
+## 2026-02-26 01:58 UTC (Hero refinement + logo integration tuning)
+
+### Objective
+
+Implement requested marketing polish: reduce Y logo dominance in header, convert hero "Try it now" CTA to lightweight inline hyperlink style, and tighten hero spacing without routing/backend changes.
+
+### Approach
+
+- Updated `MarketingLayout` brand icon sizing/alignment to use relative `em` sizing and subtle baseline correction so the wordmark remains dominant.
+- Updated `ProductHomePage` hero top stack spacing for a tighter vertical rhythm.
+- Replaced the CTA visual treatment with an inline text link style (no button affordance/background/padding) and desktop-only underline hover.
+- Ran web build and content search checks for requested copy/CTA constraints.
+
+### Files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ (no nested AGENTS overrides found).
+- `pnpm --filter @familyscheduler/web build` ✅ web bundle built successfully.
+- `rg -n "Gather\. Decide\. Move\.|Try it now|Sign in with your email" apps/web/src/components/ProductHomePage.tsx` ✅ verified CTA/copy presence and no legacy slogan string.
+
+### Follow-ups
+
+- Optional human visual QA in browser to fine-tune icon baseline by +/-1px if typography rendering differs by platform.
