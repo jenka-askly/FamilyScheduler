@@ -4133,3 +4133,13 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck` ✅
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (manually stopped after screenshot capture)
 3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/1b32b90eab81a147/artifacts/artifacts/ignite-organizer-diagnostic-button.png` ✅
+
+## 2026-02-26 04:05 UTC update (Ignite anonymous diagnostic now hits Functions API directly)
+
+- Updated Ignite organizer anonymous diagnostic transport to resolve an explicit `apiBase` and call Azure Functions hosts directly instead of relying on SWA `/api` proxy routing.
+- Diagnostic now records `allow` response header for both StepA (`/api/ignite/join`) and StepB (`/api/group/join`) and includes preflight probes (`OPTIONS` + `GET`) for ignite join endpoint.
+- Output remains JSON-copyable in the dialog and now includes `apiBase`, resolved endpoint URLs, and probe results to speed 405 method debugging.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`

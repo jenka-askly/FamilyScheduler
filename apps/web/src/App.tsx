@@ -715,13 +715,25 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     profilePhotoObjectUrlRef.current = profilePhotoObjectUrl;
   }, [profilePhotoObjectUrl]);
 
-  async function rawPostNoSession(path: string, body: unknown) {
-    const res = await fetch(path, {
+  const apiBase = (() => {
+    const host = window.location.hostname;
+    if (host.includes('happy-wave-09af5f21e.6.azurestaticapps.net')) {
+      return 'https://familyscheduler-api-staging.azurewebsites.net';
+    }
+    if (host.includes('red-cliff-0f62ac31e.4.azurestaticapps.net')) {
+      return 'https://familyscheduler-api-prod.azurewebsites.net';
+    }
+    return 'https://familyscheduler-api-staging.azurewebsites.net';
+  })();
+
+  async function rawPostNoSession(url: string, body: unknown) {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
 
+    const allow = res.headers.get('allow');
     const text = await res.text();
     let data: any = null;
     try { data = text ? JSON.parse(text) : null; }
@@ -730,8 +742,14 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     return {
       ok: res.ok,
       status: res.status,
+      allow,
       data
     };
+  }
+
+  async function rawProbe(url: string, method: 'GET' | 'OPTIONS') {
+    const res = await fetch(url, { method });
+    return { ok: res.ok, status: res.status, allow: res.headers.get('allow') };
   }
 
   const stopScanCaptureStream = () => {
@@ -1091,6 +1109,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     setDiagRunning(true);
 
     const traceId = createTraceId();
+    const igniteJoinUrl = `${apiBase}/api/ignite/join`;
+    const groupJoinUrl = `${apiBase}/api/group/join`;
 
     const snapshot = {
       timestampUtc: new Date().toISOString(),
@@ -1107,7 +1127,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       }
     };
 
-    const stepA = await rawPostNoSession('/api/ignite/join', {
+    const probeIgniteOptions = await rawProbe(igniteJoinUrl, 'OPTIONS');
+    const probeIgniteGet = await rawProbe(igniteJoinUrl, 'GET');
+
+    const stepA = await rawPostNoSession(igniteJoinUrl, {
       groupId,
       sessionId,
       name: diagName.trim(),
@@ -1121,7 +1144,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     const graceSessionId = stepA.data?.sessionId;
 
     if (breakoutGroupId && graceSessionId) {
-      const res = await fetch('/api/group/join', {
+      const res = await fetch(groupJoinUrl, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -1133,6 +1156,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         })
       });
 
+      const allow = res.headers.get('allow');
       const text = await res.text();
       let data: any = null;
       try { data = text ? JSON.parse(text) : null; }
@@ -1141,11 +1165,17 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       stepB = {
         ok: res.ok,
         status: res.status,
+        allow,
         data
       };
     }
 
     const result = {
+      apiBase,
+      igniteJoinUrl,
+      groupJoinUrl,
+      probeIgniteOptions,
+      probeIgniteGet,
       snapshot,
       stepA_igniteJoin: stepA,
       derived: {
