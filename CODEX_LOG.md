@@ -10452,3 +10452,32 @@ Normalize vertical spacing on the sign-in screen after recent element removals, 
 
 ### Follow-ups
 - Optional human visual check on desktop breakpoint to confirm preferred spacing cadence on larger screens.
+
+## 2026-02-26 00:52 UTC
+
+### Objective
+Unify breakout behavior so every entrypoint lands on Organizer Ignite (`/#/g/:newGroupId/ignite`) and remove the newly introduced AppShell custom QR breakout dialog.
+
+### Approach
+- Located breakout navigation handlers in Dashboard and AppShell.
+- Updated Dashboard breakout success route to `/#/g/:newGroupId/ignite`.
+- Replaced AppShell post-spinoff invite-dialog flow with direct navigation to `/#/g/:newGroupId/ignite`.
+- Removed AppShell breakout invite dialog state/handlers/rendering to restore intended Organizer Ignite ownership of QR + continue flow.
+- Updated continuity docs with behavior and verification notes.
+
+### Files changed
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg -n --files -g 'AGENTS.md'` ✅ (repo-root AGENTS instructions provided by user prompt; no nested AGENTS found by scan command output).
+- `rg -n -S "type:\\s*'ignite'|/ignite\\b|ignite organizer|Ignite" apps/web/src/App.tsx apps/web/src/AppShell.tsx` ✅ located ignite route + organizer page + AppShell breakout dialog area.
+- `rg -n -S "breakout|/g/\\$\\{.*\\}/app|group/create|ignite|location.hash" apps/web/src/components/DashboardHomePage.tsx` ✅ located dashboard breakout route target.
+- `pnpm --filter @familyscheduler/web typecheck` ❌ first run failed (`Cannot find name 'nav'`) after initial AppShell edit.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ second run passed after replacing `nav(...)` with `window.location.hash` route update.
+- `rg -n -S 'Breakout join QR code|Ignite / Breakout|window\\.location\\.hash = `/g/\\$\\{data\\.groupId\\}/ignite`|window\\.location\\.hash = `/g/\\$\\{result\\.newGroupId\\}/ignite`|spinoffBreakoutGroup\\(' apps/web/src/components/DashboardHomePage.tsx apps/web/src/AppShell.tsx` ✅ confirms unified ignite routes and removal of custom breakout dialog strings.
+
+### Follow-ups
+- Human-run E2E verification for both breakout entrypoints and QR joiner grace flow in a live browser/API session.
