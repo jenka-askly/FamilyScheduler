@@ -1,3 +1,21 @@
+## 2026-02-26 00:08 UTC update (Sign-in UI cleanup)
+
+- Sign-in UI cleanup: removed marketing tagline and hamburger menu from signed-out view.
+- Scoped header menu visibility to allow hiding the hamburger only on the sign-in page; authenticated/app layouts keep menu behavior unchanged.
+- Sign-in heading and passwordless auth flow UI remain unchanged.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for login UI screenshot and sign-in visual check)
+
+
 ## 2026-02-25 23:36 UTC update (Dashboard layout refactor + authenticated header tweaks)
 
 - Dashboard home for authenticated users now removes the welcome/recent/diagnostics blocks and uses a streamlined CTA + groups-first layout.
