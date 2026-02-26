@@ -1,11 +1,12 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
+import { createSession, HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
+import { userKeyFromEmail } from '../lib/identity/userKey.js';
 
 type JoinBody = { groupId?: unknown; traceId?: unknown };
 
@@ -36,6 +37,35 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
   await ensureTablesReady();
   const group = await getGroupEntity(groupId);
   if (!group || group.isDeleted) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+
+  if (session.kind === 'igniteGrace') {
+    const userKey = userKeyFromEmail(session.email);
+    const now = new Date().toISOString();
+    const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active', 'invited'] });
+    if (!membership.ok) {
+      await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: session.email, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
+      await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
+      await adjustGroupCounters(groupId, { memberCountActive: 1 });
+    } else if (membership.member.status === 'invited') {
+      await upsertGroupMember({ ...membership.member, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
+      await upsertUserGroup({ partitionKey: membership.userKey, rowKey: groupId, groupId, status: 'active', invitedAt: membership.member.invitedAt, joinedAt: now, removedAt: undefined, updatedAt: now });
+      await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
+      await incrementDailyMetric('invitesAccepted', 1);
+    }
+
+    const upgradedSession = await createSession(session.email);
+    return {
+      status: 200,
+      jsonBody: {
+        ok: true,
+        sessionId: upgradedSession.sessionId,
+        traceId,
+        groupId,
+        groupName: group.groupName,
+        updatedAt: group.updatedAt
+      }
+    };
+  }
 
   const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active', 'invited'] });
   if (!membership.ok) return membership.response;
