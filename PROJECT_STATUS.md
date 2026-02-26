@@ -4461,3 +4461,20 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Constraints tab full functionality remains placeholder (“Coming soon”).
 - Notification/email/ICS actions remain UI placeholder only.
+
+## 2026-02-26 22:45 UTC update (appointment detail graceful degradation)
+
+- Fixed `/api/direct` `get_appointment_detail` to gracefully degrade when event-log retrieval fails.
+- The endpoint now still returns `ok: true` and the appointment snapshot with an empty event page instead of returning `500 appointment_detail_failed`.
+- Added explicit response diagnostics for UI/debugging: `eventsUnavailable`, `eventsErrorCode`, `eventsError`, and `eventsTraceId`.
+- Added structured server log event `appointment_detail_events_failed` including `traceId`, `groupId`, and `appointmentId`.
+
+### Success criteria
+
+- Appointment detail no longer hard-fails when event storage/read has transient failures.
+- Response still includes trace metadata (`traceId`, headers) and an explicit events-unavailable signal.
+
+### Non-regressions
+
+- Existing successful event retrieval behavior is unchanged.
+- Appointment-not-found behavior remains `404 appointment_not_found`.

@@ -11433,3 +11433,35 @@ Make `AzureWebJobsStorage` the primary blob client config for appointment events
 - Verify runtime scenarios:
   1. `AzureWebJobsStorage + STATE_CONTAINER` only (Drawer + `get_appointment_detail` path succeeds)
   2. fallback mode with missing `AzureWebJobsStorage` and present `STORAGE_ACCOUNT_URL` + identity.
+
+## 2026-02-26 22:45 UTC (fix appointment_detail_failed by degrading events fetch)
+
+### Objective
+Address reported `/api/direct` failure payload:
+`{"ok":false,"error":"appointment_detail_failed","message":"Failed to load appointment detail", ...}`
+by keeping appointment detail available even when event-log retrieval fails.
+
+### Approach
+- Traced failure site to `direct.ts` `get_appointment_detail` branch where `getRecentEvents(...)` exceptions were converted to a hard 500.
+- Applied smallest-change fix:
+  - precompute `appointmentSnapshot`
+  - if `getRecentEvents` throws, return 200 with appointment data and empty events payload
+  - include explicit diagnostics (`eventsUnavailable`, `eventsErrorCode`, `eventsError`, `eventsTraceId`)
+  - log structured event `appointment_detail_events_failed` with correlation fields.
+- Added a focused unit test that forces `getRecentEvents` to throw and asserts graceful fallback response.
+
+### Files changed
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ❌ (no AGENTS files discovered with that pattern command)
+- `find .. -name AGENTS.md -maxdepth 4` ✅ (none found)
+- `rg "appointment_detail_failed|Failed to load appointment detail|directVersion|invocationId" -n` ✅
+- `pnpm --filter @familyscheduler/api build` ❌ blocked by pre-existing environment dependency gap: `@azure/data-tables` typings/module unresolved.
+
+### Follow-ups
+- Re-run API build/tests in an environment where `@azure/data-tables` is resolvable.
+- Validate from UI that appointment detail panel loads with warning state instead of global failure when events backend is unavailable.

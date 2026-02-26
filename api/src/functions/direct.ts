@@ -324,6 +324,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
 
+    const appointmentSnapshot = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
     try {
       const recent = await getRecentEvents(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
       const discussionEvents = recent.events.filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED');
@@ -332,15 +333,29 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         status: 200,
         jsonBody: {
           ok: true,
-          appointment: toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0],
+          appointment: appointmentSnapshot,
           eventsPage: recent.events,
           nextCursor: recent.nextCursor,
           projections: { discussionEvents, changeEvents }
         }
       }, traceId, context);
     } catch (error) {
-      context.log(JSON.stringify({ event: 'appointment_detail_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
-      return withDirectMeta(errorResponse(500, 'appointment_detail_failed', 'Failed to load appointment detail', traceId), traceId, context);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      context.log(JSON.stringify({ event: 'appointment_detail_events_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: errorMessage }));
+      return withDirectMeta({
+        status: 200,
+        jsonBody: {
+          ok: true,
+          appointment: appointmentSnapshot,
+          eventsPage: [],
+          nextCursor: null,
+          projections: { discussionEvents: [], changeEvents: [] },
+          eventsUnavailable: true,
+          eventsErrorCode: 'appointment_events_unavailable',
+          eventsError: 'Appointment events are temporarily unavailable',
+          eventsTraceId: traceId
+        }
+      }, traceId, context);
     }
   }
 
