@@ -36,7 +36,7 @@ type AppointmentCardListProps = {
   onDelete: (appointment: Appointment) => void;
   onSelectPeople: (appointment: Appointment) => void;
   onOpenScanViewer: (appointment: Appointment) => void;
-  onOpenDetails?: (appointment: Appointment, anchorEl: HTMLElement) => void;
+  onOpenDetails?: (appointment: Appointment) => void;
   activeAppointmentCode: string | null;
   scanViewIcon: ReactNode;
   editIcon: ReactNode;
@@ -109,16 +109,15 @@ export function AppointmentCardList({
             sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}
             onDoubleClick={(event) => {
               event.stopPropagation();
-              onOpenDetails?.(appointment, event.currentTarget as HTMLElement);
+              onOpenDetails?.(appointment);
             }}
             onPointerDown={(event) => {
               if (event.pointerType !== 'touch') return;
               clearLongPressTimer();
               didLongPressRef.current = false;
-              const anchorEl = event.currentTarget as HTMLElement;
               longPressTimerRef.current = window.setTimeout(() => {
                 didLongPressRef.current = true;
-                onOpenDetails?.(appointment, anchorEl);
+                onOpenDetails?.(appointment);
               }, 500);
             }}
             onPointerUp={() => {
