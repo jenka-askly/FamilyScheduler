@@ -1,3 +1,23 @@
+## 2026-02-26 03:10 UTC update (Ignite organizer anonymous join diagnostic dialog)
+
+- Added a **dev-only** Ignite organizer diagnostic workflow to probe anonymous join behavior end-to-end from the organizer screen (`/api/ignite/join` without durable `x-session-id`, followed by `/api/group/join` with returned grace session).
+- Added in-page diagnostic state and controls for test joiner name/email, run status, and JSON output capture for easy copy/paste into bug reports.
+- Added helper `rawPostNoSession` to explicitly issue JSON POST requests without session headers and normalize both JSON/non-JSON responses.
+- Added a non-production button in organizer footer controls (`Debug: Anonymous Join Diagnostic`) that opens a dedicated dialog with run + copy actions.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅
+3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/ad665d3b6a040273/artifacts/artifacts/ignite-organizer-diagnostic.png` ✅
+
+
 ## 2026-02-26 02:50 UTC update (Scan capture resilience + client image downsizing)
 
 - Added structured scan capture failure mapping in `scanAppointment` so expected errors return JSON via `errorResponse` (invalid JSON/base64, oversize image, missing storage config, fallback capture failure) with `traceId` and deterministic error codes.

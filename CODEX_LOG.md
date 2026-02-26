@@ -1,3 +1,36 @@
+## 2026-02-26 03:10 UTC (Ignite organizer anonymous join diagnostic dialog)
+
+### Objective
+
+Add a minimal, dev-only diagnostic UI in `IgniteOrganizerPage` that reproduces anonymous join behavior with explicit two-step probing and copyable JSON output for debugging.
+
+### Approach
+
+- Located `IgniteOrganizerPage` in `apps/web/src/App.tsx` and inserted only local state/functions/UI needed for the diagnostic flow.
+- Added `rawPostNoSession` helper to send POST requests without `x-session-id` and normalize response bodies.
+- Added `runAnonymousDiagnostic` to capture runtime snapshot + execute:
+  1. `POST /api/ignite/join` (no durable session header)
+  2. optional `POST /api/group/join` with returned grace `sessionId` in `x-session-id`
+- Added a dev-only footer button to open a dialog containing editable name/email fields, run control, output viewer, and clipboard copy action.
+- Ran web typecheck and captured a browser screenshot artifact.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started Vite dev server for visual verification.
+- Playwright screenshot script ✅ captured `browser:/tmp/codex_browser_invocations/ad665d3b6a040273/artifacts/artifacts/ignite-organizer-diagnostic.png`.
+
+### Follow-ups
+
+- Optional: if repeated diagnostics are needed, consider adding a small timestamped history list in the dialog so multiple runs can be compared without external notes.
+
+
 ## 2026-02-26 02:50 UTC (Scan capture resilience + downsizing implementation)
 
 ### Objective
