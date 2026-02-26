@@ -1,3 +1,19 @@
+## 2026-02-26 23:25 UTC update (appointment drawer/spec backend groundwork + notification snapshot/ICS utilities)
+
+- Extended appointment event model v1 with suggestion lifecycle/reaction event types and normalized actor shape to `actor.kind` + `email`.
+- Added appointment domain helper module for durable appointment sections (`reconciliation`, `constraints`, `suggestions`, `notification`), deterministic reconciliation evaluation, suggestion expiration, and material-event filtering.
+- Updated `/api/direct` appointment detail projection to use material-only event filtering for the Changes tab.
+- Added notification snapshot/ICS utilities (`createNotificationSnapshot`, `snapshotToIcs`) for durable notify payload rendering from immutable snapshots.
+- Hardened blob/storage config precedence to support `AzureWebJobsStorage` primary and `AZURE_STORAGE_ACCOUNT_URL` fallback while keeping `STATE_CONTAINER` required.
+- Added minimal tests for notification snapshot/ICS rendering and storage config precedence behavior.
+- Drawer discussion rows now hide raw event-type labels and style system confirmations inline.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by pre-existing environment dependency resolution for `@azure/data-tables`.
+
+
 ## 2026-02-26 22:39 UTC update (Blob client precedence hardening for appointment Drawer/event paths)
 
 - Added shared blob client helpers in `api/src/lib/storage/blobClients.ts` with explicit precedence: `AzureWebJobsStorage` connection string first, `*_ACCOUNT_URL` + `DefaultAzureCredential` fallback second.

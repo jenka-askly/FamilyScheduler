@@ -162,7 +162,7 @@ test('chat returns CONFIG_MISSING when storage env is missing', async () => {
   const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'help', traceId: 't-config' }), headers: { get: () => 's1' } } as any, {} as any);
   assert.equal(response.status, 500);
   assert.equal((response.jsonBody as any).error, 'CONFIG_MISSING');
-  assert.deepEqual((response.jsonBody as any).missing, ['STATE_CONTAINER', 'STORAGE_ACCOUNT_URL']);
+  assert.deepEqual((response.jsonBody as any).missing, ['STATE_CONTAINER', 'AzureWebJobsStorage|AZURE_STORAGE_ACCOUNT_URL']);
   assert.equal((response.jsonBody as any).traceId, 't-config');
   if (prevUrl) process.env.STORAGE_ACCOUNT_URL = prevUrl; else delete process.env.STORAGE_ACCOUNT_URL;
   if (prevContainer) process.env.STATE_CONTAINER = prevContainer; else delete process.env.STATE_CONTAINER;
