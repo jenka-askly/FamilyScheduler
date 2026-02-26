@@ -4379,3 +4379,26 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm -C apps/web lint` (fails in this environment due pnpm `-C` command handling)
 2. `pnpm -C apps/web build` ✅
 3. `pnpm -C api build` (fails in this environment because `@azure/data-tables` typings are unavailable)
+
+## 2026-02-26 06:55 UTC update (ignite grace scoped to breakout group to fix consecutive sessions)
+
+- Scoped ignite grace session usage by `groupId` so stale grace from one group is not reused for a different group.
+- Updated API client auth header attachment to only send grace session when request body `groupId` matches grace scope.
+- Updated ignite join flow to clear old grace keys before `/api/ignite/join`, then store new grace session + expiry + breakout group scope from response.
+- Updated group auth gate and app-level redirect gating to use route-scoped `getAuthSessionId(groupId)` for `/app` and `/ignite` routes.
+- Ensured sign-out and grace-expired cleanup remove `fs.igniteGraceGroupId`.
+- This prevents cross-group grace reuse that previously caused Join Group redirect loops during consecutive ignite sessions on the same device.
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm -C apps/web lint` ❌ workspace command resolution issue (`Command "apps/web" not found`).
+2. `pnpm --filter @familyscheduler/web lint` ❌ no lint script defined in selected package.
+3. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+4. `pnpm -C apps/web build` ✅ passed.

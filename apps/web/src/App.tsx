@@ -1315,6 +1315,9 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
     setError(null);
     setJoining(true);
     try {
+      window.localStorage.removeItem('fs.igniteGraceSessionId');
+      window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
+      window.localStorage.removeItem('fs.igniteGraceGroupId');
       const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
       const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string };
       if (!response.ok || !data.ok) {
@@ -1328,11 +1331,11 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       const targetGroupId = data.breakoutGroupId || groupId;
       if (data.sessionId) {
         window.localStorage.setItem('fs.igniteGraceSessionId', data.sessionId);
-        if (data.breakoutGroupId) {
-          window.localStorage.setItem('fs.igniteGraceGroupId', data.breakoutGroupId);
-        }
         if (data.graceExpiresAtUtc) {
           window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', data.graceExpiresAtUtc);
+        }
+        if (data.breakoutGroupId) {
+          window.localStorage.setItem('fs.igniteGraceGroupId', data.breakoutGroupId);
         }
         sessionLog('GRACE_START', {
           breakoutGroupId: targetGroupId,
@@ -1427,7 +1430,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
 
   useEffect(() => {
     let canceled = false;
-    const apiSessionId = getAuthSessionId();
+    const apiSessionId = getAuthSessionId(groupId);
     authDebug('gate_decision_snapshot', {
       groupId,
       apiSessionIdPrefix: apiSessionId?.slice(0, 8),
@@ -1599,7 +1602,10 @@ export function App() {
   }, []);
 
   const route = useMemo(() => parseHashRoute(hash), [hash]);
-  const effectiveHasApiSession = Boolean(getAuthSessionId());
+  const routeScopedHasApiSession =
+    route.type === 'app' || route.type === 'ignite'
+      ? Boolean(getAuthSessionId(route.groupId))
+      : Boolean(getAuthSessionId());
   useEffect(() => {
     setHasApiSession(Boolean(getAuthSessionId()));
   }, [hash]);
@@ -1613,20 +1619,20 @@ export function App() {
     authDebug('route_render', {
       routeType: route.type,
       hasApiSession,
-      effectiveHasApiSession
+      routeScopedHasApiSession
     });
-  }, [route, hasApiSession, effectiveHasApiSession]);
+  }, [route, hasApiSession, routeScopedHasApiSession]);
 
-  if ((route.type === 'app' || route.type === 'ignite') && !effectiveHasApiSession) {
+  if ((route.type === 'app' || route.type === 'ignite') && !routeScopedHasApiSession) {
     authDebug('route_redirect_login', {
       routeType: route.type,
       hasApiSession,
-      effectiveHasApiSession
+      routeScopedHasApiSession
     });
     return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
   }
   if (route.type === 'home') {
-    if (!effectiveHasApiSession) {
+    if (!routeScopedHasApiSession) {
       return (
         <MarketingLayout hasApiSession={false} onSignIn={() => nav('/login')}>
           <ProductHomePage onSignIn={() => nav('/login')} />
@@ -1642,7 +1648,7 @@ export function App() {
     );
   }
   if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
-  if (route.type === 'create' && !effectiveHasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
+  if (route.type === 'create' && !routeScopedHasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
   if (route.type === 'create') return <CreateGroupPage />;
   if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
   if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
