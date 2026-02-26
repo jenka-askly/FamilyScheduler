@@ -1,3 +1,32 @@
+## 2026-02-26 03:50 UTC (scanAppointment OutOfRangeInput diagnostic instrumentation)
+
+### Objective
+
+Pinpoint the exact failing scan pipeline operation by replacing broad capture-store-index metric try/catch behavior with step-specific failure logs and safe metadata.
+
+### Approach
+
+- Added `errMessage`, `fieldMeta`, and `logStepFail` helpers in `scanAppointment`.
+- Wrapped the following awaited operations in dedicated try/catch blocks with specific API errors: `putBinary`, `putAppointmentJson`, first `upsertAppointmentIndex`, conditional `adjustGroupCounters`, `incrementDailyMetric`.
+- For initial index upsert failures, logged compact metadata map (type/null/undefined/length only) for critical fields to diagnose Azure Tables `OutOfRangeInput` without leaking values.
+- Kept final outer catch as fallback and annotated fallback logs with `step: 'unknown'`.
+
+### Files changed
+
+- `api/src/functions/scanAppointment.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed in container due pre-existing missing `@azure/data-tables` module/type resolution for API build.
+
+### Follow-ups
+
+- Deploy to staging and execute one scan capture repro to collect one `scanAppointment_step_failed` log line (`step`, `message`).
+- If failing step is `upsertAppointmentIndex_initial`, harden tables entity write path for DateTime handling in `entities.ts`; otherwise inspect the failing writer path similarly.
+
+
 ## 2026-02-26 03:10 UTC (Ignite organizer anonymous join diagnostic dialog)
 
 ### Objective
