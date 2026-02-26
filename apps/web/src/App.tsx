@@ -263,6 +263,10 @@ function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPa
     <Page variant="form">
       <Stack component="form" spacing={3} onSubmit={submit} sx={{ maxWidth: 560, mx: 'auto' }}>
         <Box sx={{ p: { xs: 1, sm: 2 }, borderRadius: 3, background: 'radial-gradient(circle at 20% -10%, rgba(255, 183, 77, 0.14), transparent 45%)' }}>
+          <PageHeader
+            showGroupSummary={false}
+            showMenuButton={false}
+          />
         </Box>
         <Stack spacing={1}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>Sign in</Typography>
