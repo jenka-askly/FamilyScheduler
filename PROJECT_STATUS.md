@@ -4393,6 +4393,17 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - `apps/web/src/lib/apiUrl.ts`
 - `apps/web/src/App.tsx`
+## 2026-02-26 06:53 UTC update (immediate pending scan placeholder for new scan submissions)
+
+- Updated `submitScanFile` in `AppShell` so successful `/api/scanAppointment` responses without an inline `snapshot` now immediately inject a placeholder appointment (`desc: "Scanning…"`, `scanStatus: "pending"`) when `appointmentId` is returned.
+- Placeholder object is explicitly typed as `Snapshot['appointments'][number]` and fills required appointment fields with safe defaults used by list/calendar rendering (`date`, `time.intent.status`, `isAllDay`, locations/people arrays, scan fields).
+- Added duplicate protection by `id` when inserting placeholder appointments.
+- Triggered a best-effort immediate `refreshSnapshot()` after placeholder insertion, while keeping existing behavior for rescans and for responses that already include `snapshot`.
+- Polling behavior remains unchanged and now reliably starts because a pending appointment is immediately present in local state.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -4402,3 +4413,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm --filter @familyscheduler/web lint` ❌ no lint script defined in selected package.
 3. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 4. `pnpm -C apps/web build` ✅ passed.
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (manual/browser validation host)
+3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/9cfb14e694f4c7ce/artifacts/artifacts/appshell-scan-placeholder.png`

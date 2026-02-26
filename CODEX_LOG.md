@@ -11319,6 +11319,22 @@ Prevent old ignite grace session tokens from being reused across groups, and ens
 ### Files changed
 - `apps/web/src/lib/apiUrl.ts`
 - `apps/web/src/App.tsx`
+## 2026-02-26 06:53 UTC (Immediate pending placeholder after /api/scanAppointment)
+
+### Objective
+Ensure successful new scan submissions show an immediate "Scanning…" appointment and trigger existing pending-scan polling without waiting for backend snapshot propagation.
+
+### Approach
+- Scoped change to `submitScanFile` in `apps/web/src/AppShell.tsx` only (smallest-change path).
+- Extended scan response typing to include optional `appointmentId`.
+- Added new branch for successful `/api/scanAppointment` responses with no `snapshot`:
+  - create typed placeholder appointment (`Snapshot['appointments'][number]`) with `scanStatus: 'pending'` and `desc: 'Scanning…'`
+  - prepend placeholder to snapshot state with id-based dedupe
+  - fire best-effort `refreshSnapshot()` without blocking success flow
+- Kept existing behavior unchanged for rescan endpoint and for responses already containing `snapshot`.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -11334,3 +11350,9 @@ Prevent old ignite grace session tokens from being reused across groups, and ens
   1. Join ignite session 1 then session 2 on same device without logout; second join should proceed without stale-session redirects.
   2. With grace scoped to group A, navigating to group B `/app` should not send grace(A) to `/api/group/join` for B.
   3. Anonymous ignite join should continue to function without requiring durable login.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started; stopped after screenshot capture (SIGINT expected on stop).
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/9cfb14e694f4c7ce/artifacts/artifacts/appshell-scan-placeholder.png`.
+
+### Follow-ups
+- Human validation should run the full capture flow against API and confirm immediate list insertion of "Scanning…" and eventual replacement by parsed/failed result.
