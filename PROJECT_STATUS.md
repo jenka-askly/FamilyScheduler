@@ -3887,6 +3887,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Web build passes with organizer layout updates.
 - Manual staging checks still required for end-to-end session #2 organizer-photo continuity and live auth/session flows.
 
+## 2026-02-26 00:28 UTC update (Breakout invite QR dialog restored)
+
+- **Bug description:** Breakout success flow navigated/opened immediately, which skipped the intended invite/wait step and removed the organizer QR handoff moment.
+- **Fix summary:** Restored a modal invite step in `AppShell` after successful spinoff; the organizer now sees a breakout QR dialog and remains in the current group until choosing **Continue**.
+- **Behavior detail:**
+  - `Breakout` success now sets dialog state with `inviteUrl` (from `linkPath`) and `qrImageUrl` using the same QR generation pattern used by Ignite join.
+  - Immediate popup/open behavior was removed.
+  - `Continue` closes the dialog and navigates to `/#/g/:newGroupId/app`.
+  - `Cancel` (or dialog close) dismisses only; organizer stays on current group app.
+- **Regression interaction noted:** Earlier direct navigation/open behavior fixed join-route issues but unintentionally removed invite UX; this change restores the invite step while preserving explicit post-close app navigation.
 ## 2026-02-26 00:26 UTC update (Sign-in spacing normalization)
 
 - Sign-in UI: normalized vertical spacing and removed legacy margin artifacts.

@@ -10403,6 +10403,22 @@ Remove the sign-in tagline text `Smart coordination for modern groups` and remov
 ### Follow-ups
 - End-to-end passwordless flow call (`POST /api/auth/request-link` and hash transitions through `/#/auth/consume` -> `/#/auth/done`) still needs full runtime validation with the API running and email-link interaction.
 
+## 2026-02-26 00:28 UTC UTC
+
+### Objective
+Restore intended breakout invite UX: show QR invite dialog after spinoff success, then navigate to new group app only after organizer confirmation.
+
+### Approach
+- Reused the same QR image construction pattern used in Ignite join (`api.qrserver.com` + encoded URL).
+- Replaced breakout notice/popup handling with structured `breakoutInvite` dialog state in `AppShell`.
+- Updated breakout success flow to populate invite metadata and defer navigation.
+- Added dialog actions:
+  - `Continue` → close dialog and navigate to `/#/g/:newGroupId/app`
+  - `Cancel`/close → dismiss dialog and stay in current group
+- Kept `breakoutInFlightRef` reset and error handling flow unchanged.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
 ## 2026-02-26 00:26 UTC
 
 ### Objective
@@ -10421,6 +10437,13 @@ Normalize vertical spacing on the sign-in screen after recent element removals, 
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `rg -n -S "ui-igniteQrImg|qrImageUrl|Ignite join QR code|closeJoinDialog" apps/web/src/App.tsx` ✅ located existing QR construction pattern.
+- `sed -n '1040,1125p' apps/web/src/App.tsx && sed -n '1188,1268p' apps/web/src/App.tsx` ✅ confirmed join URL + QR URL derivation details.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+- Human-run browser check should validate organizer/joiner acceptance scenarios and confirm no pre-close redirect.
 - `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in repo scope.
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 - `pnpm --filter @familyscheduler/web build` ✅ passed (existing Vite chunk-size warning only).
