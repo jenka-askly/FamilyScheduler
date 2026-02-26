@@ -4523,3 +4523,24 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck` ✅
 2. `pnpm --filter @familyscheduler/api build` ⚠️ fails in this environment due missing `@azure/data-tables` module typings.
 3. UI screenshot artifact captured: `browser:/tmp/codex_browser_invocations/1871a372d452efd5/artifacts/artifacts/title-proposal-ui.png`
+
+## 2026-02-26 23:53 UTC update (Members QR modal copy aligned to Group Invite)
+
+- Updated the Members invite QR modal content in `AppShell` to use Group Invite language while preserving the existing organizer-style modal layout and behavior.
+- Copy updates:
+  - Title remains `Scan to join "{GroupName}"`.
+  - Body now reads: `Scan this code to join the group. Anyone can join while the invite is open.`
+  - QR caption now reads: `Join {GroupName}`.
+  - Toggle label now reads: `Allow new members to join`.
+  - Primary close button label changed from `Close` to `Done`.
+  - Secondary actions remain `Copy link` and `Close invite`.
+- Added an invite-open toggle row in the modal mapped to existing invite session behavior:
+  - ON reflects an active invite session.
+  - Turning OFF calls existing `closeInviteSession()` (same close-invite flow).
+- No join URL format changes were made; `/#/s/:groupId/:sessionId` and existing joiner flow remain unchanged.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (manual run for screenshot; stopped with SIGINT)
+3. Playwright screenshot artifact captured: `browser:/tmp/codex_browser_invocations/29085755698933f6/artifacts/artifacts/members-invite-page.png`
