@@ -1630,7 +1630,7 @@ export function App() {
     if (!hasApiSession) {
       return (
         <MarketingLayout hasApiSession={false} onSignIn={() => nav('/login')}>
-          <ProductHomePage onCreateGroup={() => nav('/create')} />
+          <ProductHomePage onSignIn={() => nav('/login')} />
         </MarketingLayout>
       );
     }

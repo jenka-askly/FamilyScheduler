@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Box, Container, IconButton, Link, Menu, MenuItem, Stack, Switch, Typography } from '@mui/material';
+import { Box, Button, Container, IconButton, Link, Menu, MenuItem, Stack, Switch, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useColorMode } from '../../colorMode';
 import { buildInfo } from '../../lib/buildInfo';
@@ -37,6 +37,11 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
             ) : null}
           </Box>
           <Stack direction="row" spacing={0.5} alignItems="center">
+            {!hasApiSession && onSignIn ? (
+              <Button variant="text" onClick={onSignIn} sx={{ fontWeight: 600 }}>
+                Sign in
+              </Button>
+            ) : null}
             <IconButton aria-label="Utilities" onClick={(event) => setAnchorEl(event.currentTarget)}>
               <MenuIcon />
             </IconButton>
