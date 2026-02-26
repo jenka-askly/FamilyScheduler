@@ -410,6 +410,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [scanTargetAppointmentId, setScanTargetAppointmentId] = useState<string | null>(null);
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
+  const [scanError, setScanError] = useState<string | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
@@ -708,6 +709,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const openScanCapture = async (appointmentId: string | null) => {
+    setScanError(null);
     setScanTargetAppointmentId(appointmentId);
     if (!navigator.mediaDevices?.getUserMedia) {
       fileScanInputRef.current?.click();
@@ -724,47 +726,127 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   const closeScanCaptureModal = () => {
     stopScanCaptureStream();
+    setScanError(null);
     setScanCaptureModal({ appointmentId: null, useCameraPreview: false });
   };
 
-  const submitScanFile = async (file: File, appointmentId?: string) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const readFileAsDataUrl = async (file: File): Promise<string> => await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('invalid_scan_payload'));
+        return;
+      }
+      resolve(reader.result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('invalid_scan_payload'));
+    reader.readAsDataURL(file);
+  });
+
+  const canvasToJpegBlob = async (canvas: HTMLCanvasElement): Promise<Blob | null> => {
+    let quality = 0.85;
+    let result: Blob | null = null;
+    while (quality >= 0.55) {
+      // eslint-disable-next-line no-await-in-loop
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (!blob) return null;
+      result = blob;
+      if (blob.size <= 2_000_000) break;
+      quality -= 0.1;
+    }
+    return result;
+  };
+
+  const shrinkImageFile = async (file: File): Promise<File> => {
+    if (file.size <= 2_000_000) return file;
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('invalid_scan_payload'));
+        img.src = objectUrl;
+      });
+      const maxEdge = 1600;
+      const longestEdge = Math.max(image.width, image.height) || 1;
+      const scale = longestEdge > maxEdge ? maxEdge / longestEdge : 1;
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) return file;
+      context.drawImage(image, 0, 0, width, height);
+      const blob = await canvasToJpegBlob(canvas);
+      if (!blob) return file;
+      return new File([blob], 'scan.jpg', { type: 'image/jpeg' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  const submitScanFile = async (inputFile: File, appointmentId?: string): Promise<boolean> => {
+    const file = await shrinkImageFile(inputFile);
+    const dataUrl = await readFileAsDataUrl(file);
+    const [meta, b64] = dataUrl.split('base64,');
+    const imageBase64 = b64 ?? '';
+    const imageMime = meta.match(/data:(.*?);/)?.[1] ?? file.type ?? 'image/jpeg';
+    if (!imageBase64.trim()) {
+      setScanError('Scan image encoding failed. Please try a different image.');
+      return false;
+    }
+
     const endpoint = appointmentId ? '/api/appointmentScanRescan' : '/api/scanAppointment';
-    const payload: Record<string, unknown> = { groupId, imageBase64: base64, imageMime: file.type || 'image/jpeg', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+    const payload: Record<string, unknown> = { groupId, imageBase64, imageMime, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
     if (appointmentId) payload.appointmentId = appointmentId;
     const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-    const json = await response.json() as { snapshot?: Snapshot };
+    const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot };
+    if (!response.ok || json.ok === false) {
+      setScanError(json.message ?? json.error ?? `Scan request failed (${response.status})`);
+      return false;
+    }
     if (json.snapshot) setSnapshot(json.snapshot); else await refreshSnapshot();
+    return true;
   };
 
   const captureScanFrame = async () => {
     const video = scanCaptureVideoRef.current;
     const canvas = scanCaptureCanvasRef.current;
     if (!video || !canvas) return;
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setScanError('Camera is not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    const maxEdge = 1600;
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d');
     if (!context) return;
     context.drawImage(video, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+    const blob = await canvasToJpegBlob(canvas);
     if (!blob) return;
     const file = new File([blob], 'scan.jpg', { type: blob.type || 'image/jpeg' });
     const target = scanTargetAppointmentId;
+    const ok = await submitScanFile(file, target ?? undefined);
+    if (!ok) return;
     closeScanCaptureModal();
     setScanTargetAppointmentId(null);
-    await submitScanFile(file, target ?? undefined);
   };
 
   const onPickScanFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const target = scanTargetAppointmentId;
-    setScanTargetAppointmentId(null);
     event.currentTarget.value = '';
-    await submitScanFile(file, target ?? undefined);
+    const ok = await submitScanFile(file, target ?? undefined);
+    if (!ok) return;
+    setScanTargetAppointmentId(null);
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1779,6 +1861,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', minHeight: 320, maxHeight: '60vh', borderRadius: 1, objectFit: 'cover', backgroundColor: 'black' }} />
           </Box>
+          {scanError ? <Alert severity="error" sx={{ mt: 2 }}>{scanError}</Alert> : null}
           <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
         </DialogContent>
         <DialogActions>

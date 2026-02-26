@@ -1,3 +1,35 @@
+## 2026-02-26 02:50 UTC update (Scan capture resilience + client image downsizing)
+
+- Added structured scan capture failure mapping in `scanAppointment` so expected errors return JSON via `errorResponse` (invalid JSON/base64, oversize image, missing storage config, fallback capture failure) with `traceId` and deterministic error codes.
+- Added structured server failure log event `scanAppointment_failed` with `traceId`, mapped `code`, and `groupId`.
+- Updated scan base64 decoding to accept both raw base64 and data URL payloads (`data:*;base64,...`) while preserving existing `invalid_image_base64` and `image_too_large` guard errors.
+- Added web scan preprocessing and safer encoding path:
+  - downsize/compress large scan uploads to ~2MB target (max edge 1600, adaptive JPEG quality)
+  - use FileReader data URL encoding instead of `btoa(String.fromCharCode(...))`
+  - reject empty base64 payloads with user-visible error
+  - camera capture now requires non-zero video dimensions, captures at max-edge 1600, and uses adaptive JPEG compression
+  - camera modal now remains open on failed submit and only closes on success
+- Added API client warning log for failed JSON responses with HTTP status and `traceId` (when present).
+- Added focused unit tests for `decodeImageBase64` raw/data-url/malformed behavior.
+
+### Files changed
+
+- `api/src/functions/scanAppointment.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/scan/appointmentScan.ts`
+- `api/src/lib/scan/appointmentScan.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/api build`
+3. `cd api && node --test dist/api/src/lib/scan/appointmentScan.test.js`
+
+
 ## 2026-02-26 02:06 UTC update (Marketing header brand icon prominence)
 
 - Updated marketing header brand lockup so the Y icon scales to the same em-height as the `Yapper` wordmark (`height: 1em`) for stronger icon prominence.
