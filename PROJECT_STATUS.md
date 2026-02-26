@@ -1,3 +1,21 @@
+## 2026-02-26 03:50 UTC update (scan appointment diagnostic step-level failure logging)
+
+- Added targeted step-level error diagnostics in `scanAppointment` to isolate which awaited operation fails during capture/store/index/metric writes without logging image payload/base64.
+- Added helper metadata logging (`fieldMeta`) for compact type/null/undefined/string-length diagnostics on initial appointment-index writes.
+- Preserved existing outer fallback `scanAppointment_failed` logging and now marks unknown-stage failures with `step: 'unknown'`.
+- Staging deploy/repro is pending external environment access/credentials; next run should capture `scanAppointment_step_failed` with `step` + `message`.
+
+### Files changed
+
+- `api/src/functions/scanAppointment.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by pre-existing container dependency resolution issue for `@azure/data-tables`.
+
+
 ## 2026-02-26 03:10 UTC update (Ignite organizer anonymous join diagnostic dialog)
 
 - Added a **dev-only** Ignite organizer diagnostic workflow to probe anonymous join behavior end-to-end from the organizer screen (`/api/ignite/join` without durable `x-session-id`, followed by `/api/group/join` with returned grace session).
