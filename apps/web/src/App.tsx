@@ -1364,6 +1364,9 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       const targetGroupId = data.breakoutGroupId || groupId;
       if (data.sessionId) {
         window.localStorage.setItem('fs.igniteGraceSessionId', data.sessionId);
+        if (data.breakoutGroupId) {
+          window.localStorage.setItem('fs.igniteGraceGroupId', data.breakoutGroupId);
+        }
         if (data.graceExpiresAtUtc) {
           window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', data.graceExpiresAtUtc);
         }
@@ -1511,6 +1514,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
         if (typeof data.sessionId === 'string' && data.sessionId.trim()) {
           window.localStorage.setItem('fs.sessionId', data.sessionId.trim());
           window.localStorage.removeItem('fs.igniteGraceSessionId');
+          window.localStorage.removeItem('fs.igniteGraceGroupId');
           window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
           authDebug('gate_session_upgraded', { groupId, sessionIdPrefix: data.sessionId.slice(0, 8) });
         }
@@ -1586,6 +1590,7 @@ export function App() {
     clearSession();
     window.localStorage.removeItem('fs.sessionId');
     window.localStorage.removeItem('fs.igniteGraceSessionId');
+    window.localStorage.removeItem('fs.igniteGraceGroupId');
     window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
     window.localStorage.removeItem(SESSION_KEY);
     window.localStorage.removeItem(SESSION_EMAIL_KEY);

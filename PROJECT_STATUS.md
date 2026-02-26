@@ -4353,3 +4353,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm -w run lint` ✅
 2. `pnpm --filter @familyscheduler/web build` ✅
 3. `rg -n -S "Copy Debug|CopyDebugPanel|collectClientSessionSnapshot|JOINER_SESSION_DUMP|dumpSessionSnapshot|Anonymous Join Diagnostic|runAnonymousDiagnostic|rawPostNoSession|rawProbe" apps/web/src || true` ✅ (no matches)
+
+## 2026-02-26 06:25 UTC update (ignite grace session scoped to breakout group)
+
+- Scoped ignite grace auth usage by breakout `groupId` in `apps/web/src/lib/apiUrl.ts` so grace is only attached when request body targets the same group that issued the grace session.
+- Added grace-expiry check at read time for `getIgniteGraceSessionId(...)` and updated `getAuthSessionId(groupId?)` to preserve durable-session precedence while enabling group-scoped grace lookups.
+- Updated grace cleanup paths to also clear `fs.igniteGraceGroupId` on grace-expired handling, durable upgrade, and sign out.
+- Updated `IgniteJoinPage` to persist `fs.igniteGraceGroupId` from `breakoutGroupId` when grace is issued.
+- Result: prevents cross-group grace leakage that could poison `/api/group/join` auth and trigger incorrect Join Group redirects.
+
+### Verification run
+
+1. `pnpm -C apps/web lint`
+2. `pnpm -C apps/web build`
