@@ -411,6 +411,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanCaptureBusy, setScanCaptureBusy] = useState(false);
+  const [scanCaptureCameraReady, setScanCaptureCameraReady] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
@@ -710,6 +712,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   const openScanCapture = async (appointmentId: string | null) => {
     setScanError(null);
+    setScanCaptureBusy(false);
+    setScanCaptureCameraReady(false);
     setScanTargetAppointmentId(appointmentId);
     if (!navigator.mediaDevices?.getUserMedia) {
       fileScanInputRef.current?.click();
@@ -727,6 +731,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const closeScanCaptureModal = () => {
     stopScanCaptureStream();
     setScanError(null);
+    setScanCaptureBusy(false);
+    setScanCaptureCameraReady(false);
     setScanCaptureModal({ appointmentId: null, useCameraPreview: false });
   };
 
@@ -787,37 +793,55 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const submitScanFile = async (inputFile: File, appointmentId?: string): Promise<boolean> => {
-    const file = await shrinkImageFile(inputFile);
-    const dataUrl = await readFileAsDataUrl(file);
-    const [meta, b64] = dataUrl.split('base64,');
-    const imageBase64 = b64 ?? '';
-    const imageMime = meta.match(/data:(.*?);/)?.[1] ?? file.type ?? 'image/jpeg';
-    if (!imageBase64.trim()) {
-      setScanError('Scan image encoding failed. Please try a different image.');
-      return false;
-    }
+    try {
+      const file = await shrinkImageFile(inputFile);
+      const dataUrl = await readFileAsDataUrl(file);
+      const [meta, b64] = dataUrl.split('base64,');
+      const imageBase64 = b64 ?? '';
+      const imageMime = meta.match(/data:(.*?);/)?.[1] ?? file.type ?? 'image/jpeg';
+      if (!imageBase64.trim()) {
+        setScanError('Scan image encoding failed. Please try a different image.');
+        return false;
+      }
 
-    const endpoint = appointmentId ? '/api/appointmentScanRescan' : '/api/scanAppointment';
-    const payload: Record<string, unknown> = { groupId, imageBase64, imageMime, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-    if (appointmentId) payload.appointmentId = appointmentId;
-    const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-    const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot };
-    if (!response.ok || json.ok === false) {
-      setScanError(json.message ?? json.error ?? `Scan request failed (${response.status})`);
+      console.info({ event: 'scan_submit_start', bytes: file.size, mime: file.type });
+      const endpoint = appointmentId ? '/api/appointmentScanRescan' : '/api/scanAppointment';
+      const payload: Record<string, unknown> = { groupId, imageBase64, imageMime, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+      if (appointmentId) payload.appointmentId = appointmentId;
+      const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot };
+      console.info({ event: 'scan_submit_end', status: response.status, traceId: json.traceId ?? null });
+      if (!response.ok || json.ok === false) {
+        setScanError(`${json.message ?? json.error ?? `Scan request failed (${response.status})`}${json.traceId ? ` (trace: ${json.traceId})` : ''}`);
+        return false;
+      }
+      if (json.snapshot) {
+        setSnapshot(json.snapshot);
+      } else {
+        await refreshSnapshot();
+      }
+      return true;
+    } catch (error) {
+      const traceId = error instanceof Error && 'traceId' in error && typeof error.traceId === 'string' ? error.traceId : null;
+      setScanError(`Scanning failed. Please try again.${traceId ? ` (trace: ${traceId})` : ''}`);
       return false;
     }
-    if (json.snapshot) setSnapshot(json.snapshot); else await refreshSnapshot();
-    return true;
   };
 
   const captureScanFrame = async () => {
+    setScanError(null);
     const video = scanCaptureVideoRef.current;
     const canvas = scanCaptureCanvasRef.current;
-    if (!video || !canvas) return;
-    if (video.videoWidth === 0 || video.videoHeight === 0) {
-      setScanError('Camera is not ready yet. Please wait a moment and try again.');
+    if (!video || !canvas) {
+      setScanError('Could not capture image. Please reopen the scanner and try again.');
       return;
     }
+    console.info({ event: 'scan_capture_click', w: video.videoWidth, h: video.videoHeight });
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setScanError('Camera not ready yet. Try again.');
+      return;
+    }
+    setScanCaptureBusy(true);
     const maxEdge = 1600;
     const sourceWidth = video.videoWidth;
     const sourceHeight = video.videoHeight;
@@ -827,14 +851,25 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext('2d');
-    if (!context) return;
+    if (!context) {
+      setScanCaptureBusy(false);
+      setScanError('Could not capture image.');
+      return;
+    }
     context.drawImage(video, 0, 0, width, height);
     const blob = await canvasToJpegBlob(canvas);
-    if (!blob) return;
+    if (!blob) {
+      setScanCaptureBusy(false);
+      setScanError('Could not capture image.');
+      return;
+    }
     const file = new File([blob], 'scan.jpg', { type: blob.type || 'image/jpeg' });
     const target = scanTargetAppointmentId;
     const ok = await submitScanFile(file, target ?? undefined);
-    if (!ok) return;
+    if (!ok) {
+      setScanCaptureBusy(false);
+      return;
+    }
     closeScanCaptureModal();
     setScanTargetAppointmentId(null);
   };
@@ -893,6 +928,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const scanCaptureAppointment = scanCaptureModal.appointmentId
     ? sortedAppointments.find((appointment) => appointment.id === scanCaptureModal.appointmentId) ?? null
     : null;
+  const isScanCaptureReady = Boolean(scanCaptureVideoRef.current?.videoWidth && scanCaptureVideoRef.current?.videoHeight) || scanCaptureCameraReady;
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
   const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === sessionEmail.trim().toLowerCase())?.name?.trim() || null;
@@ -1202,6 +1238,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   useEffect(() => {
     if (!scanCaptureModal.useCameraPreview) return;
     let frameId: number | null = null;
+    let readyPollId: number | null = null;
     let attempts = 0;
 
     const attachPreview = () => {
@@ -1216,11 +1253,21 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       if (!video) return;
       video.srcObject = stream;
       void video.play().catch(() => undefined);
+      const pollReady = () => {
+        if (!scanCaptureModal.useCameraPreview) return;
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          setScanCaptureCameraReady(true);
+          return;
+        }
+        readyPollId = window.requestAnimationFrame(pollReady);
+      };
+      pollReady();
     };
 
     attachPreview();
     return () => {
       if (frameId != null) window.cancelAnimationFrame(frameId);
+      if (readyPollId != null) window.cancelAnimationFrame(readyPollId);
     };
   }, [scanCaptureModal.useCameraPreview]);
 
@@ -1861,12 +1908,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', minHeight: 320, maxHeight: '60vh', borderRadius: 1, objectFit: 'cover', backgroundColor: 'black' }} />
           </Box>
+          {!isScanCaptureReady && !scanCaptureBusy ? <Alert severity="info" sx={{ mt: 2 }}>Camera warming up…</Alert> : null}
+          {scanCaptureBusy ? <Alert severity="info" sx={{ mt: 2 }}>Uploading and scanning…</Alert> : null}
           {scanError ? <Alert severity="error" sx={{ mt: 2 }}>{scanError}</Alert> : null}
           <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
         </DialogContent>
         <DialogActions>
-          <Button type="button" variant="outlined" onClick={closeScanCaptureModal}>Cancel</Button>
-          <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }}>Capture</Button>
+          <Button type="button" variant="outlined" onClick={closeScanCaptureModal} disabled={scanCaptureBusy}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }} disabled={!isScanCaptureReady || scanCaptureBusy}>{scanCaptureBusy ? 'Scanning…' : 'Capture'}</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={Boolean(personToDelete)} onClose={() => setPersonToDelete(null)} fullWidth maxWidth="sm">

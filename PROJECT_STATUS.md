@@ -1,3 +1,24 @@
+## 2026-02-26 04:23 UTC update (scan capture modal readiness + busy/error visibility)
+
+- Hardened scan capture UX in `AppShell` so Capture is disabled until camera dimensions are non-zero and the modal shows `Camera warming up…` while waiting for readiness.
+- Added in-modal busy state during capture/upload (`Uploading and scanning…`) that disables Capture and Cancel to prevent the modal disappearing without feedback.
+- Updated capture path to surface user-visible errors instead of silent returns when video/canvas/context/blob are unavailable (`Camera not ready yet. Try again.` / `Could not capture image.`).
+- Kept scan modal open on submit failures and only close/reset modal state after successful `submitScanFile`.
+- Wrapped scan submit flow in `try/catch`, now surfacing request/refresh failures with optional trace IDs, plus temporary structured client logs for capture click and submit start/end.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for manual/browser screenshot validation)
+3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/87fce8b4dc53ca4f/artifacts/artifacts/scan-capture-ui.png`
+
+
 ## 2026-02-26 04:06 UTC update (Azure Table key separator hardening)
 
 - Added shared Azure Table key separator constant `TABLE_KEY_SEP = '|'` and key validator `validateTableKey` to block invalid key chars (`#`, `/`, `\`, `?`, control chars).
