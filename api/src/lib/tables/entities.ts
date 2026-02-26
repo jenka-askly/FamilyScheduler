@@ -1,5 +1,6 @@
 import type { TableEntityResult } from '@azure/data-tables';
 import { getTableClient } from './tablesClient.js';
+import { TABLE_KEY_SEP } from './tableKeys.js';
 
 export type MembershipStatus = 'active' | 'invited' | 'removed';
 
@@ -68,7 +69,7 @@ const isNotFound = (error: unknown): boolean => {
 export const purgeAfterAt = (deletedAt: string): string => new Date(Date.parse(deletedAt) + 30 * 24 * 60 * 60 * 1000).toISOString();
 export const dateKey = (iso: string): string => iso.slice(0, 10);
 export const monthKey = (iso: string): string => iso.slice(0, 7);
-export const rowKeyFromIso = (iso: string, id: string): string => `${iso.replace(/[-:]/g, '').replace('.000', '').replace(/\..+Z$/, 'Z')}#${id}`;
+export const rowKeyFromIso = (iso: string, id: string): string => `${iso.replace(/[-:]/g, '').replace('.000', '').replace(/\..+Z$/, 'Z')}${TABLE_KEY_SEP}${id}`;
 
 export const getGroupEntity = async (groupId: string): Promise<GroupEntity | null> => {
   try {

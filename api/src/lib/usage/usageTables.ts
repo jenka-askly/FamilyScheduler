@@ -1,6 +1,7 @@
 import type { TableEntityResult } from '@azure/data-tables';
 import { getTableClient } from '../tables/tablesClient.js';
 import { ensureTablesReady } from '../tables/withTables.js';
+import { TABLE_KEY_SEP, validateTableKey } from '../tables/tableKeys.js';
 
 const isNotFound = (error: unknown): boolean => {
   const status = typeof error === 'object' && error !== null && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : NaN;
@@ -25,7 +26,24 @@ const getCount = (entity: TableEntityResult<Record<string, unknown>> | null, key
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 };
 
-const updateCounterRow = async (tableName: string, pk: string, rk: string, updates: Record<string, number>, nowIso: string): Promise<void> => {
+const validateCounterKeys = (tableName: string, pk: string, rk: string, traceId?: string): void => {
+  try {
+    validateTableKey(pk);
+  } catch (_error) {
+    console.warn(JSON.stringify({ stage: 'usage_tables_key_validation_failed', traceId: traceId ?? 'unknown', tableName, keyType: 'partitionKey' }));
+    throw _error;
+  }
+
+  try {
+    validateTableKey(rk);
+  } catch (_error) {
+    console.warn(JSON.stringify({ stage: 'usage_tables_key_validation_failed', traceId: traceId ?? 'unknown', tableName, keyType: 'rowKey' }));
+    throw _error;
+  }
+};
+
+const updateCounterRow = async (tableName: string, pk: string, rk: string, updates: Record<string, number>, nowIso: string, traceId?: string): Promise<void> => {
+  validateCounterKeys(tableName, pk, rk, traceId);
   const client = getTableClient(tableName);
   await withRetry(async () => {
     let current: TableEntityResult<Record<string, unknown>> | null = null;
@@ -49,7 +67,7 @@ const updateCounterRow = async (tableName: string, pk: string, rk: string, updat
 const usageDate = (nowIso: string): string => nowIso.slice(0, 10);
 const usageMonth = (nowIso: string): string => nowIso.slice(0, 7);
 
-export const recordOpenAiSuccess = async (userKey: string, model: string, tokensIn: number, tokensOut: number): Promise<void> => {
+export const recordOpenAiSuccess = async (userKey: string, model: string, tokensIn: number, tokensOut: number, traceId?: string): Promise<void> => {
   await ensureTablesReady();
   const nowIso = new Date().toISOString();
   const date = usageDate(nowIso);
@@ -58,21 +76,21 @@ export const recordOpenAiSuccess = async (userKey: string, model: string, tokens
   const safeOut = Number.isFinite(tokensOut) ? Math.max(0, Math.floor(tokensOut)) : 0;
 
   await Promise.all([
-    updateCounterRow('UserDailyUsage', userKey, date, { openaiCalls: 1, openaiTokensIn: safeIn, openaiTokensOut: safeOut }, nowIso),
-    updateCounterRow('UserDailyUsageByModel', `${userKey}#${date}`, model, { calls: 1, tokensIn: safeIn, tokensOut: safeOut }, nowIso),
-    updateCounterRow('DailyUsageByModel', month, `${date}#${model}`, { calls: 1, tokensIn: safeIn, tokensOut: safeOut }, nowIso)
+    updateCounterRow('UserDailyUsage', userKey, date, { openaiCalls: 1, openaiTokensIn: safeIn, openaiTokensOut: safeOut }, nowIso, traceId),
+    updateCounterRow('UserDailyUsageByModel', `${userKey}${TABLE_KEY_SEP}${date}`, model, { calls: 1, tokensIn: safeIn, tokensOut: safeOut }, nowIso, traceId),
+    updateCounterRow('DailyUsageByModel', month, `${date}${TABLE_KEY_SEP}${model}`, { calls: 1, tokensIn: safeIn, tokensOut: safeOut }, nowIso, traceId)
   ]);
 };
 
-export const recordOpenAiError = async (userKey: string, model: string): Promise<void> => {
+export const recordOpenAiError = async (userKey: string, model: string, traceId?: string): Promise<void> => {
   await ensureTablesReady();
   const nowIso = new Date().toISOString();
   const date = usageDate(nowIso);
   const month = usageMonth(nowIso);
   await Promise.all([
-    updateCounterRow('UserDailyUsage', userKey, date, { openaiErrors: 1 }, nowIso),
-    updateCounterRow('UserDailyUsageByModel', `${userKey}#${date}`, model, { errors: 1 }, nowIso),
-    updateCounterRow('DailyUsageByModel', month, `${date}#${model}`, { errors: 1 }, nowIso)
+    updateCounterRow('UserDailyUsage', userKey, date, { openaiErrors: 1 }, nowIso, traceId),
+    updateCounterRow('UserDailyUsageByModel', `${userKey}${TABLE_KEY_SEP}${date}`, model, { errors: 1 }, nowIso, traceId),
+    updateCounterRow('DailyUsageByModel', month, `${date}${TABLE_KEY_SEP}${model}`, { errors: 1 }, nowIso, traceId)
   ]);
 };
 
