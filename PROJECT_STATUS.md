@@ -4281,3 +4281,14 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck`
+
+## 2026-02-26 05:22 UTC update (logout fully clears legacy join session key across storages)
+
+- Updated `clearSession()` in `apps/web/src/App.tsx` to remove `familyscheduler.session` from both `sessionStorage` and `localStorage` inside a safe try/catch to avoid storage-access crashes.
+- Updated `signOut()` to continue invoking `clearSession()` and additionally remove `fs.lastGroupId` from `localStorage` so stale group routing hints do not linger across logouts.
+- This prevents stale legacy join identity blobs (including historical phone-field payloads) from being resurrected after logout.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
