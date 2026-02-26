@@ -26,7 +26,6 @@ import {
   Menu,
   MenuItem,
   Paper,
-  Popover,
   Stack,
   SvgIcon,
   Tab,
@@ -61,6 +60,23 @@ type UsageStatus = { status: 'loading' | 'ok' | 'error'; data?: UsagePayload };
 type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
 type CalendarView = 'month' | 'list' | 'week' | 'day';
 type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
+
+type AppointmentDetailEvent = {
+  id: string;
+  tsUtc: string;
+  type: string;
+  actor: { actorType: 'HUMAN' | 'SYSTEM' | 'AGENT'; userKey?: string; email?: string };
+  payload: Record<string, unknown>;
+  sourceTextSnapshot?: string;
+  clientRequestId?: string;
+  proposalId?: string;
+};
+type AppointmentDetailResponse = {
+  appointment: Snapshot['appointments'][0];
+  eventsPage: AppointmentDetailEvent[];
+  nextCursor: { chunkId: number; index: number } | null;
+  projections: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] };
+};
 
 type Session = { groupId: string; email: string; joinedAt: string };
 
@@ -376,8 +392,13 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [whenDraftError, setWhenDraftError] = useState<string | null>(null);
   const [isWhenResolving, setIsWhenResolving] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Snapshot['appointments'][0] | null>(null);
-  const [detailsAppointment, setDetailsAppointment] = useState<Snapshot['appointments'][0] | null>(null);
-  const [detailsAnchorEl, setDetailsAnchorEl] = useState<HTMLElement | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsAppointmentId, setDetailsAppointmentId] = useState<string | null>(null);
+  const [detailsData, setDetailsData] = useState<AppointmentDetailResponse | null>(null);
+  const [detailsTab, setDetailsTab] = useState<'discussion' | 'changes' | 'constraints'>('discussion');
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const [detailsMessageText, setDetailsMessageText] = useState('');
+  const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; value: string; countdownEndsAt: number; paused: boolean }>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
@@ -418,15 +439,113 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [quickAddText, setQuickAddText] = useState('');
   const [advancedText, setAdvancedText] = useState('');
 
-  function openAppointmentDetails(appt: Snapshot['appointments'][0], anchorEl: HTMLElement) {
-    setDetailsAppointment(appt);
-    setDetailsAnchorEl(anchorEl);
+  useEffect(() => {
+    if (!pendingProposal || pendingProposal.paused) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() >= pendingProposal.countdownEndsAt) {
+        window.clearInterval(timer);
+        void applyPendingProposal();
+      }
+    }, 200);
+    return () => window.clearInterval(timer);
+  }, [pendingProposal]);
+
+  useEffect(() => {
+    const hash = window.location.hash || '';
+    const query = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+    const params = new URLSearchParams(query);
+    const appointmentId = params.get('appointmentId');
+    if (!appointmentId || detailsOpen) return;
+    const appointment = snapshot.appointments.find((entry) => entry.id === appointmentId);
+    if (appointment) openAppointmentDetails(appointment);
+  }, [snapshot.appointments, detailsOpen]);
+
+  async function loadAppointmentDetails(appointmentId: string, cursor?: { chunkId: number; index: number } | null) {
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
+    });
+    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] } };
+    if (!response.ok || !payload.ok || !payload.appointment || !payload.eventsPage || !payload.projections) throw new Error(payload.message ?? 'Unable to load details');
+    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections };
+    setDetailsData((prev) => {
+      if (!cursor || !prev) return next;
+      const merged = [...prev.eventsPage, ...next.eventsPage.filter((event) => !prev.eventsPage.some((existing) => existing.id === event.id))];
+      return {
+        ...next,
+        eventsPage: merged,
+        projections: {
+          discussionEvents: merged.filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
+          changeEvents: merged.filter((event) => event.type === 'FIELD_CHANGED')
+        }
+      };
+    });
+  }
+
+  function openAppointmentDetails(appt: Snapshot['appointments'][0]) {
+    setDetailsOpen(true);
+    setDetailsAppointmentId(appt.id);
+    setDetailsTab('discussion');
+    void loadAppointmentDetails(appt.id);
   }
 
   function closeAppointmentDetails() {
-    setDetailsAppointment(null);
-    setDetailsAnchorEl(null);
+    setDetailsOpen(false);
+    setDetailsAppointmentId(null);
+    setDetailsData(null);
+    setPendingProposal(null);
+    setDetailsMessageText('');
   }
+
+  const sendDetailsMessage = async () => {
+    if (!detailsAppointmentId || !detailsMessageText.trim()) return;
+    const text = detailsMessageText.trim();
+    setDetailsMessageText('');
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, action: { type: 'append_appointment_message', appointmentId: detailsAppointmentId, text, clientRequestId }, traceId: createTraceId() })
+    });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; value: string } | null };
+    if (!response.ok || !payload.ok) return;
+    const newEvents = payload.appendedEvents ?? [];
+    setDetailsData((prev) => prev ? {
+      ...prev,
+      eventsPage: [...newEvents, ...prev.eventsPage],
+      projections: {
+        discussionEvents: [...newEvents, ...prev.eventsPage].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
+        changeEvents: [...newEvents, ...prev.eventsPage].filter((event) => event.type === 'FIELD_CHANGED')
+      }
+    } : prev);
+    if (payload.proposal) setPendingProposal({ ...payload.proposal, countdownEndsAt: Date.now() + 5000, paused: false });
+  };
+
+  const applyPendingProposal = async () => {
+    if (!detailsAppointmentId || !pendingProposal) return;
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, action: { type: 'apply_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value: pendingProposal.value, clientRequestId }, traceId: createTraceId() })
+    });
+    const payload = await response.json() as { ok?: boolean; appointment?: Snapshot['appointments'][0]; appendedEvents?: AppointmentDetailEvent[] };
+    if (!response.ok || !payload.ok) return;
+    setPendingProposal(null);
+    setDetailsData((prev) => prev ? {
+      appointment: payload.appointment ?? prev.appointment,
+      nextCursor: prev.nextCursor,
+      eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
+      projections: {
+        discussionEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
+        changeEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'FIELD_CHANGED')
+      }
+    } : prev);
+    if (payload.appointment) {
+      setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
+    }
+  };
 
   const closeRulePromptModal = () => {
     setRulePromptModal(null);
@@ -1529,7 +1648,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           onDelete={setAppointmentToDelete}
                           onSelectPeople={setSelectedAppointment}
                           onOpenScanViewer={setScanViewerAppointment}
-                          onOpenDetails={(appointment, anchorEl) => openAppointmentDetails(appointment, anchorEl)}
+                          onOpenDetails={(appointment) => openAppointmentDetails(appointment)}
                           activeAppointmentCode={activeAppointmentCode}
                           scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}
                           editIcon={<Pencil />}
@@ -2088,35 +2207,74 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         </DialogActions>
       </Dialog>
 
-      <Popover
-        open={Boolean(detailsAppointment && detailsAnchorEl)}
-        anchorEl={detailsAnchorEl}
-        onClose={closeAppointmentDetails}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-      >
-        {detailsAppointment ? (
-          <Box sx={{ p: 2, maxWidth: 420 }} onClick={closeAppointmentDetails}>
-            <Stack spacing={0.75}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsAppointment.desc || 'Appointment'}</Typography>
-              <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsAppointment)}</Typography>
-              {detailsAppointment.locationDisplay || detailsAppointment.location ? (
-                <Typography variant="body2" color="text.secondary">📍 {detailsAppointment.locationDisplay || detailsAppointment.location}</Typography>
-              ) : null}
-              <Typography variant="body2" color="text.secondary">👤 {detailsAppointment.peopleDisplay.length ? detailsAppointment.peopleDisplay.join(', ') : 'Unassigned'}</Typography>
-              {detailsAppointment.notes?.trim() ? (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' }}
-                >
-                  📝 {detailsAppointment.notes.trim()}
-                </Typography>
-              ) : null}
-            </Stack>
-          </Box>
-        ) : null}
-      </Popover>
+      <Drawer open={detailsOpen} title={detailsData?.appointment.desc || 'Appointment details'} onClose={closeAppointmentDetails}>
+        {detailsData ? (
+          <Stack spacing={1.5}>
+            <Box>
+              <Button size="small" onClick={() => setHeaderCollapsed((prev) => !prev)}>{headerCollapsed ? 'Expand header' : 'Collapse header'}</Button>
+              {!headerCollapsed ? (
+                <Stack spacing={0.5}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsData.appointment.desc || 'Appointment'}</Typography>
+                  <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
+                  <Typography variant="body2" color="text.secondary">📍 {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.secondary">{detailsData.appointment.desc || 'Appointment'} · {formatAppointmentTime(detailsData.appointment)} · {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
+              )}
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Button size="small" variant="outlined" onClick={async () => {
+                  const params = new URLSearchParams();
+                  params.set('appointmentId', detailsData.appointment.id);
+                  await navigator.clipboard.writeText(`${window.location.origin}/#/g/${groupId}/app?${params.toString()}`);
+                }}>Share</Button>
+                <Button size="small" variant="outlined" disabled>Notify (coming soon)</Button>
+              </Stack>
+            </Box>
+            <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
+              <Tab value="discussion" label="Discussion" />
+              <Tab value="changes" label="Changes" />
+              <Tab value="constraints" label="Constraints" />
+            </Tabs>
+            {detailsTab === 'discussion' ? (
+              <Stack spacing={1}>
+                {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
+                {[...detailsData.projections.discussionEvents].reverse().map((event) => (
+                  <Paper key={event.id} variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()} · {event.type}</Typography>
+                    <Typography variant="body2">{String(event.payload.text ?? event.payload.value ?? '')}</Typography>
+                  </Paper>
+                ))}
+                {pendingProposal ? (
+                  <Paper variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="body2">Detected: Title → {pendingProposal.value}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                      <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply now</Button>
+                      <Button size="small" onClick={() => setPendingProposal((prev) => prev ? { ...prev, paused: !prev.paused } : prev)}>{pendingProposal.paused ? 'Resume' : 'Pause'}</Button>
+                      <Button size="small" onClick={() => setPendingProposal(null)}>Cancel</Button>
+                      <TextField size="small" value={pendingProposal.value} onChange={(event) => setPendingProposal((prev) => prev ? { ...prev, value: event.target.value } : prev)} />
+                    </Stack>
+                  </Paper>
+                ) : null}
+                <Stack direction="row" spacing={1}>
+                  <TextField fullWidth size="small" placeholder="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
+                  <Button variant="contained" onClick={() => void sendDetailsMessage()} disabled={!detailsMessageText.trim()}>Send</Button>
+                </Stack>
+              </Stack>
+            ) : null}
+            {detailsTab === 'changes' ? (
+              <Stack spacing={1}>
+                {detailsData.projections.changeEvents.map((event) => (
+                  <Paper key={event.id} variant="outlined" sx={{ p: 1 }} title={event.sourceTextSnapshot || ''}>
+                    <Typography variant="body2">{String(event.payload.field)}: {String(event.payload.oldValue ?? '')} → {String(event.payload.newValue ?? '')}</Typography>
+                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : null}
+            {detailsTab === 'constraints' ? <Alert severity="info">Coming soon.</Alert> : null}
+          </Stack>
+        ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
+      </Drawer>
 
       <Drawer open={editingTodo != null} title="Edit todo" onClose={closeTodoEditor}>
         {editingTodo ? (

@@ -11356,3 +11356,37 @@ Ensure successful new scan submissions show an immediate "Scanning…" appointme
 
 ### Follow-ups
 - Human validation should run the full capture flow against API and confirm immediate list insertion of "Scanning…" and eventual replacement by parsed/failed result.
+
+## 2026-02-26 08:10 UTC update (Appointment Drawer + event log direct actions)
+
+### Objective
+Implement appointment detail Drawer UX backed by durable per-appointment event log and new direct actions for detail fetch, message append, and deterministic title proposal apply.
+
+### Approach
+- Added `api/src/lib/appointments/appointmentEvents.ts` for chunked event-log reads/appends/paging/idempotency checks.
+- Extended `api/src/lib/tables/appointments.ts` with appointment JSON read/write helpers that expose ETag for guarded updates.
+- Extended `api/src/functions/direct.ts` to parse and handle:
+  - `get_appointment_detail`
+  - `append_appointment_message`
+  - `apply_appointment_proposal`
+- Replaced popover detail UI in `apps/web/src/AppShell.tsx` with Drawer-based details UI and Discussion/Changes/Constraints tabs.
+- Added message send + proposal box + countdown/apply flow in Drawer.
+- Updated `AppointmentCardList` detail callback to open Drawer without anchor element.
+
+### Files changed
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/lib/tables/appointments.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -name AGENTS.md -print` ✅ (no AGENTS.md found)
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ fails due existing environment dependency issue (`@azure/data-tables` module typings unavailable in this environment)
+
+### Follow-ups
+- Add backend unit tests for event chunk rollover/idempotency once API test harness can run in this environment with Azure table deps resolved.
+- Run manual end-to-end checks for proposal countdown and deep-link open behavior against deployed API.

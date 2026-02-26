@@ -4416,3 +4416,20 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (manual/browser validation host)
 3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/9cfb14e694f4c7ce/artifacts/artifacts/appshell-scan-placeholder.png`
+
+## 2026-02-26 08:10 UTC update (appointment detail Drawer + event-log v1)
+
+- Implemented appointment detail Drawer flow in list view and removed popover details panel.
+- Added direct actions in `/api/direct` for:
+  - `get_appointment_detail`
+  - `append_appointment_message`
+  - `apply_appointment_proposal` (title-only v1)
+- Added durable appointment event log module with chunked JSON storage under:
+  - `{STATE_BLOB_PREFIX}/{groupId}/appointments/{appointmentId}/events/{chunkId}.json`
+- Added v1 proposal path: message heuristics can generate title proposal; apply mutates title and appends FIELD_CHANGED + SYSTEM_CONFIRMATION events.
+- Added deep-link inbound open support via `appointmentId` query param in hash route and Share button to copy deep link.
+
+### Stubbed / not implemented yet
+
+- Constraints tab full functionality remains placeholder (“Coming soon”).
+- Notification/email/ICS actions remain UI placeholder only.

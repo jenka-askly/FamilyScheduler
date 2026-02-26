@@ -14,6 +14,9 @@ import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { isPlausibleEmail, normalizeEmail, requireActiveMember } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
+import { userKeyFromEmail } from '../lib/identity/userKey.js';
+import { appendEvent, getRecentEvents, hasLatestChunkIdempotencyKey, type AppointmentEvent, type EventCursor } from '../lib/appointments/appointmentEvents.js';
+import { getAppointmentJsonWithEtag, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -37,7 +40,10 @@ type DirectAction =
   | { type: 'resolve_appointment_time'; appointmentId?: string; whenText: string; timezone?: string }
   | { type: 'create_blank_person' }
   | { type: 'update_person'; personId: string; name?: string; email?: string }
-  | { type: 'delete_person'; personId: string };
+  | { type: 'delete_person'; personId: string }
+  | { type: 'get_appointment_detail'; appointmentId: string; limit?: number; cursor?: EventCursor }
+  | { type: 'append_appointment_message'; appointmentId: string; text: string; clientRequestId: string }
+  | { type: 'apply_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; value: string; clientRequestId: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
@@ -230,6 +236,39 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (!personId) throw new Error('personId is required');
     return { type, personId };
   }
+  if (type === 'get_appointment_detail') {
+    const appointmentId = asString(value.appointmentId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    const limitRaw = value.limit;
+    const limit = typeof limitRaw === 'number' && Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
+    const rawCursor = isRecord(value.cursor) ? value.cursor : null;
+    const cursor = rawCursor && typeof rawCursor.chunkId === 'number' && typeof rawCursor.index === 'number'
+      ? { chunkId: rawCursor.chunkId, index: rawCursor.index }
+      : undefined;
+    return { type, appointmentId, limit, cursor };
+  }
+  if (type === 'append_appointment_message') {
+    const appointmentId = asString(value.appointmentId);
+    const text = asString(value.text);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!text) throw new Error('text is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    return { type, appointmentId, text, clientRequestId };
+  }
+  if (type === 'apply_appointment_proposal') {
+    const appointmentId = asString(value.appointmentId);
+    const proposalId = asString(value.proposalId);
+    const field = asString(value.field);
+    const valueText = asString(value.value);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!proposalId) throw new Error('proposalId is required');
+    if (field !== 'title') throw new Error('field must be title');
+    if (!valueText) throw new Error('value is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    return { type, appointmentId, proposalId, field, value: valueText, clientRequestId };
+  }
 
   throw new Error(`unsupported action type: ${type}`);
 };
@@ -280,6 +319,148 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   }
   const caller = membership.member;
   logAuth({ traceId, stage: 'gate_allowed', memberId: caller.memberId });
+
+  if (directAction.type === 'get_appointment_detail') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+
+    try {
+      const recent = await getRecentEvents(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
+      const discussionEvents = recent.events.filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED');
+      const changeEvents = recent.events.filter((event) => event.type === 'FIELD_CHANGED');
+      return withDirectMeta({
+        status: 200,
+        jsonBody: {
+          ok: true,
+          appointment: toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0],
+          eventsPage: recent.events,
+          nextCursor: recent.nextCursor,
+          projections: { discussionEvents, changeEvents }
+        }
+      }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'appointment_detail_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'appointment_detail_failed', 'Failed to load appointment detail', traceId), traceId, context);
+    }
+  }
+
+  if (directAction.type === 'append_appointment_message') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+
+    const baseEvent: AppointmentEvent = {
+      id: randomUUID(),
+      tsUtc: new Date().toISOString(),
+      type: 'USER_MESSAGE',
+      actor: { actorType: 'HUMAN', email: session.email, userKey: userKeyFromEmail(session.email) },
+      payload: { text: directAction.text },
+      sourceTextSnapshot: directAction.text,
+      clientRequestId: directAction.clientRequestId
+    };
+
+    try {
+      const appendedEvents: AppointmentEvent[] = [];
+      const messageResult = await appendEvent(groupId, directAction.appointmentId, baseEvent, { idempotencyKey: directAction.clientRequestId });
+      if (messageResult.appended) appendedEvents.push(messageResult.event);
+
+      let proposal: { proposalId: string; field: 'title'; value: string } | null = null;
+      const text = directAction.text.trim();
+      let proposedTitle: string | null = null;
+      const explicit = text.match(/^(set|change)\s+(the\s+)?(title|name)\s+to\s+(.+)$/i);
+      if (explicit && explicit[4]) proposedTitle = explicit[4].trim();
+      const short = text.match(/^title\s*:\s*(.+)$/i);
+      if (!proposedTitle && short && short[1]) proposedTitle = short[1].trim();
+
+      if (proposedTitle) {
+        const proposalId = randomUUID();
+        const proposalEvent: AppointmentEvent = {
+          id: randomUUID(),
+          tsUtc: new Date().toISOString(),
+          type: 'PROPOSAL_CREATED',
+          actor: { actorType: 'SYSTEM' },
+          proposalId,
+          sourceTextSnapshot: directAction.text,
+          payload: { field: 'title', value: proposedTitle },
+          clientRequestId: `${directAction.clientRequestId}:proposal`
+        };
+        const proposalResult = await appendEvent(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal` });
+        if (proposalResult.appended) appendedEvents.push(proposalResult.event);
+        proposal = { proposalId, field: 'title', value: proposedTitle };
+      }
+
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents, proposal } }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'append_appointment_message_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'append_appointment_message_failed', 'Failed to append appointment message', traceId), traceId, context);
+    }
+  }
+
+  if (directAction.type === 'apply_appointment_proposal') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+
+    try {
+      const alreadyApplied = await hasLatestChunkIdempotencyKey(groupId, directAction.appointmentId, directAction.clientRequestId);
+      if (alreadyApplied) {
+        return withDirectMeta({ status: 200, jsonBody: { ok: true, appointment: toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0], appendedEvents: [] } }, traceId, context);
+      }
+
+      const maxAttempts = 4;
+      let updatedAppointmentDoc: Record<string, unknown> | null = null;
+      for (let i = 0; i < maxAttempts; i += 1) {
+        const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+        if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+        const previousTitle = typeof current.doc.title === 'string' ? current.doc.title : '';
+        const nextDoc = { ...current.doc, title: directAction.value, updatedAt: new Date().toISOString() };
+        const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, nextDoc, current.etag);
+        if (saved) {
+          updatedAppointmentDoc = { ...nextDoc, _previousTitle: previousTitle };
+          break;
+        }
+      }
+
+      if (!updatedAppointmentDoc) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
+
+      const stateAppointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+      if (stateAppointment) {
+        stateAppointment.title = directAction.value;
+        stateAppointment.updatedAt = new Date().toISOString();
+      }
+
+      const changedEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: 'FIELD_CHANGED',
+        actor: { actorType: 'HUMAN', email: session.email, userKey: userKeyFromEmail(session.email) },
+        proposalId: directAction.proposalId,
+        clientRequestId: directAction.clientRequestId,
+        payload: { field: 'title', oldValue: (updatedAppointmentDoc as Record<string, unknown>)._previousTitle, newValue: directAction.value }
+      };
+      const confirmEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: 'SYSTEM_CONFIRMATION',
+        actor: { actorType: 'SYSTEM' },
+        proposalId: directAction.proposalId,
+        payload: { text: `Title updated to “${directAction.value}”`, by: session.email },
+        clientRequestId: `${directAction.clientRequestId}:confirm`
+      };
+      await appendEvent(groupId, directAction.appointmentId, changedEvent, { idempotencyKey: directAction.clientRequestId });
+      await appendEvent(groupId, directAction.appointmentId, confirmEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
+
+      return withDirectMeta({
+        status: 200,
+        jsonBody: {
+          ok: true,
+          appointment: toResponseSnapshot({ ...loaded.state, appointments: [loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId) ?? appointment] }).appointments[0],
+          appendedEvents: [changedEvent, confirmEvent]
+        }
+      }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'apply_appointment_proposal_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'apply_appointment_proposal_failed', 'Failed to apply proposal', traceId), traceId, context);
+    }
+  }
 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
