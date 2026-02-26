@@ -10347,3 +10347,33 @@ Implement authenticated dashboard UX lock-ins: remove welcome/recent/cards, add 
 
 ### Follow-ups
 - Human should verify in a full local stack that quick Break Out lands on organizer with live QR/session data once API is running.
+
+## 2026-02-26 00:08 UTC (Sign-in view tagline/menu cleanup)
+
+### Objective
+Remove the sign-in tagline text `Smart coordination for modern groups` and remove the hamburger menu icon from the signed-out/sign-in screen only, without changing auth flow, routing, or API calls.
+
+### Approach
+- Added a `showMenuButton` prop to `PageHeader` (default `true`) so menu visibility can be controlled per-surface without impacting authenticated/app pages.
+- Updated `LandingSignInPage` in `App.tsx` to:
+  - remove the sign-in header `description` value that rendered the tagline,
+  - pass `showMenuButton={false}` so the hamburger is hidden only on this signed-out view.
+- Left all auth request and consume/done route logic unchanged.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files | rg 'AGENTS.md|App.tsx|PROJECT_STATUS.md|CODEX_LOG.md'` ✅ located target files.
+- `find .. -name AGENTS.md -print` ✅ no additional AGENTS.md files found in scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (with existing Vite chunk-size warning).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI verification.
+- Playwright screenshot against `/#/login` ✅ captured and confirms tagline + hamburger removed.
+- `rg -n "api/auth/request-link|auth/consume|auth/done|showMenuButton|Smart coordination for modern groups" apps/web/src/App.tsx apps/web/src/components/layout/PageHeader.tsx` ✅ confirmed auth endpoints/routes remain and menu flag is scoped.
+
+### Follow-ups
+- End-to-end passwordless flow call (`POST /api/auth/request-link` and hash transitions through `/#/auth/consume` -> `/#/auth/done`) still needs full runtime validation with the API running and email-link interaction.

@@ -38,9 +38,10 @@ type Props = {
   onSignOut?: () => void;
   showGroupSummary?: boolean;
   onDashboardClick?: () => void;
+  showMenuButton?: boolean;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true }: Props) {
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -196,13 +197,15 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             {PRODUCT.name}
           </Typography>
         </Stack>
-        <Stack direction="row" spacing={0.75} alignItems="center">
-          <Tooltip title="Menu">
-            <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
-              <MenuIcon />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+        {showMenuButton ? (
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            <Tooltip title="Menu">
+              <IconButton onClick={(event) => setAnchorEl(event.currentTarget)} aria-label="Menu">
+                <MenuIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        ) : null}
       </div>
       {showGroupSummary ? (
       <Paper>

@@ -264,8 +264,8 @@ function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPa
       <Box sx={{ maxWidth: 640, mx: 'auto', p: { xs: 1, sm: 2 }, borderRadius: 3, background: 'radial-gradient(circle at 20% -10%, rgba(255, 183, 77, 0.14), transparent 45%)' }}>
         <PageHeader
           title="Yapper"
-          description="Smart coordination for modern groups"
           showGroupSummary={false}
+          showMenuButton={false}
         />
       </Box>
       <Stack component="form" spacing={2.5} onSubmit={submit} sx={{ maxWidth: 560, mx: 'auto', mt: 1 }}>
