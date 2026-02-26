@@ -113,6 +113,9 @@ export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Re
   if (contentType.includes('application/json')) {
     try {
       const payload = await response.clone().json() as { ok?: boolean; error?: string; code?: string; message?: string; traceId?: string };
+      if (!response.ok || payload.ok === false) {
+        console.warn('[apiFetch] request_failed', { path, status: response.status, error: payload.error ?? payload.code, traceId: payload.traceId });
+      }
       if (payload.ok === false && payload.error === 'unauthorized' && payload.message === 'Missing session') {
         warnMissingSession(path, payload.traceId);
       }

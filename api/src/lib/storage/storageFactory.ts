@@ -33,3 +33,5 @@ export const setStorageAdapterForTests = (adapter: StorageAdapter | null): void 
   testOverride = adapter;
   singleton = null;
 };
+
+export { MissingConfigError };

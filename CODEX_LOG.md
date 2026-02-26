@@ -1,3 +1,44 @@
+## 2026-02-26 02:50 UTC (Scan capture resilience + downsizing implementation)
+
+### Objective
+
+Implement scan-capture hardening across API + web: structured JSON failures (no expected host-level throw), robust base64/dataURL handling, image downsizing/compression to reduce oversize failures, and richer trace/code logging.
+
+### Approach
+
+- Updated API scan handler to:
+  - guard JSON parse errors (`invalid_json`)
+  - wrap capture/storage/table write path in try/catch
+  - map known errors to deterministic `{status,error,message}` responses
+  - emit structured failure logs with `traceId` and mapped error code
+- Exported `MissingConfigError` from storage factory for `instanceof` mapping.
+- Extended scan base64 decoder to parse either raw base64 or `data:*;base64,...` payload.
+- Updated web scan flows to preprocess large images (canvas resize + adaptive JPEG quality), use FileReader data URL encoding, and preserve capture modal visibility when submission fails.
+- Added JSON failure diagnostics in `apiFetch` logging (`status` + `traceId`).
+- Added targeted unit tests for scan base64 decoding behavior.
+
+### Files changed
+
+- `api/src/functions/scanAppointment.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/scan/appointmentScan.ts`
+- `api/src/lib/scan/appointmentScan.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck`
+- `pnpm --filter @familyscheduler/api build`
+- `cd api && node --test dist/api/src/lib/scan/appointmentScan.test.js`
+
+### Follow-ups
+
+- Human-run staging verification is needed for real camera and file-picker scans against staging API limits and Azure storage configuration scenarios.
+
+
 
 ## 2026-02-26 02:06 UTC (Marketing header icon prominence tuning)
 

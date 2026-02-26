@@ -19,9 +19,13 @@ const getTimeZoneOffset = (date: Date, timeZone: string): string => {
 const buildIsoAtZone = (date: string, startTime: string, timezone: string): string => `${date}T${startTime}:00${getTimeZoneOffset(new Date(`${date}T${startTime}:00Z`), timezone)}`;
 
 export const decodeImageBase64 = (value: string): Buffer => {
-  const cleaned = value.replace(/\s+/g, '');
+  const trimmed = value.trim();
+  const payload = trimmed.startsWith('data:')
+    ? (trimmed.split('base64,')[1] ?? '')
+    : trimmed;
+  const cleaned = payload.replace(/\s+/g, '');
   const bytes = Buffer.from(cleaned, 'base64');
-  if (!bytes.length || bytes.toString('base64') !== cleaned.replace(/=+$/, (m) => '='.repeat(m.length))) throw new Error('invalid_image_base64');
+  if (!cleaned || !bytes.length || bytes.toString('base64') !== cleaned.replace(/=+$/, (m) => '='.repeat(m.length))) throw new Error('invalid_image_base64');
   if (bytes.length > MAX_SCAN_BYTES) throw new Error('image_too_large');
   return bytes;
 };
