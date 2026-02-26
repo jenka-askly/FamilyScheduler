@@ -11546,3 +11546,33 @@ Implement title-only proposal detection/apply lifecycle for appointment discussi
   2) apply active-proposal validation,
   3) dismiss proposal append path,
   once API build environment includes `@azure/data-tables` typings.
+
+## 2026-02-26 23:53 UTC (Members QR modal copy update to Group Invite language)
+
+### Objective
+Update the Members invite QR modal content to match Group Invite wording while retaining the existing Ignite organizer-style layout and not changing join URL shape or joiner flow.
+
+### Approach
+- Located Members invite modal section in `apps/web/src/AppShell.tsx`.
+- Kept the modal structure and invite actions intact.
+- Replaced modal copy and labels per request:
+  - Added group-invite body copy.
+  - Added QR caption `Join {GroupName}`.
+  - Added an `Allow new members to join` switch row using existing invite session state.
+  - Mapped switch OFF to existing `closeInviteSession()`.
+  - Renamed primary dismiss action from `Close` to `Done`.
+- Left invite link generation and invite session endpoints untouched (`/api/ignite/start`, `/api/ignite/close`, `/#/s/:groupId/:sessionId`).
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ launched for screenshot capture; stopped with SIGINT.
+- Playwright screenshot capture ✅
+  - `browser:/tmp/codex_browser_invocations/29085755698933f6/artifacts/artifacts/members-invite-page.png`
+
+### Follow-ups
+- Optional: add a focused UI test asserting invite modal labels/body/caption/button text to guard against regressions in wording.

@@ -27,6 +27,7 @@ import {
   MenuItem,
   Paper,
   Stack,
+  Switch,
   SvgIcon,
   Tab,
   TextField,
@@ -2021,13 +2022,32 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       <Dialog open={inviteModalOpen} onClose={closeInviteModal} fullWidth maxWidth="xs">
         <DialogTitle>{`Scan to join "${(groupName ?? 'Family Schedule').trim() || 'Family Schedule'}"`}</DialogTitle>
         <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Scan this code to join the group. Anyone can join while the invite is open.
+            </Typography>
             {inviteQrImageUrl ? <img src={inviteQrImageUrl} alt="Invite QR" width={280} height={280} /> : null}
+            <Typography variant="body2" sx={{ textAlign: 'center' }}>{`Join ${(groupName ?? 'Family Schedule').trim() || 'Family Schedule'}`}</Typography>
             {inviteJoinUrl ? (
               <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all', textAlign: 'center' }}>
                 {inviteJoinUrl}
               </Typography>
             ) : null}
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={Boolean(inviteSessionId)}
+                  onChange={(_, checked) => {
+                    if (!checked) {
+                      void closeInviteSession();
+                    }
+                  }}
+                  disabled={isInviteClosing}
+                  inputProps={{ 'aria-label': 'Allow new members to join' }}
+                />
+              )}
+              label="Allow new members to join"
+            />
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -2043,7 +2063,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             Copy link
           </Button>
           <Button type="button" onClick={() => { void closeInviteSession(); }} disabled={isInviteClosing}>Close invite</Button>
-          <Button type="button" onClick={closeInviteModal}>Close</Button>
+          <Button type="button" onClick={closeInviteModal}>Done</Button>
         </DialogActions>
       </Dialog>
 
