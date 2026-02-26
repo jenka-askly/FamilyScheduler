@@ -10583,3 +10583,29 @@ Promote passwordless sign-in discoverability on logged-out marketing home by add
 
 ### Follow-ups
 - Human-run browser check should confirm logged-in home does not show header **Sign in** button and still renders dashboard-only content.
+
+## 2026-02-26 01:43 UTC (Fix joiner-only "Joined" completion navigation)
+
+### Objective
+Ensure joiner completion always navigates into app route (`/#/g/:id/app`) and never lands on join route (`/#/g/:id`).
+
+### Approach
+- Inspected Ignite join/joiner flow in `apps/web/src/App.tsx` (`IgniteJoinPage.join`) and organizer completion path for competing route targets.
+- Hardened join success navigation by deriving `targetGroupId` with fallback behavior (prefer API `breakoutGroupId`, fallback to current `groupId`).
+- Updated session write + auth/session debug logs to use the same resolved `targetGroupId` so completion state and routing stay consistent.
+- Audited direct ``nav(`/g/${groupId}`)`` callsites in `App.tsx`; none remain for the targeted pattern.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "Joined\b|I joined|I've joined|joined.*continue|continue.*joined|onJoined|handleJoined" apps/web/src/App.tsx apps/web/src/AppShell.tsx apps/web/src` ⚠️ no literal match in current codebase (flow is labeled by Ignite join/session UI instead of “Joined” text).
+- `rg -n -S "nav\(" apps/web/src/App.tsx` ✅ identified relevant navigation callsites for organizer and joiner completion paths.
+- `rg -n -S 'nav\(`/g/\$\{groupId\}`\)' apps/web/src/App.tsx` ✅ no matching callsites.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+- Human browser verification recommended for both organizer and joiner flows to confirm runtime hash routes end at `/#/g/<newGroupId>/app` and refresh remains stable on `/app`.
+
