@@ -4161,3 +4161,13 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck`
+
+## 2026-02-26 04:01 UTC update (Ignite join session upgrade persistence)
+
+- Fixed anonymous ignite join continuity by persisting upgraded durable session from `POST /api/group/join` in `GroupAuthGate` (`fs.sessionId`).
+- On successful upgrade, client now clears ignite grace keys (`fs.igniteGraceSessionId`, `fs.igniteGraceExpiresAtUtc`) so subsequent API calls consistently use durable auth session.
+- Updated `IgniteJoinPage` successful join flow to sanitize and persist `fs.sessionEmail` from join payload/email input so UI/API identity helpers have stable email context for anonymous joiners.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`

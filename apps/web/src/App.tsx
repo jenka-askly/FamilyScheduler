@@ -1543,6 +1543,10 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
           graceExpiresAtUtc: data.graceExpiresAtUtc
         });
       }
+      const joinedEmail = sanitizeSessionEmail(payload.email ?? email);
+      if (joinedEmail) {
+        window.localStorage.setItem('fs.sessionEmail', joinedEmail);
+      }
       writeSession({ groupId: targetGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
       nav(`/g/${targetGroupId}/app`);
     } catch {
@@ -1649,7 +1653,14 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     authLog({ stage: 'gate_join_request', groupId });
     void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, traceId }) })
       .then(async (response) => {
-        const data = await response.json() as { ok?: boolean; error?: AuthError; sessionId?: string };
+        const data = await response.json() as {
+          ok?: boolean;
+          error?: AuthError;
+          sessionId?: string;
+          traceId?: string;
+          groupId?: string;
+          groupName?: string;
+        };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
         authLog({ stage: 'gate_join_result', ok: response.ok && !!data.ok, error: responseError ?? null });
         if (!response.ok || !data.ok) {

@@ -10892,3 +10892,30 @@ Route Ignite organizer anonymous diagnostic calls directly to Functions hosts so
 
 ### Follow-ups
 - Human staging/dogfood run should confirm StepA is no longer blocked by SWA 405 and that diagnostic JSON includes `probeIgniteOptions/probeIgniteGet` plus `stepA_igniteJoin.allow` / `stepB_groupJoin.allow` when relevant.
+
+## 2026-02-26 04:01 UTC (Persist upgraded session + session email for anonymous ignite joiners)
+
+### Objective
+Ensure anonymous ignite joiners are upgraded from temporary grace session to durable `fs.sessionId` after `POST /api/group/join`, and persist a sanitized `fs.sessionEmail` during ignite join success.
+
+### Approach
+- Scoped edits to `apps/web/src/App.tsx` only (minimal-diff behavior fix).
+- In `IgniteJoinPage.join()`, persisted `fs.sessionEmail` using `sanitizeSessionEmail(payload.email ?? email)` immediately after successful join response handling.
+- In `GroupAuthGate`, expanded join response typing to include server metadata fields and retained session upgrade persistence path:
+  - store `fs.sessionId` when `data.sessionId` exists,
+  - clear `fs.igniteGraceSessionId` and `fs.igniteGraceExpiresAtUtc` after upgrade.
+- Left existing deny/redirect handling unchanged.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg -n --hidden --glob '!node_modules' "^# AGENTS|AGENTS.md" -S /workspace /root 2>/dev/null` ✅
+- `rg -n -S "function GroupAuthGate\\(|apiFetch\\('/api/group/join'|gate_join_result|function IgniteJoinPage\\(|fs\\.igniteGraceSessionId|writeSession\\(" apps/web/src/App.tsx` ✅
+- `sed -n '1460,1705p' apps/web/src/App.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+- Human should validate in browser devtools that post-join localStorage contains durable `fs.sessionId` and sanitized `fs.sessionEmail` for anonymous ignite flows.
