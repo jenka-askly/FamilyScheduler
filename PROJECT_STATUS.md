@@ -3934,3 +3934,17 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
    - AppShell breakout success navigates to `/#/g/:newGroupId/ignite`.
    - AppShell custom breakout QR dialog strings are no longer present.
 3. Manual browser verification still required for full end-to-end acceptance (Dashboard breakout, menu breakout, Organizer Ignite continue-to-app, and joiner QR scan grace-flow).
+
+## 2026-02-26 01:10 UTC update (Marketing home passwordless sign-in promotion)
+
+- Logged-out marketing header now shows a visible **Sign in** button (keeps burger menu entry as well), so sign-in is accessible without opening the menu.
+- Logged-out hero primary CTA updated from **Create a group** to **Sign in with email**, routed to existing `/#/login` flow.
+- Added a new **Passwordless sign-in** explainer card under hero CTA with magic-link copy, safety note, and secondary CTA to `/#/login`.
+- Updated logged-out home wiring in `App.tsx` to pass `onSignIn` into `ProductHomePage`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for screenshot capture)
+4. Playwright screenshot capture against `/#/` (mobile viewport)

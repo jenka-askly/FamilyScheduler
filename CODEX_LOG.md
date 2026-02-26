@@ -10507,3 +10507,36 @@ Fix regression where Ignite organizer `Finish inviting & continue` routed to the
 
 ### Follow-ups
 - Human-run browser verification should confirm organizer continue flow lands directly on `/#/g/<groupId>/app` with no Join dialog detour.
+
+## 2026-02-26 01:10 UTC
+
+### Objective
+Promote passwordless sign-in discoverability on logged-out marketing home by adding visible sign-in entry points and replacing the non-actionable create-group hero CTA.
+
+### Approach
+- Added logged-out header **Sign in** button in `MarketingLayout` before the burger icon, reusing existing `onSignIn` callback.
+- Updated `ProductHomePage` props and hero CTA from `onCreateGroup` to `onSignIn`.
+- Replaced hero button label with **Sign in with email** and added passwordless clause in hero description.
+- Added a new bordered **Passwordless sign-in** explainer section with magic-link copy and secondary CTA.
+- Updated home route wiring in `App.tsx` to pass `onSignIn={() => nav('/login')}`.
+- Captured a mobile screenshot for visual verification.
+
+### Files changed
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/components/ProductHomePage.tsx`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ✅ no nested AGENTS file returned in repo scan output.
+- `sed -n '1,240p' apps/web/src/components/ProductHomePage.tsx` ✅ inspected existing hero CTA and content placement.
+- `sed -n '1,260p' apps/web/src/components/layout/MarketingLayout.tsx` ✅ inspected header + menu structure.
+- `rg -n "onCreateGroup|onSignIn|Sign in with email|Passwordless sign-in|magic link|hasApiSession=\{false\}" apps/web/src/components/ProductHomePage.tsx apps/web/src/components/layout/MarketingLayout.tsx apps/web/src/App.tsx` ✅ validated new wiring/copy.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (existing Vite chunk-size warning only).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped via SIGINT after capture).
+- Playwright screenshot capture against `/#/` ✅ artifact: `browser:/tmp/codex_browser_invocations/fb24e4ab4c49b22c/artifacts/artifacts/marketing-passwordless-mobile.png`.
+
+### Follow-ups
+- Human-run browser check should confirm logged-in home does not show header **Sign in** button and still renders dashboard-only content.
