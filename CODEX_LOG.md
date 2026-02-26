@@ -1,3 +1,38 @@
+## 2026-02-27 00:05 UTC (Members tab `+` invite menu + QR modal)
+
+### Objective
+
+Implement Members tab `+` as an invite menu (QR + email NYI), remove blank-person creation from `+`, and keep existing member edit/save/delete behavior intact.
+
+### Approach
+
+- Updated `AppShell` member controls to replace `addPerson/create_blank_person` with a menu anchored to the `+` icon.
+- Added invite state/actions in `AppShell` for:
+  - opening/closing invite menu
+  - starting Ignite session via `/api/ignite/start` with `{ groupId, traceId }`
+  - generating join URL `/#/s/${groupId}/${sessionId}` and qrserver image URL
+  - modal controls (copy link, close modal, close invite via `/api/ignite/close`)
+  - inline info notices for NYI and error/success outcomes
+- Removed obsolete pending-blank-person logic and new-row-specific keyboard/accept-cancel behavior.
+- Kept existing edit/save/delete flow for existing people rows.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual check; terminated intentionally with SIGINT after screenshot capture.
+- Playwright screenshot script ✅ captured `browser:/tmp/codex_browser_invocations/e8b628ce9a6035c0/artifacts/artifacts/members-invite-menu.png`.
+
+### Follow-ups
+
+- Manual runtime verification still recommended for end-to-end anonymous join flow from QR in an incognito session.
+
+
 ## 2026-02-26 23:25 UTC (Appointment drawer enhancement groundwork + storage precedence + notify snapshot/ICS helpers)
 
 ### Objective

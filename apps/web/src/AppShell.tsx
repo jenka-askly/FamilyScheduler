@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, KeyboardEvent as ReactKeyboardEvent, ReactNode, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Fragment, MouseEvent as ReactMouseEvent, ReactNode, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
 import { AppointmentCardList } from './components/AppointmentCardList';
 import { Drawer } from './components/Drawer';
@@ -404,7 +404,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [personDraft, setPersonDraft] = useState<{ name: string; email: string }>({ name: '', email: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
-  const [pendingBlankPersonId, setPendingBlankPersonId] = useState<string | null>(null);
+  const [inviteMenuAnchorEl, setInviteMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteSessionId, setInviteSessionId] = useState<string | null>(null);
+  const [inviteJoinUrl, setInviteJoinUrl] = useState<string>('');
+  const [inviteQrImageUrl, setInviteQrImageUrl] = useState<string>('');
+  const [isInviteLoading, setIsInviteLoading] = useState(false);
+  const [isInviteClosing, setIsInviteClosing] = useState(false);
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
@@ -768,17 +775,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setPersonEditError(null);
   };
 
-  const cancelPersonEdit = async () => {
-    const pendingId = pendingBlankPersonId;
-    const editingId = editingPersonId;
-    const draft = personDraft;
+  const cancelPersonEdit = () => {
     setEditingPersonId(null);
     setPersonEditError(null);
     setPersonDraft({ name: '', email: '' });
-    if (pendingId && editingId === pendingId && !draft.name.trim() && !draft.email.trim()) {
-      await sendDirectAction({ type: 'delete_person', personId: pendingId });
-    }
-    setPendingBlankPersonId(null);
   };
 
   const submitPersonEdit = async () => {
@@ -789,30 +789,82 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       return;
     }
     setEditingPersonId(null);
-    setPendingBlankPersonId(null);
     setPersonEditError(null);
   };
 
-  const addPerson = async () => {
-    const result = await sendDirectAction({ type: 'create_blank_person' });
-    if (!result.ok || !result.personId) return;
-    const created = result.snapshot?.people.find((person) => person.personId === result.personId);
-    setEditingPersonId(result.personId);
-    setPendingBlankPersonId(result.personId);
-    setPersonDraft({ name: created?.name ?? '', email: created?.email ?? '' });
-    setPersonEditError(null);
+  const openInviteMenu = (event: ReactMouseEvent<HTMLElement>) => {
+    setInviteMenuAnchorEl(event.currentTarget);
   };
 
-  const onNewPersonRowKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>, isNewRowEditing: boolean) => {
-    if (!isNewRowEditing) return;
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      void submitPersonEdit();
+  const closeInviteMenu = () => setInviteMenuAnchorEl(null);
+
+  const showInviteNotice = (message: string) => {
+    setInviteNotice(message);
+    window.setTimeout(() => {
+      setInviteNotice((prev) => (prev === message ? null : prev));
+    }, 3500);
+  };
+
+  const openInviteQr = async () => {
+    closeInviteMenu();
+    setIsInviteLoading(true);
+    try {
+      const response = await apiFetch('/api/ignite/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, traceId: createTraceId() })
+      });
+      const payload = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
+      if (!response.ok || !payload.ok || !payload.sessionId) {
+        showInviteNotice('Could not create invite QR');
+        return;
+      }
+      const joinUrl = `${window.location.origin}/#/s/${groupId}/${payload.sessionId}`;
+      setInviteSessionId(payload.sessionId);
+      setInviteJoinUrl(joinUrl);
+      setInviteQrImageUrl(`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(joinUrl)}`);
+      setInviteModalOpen(true);
+    } catch {
+      showInviteNotice('Could not create invite QR');
+    } finally {
+      setIsInviteLoading(false);
     }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      void cancelPersonEdit();
+  };
+
+  const closeInviteModal = () => {
+    setInviteModalOpen(false);
+  };
+
+  const closeInviteSession = async () => {
+    if (!inviteSessionId) {
+      setInviteModalOpen(false);
+      return;
     }
+    setIsInviteClosing(true);
+    try {
+      const response = await apiFetch('/api/ignite/close', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, sessionId: inviteSessionId, traceId: createTraceId() })
+      });
+      const payload = await response.json() as { ok?: boolean };
+      if (!response.ok || !payload.ok) {
+        showInviteNotice('Could not close invite');
+        return;
+      }
+      showInviteNotice('Invite closed.');
+      setInviteModalOpen(false);
+      setInviteSessionId(null);
+    } catch {
+      showInviteNotice('Could not close invite');
+    } finally {
+      setIsInviteClosing(false);
+    }
+  };
+
+  const onInviteByEmailNYI = () => {
+    closeInviteMenu();
+    showInviteNotice('Invite by email is not yet implemented.');
   };
 
 
@@ -1290,7 +1342,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const exists = snapshot.people.some((person) => person.personId === editingPersonId && person.status === 'active');
     if (!exists) {
       setEditingPersonId(null);
-      setPendingBlankPersonId(null);
       setPersonEditError(null);
     }
   }, [editingPersonId, snapshot.people]);
@@ -1790,14 +1841,19 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
-                <Tooltip title="Add person">
+                <Tooltip title="Invite">
                   <span>
-                    <IconButton color="primary" onClick={() => { void addPerson(); }} aria-label="Add person">
+                    <IconButton color="primary" onClick={openInviteMenu} aria-label="Open invite menu" disabled={isInviteLoading}>
                       <Plus />
                     </IconButton>
                   </span>
                 </Tooltip>
+                <Menu anchorEl={inviteMenuAnchorEl} open={Boolean(inviteMenuAnchorEl)} onClose={closeInviteMenu}>
+                  <MenuItem onClick={() => { void openInviteQr(); }}>Show QR (Anyone can join)</MenuItem>
+                  <MenuItem onClick={onInviteByEmailNYI}>Invite by email (NYI)</MenuItem>
+                </Menu>
               </Box>
+              {inviteNotice ? <Alert severity="info" sx={{ mb: 2 }}>{inviteNotice}</Alert> : null}
               {peopleInView.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   No people added yet.
@@ -1810,47 +1866,39 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                   const isEditingPerson = editingPersonId === person.personId;
-                  const isNewRowEditing = isEditingPerson && pendingBlankPersonId === person.personId;
                   return (
                     <Fragment key={person.personId}>
                       <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                           <td>
-                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
+                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
                           </td>
                           <td className="email-col">
-                            {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} onKeyDown={(event) => onNewPersonRowKeyDown(event, isNewRowEditing)} placeholder="name@example.com" /> : <span>{person.email || '—'}</span>}
+                            {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /> : <span>{person.email || '—'}</span>}
                             {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
                           </td>
                           <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
                           <td className="actions-cell">
-                            {isNewRowEditing ? (
-                              <div className="action-buttons">
-                                <button type="button" className="ui-btn ui-btn-primary" onClick={() => void submitPersonEdit()}>Accept</button>
-                                <button type="button" className="ui-btn ui-btn-secondary" onClick={() => void cancelPersonEdit()}>Cancel</button>
-                              </div>
-                            ) : (
-                              <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                                <Tooltip title="Rules">
-                                  <IconButton size="small" aria-label="Rules" onClick={() => openRulePromptModal(person)}>
-                                    <Clock3 />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title={isEditingPerson ? 'Save person' : 'Edit person'}>
-                                  <IconButton
-                                    size="small"
-                                    aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
-                                    onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
-                                  >
-                                    <Pencil />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete person">
-                                  <IconButton size="small" aria-label="Delete person" onClick={() => setPersonToDelete(person)}>
-                                    <Trash2 />
-                                  </IconButton>
-                                </Tooltip>
-                              </Stack>
-                            )}
+                            <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                              <Tooltip title="Rules">
+                                <IconButton size="small" aria-label="Rules" onClick={() => openRulePromptModal(person)}>
+                                  <Clock3 />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title={isEditingPerson ? 'Save person' : 'Edit person'}>
+                                <IconButton
+                                  size="small"
+                                  aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
+                                  onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
+                                >
+                                  <Pencil />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete person">
+                                <IconButton size="small" aria-label="Delete person" onClick={() => setPersonToDelete(person)}>
+                                  <Trash2 />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                           </td>
                         </tr>
                       {personRules.length > 0 ? (
@@ -1938,6 +1986,35 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogActions>
           <Button type="button" variant="outlined" onClick={() => setIsQuickAddOpen(false)}>Cancel</Button>
           <Button type="button" variant="contained" onClick={() => { void submitQuickAdd(); }} disabled={commandActionsDisabled || !quickAddText.trim()}>Add</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={inviteModalOpen} onClose={closeInviteModal} fullWidth maxWidth="xs">
+        <DialogTitle>{`Scan to join "${(groupName ?? 'Family Schedule').trim() || 'Family Schedule'}"`}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
+            {inviteQrImageUrl ? <img src={inviteQrImageUrl} alt="Invite QR" width={280} height={280} /> : null}
+            {inviteJoinUrl ? (
+              <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all', textAlign: 'center' }}>
+                {inviteJoinUrl}
+              </Typography>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            type="button"
+            onClick={async () => {
+              if (!inviteJoinUrl) return;
+              await navigator.clipboard.writeText(inviteJoinUrl);
+              showInviteNotice('Invite link copied.');
+            }}
+            disabled={!inviteJoinUrl}
+          >
+            Copy link
+          </Button>
+          <Button type="button" onClick={() => { void closeInviteSession(); }} disabled={isInviteClosing}>Close invite</Button>
+          <Button type="button" onClick={closeInviteModal}>Close</Button>
         </DialogActions>
       </Dialog>
 
@@ -2084,7 +2161,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               setPersonToDelete(null);
               if (editingPersonId === personToDelete.personId) {
                 setEditingPersonId(null);
-                setPendingBlankPersonId(null);
                 setPersonEditError(null);
               }
             }}
