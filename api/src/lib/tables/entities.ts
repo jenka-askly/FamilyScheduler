@@ -48,6 +48,7 @@ export type AppointmentsIndexEntity = {
   rowKey: string;
   appointmentId: string;
   startTime?: string;
+  startTimeDt?: Date;
   status: string;
   hasScan: boolean;
   scanCapturedAt?: string;
@@ -166,7 +167,16 @@ export const findAppointmentIndexById = async (groupId: string, appointmentId: s
 };
 
 export const upsertAppointmentIndex = async (entity: AppointmentsIndexEntity): Promise<void> => {
-  await getTableClient('AppointmentsIndex').upsertEntity(entity, 'Merge');
+  const { startTime, ...rest } = entity;
+  const parsed = typeof startTime === 'string' ? Date.parse(startTime) : Number.NaN;
+  const entityToUpsert: AppointmentsIndexEntity = Number.isFinite(parsed)
+    ? {
+        ...rest,
+        startTime,
+        startTimeDt: new Date(parsed)
+      }
+    : rest;
+  await getTableClient('AppointmentsIndex').upsertEntity(entityToUpsert, 'Merge');
 };
 
 export const listUserGroups = async (userKey: string, max = 200): Promise<UserGroupsEntity[]> => {

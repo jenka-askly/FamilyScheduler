@@ -90,7 +90,7 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
 
     await putAppointmentJson(groupId, appointment.id, appointment as unknown as Record<string, unknown>);
     const rowKey = rowKeyFromIso(now, appointment.id);
-    await upsertAppointmentIndex({ partitionKey: groupId, rowKey, appointmentId: appointment.id, startTime: appointment.start, status: 'pending', hasScan: true, scanCapturedAt: now, createdAt: now, updatedAt: now, isDeleted: false });
+    await upsertAppointmentIndex({ partitionKey: groupId, rowKey, appointmentId: appointment.id, startTime: undefined, status: 'pending', hasScan: true, scanCapturedAt: now, createdAt: now, updatedAt: now, isDeleted: false });
     if (isUpcomingStart(appointment.start, now)) {
       await adjustGroupCounters(groupId, { appointmentCountUpcoming: 1 });
     }
