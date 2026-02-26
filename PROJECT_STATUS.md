@@ -3897,3 +3897,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
   - `Continue` closes the dialog and navigates to `/#/g/:newGroupId/app`.
   - `Cancel` (or dialog close) dismisses only; organizer stays on current group app.
 - **Regression interaction noted:** Earlier direct navigation/open behavior fixed join-route issues but unintentionally removed invite UX; this change restores the invite step while preserving explicit post-close app navigation.
+## 2026-02-26 00:26 UTC update (Sign-in spacing normalization)
+
+- Sign-in UI: normalized vertical spacing and removed legacy margin artifacts.
+- Consolidated sign-in screen content into a single vertical stack rhythm so brand, heading copy, input/button, and support line have even spacing without ad-hoc top margins.
+- Updated support copy text to `Need help? Contact support@yapper-app.com.` and kept auth/routing/API behavior unchanged.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for visual capture)
+4. Playwright screenshot capture against `/#/login` (mobile viewport)
