@@ -4380,6 +4380,19 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm -C apps/web build` ✅
 3. `pnpm -C api build` (fails in this environment because `@azure/data-tables` typings are unavailable)
 
+## 2026-02-26 06:55 UTC update (ignite grace scoped to breakout group to fix consecutive sessions)
+
+- Scoped ignite grace session usage by `groupId` so stale grace from one group is not reused for a different group.
+- Updated API client auth header attachment to only send grace session when request body `groupId` matches grace scope.
+- Updated ignite join flow to clear old grace keys before `/api/ignite/join`, then store new grace session + expiry + breakout group scope from response.
+- Updated group auth gate and app-level redirect gating to use route-scoped `getAuthSessionId(groupId)` for `/app` and `/ignite` routes.
+- Ensured sign-out and grace-expired cleanup remove `fs.igniteGraceGroupId`.
+- This prevents cross-group grace reuse that previously caused Join Group redirect loops during consecutive ignite sessions on the same device.
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
 ## 2026-02-26 06:53 UTC update (immediate pending scan placeholder for new scan submissions)
 
 - Updated `submitScanFile` in `AppShell` so successful `/api/scanAppointment` responses without an inline `snapshot` now immediately inject a placeholder appointment (`desc: "Scanning…"`, `scanStatus: "pending"`) when `appointmentId` is returned.
@@ -4396,6 +4409,10 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ### Verification run
 
+1. `pnpm -C apps/web lint` ❌ workspace command resolution issue (`Command "apps/web" not found`).
+2. `pnpm --filter @familyscheduler/web lint` ❌ no lint script defined in selected package.
+3. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+4. `pnpm -C apps/web build` ✅ passed.
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (manual/browser validation host)
 3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/9cfb14e694f4c7ce/artifacts/artifacts/appshell-scan-placeholder.png`

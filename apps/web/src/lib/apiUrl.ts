@@ -27,7 +27,7 @@ export const getSessionId = (): string | null => {
   return sessionId && sessionId.trim() ? sessionId : null;
 };
 
-const getIgniteGraceGroupId = (): string | null => {
+export const getIgniteGraceGroupId = (): string | null => {
   if (typeof window === 'undefined') return null;
   const groupId = window.localStorage.getItem(IGNITE_GRACE_GROUP_ID_KEY);
   return groupId && groupId.trim() ? groupId : null;
@@ -47,8 +47,8 @@ export const getIgniteGraceSessionId = (groupId?: string): string | null => {
   const sessionId = window.localStorage.getItem(IGNITE_GRACE_SESSION_ID_KEY);
   if (!sessionId || !sessionId.trim()) return null;
   if (isIgniteGraceExpired()) return null;
-  if (!groupId) return sessionId;
-  return getIgniteGraceGroupId() === groupId ? sessionId : null;
+  if (!groupId) return sessionId.trim();
+  return getIgniteGraceGroupId() === groupId ? sessionId.trim() : null;
 };
 
 export const getAuthSessionId = (groupId?: string): string | null => getSessionId() || getIgniteGraceSessionId(groupId);

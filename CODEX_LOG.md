@@ -11297,6 +11297,28 @@ Implement persistent organizer profile photos that survive refresh/logout-login,
   2. Logout/login → organizer photo remains.
   3. If no server photo exists → default avatar + large camera icon is shown.
 
+## 2026-02-26 06:55 UTC update (Fix consecutive ignite sessions + scoped grace auth)
+
+### Objective
+Prevent old ignite grace session tokens from being reused across groups, and ensure consecutive ignite joins on the same device correctly use the newest grace session for breakout group gating.
+
+### Approach
+- `apps/web/src/lib/apiUrl.ts`
+  - Exported `getIgniteGraceGroupId()` for scoped grace key access.
+  - Kept `getIgniteGraceSessionId(groupId?)` scoped by optional `groupId`, with expiry enforcement and trimmed token return.
+  - Kept `getAuthSessionId(groupId?)` preferring durable session, then scoped grace.
+  - In `apiFetch`, resolved `requestGroupId` from request summary and used `getIgniteGraceSessionId(requestGroupId)` so grace is only attached for matching group requests.
+  - Ensured `AUTH_IGNITE_GRACE_EXPIRED` cleanup removes `fs.igniteGraceGroupId`.
+- `apps/web/src/App.tsx`
+  - In `IgniteJoinPage.join()`, clear prior grace keys before calling `/api/ignite/join`.
+  - After successful join, store returned grace session, expiry, and breakout group scope key.
+  - In `GroupAuthGate`, switched missing-session check to `getAuthSessionId(groupId)`.
+  - In `App()`, replaced route gating dependency with route-scoped live auth (`routeScopedHasApiSession`) for `/app` and `/ignite`.
+  - Sign-out already cleared `fs.igniteGraceGroupId`; behavior retained.
+
+### Files changed
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
 ## 2026-02-26 06:53 UTC (Immediate pending placeholder after /api/scanAppointment)
 
 ### Objective
@@ -11317,6 +11339,17 @@ Ensure successful new scan submissions show an immediate "Scanning…" appointme
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `find /workspace -name AGENTS.md -print` ✅ no AGENTS.md files found in scope.
+- `pnpm -C apps/web lint` ❌ `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL` (`Command "apps/web" not found`).
+- `pnpm --filter @familyscheduler/web lint` ❌ `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` (no lint script).
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm -C apps/web build` ✅ passed.
+
+### Follow-ups
+- Manual acceptance checks:
+  1. Join ignite session 1 then session 2 on same device without logout; second join should proceed without stale-session redirects.
+  2. With grace scoped to group A, navigating to group B `/app` should not send grace(A) to `/api/group/join` for B.
+  3. Anonymous ignite join should continue to function without requiring durable login.
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started; stopped after screenshot capture (SIGINT expected on stop).
 - Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/9cfb14e694f4c7ce/artifacts/artifacts/appshell-scan-placeholder.png`.
