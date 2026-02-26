@@ -11031,6 +11031,20 @@ Implement the UI-only dashboard simplification by removing filter chips and per-
 
 ### Files changed
 - `apps/web/src/components/DashboardHomePage.tsx`
+## 2026-02-26 04:50 UTC (logout storage remnant cleanup)
+
+### Objective
+Ensure sign-out fully clears all client session remnants, specifically `familyscheduler.session` from both `sessionStorage` and `localStorage`.
+
+### Approach
+- Located logout handler in `apps/web/src/App.tsx`.
+- Applied minimal diff in `signOut` to:
+  - call `clearSession()` (removes `familyscheduler.session` from `sessionStorage`), and
+  - remove `SESSION_KEY` from `localStorage`.
+- Kept all existing logout key removals and navigation behavior unchanged.
+
+### Files changed
+- `apps/web/src/App.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -11041,3 +11055,9 @@ Implement the UI-only dashboard simplification by removing filter chips and per-
 
 ### Follow-ups
 - None.
+- `rg -n -S "const SESSION_KEY = 'familyscheduler\\.session'|function clearSession\\(|const signOut = \\(\\) =>" apps/web/src/App.tsx` ✅ located relevant declarations/handler.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `git diff -- apps/web/src/App.tsx` ✅ confirmed minimal logout-only code diff.
+
+### Follow-ups
+- Human manual verification in browser DevTools Application tab to confirm storage keys are removed immediately after clicking Sign out.

@@ -4248,6 +4248,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Files changed
 
 - `apps/web/src/components/DashboardHomePage.tsx`
+## 2026-02-26 04:50 UTC update (logout clears all client session remnants)
+
+- Updated `signOut` in `apps/web/src/App.tsx` to fully clear session remnants for `familyscheduler.session` in both storages.
+- `signOut` now calls `clearSession()` to remove session-scoped `familyscheduler.session` and also removes `familyscheduler.session` from `localStorage`.
+- Existing durable auth/session key removals remain unchanged (`fs.sessionId`, grace keys, session email/name), preserving current logout flow while ensuring no stale app session object survives.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -4256,3 +4265,7 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. `pnpm --filter @familyscheduler/web build`
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for manual/browser screenshot validation)
+2. Manual browser verification pending human run (DevTools Application tab):
+   - `localStorage['fs.sessionId']` removed after Sign out
+   - `sessionStorage['familyscheduler.session']` removed after Sign out
+   - `localStorage['familyscheduler.session']` removed after Sign out

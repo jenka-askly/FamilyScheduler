@@ -1577,9 +1577,11 @@ export function App() {
   const sessionName = useMemo(() => window.localStorage.getItem(SESSION_NAME_KEY), [hash, hasApiSession]);
 
   const signOut = () => {
+    clearSession();
     window.localStorage.removeItem('fs.sessionId');
     window.localStorage.removeItem('fs.igniteGraceSessionId');
     window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
+    window.localStorage.removeItem(SESSION_KEY);
     window.localStorage.removeItem(SESSION_EMAIL_KEY);
     window.localStorage.removeItem(SESSION_NAME_KEY);
     sessionLog('DURABLE_CLEAR', { reason: 'sign_out' });
