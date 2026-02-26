@@ -1,3 +1,22 @@
+## 2026-02-26 01:56 UTC update (Ignite grace joiners authorized in group/join + session upgrade)
+
+- **Root cause:** `/api/group/join` always enforced existing table membership by session email. Grace-only Ignite joiners often have no pre-existing `GroupMembers` row for the breakout group, so gate calls returned `not_allowed` and the web app fell back to the Join Group route.
+- **Fix:** Updated `groupJoin` to treat `igniteGrace` sessions as a dedicated authorization path: if session scope is valid (already enforced in `requireSessionFromRequest`), join is allowed for the requested group, missing membership is auto-created as active, invited membership is promoted to active, and normal membership counters are updated.
+- **Durable upgrade:** On successful `groupJoin` via `igniteGrace`, API now returns a new durable `sessionId` (`createSession`) so the client can keep access past grace TTL.
+- **Web gate update:** `GroupAuthGate` now persists returned `sessionId` into `fs.sessionId`, clears ignite grace storage keys, and continues into `/app` without join fallback.
+
+### Files changed
+
+- `api/src/functions/groupJoin.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. `pnpm --filter @familyscheduler/api test -- groupJoin.test.ts` ⚠️ blocked by existing container dependency issue (`@azure/data-tables` module/types missing during API build).
+
 ## 2026-02-26 01:43 UTC update (Ignite joiner completion route hardening)
 
 - **Root cause:** Joiner completion depended on `breakoutGroupId` being present and did not include a fallback target group ID, so join completion routing could fail/derail instead of consistently entering the app route.

@@ -1,3 +1,38 @@
+## 2026-02-26 01:56 UTC (Grace-only joiners can pass group/join and upgrade session)
+
+### Objective
+
+Implement gate-safe breakout join for ignite grace sessions so first-time/different-email joiners stop falling back to Join Group, while preserving existing auth semantics and grace TTL behavior.
+
+### Approach
+
+- Traced web gate handling for `/api/group/join` deny mapping and redirect behavior.
+- Confirmed grace-session scope persistence already includes `scopeBreakoutGroupId` via ignite join session creation.
+- Updated API `groupJoin` to branch on `session.kind === 'igniteGrace'`:
+  - allow join based on existing session scope enforcement,
+  - create active membership when missing,
+  - promote invited membership when present,
+  - return a newly issued durable session token.
+- Updated web `GroupAuthGate` to persist optional `sessionId` from `group/join` success and clear grace-only storage keys.
+
+### Files changed
+
+- `api/src/functions/groupJoin.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n -S "apiFetch\('/api/group/join'|toJoinRoute\(|join_failed|not_allowed|group_not_found" apps/web/src` ✅ located gate deny handling and redirect sites.
+- `rg -n -S "ignite/join|igniteJoin|grace|breakoutGroupId|IGNITE_GRACE_TTL_SECONDS|igniteGrace" api` ✅ verified grace-session shape and breakout scope wiring.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api test -- groupJoin.test.ts` ⚠️ blocked by existing TypeScript dependency resolution error for `@azure/data-tables` in this container.
+
+### Follow-ups
+
+- Human runtime verification should execute the organizer/joiner matrix and confirm no join-route fallback for grace-only breakout joiners.
+
 ## 2026-02-26 01:15 UTC (Dashboard kebab delete + API group soft delete)
 
 ### Objective

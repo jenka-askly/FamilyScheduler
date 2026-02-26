@@ -1478,7 +1478,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     authLog({ stage: 'gate_join_request', groupId });
     void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, traceId }) })
       .then(async (response) => {
-        const data = await response.json() as { ok?: boolean; error?: AuthError };
+        const data = await response.json() as { ok?: boolean; error?: AuthError; sessionId?: string };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
         authLog({ stage: 'gate_join_result', ok: response.ok && !!data.ok, error: responseError ?? null });
         if (!response.ok || !data.ok) {
@@ -1491,6 +1491,12 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
           return;
         }
         if (canceled) return;
+        if (typeof data.sessionId === 'string' && data.sessionId.trim()) {
+          window.localStorage.setItem('fs.sessionId', data.sessionId.trim());
+          window.localStorage.removeItem('fs.igniteGraceSessionId');
+          window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
+          authDebug('gate_session_upgraded', { groupId, sessionIdPrefix: data.sessionId.slice(0, 8) });
+        }
         setAuthStatus('allowed');
       })
       .catch(() => {
