@@ -4113,3 +4113,23 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web build`
 2. `rg -n "Gather\. Decide\. Move\.|Try it now|Sign in with your email" apps/web/src/components/ProductHomePage.tsx`
+
+## 2026-02-26 03:38 UTC update (Ignite diagnostic button always visible + full JSON copy output)
+
+- Updated Ignite organizer diagnostic trigger to be always visible (removed non-production guard) and renamed it to `🔎 Anonymous Join Diagnostic`.
+- Kept existing Ignite flow unchanged while tightening diagnostic wording/output:
+  - no-session error now reports `ERROR: No ignite sessionId available.`
+  - output object variable renamed to `result` before JSON serialization.
+- Expanded diagnostic output text area to `minRows={18}` for easier full-result copy.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (manually stopped after screenshot capture)
+3. Playwright screenshot capture: `browser:/tmp/codex_browser_invocations/1b32b90eab81a147/artifacts/artifacts/ignite-organizer-diagnostic-button.png` ✅
