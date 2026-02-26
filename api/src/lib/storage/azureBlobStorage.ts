@@ -1,5 +1,4 @@
-import { DefaultAzureCredential } from '@azure/identity';
-import { BlobServiceClient } from '@azure/storage-blob';
+import { getBlobServiceClient } from './blobClients.js';
 import { createEmptyAppState, normalizeAppState, type AppState } from '../state.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from './storage.js';
 
@@ -40,9 +39,11 @@ export class AzureBlobStorage implements StorageAdapter {
   private readonly containerClient;
   private readonly stateBlobPrefix: string;
 
-  constructor(options: { accountUrl: string; containerName: string; stateBlobPrefix?: string }) {
-    const credential = new DefaultAzureCredential();
-    const serviceClient = new BlobServiceClient(options.accountUrl, credential);
+  constructor(options: { connectionString?: string; accountUrl?: string; containerName: string; stateBlobPrefix?: string }) {
+    const serviceClient = getBlobServiceClient({
+      connectionString: options.connectionString,
+      accountUrl: options.accountUrl
+    });
     this.containerClient = serviceClient.getContainerClient(options.containerName);
     this.stateBlobPrefix = options.stateBlobPrefix ?? DEFAULT_STATE_BLOB_PREFIX;
   }

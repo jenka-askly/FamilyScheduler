@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DefaultAzureCredential } from '@azure/identity';
-import { BlobServiceClient } from '@azure/storage-blob';
+import { getContainerClient } from '../storage/blobClients.js';
 
 export const EVENTS_DIR = 'events';
 export const EVENTS_CHUNK_SIZE = 200;
@@ -49,8 +48,9 @@ const streamToText = async (readable: NodeJS.ReadableStream): Promise<string> =>
 };
 
 const env = () => ({
+  connectionString: process.env.AzureWebJobsStorage?.trim() || '',
   accountUrl: process.env.AZURE_STORAGE_ACCOUNT_URL?.trim() || '',
-  containerName: process.env.AZURE_STORAGE_CONTAINER?.trim() || '',
+  containerName: (process.env.AZURE_STORAGE_CONTAINER ?? process.env.STATE_CONTAINER)?.trim() || '',
   stateBlobPrefix: process.env.STATE_BLOB_PREFIX?.trim() || DEFAULT_STATE_BLOB_PREFIX
 });
 
@@ -59,8 +59,11 @@ const eventsPrefix = (groupId: string, appointmentId: string): string => `${env(
 
 const createContainerClient = () => {
   const cfg = env();
-  if (!cfg.accountUrl || !cfg.containerName) throw new Error('Missing Azure Blob config for appointment events');
-  return new BlobServiceClient(cfg.accountUrl, new DefaultAzureCredential()).getContainerClient(cfg.containerName);
+  return getContainerClient({
+    connectionString: cfg.connectionString,
+    accountUrl: cfg.accountUrl,
+    containerName: cfg.containerName
+  });
 };
 
 const isHttpStatus = (error: unknown, statuses: number[]): boolean => {

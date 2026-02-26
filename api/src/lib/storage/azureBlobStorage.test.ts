@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatIfMatch, normalizeEtag } from './azureBlobStorage.js';
+import { AzureBlobStorage, formatIfMatch, normalizeEtag } from './azureBlobStorage.js';
 
 test('normalizeEtag strips weak prefix and quotes', () => {
   assert.equal(normalizeEtag('W/"abc"'), 'abc');
@@ -15,4 +15,12 @@ test('formatIfMatch enforces quoted etag', () => {
   assert.equal(formatIfMatch('W/"abc"'), '"abc"');
   assert.equal(formatIfMatch('*'), '*');
   assert.throws(() => formatIfMatch(''), /expectedEtag/i);
+});
+
+
+test('AzureBlobStorage constructor requires connection string or account URL', () => {
+  assert.throws(
+    () => new AzureBlobStorage({ containerName: 'state' }),
+    /Missing blob config: set AzureWebJobsStorage or \*_ACCOUNT_URL/
+  );
 });

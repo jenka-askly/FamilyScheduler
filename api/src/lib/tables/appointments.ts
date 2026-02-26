@@ -1,6 +1,5 @@
 import { createStorageAdapter } from '../storage/storageFactory.js';
-import { DefaultAzureCredential } from '@azure/identity';
-import { BlobServiceClient } from '@azure/storage-blob';
+import { getContainerClient } from '../storage/blobClients.js';
 
 const streamToText = async (readable: NodeJS.ReadableStream): Promise<string> => {
   const chunks: Buffer[] = [];
@@ -11,11 +10,11 @@ const streamToText = async (readable: NodeJS.ReadableStream): Promise<string> =>
 const prefix = (): string => process.env.STATE_BLOB_PREFIX?.trim() || 'familyscheduler/groups';
 
 const getBlobClient = (groupId: string, appointmentId: string) => {
+  const connectionString = process.env.AzureWebJobsStorage?.trim() || '';
   const accountUrl = process.env.AZURE_STORAGE_ACCOUNT_URL?.trim() || '';
-  const containerName = process.env.AZURE_STORAGE_CONTAINER?.trim() || '';
-  if (!accountUrl || !containerName) throw new Error('Missing Azure Blob config for appointment access');
-  const service = new BlobServiceClient(accountUrl, new DefaultAzureCredential());
-  return service.getContainerClient(containerName).getBlockBlobClient(appointmentJsonBlobPath(groupId, appointmentId));
+  const containerName = (process.env.AZURE_STORAGE_CONTAINER ?? process.env.STATE_CONTAINER)?.trim() || '';
+  const containerClient = getContainerClient({ connectionString, accountUrl, containerName });
+  return containerClient.getBlockBlobClient(appointmentJsonBlobPath(groupId, appointmentId));
 };
 
 export const appointmentJsonBlobPath = (groupId: string, appointmentId: string): string => `${prefix()}/${groupId}/appointments/${appointmentId}/appointment.json`;

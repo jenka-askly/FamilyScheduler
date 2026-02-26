@@ -1,3 +1,31 @@
+## 2026-02-26 22:39 UTC update (Blob client precedence hardening for appointment Drawer/event paths)
+
+- Added shared blob client helpers in `api/src/lib/storage/blobClients.ts` with explicit precedence: `AzureWebJobsStorage` connection string first, `*_ACCOUNT_URL` + `DefaultAzureCredential` fallback second.
+- Updated appointment event log storage (`appointmentEvents`) to resolve container with `AZURE_STORAGE_CONTAINER ?? STATE_CONTAINER` and use shared helper-based client construction.
+- Updated appointment JSON ETag helpers (`tables/appointments`) to use the same precedence and container rule (`AZURE_STORAGE_CONTAINER ?? STATE_CONTAINER`).
+- Updated storage adapter config + Azure blob adapter constructor to prefer `AzureWebJobsStorage`, then fallback to `STORAGE_ACCOUNT_URL`, while keeping `STATE_CONTAINER` as required.
+- Container selection rules (current):
+  - appointment modules (`appointmentEvents`, `tables/appointments`): `AZURE_STORAGE_CONTAINER ?? STATE_CONTAINER`
+  - storage adapter (`storageFactory`/`AzureBlobStorage`): `STATE_CONTAINER`
+- This change is intended to prevent Drawer/appointment detail failures when only `AzureWebJobsStorage` + `STATE_CONTAINER` are set.
+
+### Files changed
+
+- `api/src/lib/storage/blobClients.ts`
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/lib/tables/appointments.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/lib/storage/azureBlobStorage.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build` (blocked in this container by pre-existing missing `@azure/data-tables` type dependency)
+2. `pnpm --filter @familyscheduler/api test -- azureBlobStorage.test.ts` (blocked for same reason because test script builds first)
+
+
 ## 2026-02-26 04:23 UTC update (scan capture modal readiness + busy/error visibility)
 
 - Hardened scan capture UX in `AppShell` so Capture is disabled until camera dimensions are non-zero and the modal shows `Camera warming up…` while waiting for readiness.
