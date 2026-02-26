@@ -11172,3 +11172,36 @@ Fix first-run joiner redirect race where app/ignite routes could bounce to login
 - Human validation requested for phone first-run flow:
   - QR scan/join should route directly into `/#/g/<breakoutGroupId>/app` without login redirect.
   - Organizer ignite/session-1 start should succeed first try.
+
+## 2026-02-26 06:20 UTC (remove temporary Copy Debug/joiner session dump instrumentation)
+
+### Objective
+Remove temporary debug UI + helper instrumentation introduced for joiner/ignite/gate diagnostics while preserving the real functional fixes (durable session upgrade and grace handling behavior).
+
+### Approach
+- Located all debug symbols in `apps/web/src` and verified they were concentrated in `apps/web/src/App.tsx`.
+- Removed temporary debug helper/functions from `App.tsx`:
+  - `collectClientSessionSnapshot(...)`
+  - `dumpSessionSnapshot(...)`
+  - `CopyDebugPanel`
+- Removed debug-only state/effects/UI usage from:
+  - `JoinGroupPage`
+  - `IgniteJoinPage`
+  - `GroupAuthGate`
+- Left existing `authDebug`/`authLog` and functional auth/session routing logic untouched.
+- Updated `PROJECT_STATUS.md` to mark the temporary debug UI as removed/completed.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "Copy Debug|CopyDebugPanel|collectClientSessionSnapshot|JOINER_SESSION_DUMP|dumpSessionSnapshot|Anonymous Join Diagnostic|runAnonymousDiagnostic|rawPostNoSession|rawProbe|apiBase\s*=|igniteJoinUrl|groupJoinUrl|diagOpen|diagRunning|diagOutput|AUTH_DEBUG.*Copy" apps/web/src` ✅ (before removal: matches in `App.tsx`)
+- `pnpm -C apps/web lint` ❌ environment command form unsupported in this workspace (`ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`)
+- `pnpm -w run lint` ✅ (`no lint yet`)
+- `pnpm --filter @familyscheduler/web build` ✅
+- `rg -n -S "Copy Debug|CopyDebugPanel|collectClientSessionSnapshot|JOINER_SESSION_DUMP|dumpSessionSnapshot|Anonymous Join Diagnostic|runAnonymousDiagnostic|rawPostNoSession|rawProbe" apps/web/src || true` ✅ (no matches)
+
+### Follow-ups
+- No further action required for temporary debug UI; investigation instrumentation has been fully removed.

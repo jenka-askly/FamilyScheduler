@@ -82,115 +82,6 @@ function authDebug(event: string, data?: unknown) {
     // Ignore logging failures.
   }
 }
-function collectClientSessionSnapshot(extra?: Record<string, unknown>) {
-  try {
-    return {
-      ts: new Date().toISOString(),
-      href: window.location.href,
-      hash: window.location.hash,
-      pathname: window.location.pathname,
-      referrer: document.referrer,
-      historyLen: window.history.length,
-      derived: {
-        getSessionId: getSessionId() ?? null,
-        getAuthSessionId: getAuthSessionId() ?? null,
-      },
-      localStorage: {
-        fs_sessionId: localStorage.getItem('fs.sessionId'),
-        fs_igniteGraceSessionId: localStorage.getItem('fs.igniteGraceSessionId'),
-        fs_igniteGraceExpiresAtUtc: localStorage.getItem('fs.igniteGraceExpiresAtUtc'),
-        fs_sessionEmail: localStorage.getItem('fs.sessionEmail'),
-        fs_sessionName: localStorage.getItem('fs.sessionName'),
-        fs_lastGroupId: localStorage.getItem('fs.lastGroupId'),
-        familyscheduler_session: localStorage.getItem('familyscheduler.session'),
-      },
-      sessionStorage: {
-        familyscheduler_session: sessionStorage.getItem('familyscheduler.session'),
-        fs_pendingAuth: sessionStorage.getItem('fs.pendingAuth'),
-      },
-      readSession: readSession(),
-      ...extra,
-    };
-  } catch {
-    return { ts: new Date().toISOString(), error: 'snapshot_failed', ...extra };
-  }
-}
-function dumpSessionSnapshot(event: string, extra?: Record<string, unknown>) {
-  try {
-    console.debug('[JOINER_SESSION_DUMP]', {
-      event,
-      ts: new Date().toISOString(),
-      href: window.location.href,
-      hash: window.location.hash,
-      pathname: window.location.pathname,
-      referrer: document.referrer,
-      historyLen: window.history.length,
-      getSessionId: getSessionId() ?? null,
-      getAuthSessionId: getAuthSessionId() ?? null,
-      readSession: readSession(),
-      localStorage: {
-        fs_sessionId: window.localStorage.getItem('fs.sessionId'),
-        fs_igniteGraceSessionId: window.localStorage.getItem('fs.igniteGraceSessionId'),
-        fs_igniteGraceExpiresAtUtc: window.localStorage.getItem('fs.igniteGraceExpiresAtUtc'),
-        fs_sessionEmail: window.localStorage.getItem('fs.sessionEmail'),
-        fs_sessionName: window.localStorage.getItem('fs.sessionName'),
-        familyscheduler_session: window.localStorage.getItem('familyscheduler.session'),
-        fs_lastGroupId: window.localStorage.getItem('fs.lastGroupId')
-      },
-      sessionStorage: {
-        familyscheduler_session: window.sessionStorage.getItem('familyscheduler.session'),
-        fs_pendingAuth: window.sessionStorage.getItem('fs.pendingAuth')
-      },
-      ...extra
-    });
-  } catch {
-    // ignore
-  }
-}
-
-function CopyDebugPanel({ title, payload }: { title: string; payload: unknown }) {
-  const [open, setOpen] = useState(false);
-  const text = useMemo(() => JSON.stringify(payload, null, 2), [payload]);
-
-  return (
-    <>
-      <Button
-        variant="contained"
-        size="small"
-        onClick={() => setOpen(true)}
-        sx={{
-          position: 'fixed',
-          right: 12,
-          bottom: 12,
-          zIndex: 9999,
-          borderRadius: 999,
-          textTransform: 'none'
-        }}
-      >
-        Copy Debug
-      </Button>
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Debug JSON (copy/paste)"
-              multiline
-              minRows={18}
-              value={text}
-              fullWidth
-              InputProps={{ readOnly: true }}
-            />
-            <Stack direction="row" spacing={1}>
-              <Button variant="outlined" onClick={() => navigator.clipboard.writeText(text)}>Copy to Clipboard</Button>
-              <Button variant="text" onClick={() => setOpen(false)}>Close</Button>
-            </Stack>
-          </Stack>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -536,7 +427,6 @@ function CreateGroupPage() {
 
 function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
   const [email, setEmail] = useState('');
-  const [debugJoinGroup, setDebugJoinGroup] = useState<any>(() => collectClientSessionSnapshot({ page: 'JoinGroupPage', groupId, routeError: routeError ?? null, traceId: traceId ?? null }));
   const [formError, setFormError] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [groupName, setGroupName] = useState<string | undefined>(undefined);
@@ -550,14 +440,6 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
 
   useEffect(() => {
     authLog({ stage: 'join_page_loaded', groupId, err: routeError ?? null, traceId: traceId ?? null });
-  }, [groupId, routeError, traceId]);
-
-  useEffect(() => {
-    dumpSessionSnapshot('join_group_page_mount', { groupId, routeError, traceId });
-  }, [groupId, routeError, traceId]);
-
-  useEffect(() => {
-    setDebugJoinGroup(collectClientSessionSnapshot({ page: 'JoinGroupPage', stage: 'mount', groupId, routeError: routeError ?? null, traceId: traceId ?? null }));
   }, [groupId, routeError, traceId]);
 
   useEffect(() => {
@@ -601,20 +483,11 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   };
 
   const closeJoinDialog = () => {
-    setDebugJoinGroup(collectClientSessionSnapshot({ page: 'JoinGroupPage', stage: 'close_clicked', groupId, routeError: routeError ?? null, traceId: traceId ?? null }));
     const sameOriginReferrer = document.referrer.startsWith(window.location.origin);
-    dumpSessionSnapshot('join_group_close_clicked', {
-      decisionInputs: {
-        historyLen: window.history.length,
-        sameOriginReferrer
-      }
-    });
     if (window.history.length > 1 && sameOriginReferrer) {
-      dumpSessionSnapshot('join_group_close_action', { action: 'history.back' });
       window.history.back();
       return;
     }
-    dumpSessionSnapshot('join_group_close_action', { action: "nav('/' replace)" });
     nav('/', { replace: true });
   };
 
@@ -659,7 +532,6 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
         </Stack>
       </Box>
       <FooterHelp />
-      <CopyDebugPanel title="Debug — Join Group" payload={debugJoinGroup} />
     </Page>
   );
 }
@@ -1449,7 +1321,6 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
-  const [debugState, setDebugState] = useState<any>(() => collectClientSessionSnapshot({ page: 'IgniteJoinPage', groupId, sessionIdPrefix: sessionId.slice(0, 8) }));
   const joinPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const onPhotoSelected = async (input: HTMLInputElement) => {
@@ -1477,13 +1348,11 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   };
 
   const join = async (payload: { name?: string; email?: string; photoBase64?: string }) => {
-    setDebugState(collectClientSessionSnapshot({ page: 'IgniteJoinPage', stage: 'ignite_join_start', groupId, sessionIdPrefix: sessionId.slice(0, 8), payload: { hasName: !!payload.name, hasEmail: !!payload.email, hasPhoto: !!payload.photoBase64 } }));
     setError(null);
     setJoining(true);
     try {
       const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
       const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string };
-      setDebugState(collectClientSessionSnapshot({ page: 'IgniteJoinPage', stage: 'ignite_join_result', httpOk: response.ok, data }));
       if (!response.ok || !data.ok) {
         if ((data.code ?? data.error) === 'IGNITE_CLOSED') {
           setError('This session is closed.');
@@ -1513,7 +1382,6 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       if (joinedEmail) {
         window.localStorage.setItem('fs.sessionEmail', joinedEmail);
       }
-      setDebugState(collectClientSessionSnapshot({ page: 'IgniteJoinPage', stage: 'ignite_join_after_storage', breakoutGroupId: data.breakoutGroupId ?? null }));
       writeSession({ groupId: targetGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
       nav(`/g/${targetGroupId}/app`);
     } catch {
@@ -1547,7 +1415,6 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
           {error ? <Alert severity="error">{error}</Alert> : null}
         </Stack>
         <FooterHelp />
-        <CopyDebugPanel title="Debug — Ignite Join" payload={debugState} />
       </Page>
     );
   }
@@ -1581,7 +1448,6 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
         {error ? <Alert severity="error">{error}</Alert> : null}
       </Stack>
       <FooterHelp />
-      <CopyDebugPanel title="Debug — Ignite Join" payload={debugState} />
     </Page>
   );
 }
@@ -1591,7 +1457,6 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
   const [authError, setAuthError] = useState<AuthError | undefined>();
   const [traceId] = useState(() => createTraceId());
   const [email, setEmail] = useState<string | null>(null);
-  const [debugGate, setDebugGate] = useState<any>(() => collectClientSessionSnapshot({ page: 'GroupAuthGate', stage: 'init', groupId }));
 
   useEffect(() => {
     let canceled = false;
@@ -1621,7 +1486,6 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     const cachedEmail = window.localStorage.getItem('fs.sessionEmail');
     setEmail(cachedEmail ? sanitizeSessionEmail(cachedEmail) : null);
     authLog({ stage: 'gate_join_request', groupId });
-    setDebugGate(collectClientSessionSnapshot({ page: 'GroupAuthGate', stage: 'group_join_start', groupId, traceId }));
     void apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, traceId }) })
       .then(async (response) => {
         const data = await response.json() as {
@@ -1633,14 +1497,12 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
           groupName?: string;
         };
         const responseError = !response.ok || !data.ok ? (data?.error === 'group_not_found' ? 'group_not_found' : data?.error === 'not_allowed' ? 'not_allowed' : 'join_failed') : undefined;
-        setDebugGate(collectClientSessionSnapshot({ page: 'GroupAuthGate', stage: 'group_join_result', groupId, traceId, httpOk: response.ok, data }));
         authLog({ stage: 'gate_join_result', ok: response.ok && !!data.ok, error: responseError ?? null });
         if (!response.ok || !data.ok) {
           if (canceled) return;
           const deniedError = responseError ?? 'join_failed';
           setAuthStatus('denied');
           setAuthError(deniedError);
-          setDebugGate(collectClientSessionSnapshot({ page: 'GroupAuthGate', stage: 'redirect_to_join', groupId, traceId, deniedError: responseError ?? 'join_failed' }));
           authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'not_allowed' });
           nav(toJoinRoute(groupId, deniedError, traceId), { replace: true });
           return;
@@ -1677,7 +1539,6 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
           <Typography>{authStatus === 'checking' ? 'Checking access...' : 'Please wait while we route you to the join flow.'}</Typography>
         </Stack>
         <FooterHelp />
-        <CopyDebugPanel title="Debug — Group Auth Gate" payload={debugGate} />
       </Page>
     );
   }
