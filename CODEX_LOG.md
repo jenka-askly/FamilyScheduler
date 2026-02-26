@@ -11016,3 +11016,28 @@ Delete the unrestricted Anonymous Join Diagnostic controls/dialog/helpers from `
 
 ### Follow-ups
 - No additional follow-up required for this cleanup task.
+
+
+## 2026-02-26 04:52 UTC (DashboardHomePage: remove filters and row status chips)
+
+### Objective
+Implement the UI-only dashboard simplification by removing filter chips and per-row status badges while preserving invited vs active row behavior and existing dashboard states.
+
+### Approach
+- Removed `filter` state and related filter `Chip` controls from `DashboardHomePage`.
+- Simplified `groups` memoization to directly return `dashboard?.groups ?? []`.
+- Removed per-row status `Chip` rendering.
+- Left `const invited = group.myStatus === 'invited';` in place only for branching between invited action buttons vs active row menu/navigation affordances.
+
+### Files changed
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck`
+- `pnpm --filter @familyscheduler/web build`
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`
+
+### Follow-ups
+- None.
