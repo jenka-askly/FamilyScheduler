@@ -4,7 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -58,7 +57,6 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupsError, setGroupsError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'invited'>('all');
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [menuGroup, setMenuGroup] = useState<DashboardGroup | null>(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<DashboardGroup | null>(null);
@@ -119,11 +117,7 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
     }
   };
 
-  const groups = useMemo(() => {
-    const all = dashboard?.groups ?? [];
-    if (filter === 'all') return all;
-    return all.filter((group) => group.myStatus === filter);
-  }, [dashboard?.groups, filter]);
+  const groups = useMemo(() => dashboard?.groups ?? [], [dashboard?.groups]);
 
   const handleAccept = async (groupId: string) => {
     await apiFetch('/api/group/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId }) });
@@ -188,12 +182,6 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         >
           YOUR GROUPS
         </Typography>
-        <Stack direction="row" spacing={1} sx={{ mb: 1.25 }}>
-          <Chip size="small" clickable label="All" color={filter === 'all' ? 'primary' : 'default'} onClick={() => setFilter('all')} />
-          <Chip size="small" clickable label="Active" color={filter === 'active' ? 'success' : 'default'} onClick={() => setFilter('active')} />
-          <Chip size="small" clickable label="Invited" color={filter === 'invited' ? 'warning' : 'default'} onClick={() => setFilter('invited')} />
-        </Stack>
-
         {loadingGroups ? <Typography color="text.secondary">Loading…</Typography> : null}
         {groupsError ? <Typography color="error" variant="body2">{groupsError}</Typography> : null}
         {!loadingGroups && !groupsError && groups.length > 0 ? (
@@ -211,7 +199,6 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
                     )}
                   />
                   <Stack direction="row" spacing={1} alignItems="center" onClick={(event) => event.stopPropagation()}>
-                    <Chip size="small" label={invited ? 'Invited' : 'Active'} color={invited ? 'warning' : 'success'} />
                     {invited ? (
                       <>
                         <Button variant="contained" size="small" onClick={(event) => { event.stopPropagation(); void handleAccept(group.groupId); }}>Accept</Button>

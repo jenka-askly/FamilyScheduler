@@ -4237,6 +4237,17 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web build` ✅
 2. `pnpm --filter @familyscheduler/web lint` ⚠️ no lint script exists in selected package.
 
+
+## 2026-02-26 04:52 UTC update (Dashboard groups list simplification: remove filters + status badges)
+
+- Removed dashboard group list filter state and chip controls (`All / Active / Invited`) from `DashboardHomePage`; list now always renders all groups returned by `/api/me/dashboard` in existing order.
+- Removed per-row status badge chip (`Invited` / `Active`) from group rows.
+- Preserved invite-vs-active behavior branching: invited rows still render `Accept` + `Decline` and remain non-navigable; active rows still navigate on row click and show menu + chevron.
+- Kept loading/error/empty states unchanged.
+
+### Files changed
+
+- `apps/web/src/components/DashboardHomePage.tsx`
 ## 2026-02-26 04:50 UTC update (logout clears all client session remnants)
 
 - Updated `signOut` in `apps/web/src/App.tsx` to fully clear session remnants for `familyscheduler.session` in both storages.
@@ -4252,6 +4263,8 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck`
+2. `pnpm --filter @familyscheduler/web build`
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for manual/browser screenshot validation)
 2. Manual browser verification pending human run (DevTools Application tab):
    - `localStorage['fs.sessionId']` removed after Sign out
    - `sessionStorage['familyscheduler.session']` removed after Sign out

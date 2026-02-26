@@ -11017,6 +11017,20 @@ Delete the unrestricted Anonymous Join Diagnostic controls/dialog/helpers from `
 ### Follow-ups
 - No additional follow-up required for this cleanup task.
 
+
+## 2026-02-26 04:52 UTC (DashboardHomePage: remove filters and row status chips)
+
+### Objective
+Implement the UI-only dashboard simplification by removing filter chips and per-row status badges while preserving invited vs active row behavior and existing dashboard states.
+
+### Approach
+- Removed `filter` state and related filter `Chip` controls from `DashboardHomePage`.
+- Simplified `groups` memoization to directly return `dashboard?.groups ?? []`.
+- Removed per-row status `Chip` rendering.
+- Left `const invited = group.myStatus === 'invited';` in place only for branching between invited action buttons vs active row menu/navigation affordances.
+
+### Files changed
+- `apps/web/src/components/DashboardHomePage.tsx`
 ## 2026-02-26 04:50 UTC (logout storage remnant cleanup)
 
 ### Objective
@@ -11035,6 +11049,12 @@ Ensure sign-out fully clears all client session remnants, specifically `familysc
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck`
+- `pnpm --filter @familyscheduler/web build`
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173`
+
+### Follow-ups
+- None.
 - `rg -n -S "const SESSION_KEY = 'familyscheduler\\.session'|function clearSession\\(|const signOut = \\(\\) =>" apps/web/src/App.tsx` ✅ located relevant declarations/handler.
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 - `git diff -- apps/web/src/App.tsx` ✅ confirmed minimal logout-only code diff.
