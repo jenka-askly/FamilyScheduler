@@ -10481,3 +10481,29 @@ Unify breakout behavior so every entrypoint lands on Organizer Ignite (`/#/g/:ne
 
 ### Follow-ups
 - Human-run E2E verification for both breakout entrypoints and QR joiner grace flow in a live browser/API session.
+
+## 2026-02-26 01:05 UTC
+
+### Objective
+Fix regression where Ignite organizer `Finish inviting & continue` routed to the join route instead of the app route.
+
+### Approach
+- Located `finishInvitingAndContinue` in `apps/web/src/App.tsx`.
+- Updated post-close navigation from `/g/${groupId}` to `/g/${groupId}/app`.
+- Added a guard comment documenting why `/app` is required to avoid join-route gate redirects.
+- Updated `PROJECT_STATUS.md` with root cause, fix, and verification notes.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -name AGENTS.md -print` ✅ no additional AGENTS.md discovered in container scan output.
+- `rg -n -S "finishInvitingAndContinue\(|Finish inviting|continue\b" apps/web/src/App.tsx` ✅ located organizer continue UI and function references.
+- `nl -ba apps/web/src/App.tsx | sed -n '1165,1210p'` ✅ confirmed the exact function body and route target before patching.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed after route correction.
+- `rg -n -S "finishInvitingAndContinue|/g/\$\{groupId\}/app|/g/\$\{groupId\}`" apps/web/src/App.tsx` ✅ verified updated organizer route target.
+
+### Follow-ups
+- Human-run browser verification should confirm organizer continue flow lands directly on `/#/g/<groupId>/app` with no Join dialog detour.
