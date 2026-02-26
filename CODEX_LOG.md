@@ -1,3 +1,46 @@
+## 2026-02-26 01:15 UTC (Dashboard kebab delete + API group soft delete)
+
+### Objective
+
+Implement active-group deletion from dashboard via kebab menu with confirmation, backed by a new idempotent Tables soft-delete API route that does not remove blob state.
+
+### Approach
+
+- Inspected dashboard row rendering and existing load/error flow in `DashboardHomePage`.
+- Added per-row active-group kebab action menu (`MoreVert`) with click propagation suppression to prevent row navigation.
+- Added destructive `Delete` menu action + confirmation dialog and in-flight loading state.
+- Added small web helper `deleteGroup(groupId)` to centralize `/api/group/delete` POST call and error shaping with trace IDs.
+- Implemented API handler `groupDelete` using existing auth/session/trace conventions:
+  - validates input
+  - requires active membership (matching `groupRename` auth model)
+  - soft deletes Tables `Groups` row (`isDeleted`, `deletedAt`, `deletedByUserKey`, `purgeAfterAt`, `updatedAt`)
+  - idempotently returns success when already deleted
+  - does not touch blobs.
+- Registered route in Azure Functions index at `POST group/delete`.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/lib/groupApi.ts`
+- `api/src/functions/groupDelete.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r build` ⚠️ failed due pre-existing API compile env/dependency issue (`@azure/data-tables` type/module resolution missing in container).
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture.
+- Browser tool Playwright capture ⚠️ failed because Chromium crashed on launch with `SIGSEGV` in container (`BrowserType.launch: TargetClosedError`).
+- `Ctrl+C` on dev server ⚠️ expected SIGINT termination.
+
+### Follow-ups
+
+- Human verification should run full delete flow against a working local API+Tables environment to validate persistence/idempotency/storage effects end-to-end.
+
+
 ## 2026-02-25 08:35 UTC (Add dashboard nav button in header + match homepage product-label theme)
 
 ### Objective
