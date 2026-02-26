@@ -10834,3 +10834,32 @@ Make the Ignite organizer anonymous diagnostic entrypoint always visible and ens
 
 ### Follow-ups
 - Human run through on a live ignite session should verify the diagnostic dialog produces expected `stepA_igniteJoin`/`stepB_groupJoin` payloads for a real session.
+
+## 2026-02-26 03:48 UTC (Fix anonymous diagnostic to bypass SWA `/api` proxy 405)
+
+### Objective
+Route Ignite organizer anonymous diagnostic calls directly to Functions hosts so StepA `/api/ignite/join` avoids SWA proxy method issues, and add method diagnostics (`Allow` + probes) when 405 occurs.
+
+### Approach
+- Scoped changes to `IgniteOrganizerPage` diagnostic helpers only in `apps/web/src/App.tsx`.
+- Added `apiBase` host selection for staging/prod SWA hostnames with staging default fallback.
+- Updated `rawPostNoSession` to accept full URL and capture `allow` header.
+- Added `rawProbe` helper (`OPTIONS` + `GET`) for ignite join endpoint.
+- Updated `runAnonymousDiagnostic` to:
+  - call StepA at `${apiBase}/api/ignite/join`,
+  - call StepB at `${apiBase}/api/group/join`,
+  - capture `allow` header on StepB,
+  - include `apiBase`, resolved URLs, and probe results in final JSON output.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "Anonymous Join Diagnostic|Anonymous Join Probe|runAnonymousDiagnostic|rawPostNoSession\\(" apps/web/src/App.tsx` ✅
+- `sed -n '660,1180p' apps/web/src/App.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+- Human staging/dogfood run should confirm StepA is no longer blocked by SWA 405 and that diagnostic JSON includes `probeIgniteOptions/probeIgniteGet` plus `stepA_igniteJoin.allow` / `stepB_groupJoin.allow` when relevant.
