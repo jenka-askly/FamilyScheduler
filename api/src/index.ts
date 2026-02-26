@@ -10,6 +10,7 @@ import { groupJoin } from './functions/groupJoin.js';
 import { groupJoinLink } from './functions/groupJoinLink.js';
 import { groupMeta } from './functions/groupMeta.js';
 import { groupRename } from './functions/groupRename.js';
+import { groupDelete } from './functions/groupDelete.js';
 import { usage } from './functions/usage.js';
 import { scanAppointment } from './functions/scanAppointment.js';
 import { appointmentScanImage } from './functions/appointmentScanImage.js';
@@ -37,7 +38,7 @@ const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupDeclineInvite', 'groupMeta', 'groupRename', 'meGroups', 'meDashboard', 'chat', 'direct', 'diagnoseOpenAi', 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupDeclineInvite', 'groupMeta', 'groupRename', 'groupDelete', 'meGroups', 'meDashboard', 'chat', 'direct', 'diagnoseOpenAi', 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoMeta', 'userProfilePhotoGet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -89,6 +90,7 @@ registerHttp('groupJoinLink', 'group/join-link', ['POST'], groupJoinLink);
 registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
 
 registerHttp('groupRename', 'group/rename', ['POST'], groupRename);
+registerHttp('groupDelete', 'group/delete', ['POST'], groupDelete);
 registerHttp('meGroups', 'me/groups', ['GET'], meGroups);
 registerHttp('meDashboard', 'me/dashboard', ['GET'], meDashboard);
 registerHttp('groupDeclineInvite', 'group/decline', ['POST'], groupDeclineInvite);

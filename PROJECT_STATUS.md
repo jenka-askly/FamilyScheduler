@@ -1,3 +1,31 @@
+## 2026-02-26 01:15 UTC update (Group soft delete + dashboard delete action)
+
+- Added dashboard active-row kebab menu (`⋮`) with a destructive **Delete** action and confirmation dialog (`Delete “{groupName}”?`) before mutation.
+- Delete request now calls new API route `POST /api/group/delete`, shows inline error text on failure (including trace when provided), disables dialog actions while deleting, and reloads `/api/me/dashboard` on success.
+- Invited rows keep existing Accept/Decline controls and do not render kebab actions.
+- Added API endpoint `POST /api/group/delete` with Tables-only soft delete behavior:
+  - validates `groupId`
+  - requires authenticated active membership (authorization model matched to `groupRename`)
+  - sets `isDeleted=true`, `deletedAt`, `deletedByUserKey`, `purgeAfterAt`, `updatedAt`
+  - idempotent: already-deleted groups still return `{ ok: true }`
+  - does not delete blob state.
+- Confirmed existing list endpoints already hide deleted groups via `isDeleted` filtering (`me/dashboard`, `me/groups`).
+
+### Files changed
+
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/lib/groupApi.ts`
+- `api/src/functions/groupDelete.ts`
+- `api/src/index.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅
+2. `pnpm -r build` ⚠️ fails in this container for pre-existing API dependency resolution issue: `@azure/data-tables` module/types not found during API TypeScript build.
+3. Playwright screenshot attempt ⚠️ browser process crashed with `SIGSEGV` in container (`BrowserType.launch`), so no artifact could be captured.
+
 ## 2026-02-26 01:05 UTC update (Ignite organizer continue route correction)
 
 - **Bug description:** Organizer `Finish inviting & continue` in Ignite was navigating to `/#/g/:groupId` (join route), which could trigger join gating and show the Join dialog instead of entering the app directly.

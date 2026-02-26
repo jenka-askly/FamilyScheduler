@@ -1,7 +1,30 @@
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { Alert, Box, Button, Chip, Divider, List, ListItem, ListItemButton, ListItemText, Stack, Typography } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Stack,
+  Typography
+} from '@mui/material';
+import { type MouseEvent, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/apiUrl';
+import { deleteGroup } from '../lib/groupApi';
 
 type DashboardHomePageProps = {
   onCreateGroup: () => void;
@@ -36,6 +59,10 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupsError, setGroupsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'invited'>('all');
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [menuGroup, setMenuGroup] = useState<DashboardGroup | null>(null);
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<DashboardGroup | null>(null);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 
   const loadDashboard = async () => {
     setLoadingGroups(true);
@@ -108,6 +135,43 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
     await loadDashboard();
   };
 
+  const handleMenuOpen = (event: MouseEvent<HTMLElement>, group: DashboardGroup) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setGroupsError(null);
+    setMenuAnchorEl(event.currentTarget);
+    setMenuGroup(group);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setMenuGroup(null);
+  };
+
+  const handleDeleteClick = () => {
+    setConfirmDeleteGroup(menuGroup);
+    handleMenuClose();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDeleteGroup || isDeletingGroup) return;
+    setIsDeletingGroup(true);
+    setGroupsError(null);
+    try {
+      const response = await deleteGroup(confirmDeleteGroup.groupId);
+      if (!response.ok) {
+        setGroupsError(response.message ?? 'Unable to delete group right now.');
+        return;
+      }
+      setConfirmDeleteGroup(null);
+      await loadDashboard();
+    } catch {
+      setGroupsError('Unable to delete group right now.');
+    } finally {
+      setIsDeletingGroup(false);
+    }
+  };
+
   return (
     <Stack spacing={{ xs: 3, md: 4 }}>
       {breakoutError ? <Alert severity="error" onClose={() => setBreakoutError(null)}>{breakoutError}</Alert> : null}
@@ -153,7 +217,18 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
                         <Button variant="contained" size="small" onClick={(event) => { event.stopPropagation(); void handleAccept(group.groupId); }}>Accept</Button>
                         <Button variant="outlined" color="warning" size="small" onClick={(event) => { event.stopPropagation(); void handleDecline(group.groupId); }}>Decline</Button>
                       </>
-                    ) : <ChevronRightIcon color="action" fontSize="small" />}
+                    ) : (
+                      <>
+                        <IconButton
+                          size="small"
+                          aria-label={`Open actions for ${group.groupName}`}
+                          onClick={(event) => handleMenuOpen(event, group)}
+                        >
+                          <MoreVertIcon fontSize="small" />
+                        </IconButton>
+                        <ChevronRightIcon color="action" fontSize="small" />
+                      </>
+                    )}
                   </Stack>
                 </>
               );
@@ -197,6 +272,23 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         ) : null}
         {!loadingGroups && !groupsError && groups.length === 0 ? <Typography color="text.secondary">No groups yet.</Typography> : null}
       </Box>
+
+      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={handleMenuClose}>
+        <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Delete</MenuItem>
+      </Menu>
+
+      <Dialog open={Boolean(confirmDeleteGroup)} onClose={() => { if (!isDeletingGroup) setConfirmDeleteGroup(null); }}>
+        <DialogTitle>Delete “{confirmDeleteGroup?.groupName ?? ''}”?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>This cannot be undone.</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteGroup(null)} disabled={isDeletingGroup}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={() => { void handleDeleteConfirm(); }} disabled={isDeletingGroup}>
+            {isDeletingGroup ? <CircularProgress size={16} color="inherit" /> : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
