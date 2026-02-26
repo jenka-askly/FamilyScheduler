@@ -225,7 +225,7 @@ const parseRulesWithOpenAi = async (params: { message: string; mode: 'draft' | '
   const opId = payload.id;
   console.info(JSON.stringify({ traceId: params.traceId, stage: 'chat_rules_openai_result', mode: params.mode, model, opId: opId ?? null }));
   await recordUsageSuccess(payload.usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
-  await recordOpenAiSuccess(userKeyFromEmail(params.email), usageModel(), Number(payload.usage?.input_tokens ?? payload.usage?.prompt_tokens ?? 0), Number(payload.usage?.output_tokens ?? payload.usage?.completion_tokens ?? 0)).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_tables_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
+  await recordOpenAiSuccess(userKeyFromEmail(params.email), usageModel(), Number(payload.usage?.input_tokens ?? payload.usage?.prompt_tokens ?? 0), Number(payload.usage?.output_tokens ?? payload.usage?.completion_tokens ?? 0), params.traceId).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_tables_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   const raw = payload.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI rule parse missing content');
   if (process.env.RULES_DRAFT_DEBUG_RAW === '1') {
@@ -269,7 +269,7 @@ const parseWithOpenAi = async (params: { message: string; state: AppState; sessi
     onModelUsage: (modelUsage) => { usage = modelUsage; }
   });
   await recordUsageSuccess(usage).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_meter_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
-  await recordOpenAiSuccess(userKeyFromEmail(params.email), usageModel(), Number(usage?.input_tokens ?? usage?.prompt_tokens ?? 0), Number(usage?.output_tokens ?? usage?.completion_tokens ?? 0)).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_tables_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
+  await recordOpenAiSuccess(userKeyFromEmail(params.email), usageModel(), Number(usage?.input_tokens ?? usage?.prompt_tokens ?? 0), Number(usage?.output_tokens ?? usage?.completion_tokens ?? 0), params.traceId).catch((error) => console.warn(JSON.stringify({ traceId: params.traceId, stage: 'usage_tables_record_success_failed', message: error instanceof Error ? error.message : String(error) })));
   return { parsed: ParsedModelResponseSchema.parse(rawModel.parsed), opId: rawModel.opId };
 };
 

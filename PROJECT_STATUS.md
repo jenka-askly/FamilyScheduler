@@ -1,3 +1,29 @@
+## 2026-02-26 04:06 UTC update (Azure Table key separator hardening)
+
+- Added shared Azure Table key separator constant `TABLE_KEY_SEP = '|'` and key validator `validateTableKey` to block invalid key chars (`#`, `/`, `\`, `?`, control chars).
+- Updated usage key composition to use `TABLE_KEY_SEP` for `UserDailyUsageByModel` and `DailyUsageByModel` keys.
+- Updated appointment index `rowKeyFromIso` to use `TABLE_KEY_SEP` instead of `#`.
+- Added usage-table key validation guard before table get/update/create operations, with structured warning logs that include `traceId`, `tableName`, and failing key type (`partitionKey` or `rowKey`) without logging full key values.
+- Confirmed `meDashboard` read path still reads `UserDailyUsage` only (unchanged).
+- Added focused tests for table key validation and `rowKeyFromIso` separator semantics.
+
+### Files changed
+
+- `api/src/lib/tables/tableKeys.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/usage/usageTables.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/tables/tableKeys.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build`
+2. `pnpm --filter @familyscheduler/api test`
+3. `rg -n "partitionKey:.*#|rowKey:.*#|PartitionKey.*#|RowKey.*#" api/src -S`
+
+
 ## 2026-02-26 03:50 UTC update (scan appointment diagnostic step-level failure logging)
 
 - Added targeted step-level error diagnostics in `scanAppointment` to isolate which awaited operation fails during capture/store/index/metric writes without logging image payload/base64.

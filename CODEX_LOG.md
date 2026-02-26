@@ -1,3 +1,44 @@
+## 2026-02-26 04:06 UTC (Azure Table key separator hardening)
+
+### Objective
+
+Remove illegal `#` usage from Azure Table PartitionKey/RowKey builders while preserving key semantics, and add hard key validation guards before usage table writes.
+
+### Approach
+
+- Added a new shared table key utility module with:
+  - `TABLE_KEY_SEP = '|'`
+  - `validateTableKey(value)` with Azure-invalid character checks.
+- Replaced usage key composition:
+  - `UserDailyUsageByModel` PK from `${userKey}#${date}` to `${userKey}${TABLE_KEY_SEP}${date}`
+  - `DailyUsageByModel` RK from `${date}#${model}` to `${date}${TABLE_KEY_SEP}${model}`
+- Replaced `rowKeyFromIso` appointment index key separator from `#` to `TABLE_KEY_SEP`.
+- Added `validateCounterKeys` guard in usage writes, called immediately before table get/update/create flow, with structured warning logs on validation failures including only `traceId`, `tableName`, and failing key type (`partitionKey`/`rowKey`).
+- Passed `traceId` from `chat` usage write call sites to improve diagnostics.
+- Added targeted tests for table-key validation and separator behavior.
+- Ran repo sweep for key-specific `#` patterns (`partitionKey/rowKey/PartitionKey/RowKey`).
+
+### Files changed
+
+- `api/src/lib/tables/tableKeys.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/usage/usageTables.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/tables/tableKeys.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "rowKeyFromIso|PartitionKey|RowKey|partitionKey:|rowKey:|#" api/src/lib -S` ✅ located affected key builders.
+- `rg -n "recordOpenAiSuccess|usageTables|UserDailyUsageByModel|rowKeyFromIso" api/src -S` ✅ confirmed callsites and read paths.
+- `rg -n "partitionKey:.*#|rowKey:.*#|PartitionKey.*#|RowKey.*#" api/src -S` ✅ no remaining key-specific `#` usages.
+
+### Follow-ups
+
+- Staging deploy/runtime verification is required by human runner for chat + scanAppointment flows to confirm production logs no longer show key-format write failures.
+
+
 ## 2026-02-26 03:50 UTC (scanAppointment OutOfRangeInput diagnostic instrumentation)
 
 ### Objective
