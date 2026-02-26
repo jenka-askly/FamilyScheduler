@@ -10805,3 +10805,32 @@ Implement requested marketing polish: reduce Y logo dominance in header, convert
 ### Follow-ups
 
 - Optional human visual QA in browser to fine-tune icon baseline by +/-1px if typography rendering differs by platform.
+
+## 2026-02-26 03:38 UTC (Ignite organizer diagnostic visibility + copyable full JSON output)
+
+### Objective
+Make the Ignite organizer anonymous diagnostic entrypoint always visible and ensure full diagnostic JSON is easy to capture/copy, without changing existing ignite logic.
+
+### Approach
+- Inspected `IgniteOrganizerPage` implementation in `apps/web/src/App.tsx` and updated only the existing diagnostic surfaces with minimal diffs.
+- Removed production-only visibility guard for diagnostic button.
+- Updated button label text to requested value and expanded multiline output field height.
+- Kept diagnostic flow intact while matching requested output/error string values.
+- Ran web typecheck and captured a browser screenshot artifact.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ✅
+- `rg -n "function IgniteOrganizerPage|IgniteOrganizerPage" apps/web/src/App.tsx` ✅
+- `sed -n '669,980p' apps/web/src/App.tsx` ✅
+- `rg -n "runAnonymousDiagnostic|Anonymous Join Diagnostic|Diagnostic Output|diagOpen|Finish inviting & continue" apps/web/src/App.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (terminated via SIGINT after screenshot capture)
+- Playwright screenshot: `browser:/tmp/codex_browser_invocations/1b32b90eab81a147/artifacts/artifacts/ignite-organizer-diagnostic-button.png` ✅
+
+### Follow-ups
+- Human run through on a live ignite session should verify the diagnostic dialog produces expected `stepA_igniteJoin`/`stepB_groupJoin` payloads for a real session.

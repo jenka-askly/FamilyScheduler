@@ -1084,7 +1084,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   const runAnonymousDiagnostic = async () => {
     if (!sessionId) {
-      setDiagOutput('ERROR: No ignite sessionId yet.');
+      setDiagOutput('ERROR: No ignite sessionId available.');
       return;
     }
 
@@ -1145,7 +1145,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       };
     }
 
-    const finalOutput = {
+    const result = {
       snapshot,
       stepA_igniteJoin: stepA,
       derived: {
@@ -1155,7 +1155,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       stepB_groupJoin: stepB
     };
 
-    setDiagOutput(JSON.stringify(finalOutput, null, 2));
+    setDiagOutput(JSON.stringify(result, null, 2));
     setDiagRunning(false);
   };
 
@@ -1387,15 +1387,13 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
               <Typography variant="subtitle2">Allow new members to join</Typography>
             </Stack>
             <Button variant="contained" type="button" fullWidth onClick={() => { void finishInvitingAndContinue(); }}>Finish inviting &amp; continue</Button>
-            {import.meta.env.MODE !== 'production' && (
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => setDiagOpen(true)}
-              >
-                Debug: Anonymous Join Diagnostic
-              </Button>
-            )}
+            <Button
+              variant="text"
+              size="small"
+              onClick={() => setDiagOpen(true)}
+            >
+              🔎 Anonymous Join Diagnostic
+            </Button>
           </div>
         </Stack>
       </Stack>
@@ -1424,7 +1422,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
             <TextField
               label="Diagnostic Output (Copy All)"
               multiline
-              minRows={16}
+              minRows={18}
               value={diagOutput}
               fullWidth
               InputProps={{ readOnly: true }}
