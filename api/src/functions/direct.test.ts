@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { direct } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
+import * as appointmentEvents from '../lib/appointments/appointmentEvents.js';
 
 const GROUP_ID = '22222222-2222-4222-8222-222222222222';
 const PHONE = '+14155550123';
@@ -172,4 +173,54 @@ test('resolve_appointment_time returns 502 when AI call fails', async () => {
   assert.equal(saveCalls, 0);
 
   global.fetch = originalFetch;
+});
+
+test('get_appointment_detail returns appointment when events lookup fails', async () => {
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() {
+      const base = state();
+      base.appointments = [{
+        id: 'APPT-1',
+        code: 'A1',
+        title: 'Dentist',
+        date: '2026-03-03',
+        isAllDay: true,
+        people: [],
+        location: '',
+        locationRaw: '',
+        locationDisplay: '',
+        locationMapQuery: '',
+        locationName: '',
+        locationAddress: '',
+        locationDirections: '',
+        notes: ''
+      }];
+      return { state: base, etag: 'etag-1' };
+    },
+    async save() { throw new Error('not used'); }
+  };
+  setStorageAdapterForTests(adapter);
+
+  const original = appointmentEvents.getRecentEvents;
+  Object.defineProperty(appointmentEvents, 'getRecentEvents', {
+    configurable: true,
+    value: async () => { throw new Error('blob unavailable'); }
+  });
+
+  try {
+    const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'get_appointment_detail', appointmentId: 'APPT-1' } }) } as any, context());
+    assert.equal(response.status, 200);
+    assert.equal((response.jsonBody as any).ok, true);
+    assert.equal((response.jsonBody as any).appointment?.id, 'APPT-1');
+    assert.equal((response.jsonBody as any).eventsUnavailable, true);
+    assert.equal((response.jsonBody as any).eventsErrorCode, 'appointment_events_unavailable');
+    assert.equal((response.jsonBody as any).eventsTraceId, (response.jsonBody as any).traceId);
+    assert.deepEqual((response.jsonBody as any).eventsPage, []);
+  } finally {
+    Object.defineProperty(appointmentEvents, 'getRecentEvents', {
+      configurable: true,
+      value: original
+    });
+  }
 });
