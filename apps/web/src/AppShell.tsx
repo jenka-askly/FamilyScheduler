@@ -809,7 +809,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const payload: Record<string, unknown> = { groupId, imageBase64, imageMime, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
       if (appointmentId) payload.appointmentId = appointmentId;
       const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-      const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot };
+      const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot; appointmentId?: string };
       console.info({ event: 'scan_submit_end', status: response.status, traceId: json.traceId ?? null });
       if (!response.ok || json.ok === false) {
         setScanError(`${json.message ?? json.error ?? `Scan request failed (${response.status})`}${json.traceId ? ` (trace: ${json.traceId})` : ''}`);
@@ -817,6 +817,36 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       }
       if (json.snapshot) {
         setSnapshot(json.snapshot);
+      } else if (endpoint === '/api/scanAppointment' && json.appointmentId) {
+        const nowIso = new Date().toISOString();
+        const placeholder: Snapshot['appointments'][number] = {
+          id: json.appointmentId,
+          code: `SCAN-${Date.now()}`,
+          desc: 'Scanning…',
+          updatedAt: nowIso,
+          time: { intent: { status: 'unresolved', originalText: '' } },
+          date: nowIso.slice(0, 10),
+          isAllDay: true,
+          people: [],
+          peopleDisplay: [],
+          location: '',
+          locationRaw: '',
+          locationDisplay: '',
+          locationMapQuery: '',
+          locationName: '',
+          locationAddress: '',
+          locationDirections: '',
+          notes: '',
+          scanStatus: 'pending',
+          scanImageKey: null,
+          scanImageMime: null,
+          scanCapturedAt: nowIso
+        };
+        setSnapshot((prev) => {
+          if (prev.appointments.some((appointment) => appointment.id === placeholder.id)) return prev;
+          return { ...prev, appointments: [placeholder, ...prev.appointments] };
+        });
+        void refreshSnapshot();
       } else {
         await refreshSnapshot();
       }

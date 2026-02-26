@@ -11296,3 +11296,30 @@ Implement persistent organizer profile photos that survive refresh/logout-login,
   1. Capture organizer photo → refresh page → photo remains.
   2. Logout/login → organizer photo remains.
   3. If no server photo exists → default avatar + large camera icon is shown.
+
+## 2026-02-26 06:53 UTC (Immediate pending placeholder after /api/scanAppointment)
+
+### Objective
+Ensure successful new scan submissions show an immediate "Scanning…" appointment and trigger existing pending-scan polling without waiting for backend snapshot propagation.
+
+### Approach
+- Scoped change to `submitScanFile` in `apps/web/src/AppShell.tsx` only (smallest-change path).
+- Extended scan response typing to include optional `appointmentId`.
+- Added new branch for successful `/api/scanAppointment` responses with no `snapshot`:
+  - create typed placeholder appointment (`Snapshot['appointments'][number]`) with `scanStatus: 'pending'` and `desc: 'Scanning…'`
+  - prepend placeholder to snapshot state with id-based dedupe
+  - fire best-effort `refreshSnapshot()` without blocking success flow
+- Kept existing behavior unchanged for rescan endpoint and for responses already containing `snapshot`.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started; stopped after screenshot capture (SIGINT expected on stop).
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/9cfb14e694f4c7ce/artifacts/artifacts/appshell-scan-placeholder.png`.
+
+### Follow-ups
+- Human validation should run the full capture flow against API and confirm immediate list insertion of "Scanning…" and eventual replacement by parsed/failed result.
