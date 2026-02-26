@@ -4477,3 +4477,30 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Constraints tab full functionality remains placeholder (“Coming soon”).
 - Notification/email/ICS actions remain UI placeholder only.
+
+## 2026-02-26 23:05 UTC update (UI-03 title proposal intent + countdown/apply controls)
+
+- Added rule-based title intent detection in `/api/direct` for `append_appointment_message` using patterns:
+  - `update title to ...`
+  - `change title to ...`
+  - `rename to ...`
+- Added pending-title-proposal guard: if latest title `PROPOSAL_CREATED` has not been applied/canceled, backend rejects new proposal with `400 title_proposal_pending`.
+- Proposal event payload now includes structured title diff fields (`from`, `to`, `proposalId`) and response returns proposal details for immediate UI render.
+- Enhanced `apply_appointment_proposal`:
+  - validates active/latest proposal id
+  - writes title to appointment document
+  - appends `FIELD_CHANGED` + `SYSTEM_CONFIRMATION`
+  - re-evaluates reconciliation and appends `RECONCILIATION_CHANGED` + confirmation when status changes
+  - returns `eventsPageHead` in response payload.
+- Added `dismiss_appointment_proposal` direct action and event append path (`PROPOSAL_CANCELED` + `SYSTEM_CONFIRMATION`).
+- Updated Drawer discussion proposal block UX:
+  - 5-second countdown with auto-apply
+  - buttons: Apply Now / Pause / Cancel / Edit
+  - edit modal for deterministic title override before apply
+  - clears pending proposal when matching `FIELD_CHANGED` observed.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. `pnpm --filter @familyscheduler/api build` ⚠️ fails in this environment due missing `@azure/data-tables` module typings.
+3. UI screenshot artifact captured: `browser:/tmp/codex_browser_invocations/1871a372d452efd5/artifacts/artifacts/title-proposal-ui.png`
