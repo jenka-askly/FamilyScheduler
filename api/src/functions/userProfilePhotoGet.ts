@@ -2,9 +2,7 @@ import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azu
 import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
-import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { userProfilePhotoBlobKey } from '../lib/userProfilePhoto.js';
 
 const isBlobNotFound = (error: unknown): boolean => {
@@ -13,14 +11,11 @@ const isBlobNotFound = (error: unknown): boolean => {
 };
 
 export async function userProfilePhotoGet(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const url = new URL(request.url);
-  const traceId = ensureTraceId(url.searchParams.get('traceId'));
-  const groupId = url.searchParams.get('groupId')?.trim() ?? '';
-  if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
+  const traceId = ensureTraceId(new URL(request.url).searchParams.get('traceId'));
 
   let session;
   try {
-    session = await requireSessionFromRequest(request, traceId, { groupId });
+    session = await requireSessionFromRequest(request, traceId);
   } catch (error) {
     if (error instanceof HttpError) return error.response;
     throw error;
@@ -29,30 +24,18 @@ export async function userProfilePhotoGet(request: HttpRequest, _context: Invoca
   const storage = createStorageAdapter();
   if (!storage.getBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing getBinary', traceId);
 
-  let loaded;
   try {
-    loaded = await storage.load(groupId);
+    const blob = await storage.getBinary(userProfilePhotoBlobKey(session.email));
+    return {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=31536000'
+      },
+      body: blob.stream as any
+    };
   } catch (error) {
-    if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+    if (isBlobNotFound(error)) return errorResponse(404, 'profile_photo_not_found', 'Profile photo not found', traceId);
     throw error;
   }
-
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
-  if (!membership.ok) return membership.response;
-
-  const legacyMemberId = membership.member.memberId;
-  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? legacyMemberId;
-  const candidateIds = personId === legacyMemberId ? [personId] : [personId, legacyMemberId];
-
-  for (const candidateId of candidateIds) {
-    try {
-      const blob = await storage.getBinary(userProfilePhotoBlobKey(groupId, candidateId));
-      return { status: 200, headers: { 'Content-Type': blob.contentType, 'Cache-Control': 'private, max-age=300' }, body: blob.stream as any };
-    } catch (error) {
-      if (isBlobNotFound(error)) continue;
-      throw error;
-    }
-  }
-
-  return errorResponse(404, 'profile_photo_not_found', 'Profile photo not found', traceId);
 }

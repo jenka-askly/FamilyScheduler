@@ -2,9 +2,7 @@ import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azu
 import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
-import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { userProfilePhotoMetaBlobKey } from '../lib/userProfilePhoto.js';
 
 const streamToString = async (stream: NodeJS.ReadableStream): Promise<string> => {
@@ -19,14 +17,11 @@ const isBlobNotFound = (error: unknown): boolean => {
 };
 
 export async function userProfilePhotoMeta(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const url = new URL(request.url);
-  const traceId = ensureTraceId(url.searchParams.get('traceId'));
-  const groupId = url.searchParams.get('groupId')?.trim() ?? '';
-  if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
+  const traceId = ensureTraceId(new URL(request.url).searchParams.get('traceId'));
 
   let session;
   try {
-    session = await requireSessionFromRequest(request, traceId, { groupId });
+    session = await requireSessionFromRequest(request, traceId);
   } catch (error) {
     if (error instanceof HttpError) return error.response;
     throw error;
@@ -35,37 +30,13 @@ export async function userProfilePhotoMeta(request: HttpRequest, _context: Invoc
   const storage = createStorageAdapter();
   if (!storage.getBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing getBinary', traceId);
 
-  let loaded;
   try {
-    loaded = await storage.load(groupId);
+    const metaBlob = await storage.getBinary(userProfilePhotoMetaBlobKey(session.email));
+    const raw = await streamToString(metaBlob.stream);
+    const parsed = JSON.parse(raw) as { updatedAtUtc?: string };
+    return { status: 200, jsonBody: { ok: true, hasPhoto: true, updatedAtUtc: parsed.updatedAtUtc ?? '' } };
   } catch (error) {
-    if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+    if (isBlobNotFound(error)) return { status: 200, jsonBody: { ok: true, hasPhoto: false } };
     throw error;
   }
-
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
-  if (!membership.ok) return membership.response;
-
-  const legacyMemberId = membership.member.memberId;
-  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? legacyMemberId;
-  const noStoreHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate',
-    Pragma: 'no-cache',
-    Expires: '0'
-  };
-
-  const candidateIds = personId === legacyMemberId ? [personId] : [personId, legacyMemberId];
-  for (const candidateId of candidateIds) {
-    try {
-      const metaBlob = await storage.getBinary(userProfilePhotoMetaBlobKey(groupId, candidateId));
-      const raw = await streamToString(metaBlob.stream);
-      const parsed = JSON.parse(raw) as { updatedAt?: string; contentType?: string };
-      return { status: 200, headers: noStoreHeaders, jsonBody: { ok: true, hasPhoto: true, updatedAt: parsed.updatedAt ?? '', contentType: parsed.contentType ?? '' } };
-    } catch (error) {
-      if (isBlobNotFound(error)) continue;
-      throw error;
-    }
-  }
-
-  return { status: 200, headers: noStoreHeaders, jsonBody: { ok: true, hasPhoto: false } };
 }

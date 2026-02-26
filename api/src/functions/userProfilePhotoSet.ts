@@ -1,72 +1,58 @@
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
-import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
-import { createStorageAdapter } from '../lib/storage/storageFactory.js';
-import { GroupNotFoundError } from '../lib/storage/storage.js';
+import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
+import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { userProfilePhotoBlobKey, userProfilePhotoMetaBlobKey } from '../lib/userProfilePhoto.js';
 
-type SetProfilePhotoBody = { groupId?: unknown; imageBase64?: unknown; imageMime?: unknown; traceId?: unknown };
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png']);
+
+const extractFile = async (request: HttpRequest): Promise<File | null> => {
+  const form = await request.formData();
+  const value = form.get('file');
+  return value instanceof File ? value : null;
+};
 
 export async function userProfilePhotoSet(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
-  const body = await request.json() as SetProfilePhotoBody;
-  const traceId = ensureTraceId(body.traceId);
-  const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
-  if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
-  if (typeof body.imageMime !== 'string' || !body.imageMime.startsWith('image/')) return errorResponse(400, 'invalid_image_mime', 'imageMime must be an image mime type', traceId);
-  if (typeof body.imageBase64 !== 'string' || !body.imageBase64.trim()) return errorResponse(400, 'invalid_image_payload', 'imageBase64 is required', traceId);
+  const traceId = ensureTraceId(new URL(request.url).searchParams.get('traceId'));
 
-  const session = await requireSessionEmail(request, traceId, { groupId });
-  if (!session.ok) return session.response;
-
-  const storage = createStorageAdapter();
-  if (!storage.putBinary || !storage.getBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing binary methods', traceId);
-
-  let loaded;
+  let session;
   try {
-    loaded = await storage.load(groupId);
+    session = await requireSessionFromRequest(request, traceId);
   } catch (error) {
-    if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
+    if (error instanceof HttpError) return error.response;
     throw error;
   }
 
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
-  if (!membership.ok) return membership.response;
+  const storage = createStorageAdapter();
+  if (!storage.putBinary) return errorResponse(500, 'storage_missing_binary', 'Storage adapter missing putBinary', traceId);
 
-  const nowISO = new Date().toISOString();
-  const legacyMemberId = membership.member.memberId;
-  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? legacyMemberId;
-  const imageBytes = decodeImageBase64(body.imageBase64);
-
-  await storage.putBinary(userProfilePhotoBlobKey(groupId, personId), imageBytes, body.imageMime, {
-    groupId,
-    personId,
-    kind: 'user-profile-photo',
-    updatedAt: nowISO
-  });
-  await storage.putBinary(userProfilePhotoMetaBlobKey(groupId, personId), Buffer.from(JSON.stringify({ contentType: body.imageMime, updatedAt: nowISO }), 'utf8'), 'application/json', {
-    groupId,
-    personId,
-    kind: 'user-profile-photo-meta',
-    updatedAt: nowISO
-  });
-
-  if (legacyMemberId !== personId) {
-    await storage.putBinary(userProfilePhotoBlobKey(groupId, legacyMemberId), imageBytes, body.imageMime, {
-      groupId,
-      personId: legacyMemberId,
-      kind: 'user-profile-photo-legacy',
-      updatedAt: nowISO
-    });
-    await storage.putBinary(userProfilePhotoMetaBlobKey(groupId, legacyMemberId), Buffer.from(JSON.stringify({ contentType: body.imageMime, updatedAt: nowISO }), 'utf8'), 'application/json', {
-      groupId,
-      personId: legacyMemberId,
-      kind: 'user-profile-photo-meta-legacy',
-      updatedAt: nowISO
-    });
+  let file: File | null;
+  try {
+    file = await extractFile(request);
+  } catch {
+    return errorResponse(400, 'invalid_multipart', 'Expected multipart/form-data with file field', traceId);
   }
 
-  return { status: 200, jsonBody: { ok: true, personId, updatedAt: nowISO, traceId } };
+  if (!file) return errorResponse(400, 'missing_file', 'file is required', traceId);
+  const mime = file.type.toLowerCase();
+  if (!ALLOWED_TYPES.has(mime)) return errorResponse(400, 'invalid_image_mime', 'Only JPEG/PNG files are allowed', traceId);
+
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const updatedAtUtc = new Date().toISOString();
+  await storage.putBinary(userProfilePhotoBlobKey(session.email), bytes, 'image/jpeg', {
+    kind: 'user-profile-photo',
+    userId: session.email,
+    updatedAtUtc,
+    traceId
+  });
+
+  await storage.putBinary(userProfilePhotoMetaBlobKey(session.email), Buffer.from(JSON.stringify({ updatedAtUtc }), 'utf8'), 'application/json', {
+    kind: 'user-profile-photo-meta',
+    userId: session.email,
+    updatedAtUtc,
+    traceId
+  });
+
+  return { status: 200, jsonBody: { ok: true, updatedAtUtc, traceId } };
 }
