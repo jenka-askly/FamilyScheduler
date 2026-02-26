@@ -11061,3 +11061,30 @@ Ensure sign-out fully clears all client session remnants, specifically `familysc
 
 ### Follow-ups
 - Human manual verification in browser DevTools Application tab to confirm storage keys are removed immediately after clicking Sign out.
+
+## 2026-02-26 05:02 UTC (JoinGroupPage close: verbose session/routing debug logging)
+
+### Objective
+Add temporary verbose console diagnostics for joiner close action on Join Group page so we can inspect all session-related keys and routing decisions when users click Close.
+
+### Approach
+- Located `JoinGroupPage` and `closeJoinDialog` in `apps/web/src/App.tsx`.
+- Added a top-level `dumpSessionSnapshot(event, extra?)` helper near `authDebug` to emit structured `[JOINER_SESSION_DUMP]` logs with:
+  - location/referrer/history context,
+  - `getSessionId`, `getAuthSessionId`, `readSession()`,
+  - relevant `localStorage` and `sessionStorage` key snapshots.
+- Added mount-time logging in `JoinGroupPage` via `useEffect`.
+- Instrumented `closeJoinDialog` to log decision inputs and exact chosen navigation action before execution.
+- Kept navigation behavior unchanged.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "function JoinGroupPage\\(|const closeJoinDialog\\s*=\\s*\\(" apps/web/src/App.tsx` ✅ located target function/handler.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+- Human should repro Join Group landing + close in browser DevTools and confirm 2–3 `[JOINER_SESSION_DUMP]` entries include full storage state and routing action.
