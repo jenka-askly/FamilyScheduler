@@ -11205,3 +11205,47 @@ Remove temporary debug UI + helper instrumentation introduced for joiner/ignite/
 
 ### Follow-ups
 - No further action required for temporary debug UI; investigation instrumentation has been fully removed.
+
+## 2026-02-26 06:25 UTC (scope ignite grace session to breakout groupId)
+
+### Objective
+Prevent cross-group authorization poisoning by ensuring ignite grace session IDs are only used for requests targeting the same group they were issued for, while keeping durable session precedence intact.
+
+### Approach
+- Updated `apps/web/src/lib/apiUrl.ts`:
+  - Added `IGNITE_GRACE_GROUP_ID_KEY` and `getIgniteGraceGroupId()`.
+  - Added `isIgniteGraceExpired()` with backward-compatible behavior when expiry is absent/invalid.
+  - Changed `getIgniteGraceSessionId(groupId?)` to enforce group scoping + expiry check.
+  - Changed `getAuthSessionId(groupId?)` to keep durable (`fs.sessionId`) winning over grace.
+  - In `apiFetch`, derived `requestGroupId` from request JSON summary and attached grace header only when group matches.
+  - Extended `AUTH_IGNITE_GRACE_EXPIRED` cleanup to remove grace group key.
+- Updated `apps/web/src/App.tsx`:
+  - In ignite join success path, persist `fs.igniteGraceGroupId` from `data.breakoutGroupId` when present.
+  - Clear `fs.igniteGraceGroupId` on durable session upgrade (`/api/group/join` returns durable session).
+  - Clear `fs.igniteGraceGroupId` on `signOut()`.
+- Updated `PROJECT_STATUS.md` with behavioral change and verification commands.
+
+### Files changed
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ❌ no AGENTS found via rg (handled by follow-up `find`).
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md present.
+- `rg -n "igniteGrace|signOut|fs\.igniteGraceSessionId|join\(" apps/web/src/App.tsx` ✅ located relevant callsites.
+- `pnpm -C apps/web lint` ✅
+- `pnpm -C apps/web build` ✅
+
+### Follow-ups
+- Human manual acceptance checks:
+  1. Grace for Group A + ignite join Group B should not redirect to Join Group due to stale grace from A.
+  2. Grace remains valid for Group A until expiry.
+  3. Durable session remains preferred over grace.
+
+### 2026-02-26 06:25 UTC command outcome correction
+- `pnpm -C apps/web lint` ❌ failed in this workspace (`ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`).
+- `pnpm --filter @familyscheduler/web lint` ❌ no lint script defined (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`).
+- `pnpm --filter @familyscheduler/web typecheck` ✅ used as nearest static check.
+- `pnpm -C apps/web build` ✅ passed.

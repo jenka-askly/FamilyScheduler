@@ -6,6 +6,7 @@ const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 const apiBaseUrl = configuredApiBaseUrl ? trimTrailingSlash(configuredApiBaseUrl) : '';
 const SESSION_ID_KEY = 'fs.sessionId';
 const IGNITE_GRACE_SESSION_ID_KEY = 'fs.igniteGraceSessionId';
+const IGNITE_GRACE_GROUP_ID_KEY = 'fs.igniteGraceGroupId';
 const IGNITE_GRACE_EXPIRES_AT_KEY = 'fs.igniteGraceExpiresAtUtc';
 const PROVISIONAL_EXPIRED_NOTICE = 'Please verify your email to continue';
 const warnedUnauthorizedTraceIds = new Set<string>();
@@ -26,13 +27,31 @@ export const getSessionId = (): string | null => {
   return sessionId && sessionId.trim() ? sessionId : null;
 };
 
-export const getIgniteGraceSessionId = (): string | null => {
+const getIgniteGraceGroupId = (): string | null => {
   if (typeof window === 'undefined') return null;
-  const sessionId = window.localStorage.getItem(IGNITE_GRACE_SESSION_ID_KEY);
-  return sessionId && sessionId.trim() ? sessionId : null;
+  const groupId = window.localStorage.getItem(IGNITE_GRACE_GROUP_ID_KEY);
+  return groupId && groupId.trim() ? groupId : null;
 };
 
-export const getAuthSessionId = (): string | null => getSessionId() || getIgniteGraceSessionId();
+const isIgniteGraceExpired = (): boolean => {
+  if (typeof window === 'undefined') return true;
+  const expiresAt = window.localStorage.getItem(IGNITE_GRACE_EXPIRES_AT_KEY);
+  if (!expiresAt || !expiresAt.trim()) return false;
+  const parsedExpiresAt = Date.parse(expiresAt);
+  if (!Number.isFinite(parsedExpiresAt)) return false;
+  return Date.now() >= parsedExpiresAt;
+};
+
+export const getIgniteGraceSessionId = (groupId?: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  const sessionId = window.localStorage.getItem(IGNITE_GRACE_SESSION_ID_KEY);
+  if (!sessionId || !sessionId.trim()) return null;
+  if (isIgniteGraceExpired()) return null;
+  if (!groupId) return sessionId;
+  return getIgniteGraceGroupId() === groupId ? sessionId : null;
+};
+
+export const getAuthSessionId = (groupId?: string): string | null => getSessionId() || getIgniteGraceSessionId(groupId);
 
 
 const shouldClearSessionId = (code?: string): boolean => code === 'AUTH_PROVISIONAL_EXPIRED';
@@ -43,6 +62,7 @@ const handleProvisionalExpiry = (path: string, payload: { error?: string; code?:
   if (code === 'AUTH_IGNITE_GRACE_EXPIRED') {
     const clearPayload = { code, path, traceId: payload.traceId, currentHash: window.location.hash || '' };
     window.localStorage.removeItem(IGNITE_GRACE_SESSION_ID_KEY);
+    window.localStorage.removeItem(IGNITE_GRACE_GROUP_ID_KEY);
     window.localStorage.removeItem(IGNITE_GRACE_EXPIRES_AT_KEY);
     sessionLog('GRACE_END_EXPIRED', clearPayload);
     authLog({ event: 'grace_session_cleared', component: 'apiFetch', stage: 'clear_grace_session_id', ...clearPayload });
@@ -100,11 +120,12 @@ const warnMissingSession = (path: string, traceId?: string): void => {
 export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Response> => {
   const headers = new Headers(init.headers);
   if (init.body != null && !headers.has('content-type')) headers.set('content-type', 'application/json');
+  const requestSummary = summarizeRequestBody(init.body);
+  const requestGroupId = typeof requestSummary?.groupId === 'string' ? requestSummary.groupId : undefined;
   const durableSessionId = getSessionId();
-  const igniteGraceSessionId = getIgniteGraceSessionId();
+  const igniteGraceSessionId = getIgniteGraceSessionId(requestGroupId);
   const sessionIdToUse = durableSessionId || igniteGraceSessionId;
   if (sessionIdToUse && !headers.has('x-session-id')) headers.set('x-session-id', sessionIdToUse);
-  const requestSummary = summarizeRequestBody(init.body);
   const response = await fetch(apiUrl(path), { ...init, headers });
   const contentType = response.headers.get('content-type') ?? '';
   if (response.status === 400) {
