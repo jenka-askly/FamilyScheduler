@@ -10365,6 +10365,21 @@ Fix ignite breakout regression so post-breakout routing lands on `/app` and anon
 - `api/src/lib/auth/sessions.ts`
 - `api/src/lib/auth/sessions.test.ts`
 - `api/src/functions/igniteJoin.ts`
+## 2026-02-26 00:08 UTC (Sign-in view tagline/menu cleanup)
+
+### Objective
+Remove the sign-in tagline text `Smart coordination for modern groups` and remove the hamburger menu icon from the signed-out/sign-in screen only, without changing auth flow, routing, or API calls.
+
+### Approach
+- Added a `showMenuButton` prop to `PageHeader` (default `true`) so menu visibility can be controlled per-surface without impacting authenticated/app pages.
+- Updated `LandingSignInPage` in `App.tsx` to:
+  - remove the sign-in header `description` value that rendered the tagline,
+  - pass `showMenuButton={false}` so the hamburger is hidden only on this signed-out view.
+- Left all auth request and consume/done route logic unchanged.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -10377,3 +10392,13 @@ Fix ignite breakout regression so post-breakout routing lands on `/app` and anon
 
 ### Follow-ups
 - Re-run API tests in CI/dev environment with complete Azure Tables deps/tooling to verify full test suite.
+- `pwd && rg --files | rg 'AGENTS.md|App.tsx|PROJECT_STATUS.md|CODEX_LOG.md'` ✅ located target files.
+- `find .. -name AGENTS.md -print` ✅ no additional AGENTS.md files found in scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (with existing Vite chunk-size warning).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI verification.
+- Playwright screenshot against `/#/login` ✅ captured and confirms tagline + hamburger removed.
+- `rg -n "api/auth/request-link|auth/consume|auth/done|showMenuButton|Smart coordination for modern groups" apps/web/src/App.tsx apps/web/src/components/layout/PageHeader.tsx` ✅ confirmed auth endpoints/routes remain and menu flag is scoped.
+
+### Follow-ups
+- End-to-end passwordless flow call (`POST /api/auth/request-link` and hash transitions through `/#/auth/consume` -> `/#/auth/done`) still needs full runtime validation with the API running and email-link interaction.
