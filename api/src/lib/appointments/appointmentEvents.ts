@@ -17,14 +17,16 @@ export type AppointmentEventType =
   | 'CONSTRAINT_ADDED'
   | 'CONSTRAINT_REMOVED'
   | 'SUGGESTION_CREATED'
+  | 'SUGGESTION_DISMISSED'
   | 'SUGGESTION_APPLIED'
+  | 'SUGGESTION_REACTION'
   | 'NOTIFICATION_SENT';
 
 export type AppointmentEvent = {
   id: string;
   tsUtc: string;
   type: AppointmentEventType;
-  actor: { actorType: 'HUMAN' | 'SYSTEM' | 'AGENT'; userKey?: string; email?: string };
+  actor: { kind: 'HUMAN' | 'SYSTEM' | 'AGENT'; email?: string };
   payload: Record<string, unknown>;
   sourceMessageId?: string;
   sourceTextSnapshot?: string;
@@ -57,7 +59,7 @@ const env = () => ({
 const eventChunkBlobName = (groupId: string, appointmentId: string, chunkId: number): string => `${env().stateBlobPrefix}/${groupId}/appointments/${appointmentId}/${EVENTS_DIR}/${padChunkId(chunkId)}.json`;
 const eventsPrefix = (groupId: string, appointmentId: string): string => `${env().stateBlobPrefix}/${groupId}/appointments/${appointmentId}/${EVENTS_DIR}/`;
 
-const createContainerClient = () => {
+export const createContainerClient = () => {
   const cfg = env();
   return getContainerClient({
     connectionString: cfg.connectionString,

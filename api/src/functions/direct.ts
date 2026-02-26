@@ -14,8 +14,8 @@ import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { isPlausibleEmail, normalizeEmail, requireActiveMember } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
-import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { appendEvent, getRecentEvents, hasLatestChunkIdempotencyKey, type AppointmentEvent, type EventCursor } from '../lib/appointments/appointmentEvents.js';
+import { materialEventTypes } from '../lib/appointments/appointmentDomain.js';
 import { getAppointmentJsonWithEtag, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
 
 export type ResponseSnapshot = {
@@ -327,7 +327,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     try {
       const recent = await getRecentEvents(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
       const discussionEvents = recent.events.filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED');
-      const changeEvents = recent.events.filter((event) => event.type === 'FIELD_CHANGED');
+      const changeEvents = recent.events.filter((event) => materialEventTypes.has(event.type));
       return withDirectMeta({
         status: 200,
         jsonBody: {
@@ -352,7 +352,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       id: randomUUID(),
       tsUtc: new Date().toISOString(),
       type: 'USER_MESSAGE',
-      actor: { actorType: 'HUMAN', email: session.email, userKey: userKeyFromEmail(session.email) },
+      actor: { kind: 'HUMAN', email: session.email },
       payload: { text: directAction.text },
       sourceTextSnapshot: directAction.text,
       clientRequestId: directAction.clientRequestId
@@ -377,7 +377,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           id: randomUUID(),
           tsUtc: new Date().toISOString(),
           type: 'PROPOSAL_CREATED',
-          actor: { actorType: 'SYSTEM' },
+          actor: { kind: 'SYSTEM' },
           proposalId,
           sourceTextSnapshot: directAction.text,
           payload: { field: 'title', value: proposedTitle },
@@ -431,7 +431,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         id: randomUUID(),
         tsUtc: new Date().toISOString(),
         type: 'FIELD_CHANGED',
-        actor: { actorType: 'HUMAN', email: session.email, userKey: userKeyFromEmail(session.email) },
+        actor: { kind: 'HUMAN', email: session.email },
         proposalId: directAction.proposalId,
         clientRequestId: directAction.clientRequestId,
         payload: { field: 'title', oldValue: (updatedAppointmentDoc as Record<string, unknown>)._previousTitle, newValue: directAction.value }
@@ -440,7 +440,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         id: randomUUID(),
         tsUtc: new Date().toISOString(),
         type: 'SYSTEM_CONFIRMATION',
-        actor: { actorType: 'SYSTEM' },
+        actor: { kind: 'SYSTEM' },
         proposalId: directAction.proposalId,
         payload: { text: `Title updated to “${directAction.value}”`, by: session.email },
         clientRequestId: `${directAction.clientRequestId}:confirm`

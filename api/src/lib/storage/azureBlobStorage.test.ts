@@ -21,6 +21,6 @@ test('formatIfMatch enforces quoted etag', () => {
 test('AzureBlobStorage constructor requires connection string or account URL', () => {
   assert.throws(
     () => new AzureBlobStorage({ containerName: 'state' }),
-    /Missing blob config: set AzureWebJobsStorage or \*_ACCOUNT_URL/
+    /Missing blob config: set AzureWebJobsStorage or AZURE_STORAGE_ACCOUNT_URL/
   );
 });

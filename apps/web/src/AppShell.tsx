@@ -65,7 +65,7 @@ type AppointmentDetailEvent = {
   id: string;
   tsUtc: string;
   type: string;
-  actor: { actorType: 'HUMAN' | 'SYSTEM' | 'AGENT'; userKey?: string; email?: string };
+  actor: { kind: 'HUMAN' | 'SYSTEM' | 'AGENT'; userKey?: string; email?: string };
   payload: Record<string, unknown>;
   sourceTextSnapshot?: string;
   clientRequestId?: string;
@@ -2239,8 +2239,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               <Stack spacing={1}>
                 {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
                 {[...detailsData.projections.discussionEvents].reverse().map((event) => (
-                  <Paper key={event.id} variant="outlined" sx={{ p: 1 }}>
-                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()} · {event.type}</Typography>
+                  <Paper key={event.id} variant="outlined" sx={{ p: 1, bgcolor: event.type === 'SYSTEM_CONFIRMATION' ? 'action.hover' : 'background.paper' }}>
+                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography>
                     <Typography variant="body2">{String(event.payload.text ?? event.payload.value ?? '')}</Typography>
                   </Paper>
                 ))}
@@ -2271,7 +2271,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 ))}
               </Stack>
             ) : null}
-            {detailsTab === 'constraints' ? <Alert severity="info">Coming soon.</Alert> : null}
+            {detailsTab === 'constraints' ? <Alert severity="info">Constraints management is available via direct actions and will render here as structured controls.</Alert> : null}
           </Stack>
         ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
       </Drawer>

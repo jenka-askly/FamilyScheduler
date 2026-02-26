@@ -1,3 +1,41 @@
+## 2026-02-26 23:25 UTC (Appointment drawer enhancement groundwork + storage precedence + notify snapshot/ICS helpers)
+
+### Objective
+Deliver the appointment Drawer/backend uplift in one cohesive patch: durable event/state shape updates, material change filtering, notify snapshot/ICS utilities, and storage precedence hardening.
+
+### Approach
+- Extended appointment event type union and actor envelope shape in `appointmentEvents`.
+- Added `appointmentDomain` helper with deterministic reconciliation evaluation and material event classification.
+- Updated `direct` detail projections to use material-only event filtering.
+- Added notification snapshot/ICS generation helpers and focused tests.
+- Updated storage client/factory precedence (`AzureWebJobsStorage` first; `AZURE_STORAGE_ACCOUNT_URL` fallback).
+- Applied small Drawer discussion rendering updates to remove raw type labels.
+
+### Files changed
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/lib/appointments/appointmentDomain.ts`
+- `api/src/lib/appointments/notificationSnapshot.ts`
+- `api/src/lib/appointments/notificationSnapshot.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/lib/storage/blobClients.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/storage/storageFactory.test.ts`
+- `api/src/lib/storage/azureBlobStorage.test.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/functions/groupCreate.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed due pre-existing missing `@azure/data-tables` module/type resolution in environment.
+
+### Follow-ups
+- Complete wiring for new `/api/direct` actions (`create/dismiss/react/apply suggestion`, constraints mutations, `send_notification`, `get_notification_snapshot`, `get_notification_ics`) and hook Drawer tabs to these actions.
+- Add end-to-end tests once API build dependency issue is resolved in environment.
+
+
 ## 2026-02-26 04:23 UTC (Scan capture modal feedback hardening)
 
 ### Objective

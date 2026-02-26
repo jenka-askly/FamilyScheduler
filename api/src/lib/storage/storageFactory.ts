@@ -7,16 +7,19 @@ const DEFAULT_STATE_BLOB_PREFIX = 'familyscheduler/groups';
 let singleton: StorageAdapter | null = null;
 let testOverride: StorageAdapter | null = null;
 
-const required = ['STATE_CONTAINER'] as const;
-
 const readConfig = (): { connectionString: string; accountUrl: string; containerName: string; stateBlobPrefix: string } => {
-  const missing = required.filter((key) => !process.env[key] || process.env[key]?.trim().length === 0);
-  if (missing.length > 0) throw new MissingConfigError(missing as string[]);
+  const containerName = process.env.STATE_CONTAINER?.trim() || '';
+  const connectionString = process.env.AzureWebJobsStorage?.trim() || '';
+  const accountUrl = process.env.AZURE_STORAGE_ACCOUNT_URL?.trim() || process.env.STORAGE_ACCOUNT_URL?.trim() || '';
+  const missing: string[] = [];
+  if (!containerName) missing.push('STATE_CONTAINER');
+  if (!connectionString && !accountUrl) missing.push('AzureWebJobsStorage|AZURE_STORAGE_ACCOUNT_URL');
+  if (missing.length > 0) throw new MissingConfigError(missing);
 
   return {
-    connectionString: process.env.AzureWebJobsStorage?.trim() || '',
-    accountUrl: process.env.STORAGE_ACCOUNT_URL?.trim() || '',
-    containerName: process.env.STATE_CONTAINER!.trim(),
+    connectionString,
+    accountUrl,
+    containerName,
     stateBlobPrefix: process.env.STATE_BLOB_PREFIX?.trim() || DEFAULT_STATE_BLOB_PREFIX
   };
 };

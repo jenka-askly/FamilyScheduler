@@ -41,7 +41,7 @@ test('group create returns CONFIG_MISSING when required vars are absent', async 
   const response = await groupCreate({ json: async () => ({ groupName: 'Family', creatorEmail: 'joe@example.com', creatorName: 'Joe', traceId: 'trace-1' }), headers: { get: () => null } } as any, { debug: () => {} } as any);
   assert.equal(response.status, 500);
   assert.equal((response.jsonBody as any).error, 'CONFIG_MISSING');
-  assert.deepEqual((response.jsonBody as any).missing, ['STATE_CONTAINER', 'STORAGE_ACCOUNT_URL']);
+  assert.deepEqual((response.jsonBody as any).missing, ['STATE_CONTAINER', 'AzureWebJobsStorage|AZURE_STORAGE_ACCOUNT_URL']);
   assert.equal((response.jsonBody as any).traceId, 'trace-1');
 
   if (prevUrl) process.env.STORAGE_ACCOUNT_URL = prevUrl; else delete process.env.STORAGE_ACCOUNT_URL;
