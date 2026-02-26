@@ -263,11 +263,6 @@ function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPa
     <Page variant="form">
       <Stack component="form" spacing={3} onSubmit={submit} sx={{ maxWidth: 560, mx: 'auto' }}>
         <Box sx={{ p: { xs: 1, sm: 2 }, borderRadius: 3, background: 'radial-gradient(circle at 20% -10%, rgba(255, 183, 77, 0.14), transparent 45%)' }}>
-          <PageHeader
-            title="Yapper"
-            showGroupSummary={false}
-            showMenuButton={false}
-          />
         </Box>
         <Stack spacing={1}>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>Sign in</Typography>
@@ -278,10 +273,8 @@ function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPa
           <TextField label="Email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth />
           <Button variant="contained" type="submit" disabled={requesting} sx={{ transition: 'background-color 120ms ease, box-shadow 120ms ease' }}>{requesting ? 'Sending…' : 'Send sign-in link'}</Button>
         </Stack>
-        <Typography variant="body2" color="text.secondary">If you don’t see it, check your spam folder.</Typography>
         {successState ? <Alert severity="success">Email sent. Check your inbox (and Junk/Spam). After you click the link, come back here — we’ll continue automatically.</Alert> : null}
         {error ? <Alert severity="error">{error}</Alert> : null}
-        <Typography variant="body2" color="text.secondary">Need help? Contact support@yapper-app.com.</Typography>
       </Stack>
       <FooterHelp />
     </Page>
