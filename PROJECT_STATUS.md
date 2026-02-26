@@ -3909,3 +3909,19 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm --filter @familyscheduler/web build`
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for visual capture)
 4. Playwright screenshot capture against `/#/login` (mobile viewport)
+
+## 2026-02-26 00:52 UTC update (Breakout entrypoint unification to Organizer Ignite)
+
+- Unified breakout behavior across Dashboard and AppShell header menu to route to Organizer Ignite (`/#/g/:newGroupId/ignite`) immediately after breakout group creation/spinoff.
+- Removed the accidental custom AppShell breakout QR dialog so breakout now relies on the existing Organizer Ignite experience for QR display and continue-to-app flow.
+- Dashboard breakout no longer skips Organizer Ignite; it now navigates to `/#/g/:newGroupId/ignite` instead of `/#/g/:newGroupId/app`.
+- Preserved prior auth/grace-session API behavior for breakout-group join authorization (no API auth rollback in this change).
+
+### Verification notes
+
+1. `pnpm --filter @familyscheduler/web typecheck` passed.
+2. Code-path verification via ripgrep confirms:
+   - Dashboard breakout success navigates to `/#/g/:groupId/ignite`.
+   - AppShell breakout success navigates to `/#/g/:newGroupId/ignite`.
+   - AppShell custom breakout QR dialog strings are no longer present.
+3. Manual browser verification still required for full end-to-end acceptance (Dashboard breakout, menu breakout, Organizer Ignite continue-to-app, and joiner QR scan grace-flow).

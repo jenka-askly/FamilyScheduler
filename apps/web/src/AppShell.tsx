@@ -395,12 +395,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
-  const [breakoutInvite, setBreakoutInvite] = useState<null | {
-    newGroupId: string;
-    linkPath: string;
-    inviteUrl: string;
-    qrImageUrl: string;
-  }>(null);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const breakoutInFlightRef = useRef(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
@@ -1164,31 +1158,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         return;
       }
 
-      const inviteUrl = `${window.location.origin}${result.linkPath.startsWith('/') ? '' : '/'}${result.linkPath}`;
-      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(inviteUrl)}`;
-      setBreakoutInvite({
-        newGroupId: result.newGroupId,
-        linkPath: result.linkPath,
-        inviteUrl,
-        qrImageUrl
-      });
       setBreakoutError(null);
+      window.location.hash = `/g/${result.newGroupId}/ignite`;
     } finally {
       breakoutInFlightRef.current = false;
       setIsSpinningOff(false);
     }
   };
 
-  const closeBreakoutInvite = () => {
-    setBreakoutInvite(null);
-  };
-
-  const continueBreakoutInvite = () => {
-    if (!breakoutInvite) return;
-    const targetGroupId = breakoutInvite.newGroupId;
-    setBreakoutInvite(null);
-    window.location.assign(`${window.location.origin}/#/g/${targetGroupId}/app`);
-  };
 
   return (
     <Page variant="workspace">
@@ -1207,28 +1184,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         sessionName={signedInPersonName}
         onDashboardClick={() => window.location.assign(`${window.location.origin}/`)}
       />
-      <Dialog open={Boolean(breakoutInvite)} onClose={closeBreakoutInvite} fullWidth maxWidth="xs">
-        <DialogTitle>Ignite / Breakout</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 0.5 }}>
-            <Typography>Have others scan this QR code to join the breakout.</Typography>
-            {breakoutInvite?.qrImageUrl ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                <img src={breakoutInvite.qrImageUrl} alt="Breakout join QR code" style={{ width: 240, height: 240, borderRadius: 8 }} />
-              </Box>
-            ) : null}
-            {breakoutInvite?.inviteUrl ? (
-              <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                {breakoutInvite.inviteUrl}
-              </Typography>
-            ) : null}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button type="button" onClick={closeBreakoutInvite}>Cancel</Button>
-          <Button type="button" variant="contained" onClick={continueBreakoutInvite}>Continue</Button>
-        </DialogActions>
-      </Dialog>
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Session</div>
