@@ -4292,3 +4292,21 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. `pnpm --filter @familyscheduler/web build`
+
+## 2026-02-26 05:43 UTC update (temporary always-on Copy Debug panels for join routing diagnostics)
+
+- Added temporary always-on `Copy Debug` panel support in `apps/web/src/App.tsx` with a shared `collectClientSessionSnapshot(extra?)` helper to capture URL/hash/referrer/history and relevant auth/session storage keys.
+- Instrumented `IgniteJoinPage` to capture debug snapshots at `ignite_join_start`, `ignite_join_result`, and `ignite_join_after_storage`, and render `Copy Debug` in both durable and non-durable render branches.
+- Instrumented `GroupAuthGate` to capture debug snapshots at `init`, `group_join_start`, `group_join_result`, and `redirect_to_join`, and render `Copy Debug` in the checking/redirecting state.
+- Instrumented `JoinGroupPage` to capture debug snapshots on mount and close-click, and render `Copy Debug` in the page UI.
+- This is intentionally temporary for phone/QR join diagnostics and should be removed after the redirect/session bug is resolved.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`
