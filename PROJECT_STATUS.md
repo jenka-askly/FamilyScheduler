@@ -4366,3 +4366,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm -C apps/web lint`
 2. `pnpm -C apps/web build`
+
+## 2026-02-26 07:05 UTC update (persistent organizer profile photo is server-backed)
+
+- Implemented persistent organizer profile photo flow using server-backed `PUT/GET /api/user/profile-photo` with session validation.
+- Removed local-only organizer profile photo object URL lifecycle and switched to versioned URL loading (`?v=<photoVersion>`) to avoid stale cache/blank image race conditions.
+- Added localStorage photo-version key (`fs.profilePhotoVersion`) and updated upload flow to persist `updatedAtUtc` from backend.
+- Added cache-busted long-lived image responses (`Cache-Control: public, max-age=31536000`) while keeping UI image existence check based on real image load success.
+
+### Verification run
+
+1. `pnpm -C apps/web lint` (fails in this environment due pnpm `-C` command handling)
+2. `pnpm -C apps/web build` ✅
+3. `pnpm -C api build` (fails in this environment because `@azure/data-tables` typings are unavailable)

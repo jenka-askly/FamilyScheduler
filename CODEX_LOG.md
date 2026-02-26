@@ -11249,3 +11249,50 @@ Prevent cross-group authorization poisoning by ensuring ignite grace session IDs
 - `pnpm --filter @familyscheduler/web lint` ❌ no lint script defined (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`).
 - `pnpm --filter @familyscheduler/web typecheck` ✅ used as nearest static check.
 - `pnpm -C apps/web build` ✅ passed.
+
+## 2026-02-26 07:05 UTC (persist organizer profile photo to server-backed PUT/GET)
+
+### Objective
+Implement persistent organizer profile photos that survive refresh/logout-login, eliminate phantom "has photo" UI state, and prevent stale cached/blank profile image loads.
+
+### Approach
+- Backend:
+  - Updated user profile photo API contract to support:
+    - `PUT /api/user/profile-photo` (multipart upload, session required)
+    - `GET /api/user/profile-photo` (binary image fetch, session required)
+  - Switched profile-photo storage keying to user identity (`session.email`) under `users/profiles/<user>.jpg`.
+  - Added upload metadata persistence (`users/profiles/<user>.json`) with `updatedAtUtc`.
+  - Updated function registration in `api/src/index.ts` to route PUT+GET on the same endpoint.
+- Frontend (`IgniteOrganizerPage`):
+  - Added `fs.profilePhotoVersion` localStorage key helpers (`getPhotoVersion`, `setPhotoVersion`).
+  - Replaced local object URL persistence for organizer profile with server-backed URL generation: `/api/user/profile-photo?v=<version>`.
+  - Added image existence probing using `new Image()` load/error callbacks to derive real `has photo` state.
+  - Updated organizer photo upload flow to upload multipart image blob on save and persist returned `updatedAtUtc` as version.
+  - Removed the old profile meta/image fetch dance and local-only profile-photo objectURL state.
+- Tests:
+  - Reworked `api/src/functions/userProfilePhoto.test.ts` for PUT/GET round-trip and missing-photo 404 behavior.
+
+### Files changed
+- `api/src/functions/userProfilePhotoSet.ts`
+- `api/src/functions/userProfilePhotoGet.ts`
+- `api/src/functions/userProfilePhotoMeta.ts`
+- `api/src/functions/userProfilePhoto.test.ts`
+- `api/src/index.ts`
+- `api/src/lib/userProfilePhoto.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm -C apps/web lint` ❌ failed in this workspace (`ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`)
+- `pnpm -C apps/web build` ✅ passed
+- `pnpm -C api test` ❌ failed due missing `@azure/data-tables` typings in this environment
+- `pnpm -C api build` ❌ failed due missing `@azure/data-tables` typings in this environment
+- `cd apps/web && pnpm exec vite preview --host 0.0.0.0 --port 4173` ✅ started local preview server for screenshot capture
+- Playwright screenshot captured: `browser:/tmp/codex_browser_invocations/26107efd74d4bab4/artifacts/artifacts/profile-photo-ui.png` ✅
+
+### Follow-ups
+- Human acceptance checks still needed in deployed/runtime environment:
+  1. Capture organizer photo → refresh page → photo remains.
+  2. Logout/login → organizer photo remains.
+  3. If no server photo exists → default avatar + large camera icon is shown.

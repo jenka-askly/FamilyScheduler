@@ -6,7 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, getAuthSessionId, getSessionId } from './lib/apiUrl';
+import { apiFetch, apiUrl, getAuthSessionId, getSessionId } from './lib/apiUrl';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
@@ -27,6 +27,19 @@ const SESSION_EMAIL_KEY = 'fs.sessionEmail';
 const SESSION_NAME_KEY = 'fs.sessionName';
 const LAST_GROUP_ID_KEY = 'fs.lastGroupId';
 
+
+const PROFILE_PHOTO_VERSION_KEY = 'fs.profilePhotoVersion';
+
+const getPhotoVersion = (): string => {
+  if (typeof window === 'undefined') return '0';
+  return window.localStorage.getItem(PROFILE_PHOTO_VERSION_KEY) ?? '0';
+};
+
+const setPhotoVersion = (value?: string): string => {
+  const next = value ?? String(Date.now());
+  if (typeof window !== 'undefined') window.localStorage.setItem(PROFILE_PHOTO_VERSION_KEY, next);
+  return next;
+};
 
 const readSession = (): Session | null => {
   if (typeof window === 'undefined') return null;
@@ -683,12 +696,11 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [newlyJoinedPersonIds, setNewlyJoinedPersonIds] = useState<string[]>([]);
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [photoObjectUrlsByPersonId, setPhotoObjectUrlsByPersonId] = useState<Record<string, { key: string; url: string }>>({});
-  const [profilePhotoUpdatedAt, setProfilePhotoUpdatedAt] = useState<string>('');
-  const [profilePhotoObjectUrl, setProfilePhotoObjectUrl] = useState('');
+  const [profilePhotoVersion, setProfilePhotoVersionState] = useState<string>(() => getPhotoVersion());
+  const [profilePhotoHasImage, setProfilePhotoHasImage] = useState<boolean>(false);
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
-  const [metaReadyTick, setMetaReadyTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [qrLoadFailed, setQrLoadFailed] = useState(false);
@@ -704,17 +716,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastChimeAtRef = useRef(0);
   const photoObjectUrlsRef = useRef<Record<string, { key: string; url: string }>>({});
-  const profilePhotoObjectUrlRef = useRef('');
-  const profilePhotoRetryTimeoutRef = useRef<number | null>(null);
-  const profilePhotoLoadAttemptRef = useRef(0);
 
   useEffect(() => {
     photoObjectUrlsRef.current = photoObjectUrlsByPersonId;
   }, [photoObjectUrlsByPersonId]);
-
-  useEffect(() => {
-    profilePhotoObjectUrlRef.current = profilePhotoObjectUrl;
-  }, [profilePhotoObjectUrl]);
 
   const stopScanCaptureStream = () => {
     if (!scanCaptureStreamRef.current) return;
@@ -731,11 +736,9 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     stopScanCaptureStream();
     if (joinBumpTimeoutRef.current != null) window.clearTimeout(joinBumpTimeoutRef.current);
     if (joinedPersonBumpTimeoutRef.current != null) window.clearTimeout(joinedPersonBumpTimeoutRef.current);
-    if (profilePhotoRetryTimeoutRef.current != null) window.clearTimeout(profilePhotoRetryTimeoutRef.current);
     Object.values(photoObjectUrlsRef.current).forEach((photo) => {
       if (photo?.url) URL.revokeObjectURL(photo.url);
     });
-    if (profilePhotoObjectUrlRef.current) URL.revokeObjectURL(profilePhotoObjectUrlRef.current);
   }, []);
 
   useEffect(() => {
@@ -895,7 +898,6 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       prevJoinedRef.current = nextCount;
       setStatus(data.status ?? 'OPEN');
       setJoinedCount(nextCount);
-      setMetaReadyTick((current) => current + 1);
       setJoinedPersonIds(incomingIds);
       setPhotoUpdatedAtByPersonId(data.photoUpdatedAtByPersonId ?? {});
       setCreatedByPersonId(data.createdByPersonId ?? '');
@@ -919,59 +921,39 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     return true;
   };
 
-  const loadProfilePhoto = async () => {
-    if (!groupId || !sessionId) return;
+  const profilePhotoUrl = (): string => `${apiUrl('/api/user/profile-photo')}?v=${encodeURIComponent(profilePhotoVersion)}`;
 
-    const scheduleRetry = () => {
-      if (profilePhotoLoadAttemptRef.current >= 2) return;
-      profilePhotoLoadAttemptRef.current += 1;
-      if (profilePhotoRetryTimeoutRef.current != null) window.clearTimeout(profilePhotoRetryTimeoutRef.current);
-      const retryDelayMs = 750 + Math.floor(Math.random() * 751);
-      profilePhotoRetryTimeoutRef.current = window.setTimeout(() => {
-        profilePhotoRetryTimeoutRef.current = null;
-        void loadProfilePhoto();
-      }, retryDelayMs);
-    };
-
-    try {
-      const metaResponse = await apiFetch(`/api/user/profile-photo?groupId=${encodeURIComponent(groupId)}&t=${Date.now()}`, { cache: 'no-store' });
-      if (!metaResponse.ok) return;
-      const meta = await metaResponse.json() as { ok?: boolean; hasPhoto?: boolean; updatedAt?: string };
-      if (!meta.ok || !meta.hasPhoto || !meta.updatedAt) {
-        if (profilePhotoRetryTimeoutRef.current != null) {
-          window.clearTimeout(profilePhotoRetryTimeoutRef.current);
-          profilePhotoRetryTimeoutRef.current = null;
-        }
-        profilePhotoLoadAttemptRef.current = 0;
-        setProfilePhotoUpdatedAt('');
-        if (profilePhotoObjectUrlRef.current) URL.revokeObjectURL(profilePhotoObjectUrlRef.current);
-        setProfilePhotoObjectUrl('');
-        return;
-      }
-      setProfilePhotoUpdatedAt(meta.updatedAt);
-      const imageResponse = await apiFetch(`/api/user/profile-photo/image?groupId=${encodeURIComponent(groupId)}&t=${encodeURIComponent(meta.updatedAt)}`);
-      if (!imageResponse.ok) {
-        scheduleRetry();
-        return;
-      }
-      const blob = await imageResponse.blob();
-      if (!blob.size) {
-        scheduleRetry();
-        return;
-      }
-      const objectUrl = URL.createObjectURL(blob);
-      if (profilePhotoRetryTimeoutRef.current != null) {
-        window.clearTimeout(profilePhotoRetryTimeoutRef.current);
-        profilePhotoRetryTimeoutRef.current = null;
-      }
-      profilePhotoLoadAttemptRef.current = 0;
-      setProfilePhotoObjectUrl((existing) => {
-        if (existing) URL.revokeObjectURL(existing);
-        return objectUrl;
-      });
-    } catch {
-      // Keep Ignite organizer photo fallback.
+  useEffect(() => {
+    if (!sessionId) {
+      setProfilePhotoHasImage(false);
+      return;
     }
+    const img = new Image();
+    img.onload = () => setProfilePhotoHasImage(true);
+    img.onerror = () => setProfilePhotoHasImage(false);
+    img.src = profilePhotoUrl();
+  }, [profilePhotoVersion, sessionId]);
+
+  const uploadProfilePhoto = async (blob: Blob): Promise<void> => {
+    const sessionToken = getSessionId();
+    if (!sessionToken) throw new Error('Missing session');
+
+    const form = new FormData();
+    form.append('file', blob, 'profile.jpg');
+
+    const response = await fetch(apiUrl('/api/user/profile-photo'), {
+      method: 'PUT',
+      headers: {
+        'x-session-id': sessionToken
+      },
+      body: form
+    });
+
+    if (!response.ok) throw new Error('Upload failed');
+
+    const data = await response.json().catch(() => null) as { updatedAtUtc?: string } | null;
+    const nextVersion = setPhotoVersion(data?.updatedAtUtc);
+    setProfilePhotoVersionState(nextVersion);
   };
 
   const uploadPhotoBase64 = async (base64: string) => {
@@ -988,12 +970,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         if (organizerId) {
           setPhotoUpdatedAtByPersonId((existing) => ({ ...existing, [organizerId]: new Date().toISOString() }));
         }
-        const profileResponse = await apiFetch('/api/user/profile-photo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, imageBase64: base64, imageMime: 'image/jpeg', traceId: createTraceId() }) });
-        const profileData = await profileResponse.json() as { ok?: boolean; updatedAt?: string };
-        if (profileResponse.ok && profileData.ok && profileData.updatedAt) {
-          setProfilePhotoUpdatedAt(profileData.updatedAt);
-          await loadProfilePhoto();
-        }
+        const photoBytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+        await uploadProfilePhoto(new Blob([photoBytes], { type: 'image/jpeg' }));
       }
     } catch {
       setError('Unable to upload photo');
@@ -1107,25 +1085,11 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     [createdByPersonId, joinedPersonIds, groupMemberPersonIds]
   );
 
-  useEffect(() => {
-    if (profilePhotoRetryTimeoutRef.current != null) {
-      window.clearTimeout(profilePhotoRetryTimeoutRef.current);
-      profilePhotoRetryTimeoutRef.current = null;
-    }
-    profilePhotoLoadAttemptRef.current = 0;
-  }, [sessionId]);
-
   const displayedPersonIds = Array.from(new Set([organizerPersonId, ...groupMemberPersonIds, ...joinedPersonIds].filter((id): id is string => Boolean(id))));
   const combinedPeopleByPersonId: Record<string, { name?: string }> = {
     ...Object.fromEntries(groupMetaPeople.map((person) => [person.personId, { name: person.name }])),
     ...peopleByPersonId
   };
-
-  useEffect(() => {
-    if (!groupId) return;
-    if (!sessionId) return;
-    void loadProfilePhoto();
-  }, [groupId, sessionId, organizerPersonId, metaReadyTick]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -1259,8 +1223,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                 const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
                 const personName = combinedPeopleByPersonId[personId]?.name || personId;
                 const isOrganizer = personId === organizerPersonId;
-                const personPhotoUrl = isOrganizer && profilePhotoObjectUrl
-                  ? profilePhotoObjectUrl
+                const personPhotoUrl = isOrganizer && profilePhotoHasImage
+                  ? profilePhotoUrl()
                   : (hasPhoto ? photoObjectUrlsByPersonId[personId]?.url : '');
                 return (
                   <div
@@ -1303,7 +1267,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         </DialogContent>
         <DialogActions>
           <Button onClick={closeScanCaptureModal}>Cancel</Button>
-          <Button variant="contained" onClick={() => { void capturePhoto(); }}>{profilePhotoUpdatedAt ? 'Replace profile photo' : 'Add as profile photo'}</Button>
+          <Button variant="contained" onClick={() => { void capturePhoto(); }}>{profilePhotoHasImage ? 'Replace profile photo' : 'Add as profile photo'}</Button>
         </DialogActions>
       </Dialog>
       <FooterHelp />
