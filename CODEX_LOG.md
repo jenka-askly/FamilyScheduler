@@ -1,3 +1,28 @@
+## 2026-02-26 04:23 UTC (Scan capture modal feedback hardening)
+
+### Objective
+Ensure scan capture never appears to do nothing: gate Capture until camera readiness, show clear busy/error UI, and keep modal open on submit failure.
+
+### Approach
+- Added local modal state for camera readiness and busy progress.
+- Gated Capture by non-zero `videoWidth/videoHeight`; added `Camera warming up…` informational alert.
+- Removed silent return paths in `captureScanFrame` by surfacing explicit errors for missing video/canvas/context/blob and camera-not-ready conditions.
+- Updated submit flow to run inside `try/catch`, show request/refresh failure errors with optional `traceId`, and added temporary structured `console.info` logs for click/start/end events.
+- Kept modal close/reset only on successful submit; failures now preserve modal context and show an error.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated via SIGINT after capture.
+- Playwright screenshot via browser tool ✅ captured `browser:/tmp/codex_browser_invocations/87fce8b4dc53ca4f/artifacts/artifacts/scan-capture-ui.png`.
+
+### Follow-ups
+- Human should validate live camera behavior in local browser permissions flow (warming-up -> ready -> scanning success/failure variants).
+
 ## 2026-02-26 04:06 UTC (Azure Table key separator hardening)
 
 ### Objective
