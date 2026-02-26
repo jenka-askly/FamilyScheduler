@@ -54,7 +54,12 @@ const writeSession = (session: Session): void => {
 };
 
 const clearSession = (): void => {
-  window.sessionStorage.removeItem(SESSION_KEY);
+  try {
+    window.sessionStorage.removeItem(SESSION_KEY);
+    window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // ignore
+  }
 };
 
 const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
@@ -1629,6 +1634,7 @@ export function App() {
     window.localStorage.removeItem(SESSION_KEY);
     window.localStorage.removeItem(SESSION_EMAIL_KEY);
     window.localStorage.removeItem(SESSION_NAME_KEY);
+    window.localStorage.removeItem(LAST_GROUP_ID_KEY);
     sessionLog('DURABLE_CLEAR', { reason: 'sign_out' });
     sessionLog('GRACE_CLEARED', { reason: 'sign_out' });
     setHasApiSession(false);

@@ -11088,3 +11088,29 @@ Add temporary verbose console diagnostics for joiner close action on Join Group 
 
 ### Follow-ups
 - Human should repro Join Group landing + close in browser DevTools and confirm 2–3 `[JOINER_SESSION_DUMP]` entries include full storage state and routing action.
+
+## 2026-02-26 05:22 UTC (logout clears legacy local/session join key and last group hint)
+
+### Objective
+Eliminate stale `familyscheduler.session` resurrection after logout by clearing that key from both storages and clear `fs.lastGroupId` during sign-out to avoid route confusion.
+
+### Approach
+- Located `SESSION_KEY`, `clearSession`, and `signOut` in `apps/web/src/App.tsx`.
+- Updated `clearSession` to remove `SESSION_KEY` from both `sessionStorage` and `localStorage` in a guarded try/catch.
+- Updated `signOut` to remove `LAST_GROUP_ID_KEY` while preserving existing durable/grace/session metadata removals.
+- Updated `PROJECT_STATUS.md` with behavior-change note and verification commands.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "const SESSION_KEY = 'familyscheduler\\.session'|const clearSession\\s*=|const signOut\\s*=\\s*\\(" apps/web/src/App.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+- Human manual check in browser DevTools after Sign out:
+  - `localStorage.getItem('familyscheduler.session') === null`
+  - `sessionStorage.getItem('familyscheduler.session') === null`
