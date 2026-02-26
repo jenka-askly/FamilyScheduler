@@ -4014,3 +4014,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck`
 2. `pnpm --filter @familyscheduler/web build`
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` (for visual smoke + screenshot)
+
+## 2026-02-26 01:58 UTC update (Marketing hero refinement + logo adjustment)
+
+- Reduced the header Y icon visual prominence by switching to smaller relative sizing (`0.8em`) with explicit middle alignment and subtle optical baseline shift.
+- Converted hero "Try it now" from button-like styling to an inline hyperlink treatment with primary color and desktop-only underline hover.
+- Tightened hero spacing to reduce excess vertical whitespace after CTA de-emphasis and keep the section visually compact.
+- Confirmed no "Gather. Decide. Move." copy is present and no duplicate hero sign-in CTA was introduced.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build`
+2. `rg -n "Gather\. Decide\. Move\.|Try it now|Sign in with your email" apps/web/src/components/ProductHomePage.tsx`
