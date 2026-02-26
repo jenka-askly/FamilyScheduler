@@ -4269,3 +4269,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
    - `localStorage['fs.sessionId']` removed after Sign out
    - `sessionStorage['familyscheduler.session']` removed after Sign out
    - `localStorage['familyscheduler.session']` removed after Sign out
+
+## 2026-02-26 05:02 UTC update (temporary verbose joiner close/session debug dumps)
+
+- Added temporary verbose joiner session debugging in `apps/web/src/App.tsx` for Join Group flow diagnostics.
+- Added `dumpSessionSnapshot()` helper to emit `[JOINER_SESSION_DUMP]` with URL, referrer, history length, durable/session auth keys, and storage snapshots.
+- Join Group page now logs on mount (`join_group_page_mount`) to capture landing context.
+- Join Group close action now logs decision inputs (`join_group_close_clicked`) and explicit routing action (`history.back` vs `nav('/' replace)`) before navigation.
+- Behavior remains unchanged; only debug logging was added.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck`

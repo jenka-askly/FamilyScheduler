@@ -77,6 +77,38 @@ function authDebug(event: string, data?: unknown) {
     // Ignore logging failures.
   }
 }
+function dumpSessionSnapshot(event: string, extra?: Record<string, unknown>) {
+  try {
+    console.debug('[JOINER_SESSION_DUMP]', {
+      event,
+      ts: new Date().toISOString(),
+      href: window.location.href,
+      hash: window.location.hash,
+      pathname: window.location.pathname,
+      referrer: document.referrer,
+      historyLen: window.history.length,
+      getSessionId: getSessionId() ?? null,
+      getAuthSessionId: getAuthSessionId() ?? null,
+      readSession: readSession(),
+      localStorage: {
+        fs_sessionId: window.localStorage.getItem('fs.sessionId'),
+        fs_igniteGraceSessionId: window.localStorage.getItem('fs.igniteGraceSessionId'),
+        fs_igniteGraceExpiresAtUtc: window.localStorage.getItem('fs.igniteGraceExpiresAtUtc'),
+        fs_sessionEmail: window.localStorage.getItem('fs.sessionEmail'),
+        fs_sessionName: window.localStorage.getItem('fs.sessionName'),
+        familyscheduler_session: window.localStorage.getItem('familyscheduler.session'),
+        fs_lastGroupId: window.localStorage.getItem('fs.lastGroupId')
+      },
+      sessionStorage: {
+        familyscheduler_session: window.sessionStorage.getItem('familyscheduler.session'),
+        fs_pendingAuth: window.sessionStorage.getItem('fs.pendingAuth')
+      },
+      ...extra
+    });
+  } catch {
+    // ignore
+  }
+}
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -438,6 +470,10 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   }, [groupId, routeError, traceId]);
 
   useEffect(() => {
+    dumpSessionSnapshot('join_group_page_mount', { groupId, routeError, traceId });
+  }, [groupId, routeError, traceId]);
+
+  useEffect(() => {
     let canceled = false;
 
     const loadGroupMeta = async () => {
@@ -478,10 +514,19 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
   };
 
   const closeJoinDialog = () => {
-    if (window.history.length > 1 && document.referrer.startsWith(window.location.origin)) {
+    const sameOriginReferrer = document.referrer.startsWith(window.location.origin);
+    dumpSessionSnapshot('join_group_close_clicked', {
+      decisionInputs: {
+        historyLen: window.history.length,
+        sameOriginReferrer
+      }
+    });
+    if (window.history.length > 1 && sameOriginReferrer) {
+      dumpSessionSnapshot('join_group_close_action', { action: 'history.back' });
       window.history.back();
       return;
     }
+    dumpSessionSnapshot('join_group_close_action', { action: "nav('/' replace)" });
     nav('/', { replace: true });
   };
 
