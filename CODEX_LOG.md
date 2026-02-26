@@ -10402,3 +10402,30 @@ Remove the sign-in tagline text `Smart coordination for modern groups` and remov
 
 ### Follow-ups
 - End-to-end passwordless flow call (`POST /api/auth/request-link` and hash transitions through `/#/auth/consume` -> `/#/auth/done`) still needs full runtime validation with the API running and email-link interaction.
+
+## 2026-02-26 00:26 UTC
+
+### Objective
+Normalize vertical spacing on the sign-in screen after recent element removals, without changing auth, routing, or API behavior.
+
+### Approach
+- Reworked `LandingSignInPage` sign-in layout into one primary vertical `Stack` to establish consistent spacing rhythm.
+- Grouped title/subtitle together and grouped email + submit button together to tighten visual association.
+- Removed prior standalone top-margin reliance by eliminating form `mt` and using stack spacing instead.
+- Updated support line copy to include "Contact" and trailing period.
+- Captured a mobile viewport screenshot for visual verification.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in repo scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (existing Vite chunk-size warning only).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped via SIGINT after capture).
+- Playwright screenshot capture against `/#/login` ✅ artifact: `browser:/tmp/codex_browser_invocations/6ce4badbac2358db/artifacts/artifacts/signin-spacing-mobile.png`.
+
+### Follow-ups
+- Optional human visual check on desktop breakpoint to confirm preferred spacing cadence on larger screens.
