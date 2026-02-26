@@ -4333,3 +4333,23 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. Manual acceptance (human run):
    - brand-new phone/no storage: scan QR -> join -> lands on `/#/g/<breakoutGroupId>/app` without detouring to `/#/login`.
    - organizer start session 1 works on first attempt.
+
+## 2026-02-26 06:20 UTC update (debug UI removed after join-routing investigation)
+
+- Removed temporary join-routing debug UI from `apps/web/src/App.tsx`:
+  - deleted `collectClientSessionSnapshot(...)`, `dumpSessionSnapshot(...)`, and `CopyDebugPanel` helper/component.
+  - removed debug-only state/effects/panel rendering from `JoinGroupPage`, `IgniteJoinPage`, and `GroupAuthGate`.
+- Kept durable-session upgrade and grace-aware routing behavior intact; only temporary debug instrumentation was removed.
+- Investigation status: temporary debug UI cleanup complete.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm -w run lint` ✅
+2. `pnpm --filter @familyscheduler/web build` ✅
+3. `rg -n -S "Copy Debug|CopyDebugPanel|collectClientSessionSnapshot|JOINER_SESSION_DUMP|dumpSessionSnapshot|Anonymous Join Diagnostic|runAnonymousDiagnostic|rawPostNoSession|rawProbe" apps/web/src || true` ✅ (no matches)
