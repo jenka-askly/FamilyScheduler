@@ -46,6 +46,17 @@ test('ignite grace session resolves for matching group in validity window', asyn
   assert.equal(resolved.scopeGroupId, 'group-1');
 });
 
+
+test('ignite grace session allows breakout group scope', async () => {
+  const created = await createIgniteGraceSession('person@example.com', 'group-1', 30, { scopeBreakoutGroupId: 'group-2' });
+  const request = { headers: new Headers({ 'x-session-id': created.sessionId }) } as any;
+
+  const resolved = await requireSessionFromRequest(request, 'trace-breakout', { groupId: 'group-2' });
+
+  assert.equal(resolved.email, 'person@example.com');
+  assert.equal(resolved.kind, 'igniteGrace');
+});
+
 test('ignite grace session is rejected for scope mismatch', async () => {
   const created = await createIgniteGraceSession('person@example.com', 'group-1', 30);
   const request = { headers: new Headers({ 'x-session-id': created.sessionId }) } as any;

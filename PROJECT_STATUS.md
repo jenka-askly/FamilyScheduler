@@ -1,3 +1,14 @@
+## 2026-02-26 00:08 UTC update (Ignite breakout join regression fix)
+
+- **Bug description:** After breakout/spinoff completion, organizer and joiner were landing on `/#/g/:newGroupId` (join route) instead of `/#/g/:newGroupId/app`, which triggered join gating and redirect loops.
+- **Root cause:** Two issues combined: (1) breakout navigation targets used join-route links (including popup link handling and dashboard breakout flow), and (2) ignite grace-session authorization only allowed the original scoped group and did not account for breakout-group scope in session validation.
+- **Fix summary:**
+  - Web: post-breakout navigation now opens `/#/g/:newGroupId/app` directly, and dashboard breakout-create now routes to `/#/g/:groupId/app`.
+  - API: ignite grace sessions now persist optional `scopeBreakoutGroupId`, and group auth accepts ignite grace sessions when request `groupId` matches either `scopeGroupId` or `scopeBreakoutGroupId`.
+  - Tests: added coverage for ignite grace acceptance on breakout group scope.
+- **Verification notes:**
+  - `pnpm --filter @familyscheduler/web typecheck` passed.
+  - `pnpm --filter @familyscheduler/api test` is currently blocked in this environment due missing `@azure/data-tables` type resolution during API build (unrelated infra/dependency issue), so manual/CI verification for API tests is still required.
 ## 2026-02-26 00:08 UTC update (Sign-in UI cleanup)
 
 - Sign-in UI cleanup: removed marketing tagline and hamburger menu from signed-out view.

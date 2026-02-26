@@ -10348,6 +10348,23 @@ Implement authenticated dashboard UX lock-ins: remove welcome/recent/cards, add 
 ### Follow-ups
 - Human should verify in a full local stack that quick Break Out lands on organizer with live QR/session data once API is running.
 
+
+## 2026-02-26 00:08 UTC UTC
+
+### Objective
+Fix ignite breakout regression so post-breakout routing lands on `/app` and anonymous ignite grace sessions are authorized for breakout-group join checks.
+
+### Approach
+- Traced web breakout/spinoff navigation points and changed breakout destination to app route.
+- Extended ignite grace-session blob schema with `scopeBreakoutGroupId` and updated scope validation to allow either original or breakout group.
+- Updated ignite join grace issuance to persist breakout scope, and added focused auth-session test coverage.
+
+### Files changed
+- `apps/web/src/lib/ignite/spinoffBreakout.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `api/src/lib/auth/sessions.ts`
+- `api/src/lib/auth/sessions.test.ts`
+- `api/src/functions/igniteJoin.ts`
 ## 2026-02-26 00:08 UTC (Sign-in view tagline/menu cleanup)
 
 ### Objective
@@ -10367,6 +10384,14 @@ Remove the sign-in tagline text `Smart coordination for modern groups` and remov
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `rg -n -S "ignite/spinoff|spinoff|breakout helper|breakout|newGroupId|linkPath" apps/web/src` ✅
+- `rg -n -S "igniteJoin|IGNITE_GRACE_TTL_SECONDS|graceExpiresAtUtc|breakoutGroupId" api` ✅
+- `rg -n -S "group/join|groupJoin|AUTH_|sessionId|igniteGrace|grace" api/src/functions api/src/lib` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api test` ⚠️ fails in environment due missing `@azure/data-tables` module/type resolution during TypeScript build.
+
+### Follow-ups
+- Re-run API tests in CI/dev environment with complete Azure Tables deps/tooling to verify full test suite.
 - `pwd && rg --files | rg 'AGENTS.md|App.tsx|PROJECT_STATUS.md|CODEX_LOG.md'` ✅ located target files.
 - `find .. -name AGENTS.md -print` ✅ no additional AGENTS.md files found in scope.
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.

@@ -55,7 +55,7 @@ export async function spinoffBreakoutGroup({
       ok: true,
       newGroupId: data.newGroupId,
       linkPath: data.linkPath,
-      urlToOpen: `${window.location.origin}${data.linkPath}`
+      urlToOpen: `${window.location.origin}/#/g/${data.newGroupId}/app`
     };
   } catch {
     return {
