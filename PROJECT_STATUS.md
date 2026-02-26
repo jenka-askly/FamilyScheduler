@@ -1,3 +1,20 @@
+## 2026-02-26 01:43 UTC update (Ignite joiner completion route hardening)
+
+- **Root cause:** Joiner completion depended on `breakoutGroupId` being present and did not include a fallback target group ID, so join completion routing could fail/derail instead of consistently entering the app route.
+- **Fix:** Updated `IgniteJoinPage.join` success path to always compute `targetGroupId` (prefer `breakoutGroupId`, fallback to current `groupId`) and route to `/#/g/:targetGroupId/app`.
+- Updated join success session write and debug/session logs to use `targetGroupId`, keeping all completion behavior aligned with `/app` routing and avoiding accidental join-route landings.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `rg -n -S 'nav\(`/g/\$\{groupId\}`\)' apps/web/src/App.tsx` ✅ (no joiner-completion direct nav to `/g/:id`)
+2. `pnpm --filter @familyscheduler/web typecheck` ✅
+
 ## 2026-02-26 01:15 UTC update (Group soft delete + dashboard delete action)
 
 - Added dashboard active-row kebab menu (`⋮`) with a destructive **Delete** action and confirmation dialog (`Delete “{groupName}”?`) before mutation.

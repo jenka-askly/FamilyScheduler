@@ -1347,7 +1347,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
     try {
       const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
       const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string };
-      if (!response.ok || !data.ok || !data.breakoutGroupId) {
+      if (!response.ok || !data.ok) {
         if ((data.code ?? data.error) === 'IGNITE_CLOSED') {
           setError('This session is closed.');
           return;
@@ -1355,24 +1355,25 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
         setError(data.message ?? 'Unable to join session');
         return;
       }
+      const targetGroupId = data.breakoutGroupId || groupId;
       if (data.sessionId) {
         window.localStorage.setItem('fs.igniteGraceSessionId', data.sessionId);
         if (data.graceExpiresAtUtc) {
           window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', data.graceExpiresAtUtc);
         }
         sessionLog('GRACE_START', {
-          breakoutGroupId: data.breakoutGroupId,
+          breakoutGroupId: targetGroupId,
           sessionIdPrefix: data.sessionId.slice(0, 8),
           graceExpiresAtUtc: data.graceExpiresAtUtc
         });
         authDebug('ignite_join_set_grace_session', {
-          breakoutGroupId: data.breakoutGroupId,
+          breakoutGroupId: targetGroupId,
           sessionIdPrefix: data.sessionId.slice(0, 8),
           graceExpiresAtUtc: data.graceExpiresAtUtc
         });
       }
-      writeSession({ groupId: data.breakoutGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
-      nav(`/g/${data.breakoutGroupId}/app`);
+      writeSession({ groupId: targetGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
+      nav(`/g/${targetGroupId}/app`);
     } catch {
       setError('Unable to join session');
     } finally {
