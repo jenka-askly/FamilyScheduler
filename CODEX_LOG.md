@@ -10960,3 +10960,34 @@ Ensure anonymous ignite joiners are upgraded from temporary grace session to dur
 
 ### Follow-ups
 - Human should validate in browser devtools that post-join localStorage contains durable `fs.sessionId` and sanitized `fs.sessionEmail` for anonymous ignite flows.
+
+## 2026-02-26 04:10 UTC (Remove temporary Anonymous Join Diagnostic UI from Ignite organizer)
+
+### Objective
+Delete the unrestricted Anonymous Join Diagnostic controls/dialog/helpers from `IgniteOrganizerPage` while preserving real product behavior and existing anonymous join session persistence fixes.
+
+### Approach
+- Located all diagnostic references in `apps/web/src/App.tsx` via targeted ripgrep.
+- Applied minimal diff removal in `IgniteOrganizerPage` only:
+  - removed diagnostic state (`diag*`),
+  - removed temporary direct API helpers (`apiBase`, `rawPostNoSession`, `rawProbe`),
+  - removed `runAnonymousDiagnostic`,
+  - removed organizer diagnostic button,
+  - removed diagnostic dialog block.
+- Verified no leftover diagnostic identifiers remain in file.
+- Ran package build and attempted lint equivalent.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n -S "Anonymous Join Diagnostic|Anonymous Join Probe|runAnonymousDiagnostic|rawPostNoSession|rawProbe|diagOpen|diagRunning|diagOutput|diagName|diagEmail|igniteJoinUrl|groupJoinUrl|apiBase" apps/web/src/App.tsx` ✅ (before removal: matches found)
+- `rg -n -S "Anonymous Join Diagnostic|Anonymous Join Probe|runAnonymousDiagnostic|rawPostNoSession|rawProbe|diagOpen|diagRunning|diagOutput|diagName|diagEmail|igniteJoinUrl|groupJoinUrl|apiBase" apps/web/src/App.tsx` ✅ (after removal: no matches)
+- `pnpm -C apps/web lint` ⚠️ failed due to pnpm command form unsupported in this workspace (`Command "apps/web" not found`)
+- `pnpm --filter @familyscheduler/web lint` ⚠️ no lint script exists for selected package
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+- No additional follow-up required for this cleanup task.

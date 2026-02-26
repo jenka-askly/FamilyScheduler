@@ -4197,3 +4197,21 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck`
+
+## 2026-02-26 04:10 UTC update (remove temporary Anonymous Join Diagnostic UI)
+
+- Removed the temporary **Anonymous Join Diagnostic** UI from Ignite organizer page (`IgniteOrganizerPage`) including diagnostic button, dialog, helper methods, and diagnostic React state.
+- Removed temporary diagnostic-only direct API base resolution/probe helpers used for investigation.
+- Kept product behavior unchanged for Ignite organizer flow (ignite start/meta/close controls, QR invite flow, finish inviting path).
+- Kept the actual anonymous join fix intact: durable `sessionId` persistence returned by `/api/group/join` and sanitized `sessionEmail` persistence after ignite join.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅
+2. `pnpm --filter @familyscheduler/web lint` ⚠️ no lint script exists in selected package.
