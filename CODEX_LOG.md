@@ -11433,3 +11433,51 @@ Make `AzureWebJobsStorage` the primary blob client config for appointment events
 - Verify runtime scenarios:
   1. `AzureWebJobsStorage + STATE_CONTAINER` only (Drawer + `get_appointment_detail` path succeeds)
   2. fallback mode with missing `AzureWebJobsStorage` and present `STORAGE_ACCOUNT_URL` + identity.
+
+## 2026-02-26 23:05 UTC update (UI-03 only: title proposal detection + countdown)
+
+### Objective
+Implement only UI-03 appointment discussion flow: detect structured title intent, create proposal event, show 5s proposal countdown UX with Apply/Pause/Cancel/Edit, and apply via backend event log with title update confirmation events.
+
+### Approach
+- Backend (`direct.ts`):
+  - Updated `append_appointment_message` to detect only these patterns:
+    - `/^update title to (.+)$/i`
+    - `/^change title to (.+)$/i`
+    - `/^rename to (.+)$/i`
+  - Added title proposal payload shape with `from` and `to`.
+  - Added active-proposal guard using event-log scan helper and return `400 title_proposal_pending` when blocked.
+  - Added `dismiss_appointment_proposal` direct action to cancel proposal with durable events.
+  - Hardened `apply_appointment_proposal` to require latest active proposal, validate normalized title, then append `FIELD_CHANGED` + `SYSTEM_CONFIRMATION`.
+- Backend (`appointmentEvents.ts`):
+  - Added helper `getLatestTitleProposalState(...)` that finds latest title proposal and whether it is still active.
+- Frontend (`AppShell.tsx`):
+  - Pending proposal state now stores `{ proposalId, field, from, to, expiresAt, paused }`.
+  - Added 5s auto-apply timer, countdown ticker, and proposal UI actions (Apply Now / Pause / Cancel / Edit).
+  - Added deterministic Edit modal to mutate pending proposal target before apply.
+  - Cancel uses backend `dismiss_appointment_proposal` (no local-only synthetic confirmation).
+  - Added auto-clear of pending proposal when matching `FIELD_CHANGED` appears.
+  - Updated discussion/changes renderers to support new payload keys (`message`, `from`, `to`).
+
+### Files changed
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd; rg --files -g 'AGENTS.md'` ❌ no AGENTS.md found by this query (non-zero because no matches).
+- `pnpm -r --if-present build` ❌ failed due environment dependency issue (`@azure/data-tables` typings missing in API package).
+- `pnpm test` ✅ passed (`no tests yet`).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI validation (terminated with SIGINT after capture).
+- Playwright screenshot capture via browser tool ✅ `browser:/tmp/codex_browser_invocations/ae6efe2827454efd/artifacts/artifacts/title-proposal-ui.png`.
+
+### Follow-ups
+- Re-run API build in an environment where `@azure/data-tables` dependency/types are installed.
+- Manual E2E acceptance against real appointment detail flow should validate:
+  1) title proposal creation,
+  2) 5s auto-apply,
+  3) cancel path,
+  4) edit-before-apply path,
+  5) one-active-proposal enforcement.

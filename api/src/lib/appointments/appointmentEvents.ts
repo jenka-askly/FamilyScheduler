@@ -191,3 +191,47 @@ export async function hasLatestChunkIdempotencyKey(groupId: string, appointmentI
   const latest = await readChunkWithMeta(groupId, appointmentId, latestChunkId);
   return latest.events.some((entry) => entry.clientRequestId === clientRequestId);
 }
+
+const isTitleProposalCreated = (event: AppointmentEvent): boolean => {
+  if (event.type !== 'PROPOSAL_CREATED') return false;
+  return event.payload.field === 'title';
+};
+
+const isTitleProposalResolved = (event: AppointmentEvent): boolean => {
+  if (event.type === 'PROPOSAL_CANCELED') return true;
+  return event.type === 'FIELD_CHANGED' && event.payload.field === 'title';
+};
+
+export async function getLatestTitleProposalState(
+  groupId: string,
+  appointmentId: string
+): Promise<{ latestCreated: AppointmentEvent | null; activeProposal: AppointmentEvent | null }> {
+  const chunks = await listEventChunks(groupId, appointmentId);
+  if (chunks.length === 0) return { latestCreated: null, activeProposal: null };
+
+  let latestCreated: AppointmentEvent | null = null;
+  const resolvedProposalIds = new Set<string>();
+  let sawResolvedWithoutId = false;
+
+  for (let chunkPos = chunks.length - 1; chunkPos >= 0; chunkPos -= 1) {
+    const chunkId = parseChunkId(chunks[chunkPos]);
+    const events = await readEventChunk(groupId, appointmentId, chunkId);
+    for (let idx = events.length - 1; idx >= 0; idx -= 1) {
+      const event = events[idx];
+      if (isTitleProposalResolved(event)) {
+        if (event.proposalId) resolvedProposalIds.add(event.proposalId);
+        else sawResolvedWithoutId = true;
+      }
+      if (isTitleProposalCreated(event) && !latestCreated) {
+        latestCreated = event;
+        break;
+      }
+    }
+    if (latestCreated) break;
+  }
+
+  if (!latestCreated) return { latestCreated: null, activeProposal: null };
+  if (sawResolvedWithoutId) return { latestCreated, activeProposal: null };
+  if (latestCreated.proposalId && resolvedProposalIds.has(latestCreated.proposalId)) return { latestCreated, activeProposal: null };
+  return { latestCreated, activeProposal: latestCreated };
+}

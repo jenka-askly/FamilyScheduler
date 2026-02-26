@@ -4461,3 +4461,30 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Constraints tab full functionality remains placeholder (“Coming soon”).
 - Notification/email/ICS actions remain UI placeholder only.
+
+## 2026-02-26 23:05 UTC update (UI-03 title proposal detection + 5s countdown flow)
+
+- Implemented strict rule-based title intent detection in direct appointment discussion messages for only these patterns (case-insensitive):
+  - `update title to ...`
+  - `change title to ...`
+  - `rename to ...`
+- `append_appointment_message` now emits `PROPOSAL_CREATED` with payload `{ field: "title", from, to, proposalId }` and returns proposal metadata to the UI.
+- Enforced single active title proposal by rejecting new title proposals with `400 title_proposal_pending` until prior title proposal is applied or dismissed.
+- Added direct action `dismiss_appointment_proposal` that appends `PROPOSAL_CANCELED` + `SYSTEM_CONFIRMATION("Title proposal cancelled")`.
+- `apply_appointment_proposal` now validates proposal activity, applies appointment title update, and appends:
+  - `FIELD_CHANGED` payload `{ field: "title", from, to }`
+  - `SYSTEM_CONFIRMATION` payload `{ message: "Title updated to \"...\"" }`
+- Drawer discussion UI now renders pending title proposal block with:
+  - from → to preview
+  - 5-second countdown
+  - Apply Now / Pause / Cancel / Edit controls
+  - auto-apply on countdown completion
+  - auto-clear when matching `FIELD_CHANGED` is observed
+- Added proposal edit modal for deterministic title edit before apply.
+
+### Verification run
+
+1. `pnpm -r --if-present build` (fails in this environment due pre-existing missing `@azure/data-tables` typings in API package)
+2. `pnpm test` ✅
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started (stopped intentionally with SIGINT after screenshot)
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ae6efe2827454efd/artifacts/artifacts/title-proposal-ui.png`

@@ -15,7 +15,7 @@ import { isPlausibleEmail, normalizeEmail, requireActiveMember } from '../lib/au
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
-import { appendEvent, getRecentEvents, hasLatestChunkIdempotencyKey, type AppointmentEvent, type EventCursor } from '../lib/appointments/appointmentEvents.js';
+import { appendEvent, getLatestTitleProposalState, getRecentEvents, hasLatestChunkIdempotencyKey, type AppointmentEvent, type EventCursor } from '../lib/appointments/appointmentEvents.js';
 import { getAppointmentJsonWithEtag, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
 
 export type ResponseSnapshot = {
@@ -43,6 +43,7 @@ type DirectAction =
   | { type: 'delete_person'; personId: string }
   | { type: 'get_appointment_detail'; appointmentId: string; limit?: number; cursor?: EventCursor }
   | { type: 'append_appointment_message'; appointmentId: string; text: string; clientRequestId: string }
+  | { type: 'dismiss_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; clientRequestId: string }
   | { type: 'apply_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; value: string; clientRequestId: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -256,6 +257,18 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (!clientRequestId) throw new Error('clientRequestId is required');
     return { type, appointmentId, text, clientRequestId };
   }
+  if (type === 'dismiss_appointment_proposal') {
+    const appointmentId = asString(value.appointmentId);
+    const proposalId = asString(value.proposalId);
+    const field = asString(value.field);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!proposalId) throw new Error('proposalId is required');
+    if (field !== 'title') throw new Error('field must be title');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    return { type, appointmentId, proposalId, field, clientRequestId };
+  }
+
   if (type === 'apply_appointment_proposal') {
     const appointmentId = asString(value.appointmentId);
     const proposalId = asString(value.proposalId);
@@ -363,15 +376,21 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       const messageResult = await appendEvent(groupId, directAction.appointmentId, baseEvent, { idempotencyKey: directAction.clientRequestId });
       if (messageResult.appended) appendedEvents.push(messageResult.event);
 
-      let proposal: { proposalId: string; field: 'title'; value: string } | null = null;
+      let proposal: { proposalId: string; field: 'title'; from: string; to: string } | null = null;
       const text = directAction.text.trim();
-      let proposedTitle: string | null = null;
-      const explicit = text.match(/^(set|change)\s+(the\s+)?(title|name)\s+to\s+(.+)$/i);
-      if (explicit && explicit[4]) proposedTitle = explicit[4].trim();
-      const short = text.match(/^title\s*:\s*(.+)$/i);
-      if (!proposedTitle && short && short[1]) proposedTitle = short[1].trim();
+      const rules = [/^update title to (.+)$/i, /^change title to (.+)$/i, /^rename to (.+)$/i];
+      const matched = rules.map((rule) => text.match(rule)).find((match) => Boolean(match?.[1])) ?? null;
+      const proposedTitle = matched?.[1]?.trim().replace(/\s+/g, ' ') ?? '';
 
       if (proposedTitle) {
+        if (proposedTitle.length > 200) {
+          return withDirectMeta(errorResponse(400, 'invalid_title', 'title exceeds max length', traceId), traceId, context);
+        }
+        const latestProposal = await getLatestTitleProposalState(groupId, directAction.appointmentId);
+        if (latestProposal.activeProposal) {
+          return withDirectMeta(errorResponse(400, 'title_proposal_pending', 'title_proposal_pending', traceId), traceId, context);
+        }
+
         const proposalId = randomUUID();
         const proposalEvent: AppointmentEvent = {
           id: randomUUID(),
@@ -380,18 +399,53 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           actor: { actorType: 'SYSTEM' },
           proposalId,
           sourceTextSnapshot: directAction.text,
-          payload: { field: 'title', value: proposedTitle },
+          payload: { field: 'title', from: appointment.title ?? '', to: proposedTitle },
           clientRequestId: `${directAction.clientRequestId}:proposal`
         };
         const proposalResult = await appendEvent(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal` });
         if (proposalResult.appended) appendedEvents.push(proposalResult.event);
-        proposal = { proposalId, field: 'title', value: proposedTitle };
+        proposal = { proposalId, field: 'title', from: appointment.title ?? '', to: proposedTitle };
       }
 
       return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents, proposal } }, traceId, context);
     } catch (error) {
       context.log(JSON.stringify({ event: 'append_appointment_message_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
       return withDirectMeta(errorResponse(500, 'append_appointment_message_failed', 'Failed to append appointment message', traceId), traceId, context);
+    }
+  }
+
+  if (directAction.type === 'dismiss_appointment_proposal') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    try {
+      const latestProposal = await getLatestTitleProposalState(groupId, directAction.appointmentId);
+      if (!latestProposal.activeProposal || latestProposal.activeProposal.proposalId !== directAction.proposalId) {
+        return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
+      }
+      const cancelEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: 'PROPOSAL_CANCELED',
+        actor: { actorType: 'HUMAN', email: session.email, userKey: userKeyFromEmail(session.email) },
+        proposalId: directAction.proposalId,
+        clientRequestId: directAction.clientRequestId,
+        payload: { field: 'title' }
+      };
+      const confirmEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: 'SYSTEM_CONFIRMATION',
+        actor: { actorType: 'SYSTEM' },
+        proposalId: directAction.proposalId,
+        clientRequestId: `${directAction.clientRequestId}:confirm`,
+        payload: { message: 'Title proposal cancelled' }
+      };
+      await appendEvent(groupId, directAction.appointmentId, cancelEvent, { idempotencyKey: directAction.clientRequestId });
+      await appendEvent(groupId, directAction.appointmentId, confirmEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents: [cancelEvent, confirmEvent] } }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'dismiss_appointment_proposal_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'dismiss_appointment_proposal_failed', 'Failed to dismiss proposal', traceId), traceId, context);
     }
   }
 
@@ -411,7 +465,13 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
         if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
         const previousTitle = typeof current.doc.title === 'string' ? current.doc.title : '';
-        const nextDoc = { ...current.doc, title: directAction.value, updatedAt: new Date().toISOString() };
+        const latestProposal = await getLatestTitleProposalState(groupId, directAction.appointmentId);
+        if (!latestProposal.activeProposal || latestProposal.activeProposal.proposalId !== directAction.proposalId) {
+          return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
+        }
+        const nextTitle = directAction.value.trim().replace(/\s+/g, ' ');
+        if (!nextTitle || nextTitle.length > 200) return withDirectMeta(errorResponse(400, 'invalid_title', 'Invalid title', traceId), traceId, context);
+        const nextDoc = { ...current.doc, title: nextTitle, updatedAt: new Date().toISOString() };
         const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, nextDoc, current.etag);
         if (saved) {
           updatedAppointmentDoc = { ...nextDoc, _previousTitle: previousTitle };
@@ -423,7 +483,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
       const stateAppointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
       if (stateAppointment) {
-        stateAppointment.title = directAction.value;
+        stateAppointment.title = String(updatedAppointmentDoc.title ?? directAction.value);
         stateAppointment.updatedAt = new Date().toISOString();
       }
 
@@ -434,7 +494,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         actor: { actorType: 'HUMAN', email: session.email, userKey: userKeyFromEmail(session.email) },
         proposalId: directAction.proposalId,
         clientRequestId: directAction.clientRequestId,
-        payload: { field: 'title', oldValue: (updatedAppointmentDoc as Record<string, unknown>)._previousTitle, newValue: directAction.value }
+        payload: { field: 'title', from: (updatedAppointmentDoc as Record<string, unknown>)._previousTitle, to: updatedAppointmentDoc.title }
       };
       const confirmEvent: AppointmentEvent = {
         id: randomUUID(),
@@ -442,7 +502,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         type: 'SYSTEM_CONFIRMATION',
         actor: { actorType: 'SYSTEM' },
         proposalId: directAction.proposalId,
-        payload: { text: `Title updated to “${directAction.value}”`, by: session.email },
+        payload: { message: `Title updated to "${String(updatedAppointmentDoc.title ?? directAction.value)}"` },
         clientRequestId: `${directAction.clientRequestId}:confirm`
       };
       await appendEvent(groupId, directAction.appointmentId, changedEvent, { idempotencyKey: directAction.clientRequestId });
