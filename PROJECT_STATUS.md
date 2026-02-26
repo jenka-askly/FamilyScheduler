@@ -1,3 +1,12 @@
+## 2026-02-26 01:05 UTC update (Ignite organizer continue route correction)
+
+- **Bug description:** Organizer `Finish inviting & continue` in Ignite was navigating to `/#/g/:groupId` (join route), which could trigger join gating and show the Join dialog instead of entering the app directly.
+- **Root cause:** `finishInvitingAndContinue` used the base group route (`/g/${groupId}`) instead of the app route (`/g/${groupId}/app`).
+- **Fix summary:** Updated organizer continue navigation to `/#/g/:groupId/app` and added an in-code guard comment documenting why `/app` is required.
+- **Verification notes:**
+  - Organizer continue path now targets `/#/g/<newGroupId>/app`.
+  - Joiner success navigation remains on `/#/g/<newGroupId>/app` (unchanged by this patch).
+
 ## 2026-02-26 00:08 UTC update (Ignite breakout join regression fix)
 
 - **Bug description:** After breakout/spinoff completion, organizer and joiner were landing on `/#/g/:newGroupId` (join route) instead of `/#/g/:newGroupId/app`, which triggered join gating and redirect loops.
