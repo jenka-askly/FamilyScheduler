@@ -11390,3 +11390,46 @@ Implement appointment detail Drawer UX backed by durable per-appointment event l
 ### Follow-ups
 - Add backend unit tests for event chunk rollover/idempotency once API test harness can run in this environment with Azure table deps resolved.
 - Run manual end-to-end checks for proposal countdown and deep-link open behavior against deployed API.
+
+## 2026-02-26 22:39 UTC (AzureWebJobsStorage-first blob client precedence for appointment drawer/event paths)
+
+### Objective
+Make `AzureWebJobsStorage` the primary blob client config for appointment events, appointment docs ETag helpers, and storage adapter usage; keep account URL + managed identity as fallback; preserve existing blob paths and env compatibility.
+
+### Approach
+- Added shared helper module `blobClients.ts`:
+  - `getBlobServiceClient({ connectionString, accountUrl })`
+  - `getContainerClient({ connectionString, accountUrl, containerName })`
+- Updated `appointmentEvents.ts` to read:
+  - `connectionString = AzureWebJobsStorage`
+  - `accountUrl = AZURE_STORAGE_ACCOUNT_URL`
+  - `containerName = AZURE_STORAGE_CONTAINER ?? STATE_CONTAINER`
+  and resolve clients via shared helper.
+- Updated `tables/appointments.ts` ETag read/write client creation to use the same precedence and container selection.
+- Updated storage adapter config in `storageFactory.ts`:
+  - require only `STATE_CONTAINER`
+  - prefer `AzureWebJobsStorage`
+  - fallback `STORAGE_ACCOUNT_URL`
+- Updated `AzureBlobStorage` constructor to prefer connection string, fallback account URL, and throw explicit missing-config error only when neither is set.
+- Added a focused unit assertion in `azureBlobStorage.test.ts` for missing blob configuration constructor behavior.
+- Updated `PROJECT_STATUS.md` with precedence and container selection rules.
+
+### Files changed
+- `api/src/lib/storage/blobClients.ts`
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/lib/tables/appointments.ts`
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/storage/azureBlobStorage.ts`
+- `api/src/lib/storage/azureBlobStorage.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api build` ❌ failed due to pre-existing missing module/type dependency for `@azure/data-tables` in this container.
+- `pnpm --filter @familyscheduler/api test -- azureBlobStorage.test.ts` ❌ failed for same reason (test script runs build first).
+
+### Follow-ups
+- Run full API build/tests in an environment with `@azure/data-tables` resolvable.
+- Verify runtime scenarios:
+  1. `AzureWebJobsStorage + STATE_CONTAINER` only (Drawer + `get_appointment_detail` path succeeds)
+  2. fallback mode with missing `AzureWebJobsStorage` and present `STORAGE_ACCOUNT_URL` + identity.
