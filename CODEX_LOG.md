@@ -1,3 +1,29 @@
+## 2026-02-27 08:03 UTC (Index-backed chat appointment listing for scan persistence)
+
+### Objective
+Fix disappearing scan appointments in chat snapshots by removing legacy `state.appointments` dependence in list-appointment chat flow.
+
+### Approach
+- Added deterministic command routing in `chat.ts` for list appointments phrases (no OpenAI call).
+- Implemented index-backed appointment snapshot assembly using `AppointmentsIndex` + `appointment.json` reads.
+- Added test seams for table/blob readers and wrote targeted chat tests for routing + response behavior.
+- Kept minimal-change behavior: state load still used for membership and non-appointment snapshot sections.
+
+### Files changed
+- `api/src/functions/chat.ts`
+- `api/src/functions/chat.test.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/tables/appointments.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api test -- chat.test.ts` ⚠️ failed in this environment due to missing `@azure/data-tables` dependency/type resolution during TypeScript build.
+
+### Follow-ups
+- Run API tests in an environment with `@azure/data-tables` available to fully validate compile + test execution.
+
+
 ## 2026-02-27 07:13 UTC (Resolve appointment time: exact 3 unresolved time-only choices)
 
 ### Objective

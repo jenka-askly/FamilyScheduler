@@ -1,3 +1,11 @@
+## 2026-02-27 08:03 UTC update (Chat list appointments reads AppointmentsIndex + appointment.json)
+
+- Added deterministic list command router in `/api/chat` for `list appointments`, `show appointments`, and `appointments` that bypasses LLM parsing.
+- Chat snapshot appointment listing now comes from Azure Table `AppointmentsIndex` + appointment blob docs (`appointment.json`) via a new index-backed snapshot builder.
+- `state.json` is still loaded for auth/people/rules/history/etag paths, but chat list appointment rows no longer use `state.appointments`.
+- Added structured list-path logs (`chat_list_appointments_index_loaded`, missing/invalid blob warnings) including `traceId` and counts for diagnosability.
+- Added test hooks and chat tests covering deterministic list routing and non-clarify response behavior.
+
 ## 2026-02-27 07:13 UTC update (API: deterministic unresolved time-only choices)
 
 - Updated `/api/direct` `resolve_appointment_time` unresolved-time-only behavior to always return exactly three choices in stable order: `today`, `tomorrow`, `appointment`.

@@ -1,6 +1,7 @@
 import type { TableEntityResult } from '@azure/data-tables';
 import { getTableClient } from './tablesClient.js';
 import { TABLE_KEY_SEP } from './tableKeys.js';
+const listAppointmentIndexesForGroupForTests: { fn: ((groupId: string, max?: number) => Promise<AppointmentsIndexEntity[]>) | null } = { fn: null };
 
 export type MembershipStatus = 'active' | 'invited' | 'removed';
 
@@ -165,6 +166,33 @@ export const findAppointmentIndexById = async (groupId: string, appointmentId: s
   const iter = client.listEntities<AppointmentsIndexEntity>({ queryOptions: { filter: `PartitionKey eq '${groupId}' and appointmentId eq '${appointmentId}'` } });
   for await (const entity of iter) return entity;
   return null;
+};
+
+export const listAppointmentIndexesForGroup = async (groupId: string, max = 500): Promise<AppointmentsIndexEntity[]> => {
+  if (listAppointmentIndexesForGroupForTests.fn) return listAppointmentIndexesForGroupForTests.fn(groupId, max);
+  const escapedGroupId = groupId.replace(/'/g, "''");
+  const entities: AppointmentsIndexEntity[] = [];
+  const client = getTableClient('AppointmentsIndex');
+  const iter = client.listEntities<AppointmentsIndexEntity>({
+    queryOptions: {
+      filter: `PartitionKey eq '${escapedGroupId}' and isDeleted ne true`
+    }
+  });
+  for await (const entity of iter) {
+    entities.push(entity);
+    if (entities.length >= max) break;
+  }
+  entities.sort((a, b) => {
+    const aMs = Date.parse(a.updatedAt ?? '') || 0;
+    const bMs = Date.parse(b.updatedAt ?? '') || 0;
+    if (bMs !== aMs) return bMs - aMs;
+    return a.appointmentId.localeCompare(b.appointmentId);
+  });
+  return entities;
+};
+
+export const setListAppointmentIndexesForGroupForTests = (fn: ((groupId: string, max?: number) => Promise<AppointmentsIndexEntity[]>) | null): void => {
+  listAppointmentIndexesForGroupForTests.fn = fn;
 };
 
 export const upsertAppointmentIndex = async (entity: AppointmentsIndexEntity): Promise<void> => {

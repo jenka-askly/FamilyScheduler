@@ -1,6 +1,8 @@
 import { createStorageAdapter } from '../storage/storageFactory.js';
 import { getContainerClient } from '../storage/blobClients.js';
 
+const getAppointmentJsonForTests: { fn: ((groupId: string, appointmentId: string) => Promise<Record<string, unknown> | null>) | null } = { fn: null };
+
 const streamToText = async (readable: NodeJS.ReadableStream): Promise<string> => {
   const chunks: Buffer[] = [];
   for await (const chunk of readable) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -27,6 +29,7 @@ export const putAppointmentJson = async (groupId: string, appointmentId: string,
 };
 
 export const getAppointmentJson = async (groupId: string, appointmentId: string): Promise<Record<string, unknown> | null> => {
+  if (getAppointmentJsonForTests.fn) return getAppointmentJsonForTests.fn(groupId, appointmentId);
   const storage = createStorageAdapter();
   if (!storage.getBinary) throw new Error('Storage adapter missing getBinary');
   try {
@@ -68,4 +71,8 @@ export const putAppointmentJsonWithEtag = async (groupId: string, appointmentId:
     if (status === 409 || status === 412) return false;
     throw error;
   }
+};
+
+export const setGetAppointmentJsonForTests = (fn: ((groupId: string, appointmentId: string) => Promise<Record<string, unknown> | null>) | null): void => {
+  getAppointmentJsonForTests.fn = fn;
 };
