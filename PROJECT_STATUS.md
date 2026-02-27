@@ -4615,3 +4615,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck` ✅
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (manual run for screenshot; stopped with SIGINT)
 3. Playwright screenshot artifact captured: `browser:/tmp/codex_browser_invocations/29085755698933f6/artifacts/artifacts/members-invite-page.png`
+
+## 2026-02-27 02:18 UTC update (Appointment pane enhancement round 2: apply loader/materialization fix)
+
+- Fixed `apply_appointment_proposal` false `appointment_not_found` by unifying appointment doc materialization through shared `loadOrEnsureAppointment(...)` in direct handler.
+- `create_blank_appointment` now persists state **and** immediately materializes `appointment.json` for the new appointment id, so proposal apply works without warm-up actions.
+- `dismiss_appointment_proposal` now also goes through the same load/ensure path to avoid proposal dead-ends tied to missing appointment docs.
+- Added safer diagnostics for rare apply `appointment_not_found` cases: logs include `groupId`, `appointmentId`, resolved blob path, and whether `appointment.json` existed.
+- Proposal recovery hardening in web UI: failed apply/dismiss now trigger detail refetch so pending proposal card stays recoverable (no dead-end loop).
+
+### Known remaining issues
+
+- API build/test remains blocked in this container by missing `@azure/data-tables` type resolution during `tsc`.

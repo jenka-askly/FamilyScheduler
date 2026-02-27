@@ -26,7 +26,7 @@ import {
   removeConstraintForMember,
   upsertConstraintForMember
 } from '../lib/appointments/appointmentDomain.js';
-import { getAppointmentJsonWithEtag, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
+import { appointmentJsonBlobPath, getAppointmentJsonWithEtag, putAppointmentJson, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -79,6 +79,43 @@ const isConstraintField = (value: string): value is typeof CONSTRAINT_FIELDS[num
 const isConstraintOperator = (value: string): value is typeof CONSTRAINT_OPERATORS[number] => CONSTRAINT_OPERATORS.includes(value as typeof CONSTRAINT_OPERATORS[number]);
 const isSuggestionField = (value: string): value is typeof SUGGESTION_FIELDS[number] => SUGGESTION_FIELDS.includes(value as typeof SUGGESTION_FIELDS[number]);
 
+
+
+const appointmentDocStore = {
+  getWithEtag: getAppointmentJsonWithEtag,
+  put: putAppointmentJson,
+  putWithEtag: putAppointmentJsonWithEtag
+};
+
+export const setAppointmentDocStoreForTests = (overrides: Partial<typeof appointmentDocStore> | null): void => {
+  if (!overrides) {
+    appointmentDocStore.getWithEtag = getAppointmentJsonWithEtag;
+    appointmentDocStore.put = putAppointmentJson;
+    appointmentDocStore.putWithEtag = putAppointmentJsonWithEtag;
+    return;
+  }
+  appointmentDocStore.getWithEtag = overrides.getWithEtag ?? appointmentDocStore.getWithEtag;
+  appointmentDocStore.put = overrides.put ?? appointmentDocStore.put;
+  appointmentDocStore.putWithEtag = overrides.putWithEtag ?? appointmentDocStore.putWithEtag;
+};
+
+const appointmentEventStore = {
+  append: appendEvent,
+  recent: getRecentEvents,
+  hasLatestIdempotencyKey: hasLatestChunkIdempotencyKey
+};
+
+export const setAppointmentEventStoreForTests = (overrides: Partial<typeof appointmentEventStore> | null): void => {
+  if (!overrides) {
+    appointmentEventStore.append = appendEvent;
+    appointmentEventStore.recent = getRecentEvents;
+    appointmentEventStore.hasLatestIdempotencyKey = hasLatestChunkIdempotencyKey;
+    return;
+  }
+  appointmentEventStore.append = overrides.append ?? appointmentEventStore.append;
+  appointmentEventStore.recent = overrides.recent ?? appointmentEventStore.recent;
+  appointmentEventStore.hasLatestIdempotencyKey = overrides.hasLatestIdempotencyKey ?? appointmentEventStore.hasLatestIdempotencyKey;
+};
 
 const detectTitleProposal = (textRaw: string): string | null => {
   const text = textRaw.trim();
@@ -225,6 +262,30 @@ const withDirectMeta = (response: HttpResponseInit, traceId: string, context: In
 };
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asString = (value: unknown): string | null => typeof value === 'string' ? value.trim() : null;
+
+
+const loadOrEnsureAppointment = async (
+  groupId: string,
+  appointmentId: string,
+  actorEmail: string
+): Promise<{ doc: Record<string, unknown>; etag: string | null; existed: boolean; blobPath: string }> => {
+  const blobPath = appointmentJsonBlobPath(groupId, appointmentId);
+  const current = await appointmentDocStore.getWithEtag(groupId, appointmentId);
+  if (current.doc) {
+    return { doc: ensureAppointmentDoc(current.doc, actorEmail), etag: current.etag, existed: true, blobPath };
+  }
+
+  const now = new Date().toISOString();
+  await appointmentDocStore.put(groupId, appointmentId, ensureAppointmentDoc({ id: appointmentId, createdAt: now, updatedAt: now, title: '' }, actorEmail));
+  const created = await appointmentDocStore.getWithEtag(groupId, appointmentId);
+  return {
+    doc: ensureAppointmentDoc(created.doc ?? { id: appointmentId, createdAt: now, updatedAt: now, title: '' }, actorEmail),
+    etag: created.etag,
+    existed: false,
+    blobPath
+  };
+};
+
 const nextPersonId = (state: AppState): string => `P-${state.people.reduce((max, person) => {
   const match = person.personId.match(/^P-(\d+)$/i);
   return match ? Math.max(max, Number(match[1])) : max;
@@ -484,8 +545,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
 
     try {
-      const recent = await getRecentEvents(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
-      const appointmentDoc = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
+      const appointmentDoc = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
       const doc = appointmentDoc.doc ? expireSuggestions(ensureAppointmentDoc(appointmentDoc.doc, session.email)) : null;
       const discussionTypes = new Set(['USER_MESSAGE', 'SYSTEM_CONFIRMATION', 'PROPOSAL_CREATED', 'PROPOSAL_PAUSED', 'PROPOSAL_RESUMED', 'PROPOSAL_EDITED', 'PROPOSAL_APPLIED', 'PROPOSAL_CANCELED', 'SUGGESTION_CREATED', 'SUGGESTION_APPLIED', 'SUGGESTION_DISMISSED', 'SUGGESTION_REACTED', 'SUGGESTION_REACTION', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED']);
       const discussionEvents = recent.events.filter((event) => discussionTypes.has(event.type));
@@ -526,14 +587,14 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
     try {
       const appendedEvents: AppointmentEvent[] = [];
-      const messageResult = await appendEvent(groupId, directAction.appointmentId, baseEvent, { idempotencyKey: directAction.clientRequestId });
+      const messageResult = await appointmentEventStore.append(groupId, directAction.appointmentId, baseEvent, { idempotencyKey: directAction.clientRequestId });
       if (messageResult.appended) appendedEvents.push(messageResult.event);
 
       let proposal: { proposalId: string; field: 'title'; from: string; to: string } | null = null;
       const proposedTitle = detectTitleProposal(directAction.text);
 
       if (proposedTitle) {
-        const recent = await getRecentEvents(groupId, directAction.appointmentId, 50);
+        const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, 50);
         const pendingProposal = derivePendingProposal(recent.events);
         if (pendingProposal) {
           return withDirectMeta({
@@ -552,7 +613,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           payload: { field: 'title', from: appointment.title ?? '', to: proposedTitle, proposalId },
           clientRequestId: `${directAction.clientRequestId}:proposal`
         };
-        const proposalResult = await appendEvent(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal` });
+        const proposalResult = await appointmentEventStore.append(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal` });
         if (proposalResult.appended) appendedEvents.push(proposalResult.event);
         proposal = { proposalId, field: 'title', from: appointment.title ?? '', to: proposedTitle };
       }
@@ -566,16 +627,21 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   if (directAction.type === 'apply_appointment_proposal') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
-    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    if (!appointment) {
+      const blobPath = appointmentJsonBlobPath(groupId, directAction.appointmentId);
+      const existing = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
+      context.log(JSON.stringify({ event: 'apply_appointment_not_found', traceId, groupId, appointmentId: directAction.appointmentId, blobPath, appointmentJsonExists: !!existing.doc }));
+      return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    }
 
     try {
-      const alreadyApplied = await hasLatestChunkIdempotencyKey(groupId, directAction.appointmentId, directAction.clientRequestId);
+      const alreadyApplied = await appointmentEventStore.hasLatestIdempotencyKey(groupId, directAction.appointmentId, directAction.clientRequestId);
       if (alreadyApplied) {
         return withDirectMeta({ status: 200, jsonBody: { ok: true, appointment: toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0], appendedEvents: [] } }, traceId, context);
       }
 
       if (directAction.value.length > TITLE_MAX_LENGTH) return withDirectMeta(errorResponse(400, 'invalid_title', `title must be at most ${TITLE_MAX_LENGTH} characters`, traceId), traceId, context);
-      const recent = await getRecentEvents(groupId, directAction.appointmentId, 200);
+      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, 200);
       const activeProposal = latestActiveTitleProposal(recent.events);
       if (!activeProposal) {
         return withDirectMeta(errorResponse(404, 'proposal_not_found', 'Proposal not found', traceId), traceId, context);
@@ -589,14 +655,17 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       let previousReconciliationStatus = 'unreconciled';
       let nextReconciliationStatus = 'unreconciled';
       for (let i = 0; i < maxAttempts; i += 1) {
-        const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
-        if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
-        const previousTitle = typeof current.doc.title === 'string' ? current.doc.title : '';
-        previousReconciliationStatus = typeof (current.doc.reconciliation as Record<string, unknown> | undefined)?.status === 'string' ? String((current.doc.reconciliation as Record<string, unknown>).status) : 'unreconciled';
-        const reconciled = evaluateReconciliation({ ...current.doc, title: directAction.value, updatedAt: new Date().toISOString() }, session.email);
+        const ensured = await loadOrEnsureAppointment(groupId, directAction.appointmentId, session.email);
+        const previousTitle = typeof ensured.doc.title === 'string' ? ensured.doc.title : '';
+        previousReconciliationStatus = typeof (ensured.doc.reconciliation as Record<string, unknown> | undefined)?.status === 'string' ? String((ensured.doc.reconciliation as Record<string, unknown>).status) : 'unreconciled';
+        const reconciled = evaluateReconciliation({ ...ensured.doc, id: directAction.appointmentId, title: directAction.value, updatedAt: new Date().toISOString() }, session.email);
         nextReconciliationStatus = reconciled.status;
         const nextDoc = reconciled.doc;
-        const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, nextDoc, current.etag);
+        if (!ensured.etag) {
+          context.log(JSON.stringify({ event: 'apply_appointment_proposal_missing_etag', traceId, groupId, appointmentId: directAction.appointmentId, blobPath: ensured.blobPath }));
+          continue;
+        }
+        const saved = await appointmentDocStore.putWithEtag(groupId, directAction.appointmentId, nextDoc, ensured.etag);
         if (saved) {
           updatedAppointmentDoc = { ...nextDoc, _previousTitle: previousTitle };
           break;
@@ -638,9 +707,9 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         payload: { message: `Title updated to "${directAction.value}"`, by: session.email },
         clientRequestId: `${directAction.clientRequestId}:confirm`
       };
-      await appendEvent(groupId, directAction.appointmentId, proposalAppliedEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal-applied` });
-      await appendEvent(groupId, directAction.appointmentId, changedEvent, { idempotencyKey: directAction.clientRequestId });
-      await appendEvent(groupId, directAction.appointmentId, confirmEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, proposalAppliedEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal-applied` });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, changedEvent, { idempotencyKey: directAction.clientRequestId });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, confirmEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
 
       const appendedEvents: AppointmentEvent[] = [proposalAppliedEvent, changedEvent, confirmEvent];
       if (previousReconciliationStatus !== nextReconciliationStatus) {
@@ -660,8 +729,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           payload: { message: `Reconciliation status changed to ${nextReconciliationStatus}` },
           clientRequestId: `${directAction.clientRequestId}:reconciliation-confirm`
         };
-        await appendEvent(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: `${directAction.clientRequestId}:reconciliation` });
-        await appendEvent(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: `${directAction.clientRequestId}:reconciliation-confirm` });
+        await appointmentEventStore.append(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: `${directAction.clientRequestId}:reconciliation` });
+        await appointmentEventStore.append(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: `${directAction.clientRequestId}:reconciliation-confirm` });
         appendedEvents.push(reconciliationChanged, reconciliationConfirmation);
       }
 
@@ -694,7 +763,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         payload: { proposalId: directAction.proposalId },
         clientRequestId: directAction.clientRequestId
       };
-      await appendEvent(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: directAction.clientRequestId });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: directAction.clientRequestId });
       return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents: [proposalEvent] } }, traceId, context);
     } catch (error) {
       context.log(JSON.stringify({ event: 'proposal_lifecycle_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
@@ -704,9 +773,14 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   if (directAction.type === 'edit_appointment_proposal') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
-    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    if (!appointment) {
+      const blobPath = appointmentJsonBlobPath(groupId, directAction.appointmentId);
+      const existing = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
+      context.log(JSON.stringify({ event: 'apply_appointment_not_found', traceId, groupId, appointmentId: directAction.appointmentId, blobPath, appointmentJsonExists: !!existing.doc }));
+      return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    }
     try {
-      const recent = await getRecentEvents(groupId, directAction.appointmentId, 200);
+      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, 200);
       const activeProposal = latestActiveTitleProposal(recent.events);
       if (!activeProposal || activeProposal.proposalId !== directAction.proposalId) return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
       const beforeText = String((activeProposal.payload as Record<string, unknown>).to ?? '');
@@ -719,7 +793,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         payload: { proposalId: directAction.proposalId, beforeText, afterText: directAction.value },
         clientRequestId: directAction.clientRequestId
       };
-      await appendEvent(groupId, directAction.appointmentId, editEvent, { idempotencyKey: directAction.clientRequestId });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, editEvent, { idempotencyKey: directAction.clientRequestId });
       return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents: [editEvent] } }, traceId, context);
     } catch (error) {
       context.log(JSON.stringify({ event: 'edit_appointment_proposal_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
@@ -729,10 +803,15 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   if (directAction.type === 'add_constraint' || directAction.type === 'edit_constraint' || directAction.type === 'remove_constraint') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
-    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    if (!appointment) {
+      const blobPath = appointmentJsonBlobPath(groupId, directAction.appointmentId);
+      const existing = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
+      context.log(JSON.stringify({ event: 'apply_appointment_not_found', traceId, groupId, appointmentId: directAction.appointmentId, blobPath, appointmentJsonExists: !!existing.doc }));
+      return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    }
     if (normalizeEmail(session.email) !== directAction.memberEmail) return withDirectMeta(errorResponse(403, 'forbidden_constraint_member', 'Members can only edit their own constraints', traceId), traceId, context);
     try {
-      const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      const current = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
       if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
       const beforeReconciliation = String(((current.doc.reconciliation as Record<string, unknown> | undefined)?.status) ?? 'unreconciled');
       let nextDoc = current.doc;
@@ -755,14 +834,14 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       }
       const reconciled = evaluateReconciliation(nextDoc, session.email);
       const afterReconciliation = reconciled.status;
-      const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, reconciled.doc, current.etag);
+      const saved = await appointmentDocStore.putWithEtag(groupId, directAction.appointmentId, reconciled.doc, current.etag);
       if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
-      for (const event of eventsToAppend) await appendEvent(groupId, directAction.appointmentId, event, { idempotencyKey: event.clientRequestId });
+      for (const event of eventsToAppend) await appointmentEventStore.append(groupId, directAction.appointmentId, event, { idempotencyKey: event.clientRequestId });
       if (beforeReconciliation !== afterReconciliation) {
         const reconciliationChanged: AppointmentEvent = { id: randomUUID(), tsUtc: new Date().toISOString(), type: 'RECONCILIATION_CHANGED', actor: { kind: 'SYSTEM' }, payload: { from: beforeReconciliation, to: afterReconciliation }, clientRequestId: `${directAction.clientRequestId}:reconciliation` };
         const reconciliationConfirmation: AppointmentEvent = { id: randomUUID(), tsUtc: new Date().toISOString(), type: 'SYSTEM_CONFIRMATION', actor: { kind: 'SYSTEM' }, payload: { message: `Reconciliation status changed to ${afterReconciliation}` }, clientRequestId: `${directAction.clientRequestId}:reconciliation-confirm` };
-        await appendEvent(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: reconciliationChanged.clientRequestId });
-        await appendEvent(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: reconciliationConfirmation.clientRequestId });
+        await appointmentEventStore.append(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: reconciliationChanged.clientRequestId });
+        await appointmentEventStore.append(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: reconciliationConfirmation.clientRequestId });
         eventsToAppend.push(reconciliationChanged, reconciliationConfirmation);
       }
       return withDirectMeta({ status: 200, jsonBody: { ok: true, constraints: { byMember: { [directAction.memberEmail]: activeConstraintsForMember(reconciled.doc, directAction.memberEmail) } }, appendedEvents: eventsToAppend } }, traceId, context);
@@ -774,9 +853,14 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   if (directAction.type === 'create_suggestion' || directAction.type === 'dismiss_suggestion' || directAction.type === 'react_suggestion' || directAction.type === 'apply_suggestion') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
-    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    if (!appointment) {
+      const blobPath = appointmentJsonBlobPath(groupId, directAction.appointmentId);
+      const existing = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
+      context.log(JSON.stringify({ event: 'apply_appointment_not_found', traceId, groupId, appointmentId: directAction.appointmentId, blobPath, appointmentJsonExists: !!existing.doc }));
+      return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    }
     try {
-      const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      const current = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
       if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
       const doc = expireSuggestions(ensureAppointmentDoc(current.doc, session.email));
       const byField = ((doc.suggestions as Record<string, unknown>).byField as Record<string, unknown>) ?? {};
@@ -799,10 +883,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           return entry;
         });
         byField[field] = nextList;
-        const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
+        const saved = await appointmentDocStore.putWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
         if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
         const ev: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SUGGESTION_CREATED', actor: { kind: 'HUMAN', email: session.email }, payload: { suggestion: { ...created, conflicted } }, clientRequestId: directAction.clientRequestId };
-        await appendEvent(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
+        await appointmentEventStore.append(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
         appendedEvents.push(ev);
       } else {
         const idx = list.findIndex((entry) => String(entry.id ?? '') === directAction.suggestionId);
@@ -812,10 +896,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           if (normalizeEmail(String(target.proposerEmail ?? '')) !== normalizeEmail(session.email)) return withDirectMeta(errorResponse(403, 'not_suggestion_proposer', 'Only proposer can dismiss suggestion', traceId), traceId, context);
           list[idx] = { ...target, active: false, status: 'dismissed', updatedAtUtc: now };
           byField[field] = list;
-          const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
+          const saved = await appointmentDocStore.putWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
           if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
           const ev: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SUGGESTION_DISMISSED', actor: { kind: 'HUMAN', email: session.email }, payload: { suggestionId: directAction.suggestionId, field }, clientRequestId: directAction.clientRequestId };
-          await appendEvent(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
+          await appointmentEventStore.append(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
           appendedEvents.push(ev);
         }
         if (directAction.type === 'react_suggestion') {
@@ -827,10 +911,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           ];
           list[idx] = { ...target, reactions: nextReactions, updatedAtUtc: now };
           byField[field] = list;
-          const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
+          const saved = await appointmentDocStore.putWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
           if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
           const ev: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: canonicalReactionType, actor: { kind: 'HUMAN', email: session.email }, payload: { suggestionId: directAction.suggestionId, field, reaction: directAction.reaction }, clientRequestId: directAction.clientRequestId };
-          await appendEvent(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
+          await appointmentEventStore.append(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
           appendedEvents.push(ev);
         }
         if (directAction.type === 'apply_suggestion') {
@@ -839,25 +923,25 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           list[idx] = { ...target, active: false, status: 'applied', updatedAtUtc: now };
           const nextDocRaw = { ...doc, suggestions: { byField: { ...byField, [field]: list } }, ...(field === 'title' ? { title: value } : {}), ...(field === 'location' ? { locationDisplay: value, location: value, locationRaw: value } : {}), ...(field === 'time' ? { startTime: value } : {}) };
           const reconciled = evaluateReconciliation(nextDocRaw, session.email);
-          const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, reconciled.doc, current.etag);
+          const saved = await appointmentDocStore.putWithEtag(groupId, directAction.appointmentId, reconciled.doc, current.etag);
           if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
           const suggestionApplied: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SUGGESTION_APPLIED', actor: { kind: 'HUMAN', email: session.email }, payload: { suggestionId: directAction.suggestionId, field, value }, clientRequestId: `${directAction.clientRequestId}:applied` };
           const fieldChanged: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'FIELD_CHANGED', actor: { kind: 'HUMAN', email: session.email }, payload: { field, to: value }, clientRequestId: directAction.clientRequestId };
-          await appendEvent(groupId, directAction.appointmentId, suggestionApplied, { idempotencyKey: suggestionApplied.clientRequestId });
-          await appendEvent(groupId, directAction.appointmentId, fieldChanged, { idempotencyKey: directAction.clientRequestId });
+          await appointmentEventStore.append(groupId, directAction.appointmentId, suggestionApplied, { idempotencyKey: suggestionApplied.clientRequestId });
+          await appointmentEventStore.append(groupId, directAction.appointmentId, fieldChanged, { idempotencyKey: directAction.clientRequestId });
           appendedEvents.push(suggestionApplied, fieldChanged);
           const nextReconciliationStatus = reconciled.status;
           if (previousReconciliationStatus !== nextReconciliationStatus) {
             const reconciliationChanged: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'RECONCILIATION_CHANGED', actor: { kind: 'SYSTEM' }, payload: { from: previousReconciliationStatus, to: nextReconciliationStatus }, clientRequestId: `${directAction.clientRequestId}:reconciliation` };
             const reconciliationConfirmation: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SYSTEM_CONFIRMATION', actor: { kind: 'SYSTEM' }, payload: { message: `Reconciliation status changed to ${nextReconciliationStatus}` }, clientRequestId: `${directAction.clientRequestId}:reconciliation-confirm` };
-            await appendEvent(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: reconciliationChanged.clientRequestId });
-            await appendEvent(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: reconciliationConfirmation.clientRequestId });
+            await appointmentEventStore.append(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: reconciliationChanged.clientRequestId });
+            await appointmentEventStore.append(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: reconciliationConfirmation.clientRequestId });
             appendedEvents.push(reconciliationChanged, reconciliationConfirmation);
           }
         }
       }
 
-      const latest = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      const latest = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
       const finalDoc = latest.doc ? expireSuggestions(ensureAppointmentDoc(latest.doc, session.email)) : doc;
       return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents, suggestions: finalDoc.suggestions } }, traceId, context);
     } catch (error) {
@@ -871,7 +955,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
     try {
-      const recent = await getRecentEvents(groupId, directAction.appointmentId, 200);
+      await loadOrEnsureAppointment(groupId, directAction.appointmentId, session.email);
+      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, 200);
       const activeProposal = latestActiveTitleProposal(recent.events);
       if (!activeProposal) return withDirectMeta(errorResponse(404, 'proposal_not_found', 'Proposal not found', traceId), traceId, context);
       if (activeProposal.proposalId !== directAction.proposalId) return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
@@ -893,8 +978,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         payload: { message: 'Title proposal cancelled' },
         clientRequestId: `${directAction.clientRequestId}:confirm`
       };
-      await appendEvent(groupId, directAction.appointmentId, cancelEvent, { idempotencyKey: directAction.clientRequestId });
-      await appendEvent(groupId, directAction.appointmentId, confirmationEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, cancelEvent, { idempotencyKey: directAction.clientRequestId });
+      await appointmentEventStore.append(groupId, directAction.appointmentId, confirmationEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
       return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents: [cancelEvent, confirmationEvent] } }, traceId, context);
     } catch (error) {
       context.log(JSON.stringify({ event: 'dismiss_appointment_proposal_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
@@ -983,6 +1068,25 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   }
 
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: caller.memberId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+  if (directAction.type === 'create_blank_appointment') {
+    if (!execution.appliedAll) return withDirectMeta({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } }, traceId, context);
+    try {
+      const written = await storage.save(groupId, execution.nextState, loaded.etag);
+      const createdAppointment = written.state.appointments[written.state.appointments.length - 1];
+      if (createdAppointment?.id) {
+        await loadOrEnsureAppointment(groupId, createdAppointment.id, session.email);
+      }
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } }, traceId, context);
+    } catch (error) {
+      if (error instanceof MissingConfigError) {
+        logConfigMissing('direct', traceId, error.missing);
+        return withDirectMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }), traceId, context);
+      }
+      if (error instanceof ConflictError) return withDirectMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } }, traceId, context);
+      throw error;
+    }
+  }
+
   if (directAction.type === 'create_blank_person') {
     const personId = nextPersonId(loaded.state);
     const now = new Date().toISOString();

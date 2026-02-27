@@ -617,6 +617,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (!response.ok || !payload.ok) {
       console.error('apply_appointment_proposal failed', payload);
       appendLocalDiscussionErrorEvent(buildDirectActionErrorMessage(response, payload, 'Unable to apply proposal.'));
+      await loadAppointmentDetails(detailsAppointmentId);
       return;
     }
     await loadAppointmentDetails(detailsAppointmentId);
@@ -631,8 +632,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'dismiss_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, clientRequestId }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
-    if (!response.ok || !payload.ok) return;
+    const payload = await response.json() as DirectActionErrorPayload & { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
+    if (!response.ok || !payload.ok) {
+      appendLocalDiscussionErrorEvent(buildDirectActionErrorMessage(response, payload, 'Unable to dismiss proposal.'));
+      await loadAppointmentDetails(detailsAppointmentId);
+      return;
+    }
     await loadAppointmentDetails(detailsAppointmentId);
   };
 

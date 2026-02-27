@@ -11688,3 +11688,37 @@ Resolve proposal pending dead-end where Apply/Cancel became unavailable and ensu
 ### Follow-ups
 
 - Human staging run should execute manual verification script to confirm Network panel shows `apply_appointment_proposal` with `proposalId`, response `ok:true`, and persisted title across refresh.
+
+## 2026-02-27 02:18 UTC (Appointment pane enhancement round 2: apply path unification)
+
+### Objective
+
+Fix `apply_appointment_proposal` returning `appointment_not_found` for newly created appointments and remove proposal recovery dead-ends.
+
+### Approach
+
+- Traced direct action handlers and identified split behavior:
+  - `get_appointment_detail` tolerates missing `appointment.json`.
+  - `apply_appointment_proposal` required existing `appointment.json` + etag and returned `appointment_not_found` otherwise.
+- Added shared `loadOrEnsureAppointment(groupId, appointmentId, actorEmail)` to canonicalize blob path usage and materialize missing `appointment.json`.
+- Updated `apply_appointment_proposal` and `dismiss_appointment_proposal` to use shared load/ensure flow.
+- Updated `create_blank_appointment` to persist `appointment.json` immediately after state save, preventing post-create apply failures.
+- Hardened web proposal recovery by refetching details on apply/dismiss errors.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "create_blank_appointment|get_appointment_detail|apply_appointment_proposal|append_appointment_message|dismiss_appointment_proposal" api/src/functions/direct.ts` ✅
+- `rg -n "getAppointmentJsonWithEtag|putAppointmentJsonWithEtag|appointment.json|STATE_BLOB_PREFIX" api/src/lib -g '*.ts'` ✅
+- `rg -n "title_proposal_pending|pendingProposal|apply_appointment_proposal|dismiss_appointment_proposal" apps/web/src/AppShell.tsx` ✅
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed due environment module/type resolution issue (`@azure/data-tables` not found by `tsc` in container).
+
+### Follow-ups
+
+- Re-run API tests in an environment with complete Azure table dependencies; then validate full create→propose→apply flow in staging and capture network/log proof (`ok:true`).

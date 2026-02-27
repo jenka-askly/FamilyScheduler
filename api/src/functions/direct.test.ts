@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { derivePendingProposal, direct } from './direct.js';
+import { derivePendingProposal, direct, setAppointmentDocStoreForTests, setAppointmentEventStoreForTests } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
 
@@ -22,6 +22,8 @@ const state = () => ({
 } as any);
 
 test.afterEach(() => setStorageAdapterForTests(null));
+test.afterEach(() => setAppointmentDocStoreForTests(null));
+test.afterEach(() => setAppointmentEventStoreForTests(null));
 test.afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.DIRECT_VERSION;
@@ -271,4 +273,97 @@ test('derivePendingProposal returns null when proposal has been applied or cance
 
   assert.equal(applied, null);
   assert.equal(canceled, null);
+});
+
+
+test('create_blank_appointment materializes appointment.json for the new appointment id', async () => {
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save(_groupId, nextState) { return { state: nextState, etag: 'etag-2' }; }
+  };
+  setStorageAdapterForTests(adapter);
+
+  let createdAppointmentId = '';
+  let getCalls = 0;
+  setAppointmentDocStoreForTests({
+    async getWithEtag(_groupId: string, appointmentId: string) {
+      getCalls += 1;
+      createdAppointmentId = appointmentId;
+      if (getCalls === 1) return { doc: null, etag: null };
+      return { doc: { id: appointmentId, title: '' }, etag: 'doc-etag-1' };
+    },
+    async put(_groupId: string, appointmentId: string) {
+      createdAppointmentId = appointmentId;
+    }
+  });
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'create_blank_appointment' } }) } as any, context());
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).ok, true);
+  assert.ok(createdAppointmentId);
+  assert.ok(getCalls >= 2);
+});
+
+test('apply_appointment_proposal succeeds when appointment.json is initially missing', async () => {
+  const baseState = state();
+  baseState.appointments = [{
+    id: 'APPT-1',
+    code: 'APPT-1',
+    title: 'Old title',
+    desc: 'Old title',
+    date: '2026-03-01',
+    isAllDay: false,
+    people: [],
+    location: '',
+    notes: ''
+  }];
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: baseState, etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called for apply'); }
+  };
+  setStorageAdapterForTests(adapter);
+
+  let getDocCalls = 0;
+  setAppointmentDocStoreForTests({
+    async getWithEtag(_groupId: string, _appointmentId: string) {
+      getDocCalls += 1;
+      if (getDocCalls === 1) return { doc: null, etag: null };
+      return { doc: { id: 'APPT-1', title: 'Old title', reconciliation: { status: 'unreconciled' } }, etag: 'doc-etag-1' };
+    },
+    async put() {},
+    async putWithEtag() { return true; }
+  });
+
+  setAppointmentEventStoreForTests({
+    async hasLatestIdempotencyKey() { return false; },
+    async recent() {
+      return {
+        events: [{
+          id: 'ev-proposal',
+          tsUtc: '2026-03-01T00:00:00.000Z',
+          type: 'PROPOSAL_CREATED',
+          actor: { kind: 'SYSTEM' },
+          proposalId: 'proposal-1',
+          payload: { field: 'title', from: 'Old title', to: 'New title', proposalId: 'proposal-1' }
+        } as any],
+        nextCursor: null
+      };
+    },
+    async append(_groupId: string, _appointmentId: string, event: any) {
+      return { appended: true, event, chunkId: 1 };
+    }
+  });
+
+  const response = await direct({
+    json: async () => ({
+      groupId: GROUP_ID,
+      action: { type: 'apply_appointment_proposal', appointmentId: 'APPT-1', proposalId: 'proposal-1', field: 'title', value: 'New title', clientRequestId: 'req-1' }
+    })
+  } as any, context());
+
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).ok, true);
+  assert.ok(getDocCalls >= 2);
 });
