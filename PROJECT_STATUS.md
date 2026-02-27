@@ -1,3 +1,18 @@
+## 2026-02-27 02:58 UTC update (Appointment pane enhancement: friendly proposal text in Changes + Discussion fallback)
+
+- Updated appointment event text mapping in `apps/web/src/AppShell.tsx` so Changes tab renders friendly text for proposal events instead of raw enum labels.
+- Added switch-based material event message renderer for: `PROPOSAL_CREATED`, `PROPOSAL_APPLIED`, `PROPOSAL_CANCELED/PROPOSAL_CANCELLED`, `FIELD_CHANGED`, `RECONCILIATION_CHANGED`, and `SYSTEM_CONFIRMATION` (empty/system-only when no message).
+- Changes tab now uses the shared friendly renderer and falls back to friendly type labels (or `Update recorded`) rather than raw event enum names.
+- Discussion rendering now reuses the same mapping path, preventing raw `event.type` enum strings from appearing in message rows.
+- Changes tab now renders friendly text for proposal events; removed raw enum labels.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual capture; terminated intentionally with SIGINT after screenshot capture.
+3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/32bfbf8b80ecbebb/artifacts/artifacts/appointment-pane-enhancement.png`.
+
+
 ## 2026-02-27 02:42 UTC update (Appointment pane enhancement: title persistence + discussion UI polish)
 
 - Fixed title persistence across reload/deploy for appointment proposals: `apply_appointment_proposal` now updates both canonical appointment document (`appointment.json`) and persisted group state (`state.appointments[].title` + `desc` mirror for compatibility), so both detail and list snapshots retain the new title after reloads.

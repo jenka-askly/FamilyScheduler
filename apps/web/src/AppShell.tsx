@@ -134,17 +134,56 @@ const SYSTEM_DISCUSSION_EVENT_TYPES = new Set([
   'RECONCILIATION_CHANGED'
 ]);
 
+const toFriendlyEventTypeLabel = (eventType: string): string => {
+  const normalized = eventType.toLowerCase().replace(/[_-]+/g, ' ').trim();
+  if (!normalized) return 'Update recorded';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
+const getMaterialChangeMessageText = (event: AppointmentDetailEvent): string => {
+  switch (event.type) {
+    case 'PROPOSAL_CREATED':
+      if (event.payload.field === 'title') {
+        return `Proposed title change: "${String(event.payload.from ?? 'Untitled')}" → "${String(event.payload.to ?? '')}"`;
+      }
+      return 'Proposal created';
+    case 'PROPOSAL_APPLIED':
+      if (event.payload.field === 'title') {
+        return `Title updated to "${String(event.payload.to ?? event.payload.value ?? '(updated)')}"`;
+      }
+      return 'Proposal applied';
+    case 'PROPOSAL_CANCELED':
+    case 'PROPOSAL_CANCELLED':
+      return 'Proposal cancelled';
+    case 'FIELD_CHANGED':
+      return `${String(event.payload.field)}: ${String(event.payload.from ?? event.payload.oldValue ?? '')} → ${String(event.payload.to ?? event.payload.newValue ?? '')}`;
+    case 'RECONCILIATION_CHANGED':
+      return `Reconciliation changed to ${String(event.payload.to ?? event.payload.state ?? event.payload.value ?? 'updated')}`;
+    case 'SYSTEM_CONFIRMATION':
+      return typeof event.payload.message === 'string' && event.payload.message.trim().length > 0 ? event.payload.message : '';
+    case 'CONSTRAINT_ADDED':
+      return `Constraint added (${String((event.payload.constraint as Record<string, unknown> | undefined)?.field ?? '')})`;
+    case 'CONSTRAINT_REMOVED':
+      return 'Constraint removed';
+    case 'SUGGESTION_CREATED':
+      return `Suggestion created (${String(event.payload.field ?? '')})`;
+    case 'SUGGESTION_APPLIED':
+      return `Suggestion applied (${String(event.payload.field ?? '')})`;
+    case 'SUGGESTION_DISMISSED':
+      return `Suggestion dismissed (${String(event.payload.field ?? '')})`;
+    case 'SUGGESTION_REACTED':
+    case 'SUGGESTION_REACTION':
+      return `Suggestion reaction (${String(event.payload.field ?? '')})`;
+    default:
+      return toFriendlyEventTypeLabel(event.type) || 'Update recorded';
+  }
+};
+
 const getEventMessageText = (event: AppointmentDetailEvent): string => {
-  if (event.type === 'PROPOSAL_CREATED' && event.payload.field === 'title') {
-    return `Proposed title change: "${String(event.payload.from ?? 'Untitled')}" → "${String(event.payload.to ?? '')}"`;
-  }
-  if (event.type === 'PROPOSAL_APPLIED' && event.payload.field === 'title') {
-    return `Title updated to "${String(event.payload.to ?? event.payload.value ?? '(updated)')}"`;
-  }
-  if (event.type === 'PROPOSAL_CANCELED') return 'Proposal cancelled';
-  if (event.type === 'SYSTEM_CONFIRMATION') return String(event.payload.message ?? 'System update');
+  const materialMessage = getMaterialChangeMessageText(event);
+  if (materialMessage) return materialMessage;
   if (event.type === 'USER_MESSAGE') return String(event.payload.message ?? event.payload.text ?? '');
-  return '';
+  return 'Update recorded';
 };
 
 const getEventAuthorLabel = (event: AppointmentDetailEvent): string => {
@@ -2658,11 +2697,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 {detailsData.projections.changeEvents.map((event) => (
                   <Paper key={event.id} variant="outlined" sx={{ p: 1 }} title={event.sourceTextSnapshot || ''}>
                     <Typography variant="body2">
-                      {event.type === 'FIELD_CHANGED' ? `${String(event.payload.field)}: ${String(event.payload.from ?? event.payload.oldValue ?? '')} → ${String(event.payload.to ?? event.payload.newValue ?? '')}`
-                        : event.type === 'CONSTRAINT_ADDED' ? `Constraint added (${String((event.payload.constraint as Record<string, unknown> | undefined)?.field ?? '')})`
-                          : event.type === 'CONSTRAINT_REMOVED' ? 'Constraint removed'
-                            : event.type.startsWith('SUGGESTION_') ? `${event.type} (${String(event.payload.field ?? '')})`
-                              : `${event.type} occurred`}
+                      {getMaterialChangeMessageText(event) || 'Update recorded'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()} · {event.actor.email ?? event.actor.kind}</Typography>
                   </Paper>
