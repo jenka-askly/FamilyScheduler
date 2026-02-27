@@ -59,6 +59,11 @@ export const isIgniteGraceActiveForGroup = (groupId?: string): boolean => comput
   igniteGraceGroupId: getIgniteGraceGroupId()
 });
 
+export const isIgniteGraceGuestForGroup = (groupId: string): boolean => Boolean(
+  getIgniteGraceSessionId(groupId)
+  && !getSessionId()
+);
+
 export const getAuthSessionId = (groupId?: string): string | null => getSessionId() || getIgniteGraceSessionId(groupId);
 
 

@@ -5,7 +5,7 @@ import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl, isIgniteGraceActiveForGroup } from './lib/apiUrl';
+import { apiFetch, apiUrl, isIgniteGraceGuestForGroup } from './lib/apiUrl';
 import { buildLoginPathWithNextFromHash } from './lib/returnTo';
 import { generateSuggestionCandidates, parseResolvedWhenFromTimeSpec, type SuggestionCandidate, type SuggestionDirectAction } from './lib/appointmentSuggestions';
 import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
@@ -669,7 +669,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
-  const showGraceBanner = isIgniteGraceActiveForGroup(groupId);
+  const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const breakoutInFlightRef = useRef(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
