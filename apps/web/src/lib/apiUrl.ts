@@ -1,4 +1,5 @@
 import { sessionLog } from './sessionLog';
+import { computeIsIgniteGraceActiveForGroup } from './graceAccess';
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
@@ -50,6 +51,13 @@ export const getIgniteGraceSessionId = (groupId?: string): string | null => {
   if (!groupId) return sessionId.trim();
   return getIgniteGraceGroupId() === groupId ? sessionId.trim() : null;
 };
+
+export const isIgniteGraceActiveForGroup = (groupId?: string): boolean => computeIsIgniteGraceActiveForGroup({
+  groupId,
+  durableSessionId: getSessionId(),
+  igniteGraceSessionId: getIgniteGraceSessionId(groupId),
+  igniteGraceGroupId: getIgniteGraceGroupId()
+});
 
 export const getAuthSessionId = (groupId?: string): string | null => getSessionId() || getIgniteGraceSessionId(groupId);
 
