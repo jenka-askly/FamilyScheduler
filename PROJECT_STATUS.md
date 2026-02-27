@@ -4805,3 +4805,18 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual capture; terminated intentionally with SIGINT after screenshot capture.
 3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/7f2e55f2e1b2668d/artifacts/artifacts/members-invite-qr-centered.png`.
+
+## 2026-02-27 09:04 UTC update (Grace guest banner + sign-in redirect return)
+
+- Added web grace-user detection (`isIgniteGraceActiveForGroup`) that only treats grace as active when a group-scoped grace session exists and no durable `fs.sessionId` is present.
+- AppShell now shows a persistent info banner under the header for grace users: **“Guest access (limited)”** with a **Sign in** CTA.
+- Banner CTA routes to `/#/login?next=<current-route>` using safe in-app path sanitization.
+- Auth done return flow now falls back to `/#/g/{fs.igniteGraceGroupId}/app` when `returnTo` is missing/invalid and grace is still valid; otherwise falls back to `/#/`.
+- Added focused web unit tests for grace active-state computation and safe `next` path sanitization.
+
+### Verification run
+
+1. `node --test apps/web/src/lib/appointmentSuggestions.test.ts apps/web/src/lib/returnTo.test.ts apps/web/src/lib/graceAccess.test.ts` ✅ passed.
+2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/81958407e5a45083/artifacts/artifacts/grace-banner.png`.
