@@ -106,8 +106,16 @@ export function AppointmentCardList({
             disableGutters
             data-appt-code={appointment.code}
             className={isActive ? 'ui-appt-active' : ''}
+            role="button"
+            tabIndex={0}
             sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}
-            onDoubleClick={(event) => {
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenDetails?.(appointment);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
               event.stopPropagation();
               onOpenDetails?.(appointment);
             }}

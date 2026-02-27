@@ -4706,3 +4706,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Preserved discussion reading UX by tracking drawer scroll proximity and only auto-pinning to bottom when user is near the bottom.
 - No backend/API contract changes were made.
 - Manual verification note target: **message appears without closing drawer**.
+
+## 2026-02-27 04:34 UTC update (Appointment pane enhancement: single click/tap opens drawer)
+
+- Appointment list interaction: single click/tap opens drawer (replaced double-click).
+- Updated appointment row trigger from `onDoubleClick` to `onClick` so desktop single click and mobile single tap both open details.
+- Preserved long-press support for touch as a secondary trigger while preventing duplicate opens on long-press release.
+- Preserved row action safety: inline controls continue to call `stopPropagation()` so edit/delete/assign/scan actions do not open the drawer.
+- Added keyboard activation parity on appointment rows (`Enter`/`Space` opens details).
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
