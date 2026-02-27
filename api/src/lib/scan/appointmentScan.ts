@@ -103,7 +103,14 @@ export const hasMeaningfulParsedContent = (parsed: ParsedAppointmentFromImage): 
 };
 
 export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppointmentFromImage, mode: 'initial' | 'rescan'): void => {
-  const isEmptyText = (value: string | undefined): boolean => !value || !value.trim() || value.trim().toLowerCase() === 'scanned item' || isPlaceholderScanTitle(value);
+  const isEmptyText = (value: string | undefined): boolean => {
+    const normalized = (value ?? '').trim().toLowerCase();
+    return normalized === ''
+      || normalized === 'scanned item'
+      || normalized === 'scanning…'
+      || normalized === 'scanning...'
+      || normalized === 'scanning';
+  };
   const shouldApply = (curr: string | undefined, next: string | null): boolean => mode === 'rescan' ? true : (isEmptyText(curr) && next !== null);
 
   if (shouldApply(appointment.title, parsed.title)) appointment.title = parsed.title ?? '';
