@@ -1264,14 +1264,17 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       && editorDirty === false;
 
     if (shouldDeletePendingNew && whenEditorCode) {
-      const deleteResult = await sendDirectAction({ type: 'delete_appointment', code: whenEditorCode });
-      if (!deleteResult.ok) {
-        console.error('delete_appointment on cancel failed', { code: whenEditorCode, message: deleteResult.message });
-        showNotice('error', deleteResult.message);
-      } else {
-        await refreshSnapshot();
+      try {
+        const deleteResult = await sendDirectAction({ type: 'delete_appointment', code: whenEditorCode });
+        if (!deleteResult.ok) {
+          console.error('delete_appointment on cancel failed', { code: whenEditorCode, message: deleteResult.message });
+          showNotice('error', deleteResult.message);
+        } else {
+          await refreshSnapshot();
+        }
+      } finally {
+        setPendingNewAppointmentCode(null);
       }
-      setPendingNewAppointmentCode(null);
     }
 
     setWhenEditorCode(null);

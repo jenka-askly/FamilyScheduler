@@ -1,3 +1,7 @@
+## 2026-02-27 19:53 UTC update (Chat snapshot source unification + cancel-delete consistency)
+
+- Eliminated mixed appointment sources in chat snapshots by routing chat snapshot appointment payloads through the index/doc-backed appointment snapshot builder.
+- Canceling a newly created untouched blank appointment now follows a single delete-by-code path and forces a post-delete snapshot refresh before editor teardown.
 ## 2026-02-27 19:53 UTC update (Phase 2 delete UX + session Undo restore)
 
 - Schedule and Members trash actions now delete immediately (confirmation dialogs removed).

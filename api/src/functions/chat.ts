@@ -94,9 +94,17 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
   });
 };
 
-const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState, groupId?: string): T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } } => {
-  const withState = { ...payload, snapshot: toResponseSnapshot(state) } as T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } };
-  if (process.env.DEBUG_STORAGE_TARGET !== '1' || !groupId) return withState;
+const buildChatSnapshot = async (state: AppState, groupId: string, timezone: string, traceId: string): Promise<ResponseSnapshot> => {
+  const appointments = await buildAppointmentsSnapshot(groupId, timezone, state.people, traceId);
+  return {
+    ...toResponseSnapshot(state),
+    appointments
+  };
+};
+
+const withSnapshot = async <T extends Record<string, unknown>>(payload: T, state: AppState, groupId: string, timezone: string, traceId: string): Promise<T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } }> => {
+  const withState = { ...payload, snapshot: await buildChatSnapshot(state, groupId, timezone, traceId) } as T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } };
+  if (process.env.DEBUG_STORAGE_TARGET !== '1') return withState;
   const storageTarget = describeStorageTarget();
   return {
     ...withState,
@@ -384,7 +392,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         }
       };
     }
-    const withGroupSnapshot = <T extends Record<string, unknown>>(payload: T, currentState: AppState): T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } } => withSnapshot(payload, currentState, groupId);
+    const withGroupSnapshot = async <T extends Record<string, unknown>>(payload: T, currentState: AppState): Promise<T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } }> => withSnapshot(payload, currentState, groupId, process.env.TZ ?? 'America/Los_Angeles', traceId);
 
     if (ruleMode === 'draft' || ruleMode === 'confirm') {
       if (!requestedPersonId) return { status: 400, jsonBody: { kind: 'error', error: 'personId_required', message: 'personId is required', traceId } };
@@ -431,7 +439,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           const confirmed = confirmRuleDraftV2(state, draftedRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
           const written = await storage.save(groupId, confirmed.nextState, loaded.etag);
           console.info('rule_mode_confirm_result', { traceId, mode: 'confirm', source: 'draftedIntervals', persistedIntervalsCount: draftedRules.length, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
-          return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+          return { status: 200, jsonBody: await withGroupSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
         } catch (error) {
           const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
           if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, error: 'rule_limit_exceeded', traceId } };
@@ -439,7 +447,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           throw error;
         }
       }
-      const reportDraftFailure = (params: { code: DraftErrorCode; details: string; incomingRulesCount: number; validRuleItemsCount: number; intervalsCount: number; modelKind: 'proposal' | 'question'; actionType?: string }): HttpResponseInit => {
+      const reportDraftFailure = async (params: { code: DraftErrorCode; details: string; incomingRulesCount: number; validRuleItemsCount: number; intervalsCount: number; modelKind: 'proposal' | 'question'; actionType?: string }): Promise<HttpResponseInit> => {
         console.info('rule_mode_draft_fail', {
           rulesDraftFail: true,
           traceId,
@@ -450,7 +458,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           modelKind: params.modelKind,
           actionType: params.actionType ?? null
         });
-        return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: params.code, traceId, details: params.details }) }, state) };
+        return { status: 200, jsonBody: await withGroupSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: params.code, traceId, details: params.details }) }, state) };
       };
       openAiCallInFlight = true;
       let ruleParse;
@@ -483,7 +491,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         return reportDraftFailure({ code: 'DISALLOWED_ACTION', details: 'action type not allowed in draft mode', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: ruleParse.action?.type });
       }
       if (ruleMode !== 'draft' && (ruleParse.kind === 'question' || hasDisallowedAction || hasAppointmentAction || !parsedAction || incomingRules.length === 0)) {
-        return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: 'DISALLOWED_ACTION', traceId, details: 'confirm parse failed' }) }, state) };
+        return { status: 200, jsonBody: await withGroupSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: 'DISALLOWED_ACTION', traceId, details: 'confirm parse failed' }) }, state) };
       }
       if (ruleMode === 'draft' && incomingRules.length === 0) {
         return reportDraftFailure({ code: 'ZERO_VALID_RULE_ITEMS', details: 'rules missing personId/date', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: parsedAction?.type });
@@ -495,12 +503,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
             return reportDraftFailure({ code: 'ZERO_INTERVALS', details: 'no intervals produced from valid rules', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: parsedAction?.type });
           }
           console.info('rule_mode_draft_result', { traceId, normalizedIntervalsCount: draft.draftRules.length, warningsCount: draft.warnings.length, timezoneFallbackUsed: draft.timezoneFallbackUsed });
-          return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
+          return { status: 200, jsonBody: await withGroupSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
         }
         const confirmed = confirmRuleDraftV2(state, incomingRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
         const written = await storage.save(groupId, confirmed.nextState, loaded.etag);
         console.info('rule_mode_confirm_result', { traceId, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
-        return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+        return { status: 200, jsonBody: await withGroupSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
       } catch (error) {
         const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
         if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, error: 'rule_limit_exceeded', traceId } };
@@ -512,10 +520,10 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     session.chatHistory.push({ role: 'user', text: message, ts: new Date().toISOString() });
     trimHistory(session);
 
-    const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }, currentState: AppState = state): HttpResponseInit => {
+    const respond = async (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }, currentState: AppState = state): Promise<HttpResponseInit> => {
       session.chatHistory.push({ role: 'assistant', text: payload.kind === 'question' ? payload.message : payload.assistantText, ts: new Date().toISOString() });
       trimHistory(session);
-      return { status: 200, jsonBody: withGroupSnapshot(payload, currentState) };
+      return { status: 200, jsonBody: await withGroupSnapshot(payload, currentState) };
     };
 
     if (session.pendingProposal) {
@@ -525,24 +533,23 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           const written = await storage.save(groupId, execution.nextState, session.pendingProposal.expectedEtag);
           session.activePersonId = execution.nextActivePersonId;
           session.pendingProposal = null;
-          return { status: 200, jsonBody: withGroupSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
+          return { status: 200, jsonBody: await withGroupSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
         } catch (error) {
           if (error instanceof ConflictError) return { status: 409, jsonBody: { kind: 'error', message: 'State changed. Retry.', traceId } };
           throw error;
         }
       }
-      if (cancelSynonyms.has(normalized)) { session.pendingProposal = null; session.pendingQuestion = null; return respond({ kind: 'reply', assistantText: 'Cancelled.' }); }
-      return respond({ kind: 'question', message: 'Please confirm or cancel.', options: [{ label: 'Confirm', value: 'confirm', style: 'primary' }, { label: 'Cancel', value: 'cancel', style: 'secondary' }], allowFreeText: true });
+      if (cancelSynonyms.has(normalized)) { session.pendingProposal = null; session.pendingQuestion = null; return await respond({ kind: 'reply', assistantText: 'Cancelled.' }); }
+      return await respond({ kind: 'question', message: 'Please confirm or cancel.', options: [{ label: 'Confirm', value: 'confirm', style: 'primary' }, { label: 'Cancel', value: 'cancel', style: 'secondary' }], allowFreeText: true });
     }
 
-    if (confirmSynonyms.has(normalized)) return respond({ kind: 'question', message: 'What should I confirm?', allowFreeText: true });
-    if (cancelSynonyms.has(normalized)) return respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
+    if (confirmSynonyms.has(normalized)) return await respond({ kind: 'question', message: 'What should I confirm?', allowFreeText: true });
+    if (cancelSynonyms.has(normalized)) return await respond({ kind: 'reply', assistantText: 'Nothing to cancel.' });
 
-    if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
+    if (normalized === 'help') return await respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
     if (LIST_APPOINTMENTS_COMMANDS.has(normalized)) {
-      const appointments = await buildAppointmentsSnapshot(groupId, process.env.TZ ?? 'America/Los_Angeles', state.people, traceId);
-      const snapshot = { ...toResponseSnapshot(state), appointments };
+      const snapshot = await buildChatSnapshot(state, groupId, process.env.TZ ?? 'America/Los_Angeles', traceId);
       const assistantText = snapshot.appointments.length > 0
         ? `Listed ${snapshot.appointments.length} appointment(s).`
         : 'No appointments found.';
@@ -558,7 +565,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     openAiCallInFlight = false;
     const normalizedActions = normalizeActionCodes(parsed.actions ?? []);
     const codeError = validateReferencedCodes(state, normalizedActions);
-    if (codeError) return respond({ kind: 'question', message: codeError, allowFreeText: true });
+    if (codeError) return await respond({ kind: 'question', message: codeError, allowFreeText: true });
     if (parsed.kind === 'question') {
       const questionPayload: PendingQuestion = {
         message: parsed.message,
@@ -566,7 +573,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         allowFreeText: parsed.allowFreeText ?? true
       };
       session.pendingQuestion = questionPayload;
-      return respond({ kind: 'question', ...questionPayload });
+      return await respond({ kind: 'question', ...questionPayload });
     }
     if (parsed.kind === 'proposal') {
       const mutationActions = normalizedActions.filter(isMutationAction);
