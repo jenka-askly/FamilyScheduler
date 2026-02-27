@@ -13015,3 +13015,39 @@ Opened appointment drawer → clicked **Email update** → selected two recipien
 ### Post-commit workspace status
 
 - `git status --short --branch` ✅ `## work` (clean working tree after commit).
+
+## 2026-02-27 21:00 UTC (igniteGrace guest-access banner + sign-in next wiring follow-up)
+
+### Objective
+Ensure current state keeps the grace-session guest banner + sign-in redirect behavior aligned with requested semantics: show only for grace-without-durable session on matching group, and keep `login?next` return behavior safe.
+
+### Approach
+- Confirmed existing grace/guest banner and return-to helper were already present from prior commits.
+- Added explicit `isIgniteGraceGuestForGroup(groupId)` in shared session helper module to make banner condition intent explicit.
+- Kept AppShell CTA behavior route-based and unchanged in UX (`Sign in` to `/login?next=...`).
+- Extended `returnTo` tests with unsafe hash fallback assertions to enforce `/` fallback.
+- Updated grace access tests to cover required semantics (durable present => false; mismatch/missing grace => false; valid grace + no durable => true).
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/lib/returnTo.test.ts`
+- `apps/web/src/lib/graceAccess.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "Guest access|Guest mode|Limited access|igniteGrace.*banner|grace.*banner" apps/web/src` ✅ found existing banner in `AppShell.tsx`.
+- `rg -n "buildLoginPathWithNextFromHash|login\?next=|returnTo\.ts" apps/web/src` ✅ found existing login-next helper/tests.
+- `rg -n "grace|guest|igniteGrace|login\?next|returnTo|banner" CODEX_LOG.md` ✅ found prior entries implementing this feature area.
+- `git status --short` ✅ captured working tree before edits.
+- `git log -1 --oneline` ✅ `1dfe2d6 Merge pull request #442 ...`.
+- `rg -n "buildLoginPathWithNextFromHash|Guest access \(limited\)|isIgniteGraceGuestForGroup" apps/web/src` ✅ verified symbols/usages after edits.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/returnTo.test.ts src/lib/graceAccess.test.ts` ✅ passed.
+- `git diff -- apps/web/src/AppShell.tsx apps/web/src/lib/returnTo.ts apps/web/src/lib/*.test.ts PROJECT_STATUS.md CODEX_LOG.md` ✅ reviewed scoped diff.
+- `git status --short` ✅ verified intended modified files only.
+
+### Follow-ups
+- Optional future hardening: add a component-level AppShell test to assert banner visibility toggles on durable session establishment.
+

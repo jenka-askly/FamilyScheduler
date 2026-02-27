@@ -5094,3 +5094,9 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 3. `pnpm --filter @familyscheduler/web build` ✅ passed.
 4. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped intentionally via SIGINT).
 5. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/68babcc82dbcfea7/artifacts/artifacts/email-update-ui.png`.
+
+## 2026-02-27 21:00 UTC update (igniteGrace guest banner + login next helper)
+
+- Added persistent AppShell guest-access info banner under the page header when a scoped igniteGrace session is active for the current group and no durable `fs.sessionId` exists.
+- Sign-in CTA now routes to `/#/login?next=<encoded-current-hash-route>` using centralized `buildLoginPathWithNextFromHash(...)` sanitization, preserving return-to route after authentication.
+

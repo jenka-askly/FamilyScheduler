@@ -16,4 +16,9 @@ describe('returnTo helpers', () => {
     assert.equal(buildLoginPathWithNextFromHash('#/g/abc/app?x=1'), '/login?next=%2Fg%2Fabc%2Fapp%3Fx%3D1');
   });
 
+  it('falls back to root login next for unsafe hash routes', () => {
+    assert.equal(buildLoginPathWithNextFromHash('#https://malicious.example/evil'), '/login?next=%2F');
+    assert.equal(buildLoginPathWithNextFromHash('#//malicious.example/evil'), '/login?next=%2F');
+  });
+
 });
