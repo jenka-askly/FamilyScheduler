@@ -437,6 +437,71 @@ test('resolve_appointment_time avoids 502 for malformed AI partial on time-only 
   assert.equal((response.jsonBody as any).usedFallback, false);
   assert.equal((response.jsonBody as any).time?.intent?.status, 'unresolved');
   assert.deepEqual((response.jsonBody as any).time?.intent?.missing, ['date']);
+  assert.equal(Array.isArray((response.jsonBody as any).timeChoices), true);
+  assert.equal((response.jsonBody as any).timeChoices.length, 3);
+  assert.deepEqual((response.jsonBody as any).timeChoices.map((choice: any) => choice.id), ['today', 'next', 'appointment']);
+
+  global.fetch = originalFetch;
+});
+
+test('resolve_appointment_time with explicit date anchor returns no timeChoices', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test';
+  process.env.OPENAI_MODEL = 'gpt-test';
+  const originalFetch = global.fetch;
+  global.fetch = (async () => ({ ok: false, status: 503, json: async () => ({}) })) as unknown as typeof fetch;
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); }
+  };
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'tomorrow at 8pm', timezone: 'America/Los_Angeles' } }) } as any, context());
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).time?.intent?.status, 'resolved');
+  assert.equal((response.jsonBody as any).timeChoices, undefined);
+
+  global.fetch = originalFetch;
+});
+
+test('resolve_appointment_time appointment choice uses appointment local date when present', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test';
+  process.env.OPENAI_MODEL = 'gpt-test';
+  const originalFetch = global.fetch;
+  global.fetch = (async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: 'resp_bad_partial_2',
+      output_text: JSON.stringify({ status: 'partial', missing: [] })
+    })
+  })) as unknown as typeof fetch;
+
+  const base = state();
+  base.appointments = [{
+    id: 'APPT-1',
+    code: 'APPT-1',
+    title: 'Test appointment',
+    date: '2026-03-10',
+    isAllDay: false,
+    people: [],
+    location: '',
+    notes: ''
+  } as any];
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: base, etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); }
+  };
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'resolve_appointment_time', appointmentId: 'APPT-1', whenText: 'set time to 8pm', timezone: 'America/Los_Angeles' } }) } as any, context());
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).time?.intent?.status, 'unresolved');
+  const appointmentChoice = (response.jsonBody as any).timeChoices.find((choice: any) => choice.id === 'appointment');
+  assert.equal(appointmentChoice?.dateLocal, '2026-03-10');
 
   global.fetch = originalFetch;
 });

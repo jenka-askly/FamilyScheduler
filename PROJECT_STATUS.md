@@ -4740,3 +4740,18 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - `resolveTimeSpecWithFallback` now returns deterministic/local parse output when AI parse fails, while preserving metadata (`fallbackAttempted: true`, `usedFallback: false`).
 - Added fallback log context with compact input preview (`inputText`) alongside trace/error metadata for easier diagnosis.
 - Added regression tests for malformed AI partial responses on time-only phrases (`8pm`, `set time to 4pm`) to assert successful deterministic fallback behavior.
+
+## 2026-02-27 06:10 UTC update (resolve_appointment_time timeChoices for time-only missing-date intents)
+
+- Added server-side `timeChoices` generation for `resolve_appointment_time` when the parsed intent is unresolved, `missing` includes `date`, the input includes a time-of-day, and the text has no explicit date anchor.
+- `timeChoices` is optional and only returned when applicable; existing response fields are unchanged.
+- Implemented three resolved choices with UTC anchors:
+  - `today` (only included when still in the future in request timezone)
+  - `next` (today if future, otherwise today when `today` is omitted; if `today` exists then `next` is tomorrow to avoid duplication)
+  - `appointment` (appointment local date when known, otherwise fallback to `next` date)
+- Passed-today policy: omit `today` when the requested time has already passed in the requester timezone.
+- Added unit coverage for helper behavior and direct handler response behavior, including explicit-date-anchor no-choice behavior and appointment-date anchoring.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test` ⚠️ (blocked by missing `@azure/data-tables` module/type resolution in this environment)
