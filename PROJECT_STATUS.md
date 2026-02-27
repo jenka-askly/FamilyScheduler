@@ -5001,4 +5001,33 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ### Known issues
 - API workspace build in this environment remains blocked by missing `@azure/data-tables` type/module resolution in table-related files.
+
+## 2026-02-27 20:05 UTC update (Phase 1: reliable Schedule delete via appointmentId + index/doc soft delete)
+
+- Corrected a regression after prior "Deletion UX" work: Schedule delete was still dispatched by `code` and backend executor path mutated only state-driven appointments, which could no-op against index/doc-backed snapshots.
+- Web `AppShell` now sends `delete_appointment` with `appointmentId` in both Schedule card delete and blank-editor cancel cleanup paths.
+- `/api/direct` parser now accepts delete payloads in a backward-compatible way:
+  - `{ type: 'delete_appointment', appointmentId }` (preferred)
+  - `{ type: 'delete_appointment', code }` (legacy fallback).
+- `/api/direct` delete path now mutates the same authoritative store used for Schedule snapshots (`AppointmentsIndex` + `appointment.json`) via shared helper `softDeleteAppointmentById(...)`.
+- Added shared table helper `api/src/lib/tables/appointmentSoftDelete.ts` and reused it from `appointmentScanDelete` to keep delete semantics consistent (`isDeleted`, `deletedAt`, `deletedByUserKey`, `purgeAfterAt`, `status='deleted'`, doc `scanStatus='deleted'`).
+- `/api/direct` now returns `ok:false` (with message + current snapshot) when an action is not applied (`execution.appliedAll === false`) instead of allowing success semantics to leak through.
+- Added structured delete-path logging in direct handler: `event=direct_delete_appointment` with `groupId`, `appointmentId`, `appliedAll`, and `storeMutated=index/doc`.
+
+### Verification run
+
+1. `git status --short` ✅ working tree reflected expected modified files.
+2. `git log -n 30 --oneline` ✅ confirmed recent history and prior deletion-related commits for consistency check.
+3. `rg -n "delete_appointment" api/src apps/web/src` ✅ confirmed frontend now sends `appointmentId` and direct parser/handler supports id+legacy code.
+4. `rg -n "buildSnapshotFromIndex|AppointmentsIndex|appointment.json|list appointments" api/src apps/web/src` ✅ confirmed snapshot path remains index/doc based.
+5. `pnpm --filter @familyscheduler/web build` ✅ passed.
+6. `pnpm --filter @familyscheduler/api build` ✅ passed in this environment.
+7. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ command runs full compiled API test suite; fails on pre-existing unrelated tests in this environment.
+8. `cd api && node --test dist/api/src/functions/direct.test.js` ⚠️ fails due pre-existing session/header expectations in existing direct tests (not introduced by this patch).
+
+### Evidence notes
+
+- Request payload source now uses `appointmentId` in AppShell delete dispatches.
+- Direct delete path now soft-deletes index+doc and rebuilds snapshots from index/doc source, preventing reappearance from refresh loops.
+- Negative path returns `ok:false` + message and unchanged snapshot when delete cannot be applied.
 - Web appointment editor cancel flow now uses explicit dirty tracking for `+`-created appointments so unedited cancel/ESC/backdrop reliably deletes the auto-created blank row, while edited drafts are preserved on close.

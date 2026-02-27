@@ -1092,8 +1092,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const entry: UndoEntry = { id: `appointment:${appointment.code}:${Date.now()}`, entityType: 'appointment', code: appointment.code, label: appointment.desc || appointment.code, timestamp: Date.now() };
     const previous = snapshot;
     setUndoList((prev) => [entry, ...prev]);
-    setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.filter((item) => item.code !== appointment.code) }));
-    const result = await sendDirectAction({ type: 'delete_appointment', code: appointment.code });
+    setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.filter((item) => item.id !== appointment.id) }));
+    const result = await sendDirectAction({ type: 'delete_appointment', appointmentId: appointment.id });
     if (!result.ok) {
       setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
       setSnapshot(previous);
@@ -1209,6 +1209,20 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       reason === 'cancel'
       && whenEditorCode != null
       && pendingNewAppointmentCode === whenEditorCode
+      && whenDraftText.trim() === ''
+      && descDraftText.trim() === ''
+      && locationDraftText.trim() === ''
+      && notesDraftText.trim() === ''
+    ) {
+      const appointment = snapshot.appointments.find((item) => item.code === whenEditorCode);
+      if (appointment && isBlankAppointment(appointment)) {
+        const deleteResult = await sendDirectAction({ type: 'delete_appointment', appointmentId: appointment.id });
+        if (!deleteResult.ok) {
+          showNotice('error', deleteResult.message);
+          return;
+        }
+        setPendingNewAppointmentCode(null);
+        setActiveAppointmentCode(null);
       && editorDirty === false;
 
     if (shouldDeletePendingNew && whenEditorCode) {

@@ -3,8 +3,7 @@ import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
-import { adjustGroupCounters, findAppointmentIndexById, purgeAfterAt, upsertAppointmentIndex } from '../lib/tables/entities.js';
-import { getAppointmentJson, putAppointmentJson } from '../lib/tables/appointments.js';
+import { softDeleteAppointmentById } from '../lib/tables/appointmentSoftDelete.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 
 export async function appointmentScanDelete(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
@@ -21,19 +20,8 @@ export async function appointmentScanDelete(request: HttpRequest, _context: Invo
   const member = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!member.ok) return member.response;
 
-  const index = await findAppointmentIndexById(groupId, appointmentId);
-  if (!index) return errorResponse(404, 'not_found', 'Appointment not found', traceId);
-  const now = new Date().toISOString();
-  const wasUpcoming = Boolean(index.startTime) && Number.isFinite(Date.parse(index.startTime as string)) && Date.parse(index.startTime as string) >= Date.parse(now) && !index.isDeleted;
-  await upsertAppointmentIndex({ ...index, isDeleted: true, deletedAt: now, deletedByUserKey: userKeyFromEmail(session.email), purgeAfterAt: purgeAfterAt(now), status: 'deleted', updatedAt: now });
-  if (wasUpcoming) {
-    await adjustGroupCounters(groupId, { appointmentCountUpcoming: -1 });
-  }
-
-  const doc = await getAppointmentJson(groupId, appointmentId);
-  if (doc) {
-    await putAppointmentJson(groupId, appointmentId, { ...doc, scanStatus: 'deleted', isDeleted: true, deletedAt: now, deletedByUserKey: userKeyFromEmail(session.email), purgeAfterAt: purgeAfterAt(now), updatedAt: now });
-  }
+  const result = await softDeleteAppointmentById(groupId, appointmentId, userKeyFromEmail(session.email));
+  if (!result.ok) return errorResponse(404, 'not_found', result.message, traceId);
 
   return { status: 200, jsonBody: { ok: true, traceId } };
 }
