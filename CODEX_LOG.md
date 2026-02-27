@@ -12409,3 +12409,34 @@ Implement FamilyScheduler deletion UX changes: remove confirm dialogs, add sessi
 ### Follow-ups
 
 - Run API build/tests in an environment with `@azure/data-tables` available to validate newly added API-side tests end-to-end.
+
+
+## 2026-02-27 16:24 UTC (Scan Image flow: clear "Scanning..." title after parse)
+
+### Objective
+
+Fix scan apply behavior so title/description placeholders do not remain stuck at `Scanning…` after parse completion in initial scan mode.
+
+### Approach
+
+- Updated `applyParsedFields` text emptiness check to reuse `isPlaceholderScanTitle(...)` so canonical placeholder variants are treated as empty-equivalent.
+- Kept existing `scanned item` handling and retained plain `scanning` fallback for robustness.
+- Attempted API build, but environment dependency install is blocked; validated the applied logic directly in source with targeted grep checks.
+
+### Files changed
+
+- `api/src/lib/scan/appointmentScan.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "applyParsedFields|scanning|Scanning" api/src/lib/scan api/src -S` ✅ located scan apply and test coverage.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed: missing `@azure/data-tables` in this container.
+- `pnpm install` ⚠️ failed: npm registry fetch returned 403 for Azure packages in this environment.
+- `rg -n "isPlaceholderScanTitle\(value\)|normalized === 'scanning'" api/src/lib/scan/appointmentScan.ts` ✅ confirmed placeholder-empty logic is applied in `applyParsedFields`.
+
+### Follow-ups
+
+- Manual app-level scan verification (pending/parsed/reload/rescan) should be run in the full runtime environment with real image uploads to confirm user-visible flow end-to-end.
+
