@@ -5030,3 +5030,4 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Request payload source now uses `appointmentId` in AppShell delete dispatches.
 - Direct delete path now soft-deletes index+doc and rebuilds snapshots from index/doc source, preventing reappearance from refresh loops.
 - Negative path returns `ok:false` + message and unchanged snapshot when delete cannot be applied.
+- Web appointment editor cancel flow now uses explicit dirty tracking for `+`-created appointments so unedited cancel/ESC/backdrop reliably deletes the auto-created blank row, while edited drafts are preserved on close.

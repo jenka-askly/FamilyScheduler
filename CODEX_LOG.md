@@ -12745,6 +12745,21 @@ Implement Phase 1 delete reliability fix: make `/api/direct` delete operate by `
 - `api/src/lib/tables/entities.ts`
 - `api/src/lib/tables/appointments.ts`
 - `api/src/functions/direct.test.ts`
+## 2026-02-27 19:34 UTC (Robust cancel delete for new blank appointments via explicit editor dirty state)
+
+### Objective
+Ensure cancel/close of the appointment editor reliably deletes only auto-created blank appointments from the `+` action when the user made no edits, while preserving edited drafts.
+
+### Approach
+- Added explicit `editorDirty` state in `AppShell` and reset it on editor open/switch/close.
+- Removed brittle blank-predicate-based cancel delete flow and replaced it with pending-code + dirty flag checks.
+- Centralized dismissal via `cancelNewAppointment` and wired dialog `onClose` + form Cancel to use it.
+- Added `onDirty` callback prop in `AppointmentEditorForm` and invoked it on editable field changes.
+- Kept deletion order safe by deleting before clearing editor code/drafts; on delete failure show notice + close editor.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentEditorForm.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -12765,3 +12780,10 @@ Implement Phase 1 delete reliability fix: make `/api/direct` delete operate by `
   - confirm `/api/direct` delete payload now contains `appointmentId` (not `code`)
   - confirm deleted appointment does not reappear after polling/hard refresh
   - confirm random appointmentId delete returns `{ ok:false, message: "Not found: <id>", snapshot }`.
+- `pnpm -r --if-present build` ⚠️ failed due missing `@azure/data-tables` in API package type resolution.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+- Manual staging verification:
+  - `+` then immediate cancel should issue create then delete and leave no blank appointment.
+  - `+`, type one character, then cancel should keep appointment and skip delete.

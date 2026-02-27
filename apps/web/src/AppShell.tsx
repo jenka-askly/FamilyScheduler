@@ -574,6 +574,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [whenEditorCode, setWhenEditorCode] = useState<string | null>(null);
   const [activeAppointmentCode, setActiveAppointmentCode] = useState<string | null>(null);
   const [pendingNewAppointmentCode, setPendingNewAppointmentCode] = useState<string | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
   const [whenDraftText, setWhenDraftText] = useState('');
   const [descDraftText, setDescDraftText] = useState('');
   const [locationDraftText, setLocationDraftText] = useState('');
@@ -1191,6 +1192,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   const openWhenEditor = (appointment: Snapshot['appointments'][0]) => {
     setPendingNewAppointmentCode((previous) => (previous != null && previous !== appointment.code ? null : previous));
+    setEditorDirty(false);
     setActiveAppointmentCode(appointment.code);
     setWhenEditorCode(appointment.code);
     setWhenDraftText(appointment.time?.intent?.originalText ?? '');
@@ -1202,19 +1204,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setIsWhenResolving(false);
   };
 
-  const isBlankAppointment = (appointment: Snapshot['appointments'][0]): boolean => {
-    const hasDesc = (appointment.desc ?? '').trim().length > 0;
-    const hasLocation = (appointment.locationRaw ?? appointment.location ?? '').trim().length > 0;
-    const hasNotes = (appointment.notes ?? '').trim().length > 0;
-    const hasPeople = appointment.people.length > 0;
-    const hasResolvedTime = appointment.time?.intent?.status === 'resolved';
-    const hasWhenText = (appointment.time?.intent?.originalText ?? '').trim().length > 0;
-    const hasScanStatus = appointment.scanStatus != null;
-    return !hasDesc && !hasLocation && !hasNotes && !hasPeople && !hasResolvedTime && !hasWhenText && !hasScanStatus;
-  };
-
   const closeWhenEditor = async (reason: 'cancel' | 'close' = 'close') => {
-    if (
+    const shouldDeletePendingNew =
       reason === 'cancel'
       && whenEditorCode != null
       && pendingNewAppointmentCode === whenEditorCode
@@ -1232,7 +1223,17 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         }
         setPendingNewAppointmentCode(null);
         setActiveAppointmentCode(null);
+      && editorDirty === false;
+
+    if (shouldDeletePendingNew && whenEditorCode) {
+      const deleteResult = await sendDirectAction({ type: 'delete_appointment', code: whenEditorCode });
+      if (!deleteResult.ok) {
+        console.error('delete_appointment on cancel failed', { code: whenEditorCode, message: deleteResult.message });
+        showNotice('error', deleteResult.message);
+      } else {
+        await refreshSnapshot();
       }
+      setPendingNewAppointmentCode(null);
     }
 
     setWhenEditorCode(null);
@@ -1243,7 +1244,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setWhenDraftResult(null);
     setWhenDraftError(null);
     setIsWhenResolving(false);
+    setEditorDirty(false);
+    setActiveAppointmentCode(null);
   };
+
+  const cancelNewAppointment = async () => closeWhenEditor('cancel');
 
   const previewWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
     const whenText = whenDraftText.trim();
@@ -1934,6 +1939,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const exists = snapshot.appointments.some((appointment) => appointment.code === whenEditorCode);
     if (!exists) {
       setPendingNewAppointmentCode((previous) => (previous === whenEditorCode ? null : previous));
+      setEditorDirty(false);
       void closeWhenEditor();
     }
   }, [whenEditorCode, snapshot.appointments]);
@@ -3151,7 +3157,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         ) : null}
       </Drawer>
 
-      <Dialog open={whenEditorCode != null} onClose={() => { void closeWhenEditor('cancel'); }} maxWidth="sm" fullWidth>
+      <Dialog open={whenEditorCode != null} onClose={() => { void cancelNewAppointment(); }} maxWidth="sm" fullWidth>
         <DialogTitle>Edit appointment</DialogTitle>
         <DialogContent dividers sx={{ py: 2 }}>
           {editingAppointment ? (
@@ -3182,6 +3188,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               onResolveDate={() => void previewWhenDraft(editingAppointment)}
               onAcceptPreview={() => {
                 if (!whenDraftResult || whenDraftResult.intent.status !== 'resolved') return;
+                setEditorDirty(true);
                 setWhenDraftText(formatAppointmentTime({ ...editingAppointment, time: whenDraftResult }));
               }}
               isResolving={isWhenResolving}
@@ -3190,7 +3197,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               errorText={whenDraftError}
               assumptions={whenDraftResult?.intent?.assumptions ?? []}
               onConfirm={() => void confirmWhenDraft(editingAppointment)}
-              onCancel={() => { void closeWhenEditor('cancel'); }}
+              onCancel={() => { void cancelNewAppointment(); }}
+              onDirty={() => setEditorDirty(true)}
             />
           ) : null}
         </DialogContent>
