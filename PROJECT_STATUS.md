@@ -5100,3 +5100,11 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Added persistent AppShell guest-access info banner under the page header when a scoped igniteGrace session is active for the current group and no durable `fs.sessionId` exists.
 - Sign-in CTA now routes to `/#/login?next=<encoded-current-hash-route>` using centralized `buildLoginPathWithNextFromHash(...)` sanitization, preserving return-to route after authentication.
 
+
+## 2026-02-27 21:18 UTC update (Backend direct email update actions: preview/send)
+
+- `/api/direct` now enforces and supports `preview_appointment_update_email` + `send_appointment_update_email` with action-level `groupId`, `appointmentId`, and `recipientPersonIds` array parsing.
+- Recipient resolution is now personId-based only for this flow, de-duped by normalized email, excludes sender (`self_excluded`), and marks missing email as `no_email`.
+- Preview now returns HTTP 400 when no selectable recipients remain after exclusions.
+- Send now uses existing ACS transport one recipient at a time, scans last 100 events for idempotency using `NOTIFICATION_SENT` payload `clientRequestId` + `sentBy.email`, supports partial success, and logs all-fail/partial summaries without logging bodies.
+- `NOTIFICATION_SENT` append remains success/partial-only; all-fail returns 502 and does not append the event.

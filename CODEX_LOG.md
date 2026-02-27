@@ -13051,3 +13051,52 @@ Ensure current state keeps the grace-session guest banner + sign-in redirect beh
 ### Follow-ups
 - Optional future hardening: add a component-level AppShell test to assert banner visibility toggles on durable session establishment.
 
+
+## 2026-02-27 21:18 UTC (Backend: /api/direct email update actions (preview/send))
+
+### Objective
+
+Implement backend support for Yapper manual email update actions in `/api/direct` for preview + send with idempotency and event persistence semantics.
+
+### Approach
+
+- Updated direct action typing/parsing to require action-level `groupId`, `appointmentId`, and `recipientPersonIds` array for:
+  - `preview_appointment_update_email`
+  - `send_appointment_update_email` (+ required `clientRequestId`)
+- Kept unsupported-action error behavior unchanged (`unsupported action type: ...`).
+- Aligned recipient resolution to Phase 1 personId mapping from loaded group snapshot (`state.people`) only:
+  - de-dupe by normalized email
+  - exclude sender email (`self_excluded`)
+  - classify missing email as `no_email`
+- Kept content builder minimal + consistent with required fields/branding/link and explicit do-not-reply language.
+- Preview behavior:
+  - return 400 `No selectable recipients` when no resolved recipients remain.
+- Send behavior:
+  - validate action `groupId` matches request `groupId`
+  - idempotency scan over recent 100 appointment events for `NOTIFICATION_SENT` payload `clientRequestId` + `sentBy.email`
+  - per-recipient ACS send via existing `sendEmail(...)`
+  - all-fail returns 502 and does not append `NOTIFICATION_SENT`
+  - partial/sent appends `NOTIFICATION_SENT` with compact payload for last-sent + failed recipients
+  - added structured summary logs for all-fail + partial outcomes (no body logging)
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification commands run + outcomes
+
+- `git status --short --branch` ✅
+- `sed -n '1,220p' CODEX_LOG.md` ✅
+- `rg -n "type DirectAction|parseDirectAction|unsupported action type" api/src/functions/direct.ts` ✅
+- `rg -n "NOTIFICATION_SENT" api/src/lib/appointments/appointmentEvents.ts api/src/lib/appointments -S` ✅
+- `pnpm -w lint` ✅ (`no lint yet` script)
+- `pnpm -w typecheck` ✅ (`no typecheck yet` script)
+- `pnpm -w build` ❌ command not defined at workspace root
+- `pnpm -r --if-present build` ⚠️ blocked by missing `@azure/data-tables` dependency in `@familyscheduler/api` build
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by the same missing `@azure/data-tables` dependency during API build
+
+### Follow-ups
+
+- When environment has `@azure/data-tables` available, run API build/tests and execute end-to-end `/api/direct` preview/send smoke tests against dev data to validate ACS delivery paths and partial/all-fail behavior.
