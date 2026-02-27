@@ -12022,3 +12022,34 @@ Add lightweight live updates for appointment details while the drawer is open (w
   - `set time to 4pm`
   - `tomorrow at 6pm`
   - `2/27/2026 all day`
+
+## 2026-02-27 06:10 UTC (Implement server-side timeChoices for resolve_appointment_time)
+
+### Objective
+- Add optional server-side `timeChoices` for time-only missing-date intents in `resolve_appointment_time`, returning resolved UTC options for today/next/appointment-date.
+
+### Approach
+- Added new helper module `api/src/lib/time/timeChoices.ts`:
+  - `isTimeOnlyMissingDateIntent(intent, whenText)` checks unresolved + missing date + time-of-day present + no explicit date anchor in text.
+  - `buildTimeChoices(...)` builds resolved choices with timezone-aware local-date anchoring and UTC conversion.
+- Wired helper into `api/src/functions/direct.ts` resolve branch:
+  - Derives `appointmentDateLocal` from appointment `time.resolved.startUtc` (converted into request timezone local date) or falls back to appointment `date`.
+  - Adds optional `timeChoices` field to response only when helper eligibility passes.
+- Added tests:
+  - New helper tests in `api/src/lib/time/timeChoices.test.ts`.
+  - Extended `api/src/functions/direct.test.ts` for time-only response choices, explicit date-anchor no-choice behavior, and appointment-date anchoring.
+
+### Files changed
+- `api/src/lib/time/timeChoices.ts`
+- `api/src/lib/time/timeChoices.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg --files` ✅
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed due to missing `@azure/data-tables` module/type resolution in this environment.
+
+### Follow-ups
+- In a fully provisioned environment, rerun `pnpm --filter @familyscheduler/api test` to execute compiled Node tests and confirm passing suite.

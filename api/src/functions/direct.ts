@@ -6,6 +6,7 @@ import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
 import { getTimeSpec } from '../lib/time/timeSpec.js';
 import { resolveTimeSpecWithFallback } from '../lib/time/resolveTimeSpecWithFallback.js';
+import { buildTimeChoices, isTimeOnlyMissingDateIntent } from '../lib/time/timeChoices.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -78,6 +79,13 @@ const SUGGESTION_FIELDS = ['title', 'time', 'location'] as const;
 const isConstraintField = (value: string): value is typeof CONSTRAINT_FIELDS[number] => CONSTRAINT_FIELDS.includes(value as typeof CONSTRAINT_FIELDS[number]);
 const isConstraintOperator = (value: string): value is typeof CONSTRAINT_OPERATORS[number] => CONSTRAINT_OPERATORS.includes(value as typeof CONSTRAINT_OPERATORS[number]);
 const isSuggestionField = (value: string): value is typeof SUGGESTION_FIELDS[number] => SUGGESTION_FIELDS.includes(value as typeof SUGGESTION_FIELDS[number]);
+
+const localDateFromResolvedStart = (startUtc: string, timezone: string): string => new Intl.DateTimeFormat('en-CA', {
+  timeZone: timezone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+}).format(new Date(startUtc));
 
 
 
@@ -1009,6 +1017,12 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   if (directAction.type === 'resolve_appointment_time') {
     const timezone = directAction.timezone || process.env.TZ || 'America/Los_Angeles';
     const nowIso = new Date().toISOString();
+    const appointment = directAction.appointmentId
+      ? loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId)
+      : undefined;
+    const appointmentDateLocal = appointment?.time?.resolved?.startUtc
+      ? localDateFromResolvedStart(appointment.time.resolved.startUtc, timezone)
+      : appointment?.date;
     const resolved = await resolveTimeSpecWithFallback({
       whenText: directAction.whenText,
       timezone,
@@ -1069,6 +1083,15 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         }));
       }
 
+    const timeChoices = isTimeOnlyMissingDateIntent(resolved.time.intent, directAction.whenText)
+      ? buildTimeChoices({
+        whenText: directAction.whenText,
+        timezone,
+        nowIso,
+        appointmentDateLocal
+      })
+      : undefined;
+
     return withDirectMeta({
       status: 200,
       jsonBody: {
@@ -1081,7 +1104,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         usedFallback,
         fallbackAttempted,
         opId,
-        nowIso
+        nowIso,
+        ...(timeChoices?.length ? { timeChoices } : {})
       }
     }, traceId, context, opId);
   }
