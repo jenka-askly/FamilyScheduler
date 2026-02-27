@@ -12554,3 +12554,43 @@ Align client payload identity across `/api/chat` and `/api/direct` to prevent sn
 
 - Manual browser Network verification (human-run): confirm `/api/chat` and `/api/direct` payloads include `email` and `phone` mirror value.
 - Manual reproduction check (human-run): `+` then cancel should keep appointment lineage stable.
+
+## 2026-02-27 18:31 UTC (Debug instrumentation: compare chat/direct storage target)
+
+### Objective
+
+Add diagnostics (behind `DEBUG_STORAGE_TARGET=1`) to reveal and compare the effective storage target used by `/api/chat` and `/api/direct` for the same `groupId`, without changing runtime behavior.
+
+### Approach
+
+- Added storage-target introspection helper in storage factory:
+  - `describeStorageTarget()` returns storage mode/config and `blobNameForGroup(groupId)` resolver.
+- Added debug response payload for `chat` snapshots when flag is enabled:
+  - `debug.storageTarget = { storageMode, accountUrl, containerName, stateBlobPrefix, blobNameForGroup }`.
+- Added structured debug log line in `chat` when flag is enabled:
+  - `{ event:"storage_target", fn:"chat", groupId, ...storageTarget }`.
+- Added debug response payload injection in `direct` metadata wrapper when flag is enabled:
+  - same `debug.storageTarget` shape as `chat`.
+- Added structured debug log line in `direct` when flag is enabled:
+  - `{ event:"storage_target", fn:"direct", groupId, ...storageTarget }`.
+- Added focused unit test coverage for `describeStorageTarget` blob-path output.
+
+### Files changed
+
+- `api/src/lib/storage/storageFactory.ts`
+- `api/src/lib/storage/storageFactory.test.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files | rg 'api/src/functions/(chat|direct)\\.ts|storageFactory|CODEX_LOG.md|PROJECT_STATUS.md'` ✅ located target files.
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed in container due missing `@azure/data-tables` module/type resolution at build stage (`TS2307`).
+- `pnpm install` ⚠️ failed due registry fetch restriction (`ERR_PNPM_FETCH_403`) in container.
+- `rg "storage_target|DEBUG_STORAGE_TARGET|describeStorageTarget|blobNameForGroup" api/src/functions/chat.ts api/src/functions/direct.ts api/src/lib/storage/storageFactory.ts api/src/lib/storage/storageFactory.test.ts -n` ✅ confirmed instrumentation and helper wiring.
+
+### Follow-ups
+
+- Human local verify (with dependencies and function host available): run API, invoke `/api/chat` and `/api/direct` for same `groupId` with `DEBUG_STORAGE_TARGET=1`, and confirm `debug.storageTarget` objects match.

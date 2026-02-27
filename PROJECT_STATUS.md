@@ -4947,3 +4947,22 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 2. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by pre-existing missing `@azure/data-tables` module/type declarations in this environment.
+
+## 2026-02-27 18:31 UTC update (Storage target debug visibility for chat/direct)
+
+- Added debug-only storage target diagnostics gated by `DEBUG_STORAGE_TARGET=1`.
+- `/api/chat` and `/api/direct` now include `debug.storageTarget` in JSON responses when enabled, exposing:
+  - `storageMode`
+  - `accountUrl`
+  - `containerName`
+  - `stateBlobPrefix`
+  - `blobNameForGroup` (resolved for the request `groupId`)
+- Both endpoints now emit a structured log line when enabled:
+  - `{ event: "storage_target", fn: "chat|direct", groupId, ...storageTarget }`
+- No behavior/path changes to storage read/write logic; instrumentation only.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test` ⚠️ blocked by missing `@azure/data-tables` module resolution in this container (`TS2307`).
+2. `pnpm install` ⚠️ blocked by package registry access (`ERR_PNPM_FETCH_403`) in this container.
+3. `rg "storage_target|DEBUG_STORAGE_TARGET|describeStorageTarget|blobNameForGroup" api/src/functions/chat.ts api/src/functions/direct.ts api/src/lib/storage/storageFactory.ts api/src/lib/storage/storageFactory.test.ts -n` ✅ confirms instrumentation and helper are present.

@@ -10,7 +10,7 @@ import { buildRulesOnlyPrompt } from '../lib/openai/prompts.js';
 import { type AppState, type Appointment } from '../lib/state.js';
 import { getTimeSpec } from '../lib/time/timeSpec.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
-import { createStorageAdapter } from '../lib/storage/storageFactory.js';
+import { createStorageAdapter, describeStorageTarget } from '../lib/storage/storageFactory.js';
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
@@ -95,7 +95,23 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
   });
 };
 
-const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState): T & { snapshot: ResponseSnapshot } => ({ ...payload, snapshot: toResponseSnapshot(state) });
+const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppState, groupId?: string): T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } } => {
+  const withState = { ...payload, snapshot: toResponseSnapshot(state) } as T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } };
+  if (process.env.DEBUG_STORAGE_TARGET !== '1' || !groupId) return withState;
+  const storageTarget = describeStorageTarget();
+  return {
+    ...withState,
+    debug: {
+      storageTarget: {
+        storageMode: storageTarget.storageMode,
+        accountUrl: storageTarget.accountUrl,
+        containerName: storageTarget.containerName,
+        stateBlobPrefix: storageTarget.stateBlobPrefix,
+        blobNameForGroup: storageTarget.blobNameForGroup(groupId)
+      }
+    }
+  };
+};
 
 
 const LIST_APPOINTMENTS_COMMANDS = new Set(['list appointments', 'show appointments', 'appointments']);
@@ -367,6 +383,20 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
 
     const session = getSessionState(getSessionId(request, groupId));
     const storage = createStorageAdapter();
+    const debugStorageTargetEnabled = process.env.DEBUG_STORAGE_TARGET === '1';
+    if (debugStorageTargetEnabled) {
+      const storageTarget = describeStorageTarget();
+      console.info(JSON.stringify({
+        event: 'storage_target',
+        fn: 'chat',
+        groupId,
+        storageMode: storageTarget.storageMode,
+        accountUrl: storageTarget.accountUrl,
+        containerName: storageTarget.containerName,
+        stateBlobPrefix: storageTarget.stateBlobPrefix,
+        blobNameForGroup: storageTarget.blobNameForGroup(groupId)
+      }));
+    }
     let loaded;
     try {
       loaded = await storage.load(groupId);
@@ -418,6 +448,8 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         }
       };
     }
+    const withGroupSnapshot = <T extends Record<string, unknown>>(payload: T, currentState: AppState): T & { snapshot: ResponseSnapshot; debug?: { storageTarget: { storageMode: string; accountUrl?: string; containerName?: string; stateBlobPrefix?: string; blobNameForGroup: string } } } => withSnapshot(payload, currentState, groupId);
+
     if (ruleMode === 'draft' || ruleMode === 'confirm') {
       if (!requestedPersonId) return { status: 400, jsonBody: { kind: 'error', error: 'personId_required', message: 'personId is required', traceId } };
       if (ruleMode === 'confirm' && Array.isArray(body.draftedIntervals) && body.draftedIntervals.length > 0) {
@@ -463,7 +495,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           const confirmed = confirmRuleDraftV2(state, draftedRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
           const written = await storage.save(groupId, confirmed.nextState, loaded.etag);
           console.info('rule_mode_confirm_result', { traceId, mode: 'confirm', source: 'draftedIntervals', persistedIntervalsCount: draftedRules.length, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
-          return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+          return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
         } catch (error) {
           const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
           if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, error: 'rule_limit_exceeded', traceId } };
@@ -482,7 +514,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           modelKind: params.modelKind,
           actionType: params.actionType ?? null
         });
-        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: params.code, traceId, details: params.details }) }, state) };
+        return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: params.code, traceId, details: params.details }) }, state) };
       };
       openAiCallInFlight = true;
       let ruleParse;
@@ -515,7 +547,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
         return reportDraftFailure({ code: 'DISALLOWED_ACTION', details: 'action type not allowed in draft mode', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: ruleParse.action?.type });
       }
       if (ruleMode !== 'draft' && (ruleParse.kind === 'question' || hasDisallowedAction || hasAppointmentAction || !parsedAction || incomingRules.length === 0)) {
-        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: 'DISALLOWED_ACTION', traceId, details: 'confirm parse failed' }) }, state) };
+        return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', draftError: getRuleDraftError({ code: 'DISALLOWED_ACTION', traceId, details: 'confirm parse failed' }) }, state) };
       }
       if (ruleMode === 'draft' && incomingRules.length === 0) {
         return reportDraftFailure({ code: 'ZERO_VALID_RULE_ITEMS', details: 'rules missing personId/date', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: parsedAction?.type });
@@ -527,12 +559,12 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
             return reportDraftFailure({ code: 'ZERO_INTERVALS', details: 'no intervals produced from valid rules', incomingRulesCount: parsedAction?.rules?.length ?? 0, validRuleItemsCount: incomingRules.length, intervalsCount: 0, modelKind: ruleParse.kind, actionType: parsedAction?.type });
           }
           console.info('rule_mode_draft_result', { traceId, normalizedIntervalsCount: draft.draftRules.length, warningsCount: draft.warnings.length, timezoneFallbackUsed: draft.timezoneFallbackUsed });
-          return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
+          return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', assistantText: 'Draft prepared.', draftRules: draft.draftRules, preview: draft.preview, assumptions: draft.assumptions, warnings: draft.warnings, promptId: draft.promptId }, state) };
         }
         const confirmed = confirmRuleDraftV2(state, incomingRules, { context: { activePersonId: session.activePersonId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' } });
         const written = await storage.save(groupId, confirmed.nextState, loaded.etag);
         console.info('rule_mode_confirm_result', { traceId, normalizedIntervalsCount: confirmed.normalizedCount, inserted: confirmed.inserted, capCheck: confirmed.capCheck, timezoneFallbackUsed: confirmed.timezoneFallbackUsed });
-        return { status: 200, jsonBody: withSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
+        return { status: 200, jsonBody: withGroupSnapshot({ kind: 'reply', assistantText: `Saved ${confirmed.inserted} rule(s).`, assumptions: confirmed.assumptions }, written.state) };
       } catch (error) {
         const payload = error instanceof Error ? (error as Error & { payload?: Record<string, unknown> }).payload : undefined;
         if (payload?.error === 'RULE_LIMIT_EXCEEDED') return { status: 409, jsonBody: { ...payload, error: 'rule_limit_exceeded', traceId } };
@@ -547,7 +579,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     const respond = (payload: { kind: 'reply'; assistantText: string } | { kind: 'question'; message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean } | { kind: 'proposal'; proposalId: string; assistantText: string } | { kind: 'applied'; assistantText: string }, currentState: AppState = state): HttpResponseInit => {
       session.chatHistory.push({ role: 'assistant', text: payload.kind === 'question' ? payload.message : payload.assistantText, ts: new Date().toISOString() });
       trimHistory(session);
-      return { status: 200, jsonBody: withSnapshot(payload, currentState) };
+      return { status: 200, jsonBody: withGroupSnapshot(payload, currentState) };
     };
 
     if (session.pendingProposal) {
@@ -557,7 +589,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
           const written = await storage.save(groupId, execution.nextState, session.pendingProposal.expectedEtag);
           session.activePersonId = execution.nextActivePersonId;
           session.pendingProposal = null;
-          return { status: 200, jsonBody: withSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
+          return { status: 200, jsonBody: withGroupSnapshot({ kind: 'applied', assistantText: execution.effectsTextLines.join('\n') }, written.state) };
         } catch (error) {
           if (error instanceof ConflictError) return { status: 409, jsonBody: { kind: 'error', message: 'State changed. Retry.', traceId } };
           throw error;
