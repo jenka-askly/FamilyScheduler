@@ -1,3 +1,34 @@
+## 2026-02-27 02:58 UTC (Appointment pane enhancement: remove raw proposal enum labels in Changes/Discussion)
+
+### Objective
+
+Implement friendly event text mapping in appointment Changes and Discussion tabs so raw enum values (e.g. `PROPOSAL_CREATED`, `PROPOSAL_APPLIED`) never render in the UI.
+
+### Approach
+
+- Added a shared friendly event label helper for unknown event types (`toFriendlyEventTypeLabel`).
+- Added `getMaterialChangeMessageText` switch mapping for proposal, field, reconciliation, system, constraint, and suggestion events.
+- Updated discussion message derivation (`getEventMessageText`) to use shared mapping before `USER_MESSAGE` fallback.
+- Updated Changes tab renderer to call shared mapping instead of inline raw `event.type` string formatting.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg "materialEventTypes|PROPOSAL_CREATED|PROPOSAL_APPLIED|RECONCILIATION_CHANGED|SYSTEM_CONFIRMATION|FIELD_CHANGED|Changes" -n apps/web` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (manual stop via SIGINT after capture)
+- Playwright screenshot script ✅ captured `browser:/tmp/codex_browser_invocations/32bfbf8b80ecbebb/artifacts/artifacts/appointment-pane-enhancement.png`.
+
+### Follow-ups
+
+- Run manual appointment flow locally to confirm proposal-rich timelines no longer expose raw enum strings in either tab.
+
+
 ## 2026-02-27 01:10 UTC (Appointment pane enhancement spec coverage)
 
 ### Objective
