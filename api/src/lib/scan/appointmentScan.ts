@@ -107,8 +107,7 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
     const normalized = (value ?? '').trim().toLowerCase();
     return normalized === ''
       || normalized === 'scanned item'
-      || normalized === 'scanning…'
-      || normalized === 'scanning...'
+      || isPlaceholderScanTitle(value)
       || normalized === 'scanning';
   };
   const shouldApply = (curr: string | undefined, next: string | null): boolean => mode === 'rescan' ? true : (isEmptyText(curr) && next !== null);
