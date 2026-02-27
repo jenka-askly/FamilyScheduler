@@ -439,7 +439,7 @@ test('resolve_appointment_time avoids 502 for malformed AI partial on time-only 
   assert.deepEqual((response.jsonBody as any).time?.intent?.missing, ['date']);
   assert.equal(Array.isArray((response.jsonBody as any).timeChoices), true);
   assert.equal((response.jsonBody as any).timeChoices.length, 3);
-  assert.deepEqual((response.jsonBody as any).timeChoices.map((choice: any) => choice.id), ['today', 'next', 'appointment']);
+  assert.deepEqual((response.jsonBody as any).timeChoices.map((choice: any) => choice.id), ['today', 'tomorrow', 'appointment']);
 
   global.fetch = originalFetch;
 });

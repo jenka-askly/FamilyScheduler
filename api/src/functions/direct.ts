@@ -6,7 +6,7 @@ import { MissingConfigError } from '../lib/errors/configError.js';
 import { type AppState } from '../lib/state.js';
 import { getTimeSpec } from '../lib/time/timeSpec.js';
 import { resolveTimeSpecWithFallback } from '../lib/time/resolveTimeSpecWithFallback.js';
-import { buildTimeChoices, isTimeOnlyMissingDateIntent } from '../lib/time/timeChoices.js';
+import { buildTimeChoicesForUnresolvedTimeOnly, isTimeOnlyMissingDateIntent } from '../lib/time/timeChoices.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -1084,7 +1084,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       }
 
     const timeChoices = isTimeOnlyMissingDateIntent(resolved.time.intent, directAction.whenText)
-      ? buildTimeChoices({
+      ? buildTimeChoicesForUnresolvedTimeOnly({
         whenText: directAction.whenText,
         timezone,
         nowIso,
