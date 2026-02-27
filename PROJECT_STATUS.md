@@ -4769,3 +4769,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/api test` ⚠️ (blocked by missing `@azure/data-tables` module/type resolution in this environment)
+
+## 2026-02-27 08:29 UTC update (Members invite modal: centered QR image)
+
+- Updated Members invite modal QR rendering in `apps/web/src/AppShell.tsx` by wrapping the QR `<img>` in a full-width flex container with `justifyContent: 'center'` and `margin: '24px 0'`.
+- Kept the surrounding modal content (join label, link text, toggles, and action buttons) unchanged.
+- No backend/API changes.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual capture; terminated intentionally with SIGINT after screenshot capture.
+3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/7f2e55f2e1b2668d/artifacts/artifacts/members-invite-qr-centered.png`.
