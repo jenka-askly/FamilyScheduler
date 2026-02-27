@@ -131,10 +131,18 @@ th {
 
 .ui-tableScroll {
   overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ui-tableScroll table {
   min-width: 900px;
+}
+
+@media (max-width: 640px) {
+  .ui-tableScroll table {
+    min-width: 100%;
+  }
 }
 
 

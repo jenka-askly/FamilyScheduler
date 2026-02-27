@@ -13141,3 +13141,46 @@ Fix Email update dialog `/api/direct` request shape so both preview and send cal
 ### Git status clean confirmation
 
 - Pending at this log point until commit is created.
+
+## 2026-02-27 21:36 UTC (Mobile table min-width override to prevent tiny scaled UI)
+
+### Objective
+
+Prevent phone layouts from feeling tiny/zoomed out by removing forced desktop table min-width behavior on narrow viewports while preserving desktop readability.
+
+### Approach
+
+- Updated `apps/web/src/styles/ui.css` `.ui-tableScroll` to keep horizontal overflow contained and mobile-friendly:
+  - added `max-width: 100%`
+  - added `-webkit-overflow-scrolling: touch`
+- Kept existing desktop table rule unchanged: `.ui-tableScroll table { min-width: 900px; }`
+- Added a narrow-screen override immediately after desktop rule:
+  - `@media (max-width: 640px) { .ui-tableScroll table { min-width: 100%; } }`
+
+### Files changed
+
+- `apps/web/src/styles/ui.css`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status` ✅ clean before changes.
+- `git log -1 --oneline` ✅ captured current HEAD.
+- `sed -n '1,220p' CODEX_LOG.md` ✅ reviewed recent log history.
+- `rg -n "ui-tableScroll|min-width: 900px|mobile|viewport|table" CODEX_LOG.md` ✅ checked prior mentions; no exact fix entry found.
+- `rg -n "ui-tableScroll" apps/web/src/styles/ui.css` ✅ confirmed scroll container + table selectors present.
+- `rg -n "min-width:\s*900px|min-width:\s*100%" apps/web/src/styles/ui.css` ✅ confirmed one desktop min-width rule and one mobile override.
+- `pnpm -C apps/web run typecheck` ✅ passed.
+- `pnpm -C apps/web run build` ✅ passed (existing Vite chunk-size warning only).
+- `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ✅ started; stopped after screenshot capture.
+- Playwright screenshot capture on forwarded port 4173 ✅ artifact: `mobile-ui-table-scroll-fix.png`.
+
+### Manual phone verification notes
+
+- Real physical phone verification was not available in this container-only run.
+- Performed browser-based mobile viewport verification using Playwright with a 390x844 viewport (phone-sized) against `http://127.0.0.1:4173/`.
+- Follow-up recommended for human test on a real device/browser (e.g., iPhone Safari or Android Chrome) to confirm no whole-page horizontal overflow and table-only swipe behavior.
+
+### Follow-ups
+
+- If any specific page still appears tiny on real phones, verify that the affected table is wrapped in `.ui-tableScroll`; if not, wrap using existing patterns.
