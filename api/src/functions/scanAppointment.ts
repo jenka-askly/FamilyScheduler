@@ -91,7 +91,7 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
     const appointment: Appointment = {
       id: appointmentId,
       code: `APPT-${new Date().getUTCSeconds()}`,
-      title: '',
+      title: 'Scanning…',
       schemaVersion: 2,
       updatedAt: now,
       assigned: [],

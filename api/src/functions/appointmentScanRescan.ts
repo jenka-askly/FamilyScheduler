@@ -18,8 +18,9 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
   const appointmentId = typeof body.appointmentId === 'string' ? body.appointmentId.trim() : '';
+  const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64 : null;
   const imageMime = body.imageMime === 'image/jpeg' || body.imageMime === 'image/png' || body.imageMime === 'image/webp' ? body.imageMime : null;
-  if (!appointmentId || !imageMime || typeof body.imageBase64 !== 'string') return errorResponse(400, 'invalid_scan_payload', 'appointmentId, imageBase64, imageMime required', traceId);
+  if (!appointmentId || !imageMime || !imageBase64) return errorResponse(400, 'invalid_scan_payload', 'appointmentId, imageBase64, imageMime required', traceId);
 
   await ensureTablesReady();
   const member = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
@@ -36,7 +37,7 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
 
   const now = new Date().toISOString();
   const key = scanBlobKey(groupId, appointmentId, imageMime);
-  await storage.putBinary(key, decodeImageBase64(body.imageBase64), imageMime, { groupId, appointmentId, kind: 'scan-image', uploadedAt: now });
+  await storage.putBinary(key, decodeImageBase64(imageBase64), imageMime, { groupId, appointmentId, kind: 'scan-image', uploadedAt: now });
 
   const appt: Appointment = { ...(doc as unknown as Appointment), id: appointmentId };
   appt.scanImageKey = key;
@@ -44,18 +45,22 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   appt.scanCapturedAt = now;
   appt.scanStatus = 'pending';
   appt.updatedAt = now;
-
-  try {
-    const parsed = await parseAppointmentFromImage({ imageBase64: body.imageBase64, imageMime, timezone: typeof body.timezone === 'string' ? body.timezone : undefined, traceId });
-    applyParsedFields(appt, parsed.parsed, 'rescan');
-    appt.scanStatus = 'parsed';
-  } catch {
-    appt.scanStatus = 'failed';
-  }
-
-  appt.updatedAt = new Date().toISOString();
   await putAppointmentJson(groupId, appointmentId, appt as unknown as Record<string, unknown>);
-  await upsertAppointmentIndex({ ...index, startTime: appt.start, hasScan: true, scanCapturedAt: now, status: appt.scanStatus ?? 'pending', updatedAt: appt.updatedAt, isDeleted: false });
+  await upsertAppointmentIndex({ ...index, startTime: appt.start, hasScan: true, scanCapturedAt: now, status: 'pending', updatedAt: appt.updatedAt, isDeleted: false });
+
+  void (async () => {
+    try {
+      const parsed = await parseAppointmentFromImage({ imageBase64, imageMime, timezone: typeof body.timezone === 'string' ? body.timezone : undefined, traceId });
+      applyParsedFields(appt, parsed.parsed, 'rescan');
+      appt.scanStatus = 'parsed';
+    } catch {
+      appt.scanStatus = 'failed';
+    }
+
+    appt.updatedAt = new Date().toISOString();
+    await putAppointmentJson(groupId, appointmentId, appt as unknown as Record<string, unknown>);
+    await upsertAppointmentIndex({ ...index, startTime: appt.start, hasScan: true, scanCapturedAt: now, status: appt.scanStatus ?? 'pending', updatedAt: appt.updatedAt, isDeleted: false });
+  })();
 
   return { status: 200, jsonBody: { ok: true, traceId } };
 }

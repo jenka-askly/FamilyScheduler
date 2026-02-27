@@ -633,6 +633,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
   const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanRowActionStateById, setScanRowActionStateById] = useState<Record<string, { busy: boolean; error: string | null }>>({});
   const [scanCaptureBusy, setScanCaptureBusy] = useState(false);
   const [scanCaptureCameraReady, setScanCaptureCameraReady] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -1337,6 +1338,48 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (!response.ok) return;
     const json = await response.json() as ChatResponse;
     if (json.snapshot) setSnapshot(json.snapshot);
+  };
+
+  const dismissScanAppointment = async (appointment: Snapshot['appointments'][0], action: 'cancel' | 'close') => {
+    const previousAppointments = snapshot.appointments;
+    const removingLabel = action === 'cancel' ? 'cancel' : 'close';
+    setScanRowActionStateById((prev) => ({ ...prev, [appointment.id]: { busy: true, error: null } }));
+    setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.filter((entry) => entry.id !== appointment.id) }));
+    try {
+      const response = await apiFetch('/api/appointmentScanDelete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, appointmentId: appointment.id })
+      });
+      const payload = await response.json() as { ok?: boolean; message?: string; error?: string; traceId?: string };
+      if (!response.ok || !payload.ok) {
+        setSnapshot((prev) => ({ ...prev, appointments: previousAppointments }));
+        setScanRowActionStateById((prev) => ({
+          ...prev,
+          [appointment.id]: {
+            busy: false,
+            error: `${payload.message ?? payload.error ?? `Could not ${removingLabel} scan row.`}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`
+          }
+        }));
+        return;
+      }
+      setScanRowActionStateById((prev) => {
+        const next = { ...prev };
+        delete next[appointment.id];
+        return next;
+      });
+      await refreshSnapshot();
+    } catch (error) {
+      const traceId = error instanceof Error && 'traceId' in error && typeof error.traceId === 'string' ? error.traceId : null;
+      setSnapshot((prev) => ({ ...prev, appointments: previousAppointments }));
+      setScanRowActionStateById((prev) => ({
+        ...prev,
+        [appointment.id]: {
+          busy: false,
+          error: `Could not ${removingLabel} scan row. Please try again.${traceId ? ` (trace: ${traceId})` : ''}`
+        }
+      }));
+    }
   };
 
   const stopScanCaptureStream = () => {
@@ -2177,6 +2220,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           onDelete={setAppointmentToDelete}
                           onSelectPeople={setSelectedAppointment}
                           onOpenScanViewer={setScanViewerAppointment}
+                          onDismissScanRow={(appointment, action) => { void dismissScanAppointment(appointment, action); }}
+                          scanRowActionStateById={scanRowActionStateById}
                           onOpenDetails={(appointment) => openAppointmentDetails(appointment)}
                           activeAppointmentCode={activeAppointmentCode}
                           scanViewIcon={<ReceiptLongOutlinedIcon fontSize="small" />}

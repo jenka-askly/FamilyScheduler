@@ -12242,3 +12242,47 @@ Implement grace-session user notification in AppShell with sign-in redirect, and
 ### Follow-ups
 
 - Optional: add React-level UI tests around AppShell banner visibility/CTA navigation once a browser/unit test framework is introduced for `apps/web`.
+
+## 2026-02-27 10:40 UTC (Scan image flow: pending/failure row UX + delete robustness)
+
+### Objective
+
+Implement locked scan-image flow behavior so pending/failed scan appointments render dedicated non-interactive rows, support Cancel/Close deletion, and avoid empty-title flashes during snapshot refresh.
+
+### Approach
+
+- Added top-level `scanStatus` render branching in `AppointmentCardList`:
+  - pending → scanning placeholder row with indeterminate progress + Cancel
+  - failed → error row with Close
+  - otherwise → existing appointment row UI
+- Wired new row actions to AppShell deletion flow:
+  - optimistic local removal
+  - POST `/api/appointmentScanDelete` with `groupId` + `appointmentId`
+  - refresh on success
+  - restore row + inline row-level error on failure
+- Updated backend pending consistency:
+  - `scanAppointment` now creates pending appointment with `title: "Scanning…"`
+  - `appointmentScanRescan` now persists pending status immediately, returns, and parses asynchronously to `parsed`/`failed`
+
+### Files changed
+
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+
+### Follow-ups
+
+- Manual UI validation in a real browser/session for end-to-end scan capture paths (pending → parsed, pending cancel, failed close, rescan pending state).
+
+### Verification correction
+
+- `pnpm --filter @familyscheduler/api build` ⚠️ blocked by pre-existing missing `@azure/data-tables` dependency/type resolution in this environment (`TS2307`).
