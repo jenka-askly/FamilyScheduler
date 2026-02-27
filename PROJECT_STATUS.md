@@ -4733,3 +4733,10 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Suggestion selection now executes exactly one `/api/direct` action immediately, then refetches appointment details on success.
 - Reused existing natural time/date parsing flow through `resolve_appointment_time` + `TimeSpec` normalization used by appointment editors.
 
+
+## 2026-02-27 05:37 UTC update (resolve_appointment_time non-fatal AI bad response fallback)
+
+- Updated time-resolution fallback handling so AI parse failures (including `OPENAI_BAD_RESPONSE` malformed partial/unresolved payloads) no longer force `/api/direct` `resolve_appointment_time` into HTTP 502.
+- `resolveTimeSpecWithFallback` now returns deterministic/local parse output when AI parse fails, while preserving metadata (`fallbackAttempted: true`, `usedFallback: false`).
+- Added fallback log context with compact input preview (`inputText`) alongside trace/error metadata for easier diagnosis.
+- Added regression tests for malformed AI partial responses on time-only phrases (`8pm`, `set time to 4pm`) to assert successful deterministic fallback behavior.

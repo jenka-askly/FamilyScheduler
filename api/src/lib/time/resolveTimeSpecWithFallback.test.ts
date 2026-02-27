@@ -47,16 +47,45 @@ test('AI-first returns resolved interval with provenance', async () => {
   fetchMock.mock.restore();
 });
 
-test('OpenAI failure returns explicit error', async () => {
+test('OpenAI failure falls back to deterministic parse', async () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.OPENAI_MODEL = 'gpt-test';
 
   const fetchMock = mock.method(global, 'fetch', async () => ({ ok: false, status: 503, text: async () => 'upstream failed' }) as unknown as Response);
 
   const result = await resolveTimeSpecWithFallback({ whenText: 'tomorrow 1pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-2', context: { log: () => {} } as any });
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.equal(result.error.code, 'OPENAI_CALL_FAILED');
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.time.intent.status, 'resolved');
+  assert.equal(result.fallbackAttempted, true);
+  assert.equal(result.usedFallback, false);
+  assert.equal(fetchMock.mock.callCount(), 1);
+  fetchMock.mock.restore();
+});
+
+
+test('AI bad partial payload falls back to deterministic partial for time-only input', async () => {
+  process.env.OPENAI_API_KEY = 'sk-test';
+  process.env.OPENAI_MODEL = 'gpt-test';
+
+  const fetchMock = mock.method(global, 'fetch', async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: 'resp_bad',
+      output_text: JSON.stringify({
+        status: 'partial',
+        missing: []
+      })
+    })
+  }) as unknown as Response);
+
+  const result = await resolveTimeSpecWithFallback({ whenText: '8pm', timezone: 'America/Los_Angeles', now: NOW, traceId: 'trace-3', context: { log: () => {} } as any });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.time.intent.status, 'unresolved');
+  assert.deepEqual(result.time.intent.missing, ['date']);
   assert.equal(result.fallbackAttempted, true);
   assert.equal(result.usedFallback, false);
   assert.equal(fetchMock.mock.callCount(), 1);

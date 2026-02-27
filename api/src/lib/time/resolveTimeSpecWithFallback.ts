@@ -62,15 +62,13 @@ export async function resolveTimeSpecWithFallback(args: ResolveArgs): Promise<
       errBodyPreview: typeof details?.errBodyPreview === 'string' ? trimTo(details.errBodyPreview, 300) : undefined,
       provider: typeof details?.provider === 'string' ? details.provider : undefined,
       modelOrDeployment: typeof details?.modelOrDeployment === 'string' ? details.modelOrDeployment : undefined,
+      inputText: trimTo(args.whenText, 120),
       nowIso: args.now.toISOString(),
       timezone: args.timezone
     }));
     return {
-      ok: false,
-      error: {
-        code,
-        message: trimTo(error instanceof Error ? error.message : String(error), 300)
-      },
+      ok: true,
+      time: timeLocal,
       fallbackAttempted: true,
       usedFallback: false,
       opId: undefined,
