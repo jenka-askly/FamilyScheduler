@@ -12959,3 +12959,59 @@ Implement the igniteGrace guest-access UX glue:
   2) CTA routes to `/#/login?next=...`,
   3) post-auth returns to expected group app route,
   4) banner disappears after durable auth and grace clear.
+
+## 2026-02-27 21:15 UTC (Yapper appointment Email update Phase 1 UI+API+storage)
+
+### Objective
+
+Implement Phase 1 manual appointment email updates: enable drawer action, add preview/send API actions, persist `NOTIFICATION_SENT` events, and surface `lastNotification` in appointment details.
+
+### Pre-flight checks
+
+- `git status --short --branch` → `## work` (no pending changes before implementation).
+- `sed -n '1,200p' CODEX_LOG.md` reviewed for continuity.
+- `rg -n "NOTIFICATION_SENT" api/src/lib/appointments/appointmentEvents.ts api/src/lib/appointments -S` confirmed event type availability.
+- `rg -n "get_appointment_detail" api/src/functions/direct.ts -n -S` confirmed handler locations and response shaping path.
+
+### Approach
+
+- Added direct actions in `api/src/functions/direct.ts`:
+  - `preview_appointment_update_email`
+  - `send_appointment_update_email`
+- Implemented recipient resolution from `recipientPersonIds` (preferred) with `recipientEmails` fallback, dedupe, and self-exclusion (`excludedSelf`).
+- Added server-generated email subject/plainText/html generation with Yapper branding and app link.
+- Added send loop using `sendEmail({ to, subject, plainText, html })` per recipient.
+- Added idempotency read-back on send using recent `NOTIFICATION_SENT` events matching `clientRequestId` + sender email.
+- Added partial/all-fail behavior:
+  - all-fail returns error and appends no event
+  - success/partial appends `NOTIFICATION_SENT` event payload with counts/failed recipients/subject/message/clientRequestId
+- Extended `get_appointment_detail` response with `lastNotification` summary from recent events.
+- Updated `apps/web/src/AppShell.tsx`:
+  - replaced disabled Notify button with active **Email update** button (envelope icon)
+  - added dialog state + UI for recipient selection, message compose, debounced preview, and send handling
+  - wired preview/send calls to new `/api/direct` actions
+  - rendered drawer header “Last email update” summary, including partial missed-recipient display with tooltip truncation
+- Updated `PROJECT_STATUS.md` with behavior changes and verification status.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Verification commands + outcomes
+
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed in this container due to missing `@azure/data-tables` module/type resolution.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped intentionally via SIGINT).
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/68babcc82dbcfea7/artifacts/artifacts/email-update-ui.png`.
+
+### Minimal manual verification scenario (for human-run)
+
+Opened appointment drawer → clicked **Email update** → selected two recipients → preview subject/body rendered → sent emails → verified success banner and last-email summary updated. Partial path: include one recipient with missing/invalid email (or unreachable address) and verify partial result lists missed recipients while still updating last-email summary.
+
+### Post-commit workspace status
+
+- `git status --short --branch` ✅ `## work` (clean working tree after commit).

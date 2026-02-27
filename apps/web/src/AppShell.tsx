@@ -45,6 +45,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CloseIcon from '@mui/icons-material/Close';
 import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
+import MailOutlineIcon from '@mui/icons-material/MailOutline';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -103,6 +104,15 @@ type AppointmentDetailResponse = {
   } | null;
   constraints?: { byMember?: Record<string, Array<{ id: string; field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string }>> };
   suggestions?: { byField?: Record<string, Array<{ id: string; proposerEmail: string; field: 'title' | 'time' | 'location'; value: string; active: boolean; status: string; conflicted?: boolean; reactions?: Array<{ email: string; reaction: 'up' | 'down'; tsUtc: string }> }>> };
+  lastNotification?: {
+    sentAt: string;
+    sentBy: { email: string; display?: string };
+    deliveryStatus: 'sent' | 'partial';
+    recipientCountSent: number;
+    recipientCountSelected: number;
+    failedRecipients?: Array<{ email: string; display?: string }>;
+    subject: string;
+  };
 };
 
 type DiscussionDisplayItem = {
@@ -121,6 +131,25 @@ type DirectActionErrorPayload = {
   ok?: boolean;
   message?: string;
   error?: string | { code?: string; message?: string };
+};
+
+type EmailPreviewPayload = {
+  subject: string;
+  html: string;
+  plainText: string;
+  resolvedRecipients: Array<{ personId?: string; display?: string; email: string }>;
+  excludedRecipients?: Array<{ personId?: string; email?: string; reason: string }>;
+  excludedSelf?: boolean;
+};
+
+type EmailSendResult = {
+  sentAt: string;
+  deliveryStatus: 'sent' | 'partial';
+  recipientCountSent: number;
+  recipientCountSelected: number;
+  failedRecipients?: Array<{ email: string; display?: string; personId?: string; errorMessage?: string }>;
+  subject: string;
+  excludedSelf?: boolean;
 };
 
 type ActiveSuggestionCard = {
@@ -596,6 +625,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [detailsTab, setDetailsTab] = useState<'discussion' | 'changes' | 'constraints'>('discussion');
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [detailsMessageText, setDetailsMessageText] = useState('');
+  const [isEmailUpdateOpen, setIsEmailUpdateOpen] = useState(false);
+  const [selectedRecipientPersonIds, setSelectedRecipientPersonIds] = useState<string[]>([]);
+  const [emailUserMessage, setEmailUserMessage] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [emailPreview, setEmailPreview] = useState<EmailPreviewPayload | null>(null);
+  const [sendingEmailUpdate, setSendingEmailUpdate] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendResult, setSendResult] = useState<EmailSendResult | null>(null);
   const [activeSuggestionCard, setActiveSuggestionCard] = useState<ActiveSuggestionCard | null>(null);
   const [suggestionActionError, setSuggestionActionError] = useState<string | null>(null);
   const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; from: string; to: string; countdownEndsAt: number; paused: boolean }>(null);
@@ -704,9 +742,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; pendingProposal?: AppointmentDetailResponse['pendingProposal']; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions'] };
+    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; pendingProposal?: AppointmentDetailResponse['pendingProposal']; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions']; lastNotification?: AppointmentDetailResponse['lastNotification'] };
     if (!response.ok || !payload.ok || !payload.appointment || !payload.eventsPage || !payload.projections) throw new Error(payload.message ?? 'Unable to load details');
-    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, pendingProposal: payload.pendingProposal ?? null, constraints: payload.constraints, suggestions: payload.suggestions };
+    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, pendingProposal: payload.pendingProposal ?? null, constraints: payload.constraints, suggestions: payload.suggestions, lastNotification: payload.lastNotification };
     setDetailsData((prev) => {
       if (!cursor || !prev) return next;
       const merged = [...prev.eventsPage, ...next.eventsPage.filter((event) => !prev.eventsPage.some((existing) => existing.id === event.id))];
@@ -1788,6 +1826,119 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const activePeople = snapshot.people.filter((person) => person.status === 'active');
   const peopleInView = snapshot.people.filter((person) => person.status === 'active');
   const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === sessionEmail.trim().toLowerCase())?.name?.trim() || null;
+  const emailEligiblePeople = activePeople;
+  const selectedAppointmentForEmail = detailsData?.appointment ?? null;
+  const emailSelectedRecipients = emailEligiblePeople.filter((person) => selectedRecipientPersonIds.includes(person.personId));
+
+  const toggleEmailRecipient = (personId: string) => {
+    setSelectedRecipientPersonIds((prev) => prev.includes(personId) ? prev.filter((id) => id !== personId) : [...prev, personId]);
+  };
+
+  const openEmailUpdateDialog = () => {
+    const defaultSelection = emailEligiblePeople
+      .filter((person) => person.email?.trim())
+      .filter((person) => person.email.trim().toLowerCase() !== sessionEmail.trim().toLowerCase())
+      .map((person) => person.personId);
+    setSelectedRecipientPersonIds(defaultSelection);
+    setEmailUserMessage('');
+    setPreviewError(null);
+    setSendError(null);
+    setSendResult(null);
+    setEmailPreview(null);
+    setIsEmailUpdateOpen(true);
+  };
+
+  const sendEmailUpdate = async () => {
+    if (!detailsAppointmentId || selectedRecipientPersonIds.length === 0) return;
+    setSendingEmailUpdate(true);
+    setSendError(null);
+    try {
+      const response = await apiFetch('/api/direct', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          ...identityPayload(),
+          action: {
+            type: 'send_appointment_update_email',
+            appointmentId: detailsAppointmentId,
+            recipientPersonIds: selectedRecipientPersonIds,
+            userMessage: emailUserMessage,
+            clientRequestId: createTraceId()
+          },
+          traceId: createTraceId()
+        })
+      });
+      const payload = await response.json() as DirectActionErrorPayload & EmailSendResult;
+      if (!response.ok || !payload.ok) {
+        setSendError(payload.message ?? 'Unable to send email update.');
+        return;
+      }
+      setSendResult({
+        sentAt: payload.sentAt,
+        deliveryStatus: payload.deliveryStatus,
+        recipientCountSent: payload.recipientCountSent,
+        recipientCountSelected: payload.recipientCountSelected,
+        failedRecipients: payload.failedRecipients,
+        subject: payload.subject,
+        excludedSelf: payload.excludedSelf
+      });
+      await loadAppointmentDetails(detailsAppointmentId);
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'Unable to send email update.');
+    } finally {
+      setSendingEmailUpdate(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isEmailUpdateOpen || !detailsAppointmentId) return;
+    const timer = window.setTimeout(async () => {
+      if (selectedRecipientPersonIds.length === 0) {
+        setEmailPreview(null);
+        return;
+      }
+      setPreviewLoading(true);
+      setPreviewError(null);
+      try {
+        const response = await apiFetch('/api/direct', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            groupId,
+            ...identityPayload(),
+            action: {
+              type: 'preview_appointment_update_email',
+              appointmentId: detailsAppointmentId,
+              recipientPersonIds: selectedRecipientPersonIds,
+              userMessage: emailUserMessage
+            },
+            traceId: createTraceId()
+          })
+        });
+        const payload = await response.json() as DirectActionErrorPayload & EmailPreviewPayload;
+        if (!response.ok || !payload.ok) {
+          setPreviewError(payload.message ?? 'Unable to load email preview.');
+          setEmailPreview(null);
+          return;
+        }
+        setEmailPreview({
+          subject: payload.subject,
+          html: payload.html,
+          plainText: payload.plainText,
+          resolvedRecipients: payload.resolvedRecipients,
+          excludedRecipients: payload.excludedRecipients,
+          excludedSelf: payload.excludedSelf
+        });
+      } catch (error) {
+        setPreviewError(error instanceof Error ? error.message : 'Unable to load email preview.');
+        setEmailPreview(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [detailsAppointmentId, emailUserMessage, groupId, isEmailUpdateOpen, selectedRecipientPersonIds]);
 
   useEffect(() => {
     if (!signedInPersonName) {
@@ -3001,8 +3152,31 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               ) : (
                 <Typography variant="body2" color="text.secondary">{detailsData.appointment.desc || 'Appointment'} · {formatAppointmentTime(detailsData.appointment)} · {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
               )}
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button size="small" variant="outlined" disabled>Notify (coming soon)</Button>
+              <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<MailOutlineIcon fontSize="small" />}
+                  onClick={openEmailUpdateDialog}
+                  disabled={!detailsAppointmentId || !detailsData}
+                >
+                  Email update
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  {(() => {
+                    const last = detailsData.lastNotification;
+                    if (!last) return 'Last email update: Never';
+                    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
+                    if (last.deliveryStatus === 'partial') {
+                      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
+                      const short = missed.slice(0, 2).join(', ');
+                      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
+                      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
+                      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
+                    }
+                    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
+                  })()}
+                </Typography>
               </Stack>
             </Box>
             <Stack spacing={1}>
@@ -3159,6 +3333,65 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           </Stack>
         ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
       </Drawer>
+
+      <Dialog open={isEmailUpdateOpen} onClose={() => setIsEmailUpdateOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Email update</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5}>
+            <Typography variant="caption" color="text.secondary">Select recipients</Typography>
+            <FormGroup>
+              {emailEligiblePeople.map((person) => {
+                const hasEmail = Boolean(person.email?.trim());
+                const label = person.name?.trim() ? `${person.name} <${person.email || 'No email'}>` : (person.email || person.personId);
+                return (
+                  <FormControlLabel
+                    key={person.personId}
+                    control={<Checkbox checked={selectedRecipientPersonIds.includes(person.personId)} onChange={() => toggleEmailRecipient(person.personId)} disabled={!hasEmail || sendingEmailUpdate} />}
+                    label={hasEmail ? label : `${person.name || person.personId} — No email on file`}
+                  />
+                );
+              })}
+            </FormGroup>
+            <TextField
+              id="email-update-message"
+              label="Message (optional)"
+              multiline
+              minRows={3}
+              value={emailUserMessage}
+              onChange={(event) => setEmailUserMessage(event.target.value)}
+              disabled={sendingEmailUpdate}
+            />
+            <Typography variant="caption" color="text.secondary">Preview</Typography>
+            {previewLoading ? <Typography variant="body2" color="text.secondary">Loading preview…</Typography> : null}
+            {previewError ? <Alert severity="error">{previewError}</Alert> : null}
+            {emailPreview ? (
+              <Paper variant="outlined" sx={{ p: 1.25 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>{emailPreview.subject}</Typography>
+                <Box sx={{ maxHeight: 220, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+                  <div dangerouslySetInnerHTML={{ __html: emailPreview.html }} />
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>Replies are disabled. Use the link in the email.</Typography>
+              </Paper>
+            ) : null}
+            {sendError ? <Alert severity="error">{sendError}</Alert> : null}
+            {sendResult ? (
+              <Alert severity={sendResult.deliveryStatus === 'partial' ? 'warning' : 'success'}>
+                {sendResult.deliveryStatus === 'partial'
+                  ? `Partial send: delivered to ${sendResult.recipientCountSent} of ${sendResult.recipientCountSelected}.`
+                  : `Sent to ${sendResult.recipientCountSent} recipient(s).`}
+                {sendResult.failedRecipients?.length ? ` Missed: ${sendResult.failedRecipients.map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).join(', ')}` : ''}
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => setIsEmailUpdateOpen(false)} disabled={sendingEmailUpdate}>Close</Button>
+          <Button type="button" variant="contained" onClick={() => void sendEmailUpdate()} disabled={sendingEmailUpdate || selectedRecipientPersonIds.length === 0 || !selectedAppointmentForEmail}>
+            {sendingEmailUpdate ? 'Sending…' : 'Send emails'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
 
       <Dialog open={isEditProposalOpen} onClose={() => setIsEditProposalOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Edit proposed title</DialogTitle>

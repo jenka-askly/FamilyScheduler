@@ -5074,3 +5074,23 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web exec node --test src/lib/returnTo.test.ts src/lib/graceAccess.test.ts` ✅ passed.
 2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+## 2026-02-27 21:15 UTC update (Yapper appointment Email update Phase 1)
+
+- Added appointment email update Phase 1 backend + UI flow.
+- `/api/direct` now supports:
+  - `preview_appointment_update_email` (recipient resolution, self-exclusion, server-rendered subject/plainText/html)
+  - `send_appointment_update_email` (per-recipient sends via ACS, partial/all-fail handling, idempotency via `clientRequestId` + sender)
+- `NOTIFICATION_SENT` appointment event now records sender, counts, status (`sent|partial`), failures, subject, and request id; all-fail responses do not append events.
+- `get_appointment_detail` now includes `lastNotification` summary from recent appointment events.
+- Appointment drawer now replaces disabled Notify placeholder with an enabled **Email update** button and dialog (recipient selection, message compose, debounced preview, send result including partial misses).
+- Drawer header now renders **Last email update** summary including partial/missed recipients.
+- No new runtime feature flag was added in this phase.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build` ⚠️ blocked in this container by missing `@azure/data-tables` type dependency resolution.
+2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+3. `pnpm --filter @familyscheduler/web build` ✅ passed.
+4. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped intentionally via SIGINT).
+5. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/68babcc82dbcfea7/artifacts/artifacts/email-update-ui.png`.
