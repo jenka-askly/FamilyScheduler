@@ -12110,3 +12110,33 @@ Add lightweight live updates for appointment details while the drawer is open (w
 
 ### Follow-ups
 - In a fully provisioned environment, rerun `pnpm --filter @familyscheduler/api test` to execute compiled Node tests and confirm passing suite.
+
+## 2026-02-27 08:29 UTC (Members invite modal QR centering)
+
+### Objective
+
+Center the invite modal QR code horizontally without changing other modal content/layout behavior.
+
+### Approach
+
+- Located invite QR image render block in `apps/web/src/AppShell.tsx`.
+- Replaced direct `<img>` render with a full-width flex wrapper (`display: flex`, `justifyContent: center`, `margin: 24px 0`, `width: 100%`) containing the existing QR image.
+- Added `display: block` image style to keep consistent centering behavior.
+- Left copy-link text and modal actions untouched.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "qrImageUrl|QR code|invite" apps/web/src/AppShell.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (manual stop via SIGINT after capture)
+- Playwright screenshot script ✅ captured `browser:/tmp/codex_browser_invocations/7f2e55f2e1b2668d/artifacts/artifacts/members-invite-qr-centered.png`.
+
+### Follow-ups
+
+- Optional manual check in local browser with a live invite session to confirm centering across viewport sizes.

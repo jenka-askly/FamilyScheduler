@@ -2458,7 +2458,26 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <Typography variant="body2" color="text.secondary">
               Scan this code to join the group. Anyone can join while the invite is open.
             </Typography>
-            {inviteQrImageUrl ? <img src={inviteQrImageUrl} alt="Invite QR" width={280} height={280} /> : null}
+            {inviteQrImageUrl ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  margin: '24px 0',
+                  width: '100%'
+                }}
+              >
+                <img
+                  src={inviteQrImageUrl}
+                  alt="QR code"
+                  width={280}
+                  height={280}
+                  style={{
+                    display: 'block'
+                  }}
+                />
+              </div>
+            ) : null}
             <Typography variant="body2" sx={{ textAlign: 'center' }}>{`Join ${(groupName ?? 'Family Schedule').trim() || 'Family Schedule'}`}</Typography>
             {inviteJoinUrl ? (
               <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all', textAlign: 'center' }}>
