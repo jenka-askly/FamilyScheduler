@@ -11879,3 +11879,32 @@ Implement discussion-only chat rendering cleanup so the appointment Discussion t
 
 ### Follow-ups
 - Human should run end-to-end member conversation in staging/local with two distinct accounts to validate sender grouping behavior against real event history.
+
+## 2026-02-27 04:05 UTC (Appointment Pane Enhancement – Live updates in open drawer polling)
+
+### Objective
+Add lightweight live updates for appointment details while the drawer is open (web only), without backend changes.
+
+### Approach
+- Located drawer detail fetch path in `apps/web/src/AppShell.tsx` (`loadAppointmentDetails` with direct action `get_appointment_detail`).
+- Added polling effect (4s interval) that runs only when drawer is open + appointment id exists + document is visible.
+- Added in-flight guard to prevent overlapping poll requests and cleanup on close/id change.
+- Added drawer content scroll ref plumbed through `apps/web/src/components/Drawer.tsx` so discussion auto-scroll behavior can pin-to-bottom only when user is already near bottom.
+- Left non-discussion behavior unchanged.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/Drawer.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` (pending run in this change block)
+
+### Follow-ups
+- Human manual verification with two users: while one drawer stays open on Discussion tab, send a new message from another user and verify it appears within one poll interval without closing drawer.
+
+### Verification addendum
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed after Drawer ref typing fix.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/85edc398be578b8d/artifacts/artifacts/appointment-drawer-polling.png`.

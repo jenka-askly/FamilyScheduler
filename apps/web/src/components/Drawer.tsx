@@ -1,13 +1,14 @@
-import { ReactNode, useEffect } from 'react';
+import { MutableRefObject, ReactNode, useEffect } from 'react';
 
 type DrawerProps = {
   open: boolean;
   title?: string;
   onClose: () => void;
   children: ReactNode;
+  contentRef?: MutableRefObject<HTMLDivElement | null>;
 };
 
-export function Drawer({ open, title, onClose, children }: DrawerProps) {
+export function Drawer({ open, title, onClose, children, contentRef }: DrawerProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -44,7 +45,7 @@ export function Drawer({ open, title, onClose, children }: DrawerProps) {
             ×
           </button>
         </div>
-        <div className="ui-drawer-content">{children}</div>
+        <div className="ui-drawer-content" ref={contentRef}>{children}</div>
       </aside>
     </div>
   );

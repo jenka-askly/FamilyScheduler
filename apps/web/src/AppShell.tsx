@@ -626,6 +626,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
   const [advancedText, setAdvancedText] = useState('');
+  const detailsScrollRef = useRef<HTMLDivElement | null>(null);
+  const detailsPollingInFlightRef = useRef(false);
+  const shouldPinDiscussionToBottomRef = useRef(true);
 
   useEffect(() => {
     if (!pendingProposal || pendingProposal.paused) return;
@@ -712,7 +715,56 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setDetailsData(null);
     setPendingProposal(null);
     setDetailsMessageText('');
+    shouldPinDiscussionToBottomRef.current = true;
   }
+
+  useEffect(() => {
+    const element = detailsScrollRef.current;
+    if (!detailsOpen || !element) return;
+    const updatePinPreference = () => {
+      const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+      shouldPinDiscussionToBottomRef.current = distanceFromBottom < 80;
+    };
+    updatePinPreference();
+    element.addEventListener('scroll', updatePinPreference);
+    return () => {
+      element.removeEventListener('scroll', updatePinPreference);
+    };
+  }, [detailsOpen, detailsAppointmentId, detailsTab]);
+
+  useEffect(() => {
+    if (!detailsOpen || !detailsAppointmentId) return;
+    let isDisposed = false;
+    const pollMs = 4000;
+    const pollDetails = async () => {
+      if (isDisposed || detailsPollingInFlightRef.current || document.visibilityState !== 'visible') return;
+      detailsPollingInFlightRef.current = true;
+      try {
+        await loadAppointmentDetails(detailsAppointmentId);
+      } catch (error) {
+        console.error('poll get_appointment_detail failed', error);
+      } finally {
+        detailsPollingInFlightRef.current = false;
+      }
+    };
+    const timer = window.setInterval(() => {
+      void pollDetails();
+    }, pollMs);
+    return () => {
+      isDisposed = true;
+      window.clearInterval(timer);
+      detailsPollingInFlightRef.current = false;
+    };
+  }, [detailsOpen, detailsAppointmentId]);
+
+  useEffect(() => {
+    if (!detailsOpen || detailsTab !== 'discussion') return;
+    const element = detailsScrollRef.current;
+    if (!element) return;
+    if (shouldPinDiscussionToBottomRef.current) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [detailsOpen, detailsTab, discussionDisplayItems.length]);
 
   const appendLocalDiscussionErrorEvent = (message: string) => {
     const syntheticEvent: AppointmentDetailEvent = {
@@ -2631,7 +2683,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         </DialogActions>
       </Dialog>
 
-      <Drawer open={detailsOpen} title={detailsData?.appointment.desc || (snapshot.appointments.find((entry) => entry.id === detailsAppointmentId)?.desc ?? 'Appointment details')} onClose={closeAppointmentDetails}>
+      <Drawer
+        open={detailsOpen}
+        title={detailsData?.appointment.desc || (snapshot.appointments.find((entry) => entry.id === detailsAppointmentId)?.desc ?? 'Appointment details')}
+        onClose={closeAppointmentDetails}
+        contentRef={detailsScrollRef}
+      >
         {detailsData ? (
           <Stack spacing={1.5}>
             <Box>

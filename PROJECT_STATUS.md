@@ -4698,3 +4698,11 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 3. Playwright screenshot captures:
    - `browser:/tmp/codex_browser_invocations/e002a387492bdb2e/artifacts/artifacts/discussion-mixed-chat.png`
    - `browser:/tmp/codex_browser_invocations/e002a387492bdb2e/artifacts/artifacts/discussion-proposal-sequence.png`
+
+## 2026-02-27 04:05 UTC update (Appointment pane enhancement: live detail polling in open drawer)
+
+- Added web-only polling for `get_appointment_detail` while appointment drawer is open and a `detailsAppointmentId` is selected.
+- Poll interval set to 4 seconds; polling is gated by `document.visibilityState === 'visible'` and automatically stops on drawer close or appointment switch.
+- Preserved discussion reading UX by tracking drawer scroll proximity and only auto-pinning to bottom when user is near the bottom.
+- No backend/API contract changes were made.
+- Manual verification note target: **message appears without closing drawer**.
