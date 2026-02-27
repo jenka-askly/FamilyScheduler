@@ -1,3 +1,47 @@
+## 2026-02-27 01:10 UTC (Appointment pane enhancement spec coverage)
+
+### Objective
+
+Implement proposal lifecycle + constraints + suggestions end-to-end for appointment pane, including direct actions, event emission, UI wiring, projection hardening, and status updates.
+
+### Approach
+
+- Extended appointment event union with proposal lifecycle events and canonical suggestion reaction event.
+- Added appointment domain helpers for structured constraint upsert/remove and active suggestion access.
+- Extended `/api/direct` parser/handlers for:
+  - proposal pause/resume/edit
+  - constraints add/edit/remove
+  - suggestions create/dismiss/react/apply
+- Updated appointment detail endpoint to return expanded discussion projections plus `constraints`/`suggestions` projection payloads.
+- Updated web appointment drawer to:
+  - invoke proposal lifecycle actions
+  - render structured constraints controls
+  - create and manage suggestions (apply/dismiss/reactions)
+  - harden changes renderer for heterogeneous event payloads.
+- Added targeted domain unit tests for constraints/suggestions behavior.
+- Updated project status doc with compatibility decision (`SUGGESTION_REACTED` canonical, legacy tolerated).
+
+### Files changed
+
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/lib/appointments/appointmentDomain.ts`
+- `api/src/lib/appointments/appointmentDomain.test.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "parseDirectAction|get_appointment_detail|AppointmentEventType|materialEventTypes|ensureAppointmentDoc|clientRequestId|SUGGESTION_REACTION|Constraints|Discussion|Changes" api apps packages -S` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by pre-existing missing `@azure/data-tables` dependency in container.
+
+### Follow-ups
+
+- Run full API build/test in environment with `@azure/data-tables` available to validate new direct handlers and tests.
+
+
 ## 2026-02-27 00:05 UTC (Members tab `+` invite menu + QR modal)
 
 ### Objective

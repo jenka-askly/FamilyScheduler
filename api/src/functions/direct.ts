@@ -15,7 +15,17 @@ import { isPlausibleEmail, normalizeEmail, requireActiveMember } from '../lib/au
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
 import { appendEvent, getRecentEvents, hasLatestChunkIdempotencyKey, type AppointmentEvent, type EventCursor } from '../lib/appointments/appointmentEvents.js';
-import { evaluateReconciliation, materialEventTypes } from '../lib/appointments/appointmentDomain.js';
+import {
+  activeConstraintsForMember,
+  activeSuggestionsByField,
+  ensureAppointmentDoc,
+  evaluateReconciliation,
+  expireSuggestions,
+  materialEventTypes,
+  newSuggestion,
+  removeConstraintForMember,
+  upsertConstraintForMember
+} from '../lib/appointments/appointmentDomain.js';
 import { getAppointmentJsonWithEtag, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
 
 export type ResponseSnapshot = {
@@ -44,13 +54,31 @@ type DirectAction =
   | { type: 'get_appointment_detail'; appointmentId: string; limit?: number; cursor?: EventCursor }
   | { type: 'append_appointment_message'; appointmentId: string; text: string; clientRequestId: string }
   | { type: 'apply_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; value: string; clientRequestId: string }
-  | { type: 'dismiss_appointment_proposal'; appointmentId: string; proposalId: string; clientRequestId: string };
+  | { type: 'pause_appointment_proposal'; appointmentId: string; proposalId: string; clientRequestId: string }
+  | { type: 'resume_appointment_proposal'; appointmentId: string; proposalId: string; clientRequestId: string }
+  | { type: 'edit_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; value: string; clientRequestId: string }
+  | { type: 'dismiss_appointment_proposal'; appointmentId: string; proposalId: string; clientRequestId: string }
+  | { type: 'add_constraint'; appointmentId: string; memberEmail: string; field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; clientRequestId: string }
+  | { type: 'edit_constraint'; appointmentId: string; memberEmail: string; constraintId: string; field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; clientRequestId: string }
+  | { type: 'remove_constraint'; appointmentId: string; memberEmail: string; constraintId: string; clientRequestId: string }
+  | { type: 'create_suggestion'; appointmentId: string; field: 'title' | 'time' | 'location'; value: string; clientRequestId: string }
+  | { type: 'dismiss_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
+  | { type: 'react_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; reaction: 'up' | 'down'; clientRequestId: string }
+  | { type: 'apply_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
 const DIRECT_VERSION = process.env.DIRECT_VERSION ?? process.env.VITE_BUILD_SHA ?? process.env.BUILD_SHA ?? 'unknown';
 const TIME_RESOLVE_LOG_ENABLED = process.env.TIME_RESOLVE_LOG_ENABLED === '1';
 const TITLE_MAX_LENGTH = 160;
+const CONSTRAINT_FIELDS = ['title', 'time', 'location', 'general'] as const;
+const CONSTRAINT_OPERATORS = ['equals', 'contains', 'not_contains', 'required'] as const;
+const SUGGESTION_FIELDS = ['title', 'time', 'location'] as const;
+
+const isConstraintField = (value: string): value is typeof CONSTRAINT_FIELDS[number] => CONSTRAINT_FIELDS.includes(value as typeof CONSTRAINT_FIELDS[number]);
+const isConstraintOperator = (value: string): value is typeof CONSTRAINT_OPERATORS[number] => CONSTRAINT_OPERATORS.includes(value as typeof CONSTRAINT_OPERATORS[number]);
+const isSuggestionField = (value: string): value is typeof SUGGESTION_FIELDS[number] => SUGGESTION_FIELDS.includes(value as typeof SUGGESTION_FIELDS[number]);
+
 
 const detectTitleProposal = (textRaw: string): string | null => {
   const text = textRaw.trim();
@@ -277,7 +305,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (!clientRequestId) throw new Error('clientRequestId is required');
     return { type, appointmentId, text, clientRequestId };
   }
-  if (type === 'apply_appointment_proposal') {
+  if (type === 'apply_appointment_proposal' || type === 'edit_appointment_proposal') {
     const appointmentId = asString(value.appointmentId);
     const proposalId = asString(value.proposalId);
     const field = asString(value.field);
@@ -290,7 +318,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (!clientRequestId) throw new Error('clientRequestId is required');
     return { type, appointmentId, proposalId, field, value: valueText, clientRequestId };
   }
-  if (type === 'dismiss_appointment_proposal') {
+  if (type === 'dismiss_appointment_proposal' || type === 'pause_appointment_proposal' || type === 'resume_appointment_proposal') {
     const appointmentId = asString(value.appointmentId);
     const proposalId = asString(value.proposalId);
     const clientRequestId = asString(value.clientRequestId);
@@ -298,6 +326,64 @@ const parseDirectAction = (value: unknown): DirectAction => {
     if (!proposalId) throw new Error('proposalId is required');
     if (!clientRequestId) throw new Error('clientRequestId is required');
     return { type, appointmentId, proposalId, clientRequestId };
+  }
+  if (type === 'add_constraint' || type === 'edit_constraint') {
+    const appointmentId = asString(value.appointmentId);
+    const memberEmail = asString(value.memberEmail);
+    const field = asString(value.field);
+    const operator = asString(value.operator);
+    const valueText = asString(value.value);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!memberEmail || !isPlausibleEmail(memberEmail)) throw new Error('memberEmail is required');
+    if (!field || !isConstraintField(field)) throw new Error('field is invalid');
+    if (!operator || !isConstraintOperator(operator)) throw new Error('operator is invalid');
+    if (!valueText) throw new Error('value is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    if (type === 'edit_constraint') {
+      const constraintId = asString(value.constraintId);
+      if (!constraintId) throw new Error('constraintId is required');
+      return { type, appointmentId, memberEmail: normalizeEmail(memberEmail), constraintId, field, operator, value: valueText, clientRequestId };
+    }
+    return { type, appointmentId, memberEmail: normalizeEmail(memberEmail), field, operator, value: valueText, clientRequestId };
+  }
+  if (type === 'remove_constraint') {
+    const appointmentId = asString(value.appointmentId);
+    const memberEmail = asString(value.memberEmail);
+    const constraintId = asString(value.constraintId);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!memberEmail || !isPlausibleEmail(memberEmail)) throw new Error('memberEmail is required');
+    if (!constraintId) throw new Error('constraintId is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    return { type, appointmentId, memberEmail: normalizeEmail(memberEmail), constraintId, clientRequestId };
+  }
+  if (type === 'create_suggestion') {
+    const appointmentId = asString(value.appointmentId);
+    const field = asString(value.field);
+    const valueText = asString(value.value);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!field || !isSuggestionField(field)) throw new Error('field is invalid');
+    if (!valueText) throw new Error('value is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    return { type, appointmentId, field, value: valueText, clientRequestId };
+  }
+  if (type === 'dismiss_suggestion' || type === 'react_suggestion' || type === 'apply_suggestion') {
+    const appointmentId = asString(value.appointmentId);
+    const suggestionId = asString(value.suggestionId);
+    const field = asString(value.field);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!suggestionId) throw new Error('suggestionId is required');
+    if (!field || !isSuggestionField(field)) throw new Error('field is invalid');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    if (type === 'react_suggestion') {
+      const reaction = asString(value.reaction);
+      if (reaction !== 'up' && reaction !== 'down') throw new Error('reaction must be up or down');
+      return { type, appointmentId, suggestionId, field, reaction, clientRequestId };
+    }
+    return { type, appointmentId, suggestionId, field, clientRequestId };
   }
 
   throw new Error(`unsupported action type: ${type}`);
@@ -356,7 +442,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
     try {
       const recent = await getRecentEvents(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
-      const discussionEvents = recent.events.filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED');
+      const appointmentDoc = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      const doc = appointmentDoc.doc ? expireSuggestions(ensureAppointmentDoc(appointmentDoc.doc, session.email)) : null;
+      const discussionTypes = new Set(['USER_MESSAGE', 'SYSTEM_CONFIRMATION', 'PROPOSAL_CREATED', 'PROPOSAL_PAUSED', 'PROPOSAL_RESUMED', 'PROPOSAL_EDITED', 'PROPOSAL_APPLIED', 'PROPOSAL_CANCELED', 'SUGGESTION_CREATED', 'SUGGESTION_APPLIED', 'SUGGESTION_DISMISSED', 'SUGGESTION_REACTED', 'SUGGESTION_REACTION', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED']);
+      const discussionEvents = recent.events.filter((event) => discussionTypes.has(event.type));
       const changeEvents = recent.events.filter((event) => materialEventTypes.has(event.type));
       return withDirectMeta({
         status: 200,
@@ -365,7 +454,9 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           appointment: toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0],
           eventsPage: recent.events,
           nextCursor: recent.nextCursor,
-          projections: { discussionEvents, changeEvents }
+          projections: { discussionEvents, changeEvents },
+          constraints: doc ? (doc.constraints as Record<string, unknown>) : { byMember: {} },
+          suggestions: doc ? (doc.suggestions as Record<string, unknown>) : { byField: {} }
         }
       }, traceId, context);
     } catch (error) {
@@ -468,6 +559,15 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         stateAppointment.updatedAt = new Date().toISOString();
       }
 
+      const proposalAppliedEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: 'PROPOSAL_APPLIED',
+        actor: { kind: 'HUMAN', email: session.email },
+        proposalId: directAction.proposalId,
+        clientRequestId: `${directAction.clientRequestId}:proposal-applied`,
+        payload: { proposalId: directAction.proposalId, field: 'title' }
+      };
       const changedEvent: AppointmentEvent = {
         id: randomUUID(),
         tsUtc: new Date().toISOString(),
@@ -486,10 +586,11 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         payload: { message: `Title updated to "${directAction.value}"`, by: session.email },
         clientRequestId: `${directAction.clientRequestId}:confirm`
       };
+      await appendEvent(groupId, directAction.appointmentId, proposalAppliedEvent, { idempotencyKey: `${directAction.clientRequestId}:proposal-applied` });
       await appendEvent(groupId, directAction.appointmentId, changedEvent, { idempotencyKey: directAction.clientRequestId });
       await appendEvent(groupId, directAction.appointmentId, confirmEvent, { idempotencyKey: `${directAction.clientRequestId}:confirm` });
 
-      const appendedEvents: AppointmentEvent[] = [changedEvent, confirmEvent];
+      const appendedEvents: AppointmentEvent[] = [proposalAppliedEvent, changedEvent, confirmEvent];
       if (previousReconciliationStatus !== nextReconciliationStatus) {
         const reconciliationChanged: AppointmentEvent = {
           id: randomUUID(),
@@ -526,6 +627,193 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       return withDirectMeta(errorResponse(500, 'apply_appointment_proposal_failed', 'Failed to apply proposal', traceId), traceId, context);
     }
   }
+
+  if (directAction.type === 'pause_appointment_proposal' || directAction.type === 'resume_appointment_proposal') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    try {
+      const eventType = directAction.type === 'pause_appointment_proposal' ? 'PROPOSAL_PAUSED' : 'PROPOSAL_RESUMED';
+      const proposalEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: eventType,
+        actor: { kind: 'HUMAN', email: session.email },
+        proposalId: directAction.proposalId,
+        payload: { proposalId: directAction.proposalId },
+        clientRequestId: directAction.clientRequestId
+      };
+      await appendEvent(groupId, directAction.appointmentId, proposalEvent, { idempotencyKey: directAction.clientRequestId });
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents: [proposalEvent] } }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'proposal_lifecycle_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'proposal_lifecycle_failed', 'Failed proposal lifecycle update', traceId), traceId, context);
+    }
+  }
+
+  if (directAction.type === 'edit_appointment_proposal') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    try {
+      const recent = await getRecentEvents(groupId, directAction.appointmentId, 200);
+      const activeProposal = latestActiveTitleProposal(recent.events);
+      if (!activeProposal || activeProposal.proposalId !== directAction.proposalId) return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
+      const beforeText = String((activeProposal.payload as Record<string, unknown>).to ?? '');
+      const editEvent: AppointmentEvent = {
+        id: randomUUID(),
+        tsUtc: new Date().toISOString(),
+        type: 'PROPOSAL_EDITED',
+        actor: { kind: 'HUMAN', email: session.email },
+        proposalId: directAction.proposalId,
+        payload: { proposalId: directAction.proposalId, beforeText, afterText: directAction.value },
+        clientRequestId: directAction.clientRequestId
+      };
+      await appendEvent(groupId, directAction.appointmentId, editEvent, { idempotencyKey: directAction.clientRequestId });
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents: [editEvent] } }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'edit_appointment_proposal_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'edit_appointment_proposal_failed', 'Failed to edit proposal', traceId), traceId, context);
+    }
+  }
+
+  if (directAction.type === 'add_constraint' || directAction.type === 'edit_constraint' || directAction.type === 'remove_constraint') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    if (normalizeEmail(session.email) !== directAction.memberEmail) return withDirectMeta(errorResponse(403, 'forbidden_constraint_member', 'Members can only edit their own constraints', traceId), traceId, context);
+    try {
+      const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+      const beforeReconciliation = String(((current.doc.reconciliation as Record<string, unknown> | undefined)?.status) ?? 'unreconciled');
+      let nextDoc = current.doc;
+      const eventsToAppend: AppointmentEvent[] = [];
+      if (directAction.type === 'remove_constraint') {
+        const removed = removeConstraintForMember(current.doc, directAction.memberEmail, directAction.constraintId);
+        if (!removed.removed) return withDirectMeta(errorResponse(404, 'constraint_not_found', 'Constraint not found', traceId), traceId, context);
+        nextDoc = removed.doc;
+        eventsToAppend.push({ id: randomUUID(), tsUtc: new Date().toISOString(), type: 'CONSTRAINT_REMOVED', actor: { kind: 'HUMAN', email: session.email }, payload: { memberEmail: directAction.memberEmail, constraintId: directAction.constraintId }, clientRequestId: directAction.clientRequestId });
+      } else {
+        const upserted = upsertConstraintForMember(current.doc, directAction.memberEmail, {
+          constraintId: directAction.type === 'edit_constraint' ? directAction.constraintId : undefined,
+          field: directAction.field,
+          operator: directAction.operator,
+          value: directAction.value
+        });
+        nextDoc = upserted.doc;
+        if (upserted.removed) eventsToAppend.push({ id: randomUUID(), tsUtc: new Date().toISOString(), type: 'CONSTRAINT_REMOVED', actor: { kind: 'HUMAN', email: session.email }, payload: { memberEmail: directAction.memberEmail, constraintId: upserted.removed.id }, clientRequestId: `${directAction.clientRequestId}:removed` });
+        eventsToAppend.push({ id: randomUUID(), tsUtc: new Date().toISOString(), type: 'CONSTRAINT_ADDED', actor: { kind: 'HUMAN', email: session.email }, payload: { memberEmail: directAction.memberEmail, constraint: upserted.added }, clientRequestId: directAction.clientRequestId });
+      }
+      const reconciled = evaluateReconciliation(nextDoc, session.email);
+      const afterReconciliation = reconciled.status;
+      const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, reconciled.doc, current.etag);
+      if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
+      for (const event of eventsToAppend) await appendEvent(groupId, directAction.appointmentId, event, { idempotencyKey: event.clientRequestId });
+      if (beforeReconciliation !== afterReconciliation) {
+        const reconciliationChanged: AppointmentEvent = { id: randomUUID(), tsUtc: new Date().toISOString(), type: 'RECONCILIATION_CHANGED', actor: { kind: 'SYSTEM' }, payload: { from: beforeReconciliation, to: afterReconciliation }, clientRequestId: `${directAction.clientRequestId}:reconciliation` };
+        const reconciliationConfirmation: AppointmentEvent = { id: randomUUID(), tsUtc: new Date().toISOString(), type: 'SYSTEM_CONFIRMATION', actor: { kind: 'SYSTEM' }, payload: { message: `Reconciliation status changed to ${afterReconciliation}` }, clientRequestId: `${directAction.clientRequestId}:reconciliation-confirm` };
+        await appendEvent(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: reconciliationChanged.clientRequestId });
+        await appendEvent(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: reconciliationConfirmation.clientRequestId });
+        eventsToAppend.push(reconciliationChanged, reconciliationConfirmation);
+      }
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, constraints: { byMember: { [directAction.memberEmail]: activeConstraintsForMember(reconciled.doc, directAction.memberEmail) } }, appendedEvents: eventsToAppend } }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'constraint_action_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'constraint_action_failed', 'Failed constraint action', traceId), traceId, context);
+    }
+  }
+
+  if (directAction.type === 'create_suggestion' || directAction.type === 'dismiss_suggestion' || directAction.type === 'react_suggestion' || directAction.type === 'apply_suggestion') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+    try {
+      const current = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      if (!current.doc || !current.etag) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
+      const doc = expireSuggestions(ensureAppointmentDoc(current.doc, session.email));
+      const byField = ((doc.suggestions as Record<string, unknown>).byField as Record<string, unknown>) ?? {};
+      const field = directAction.type === 'create_suggestion' ? directAction.field : directAction.field;
+      const list = Array.isArray(byField[field]) ? [...(byField[field] as Record<string, unknown>[])] : [];
+      const now = new Date().toISOString();
+      const appendedEvents: AppointmentEvent[] = [];
+      const canonicalReactionType = 'SUGGESTION_REACTED';
+
+      if (directAction.type === 'create_suggestion') {
+        const activeByMemberAndField = activeSuggestionsByField(doc, directAction.field).filter((entry) => normalizeEmail(entry.proposerEmail) === normalizeEmail(session.email));
+        if (activeByMemberAndField.length >= 3) return withDirectMeta(errorResponse(400, 'suggestion_limit_exceeded', 'Maximum 3 active suggestions per member per field', traceId), traceId, context);
+        const created = newSuggestion({ proposerEmail: normalizeEmail(session.email), field: directAction.field, value: directAction.value });
+        list.push(created as unknown as Record<string, unknown>);
+        const activeValues = list.map((entry) => ({ active: entry.active !== false && entry.status === 'active', value: String(entry.value ?? ''), id: String(entry.id ?? '') }));
+        const distinctValues = new Set(activeValues.filter((entry) => entry.active).map((entry) => entry.value));
+        const conflicted = distinctValues.size > 1;
+        const nextList = list.map((entry) => {
+          if (entry.active !== false && entry.status === 'active') return { ...entry, conflicted };
+          return entry;
+        });
+        byField[field] = nextList;
+        const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
+        if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
+        const ev: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SUGGESTION_CREATED', actor: { kind: 'HUMAN', email: session.email }, payload: { suggestion: { ...created, conflicted } }, clientRequestId: directAction.clientRequestId };
+        await appendEvent(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
+        appendedEvents.push(ev);
+      } else {
+        const idx = list.findIndex((entry) => String(entry.id ?? '') === directAction.suggestionId);
+        if (idx < 0) return withDirectMeta(errorResponse(404, 'suggestion_not_found', 'Suggestion not found', traceId), traceId, context);
+        const target = list[idx] as Record<string, unknown>;
+        if (directAction.type === 'dismiss_suggestion') {
+          if (normalizeEmail(String(target.proposerEmail ?? '')) !== normalizeEmail(session.email)) return withDirectMeta(errorResponse(403, 'not_suggestion_proposer', 'Only proposer can dismiss suggestion', traceId), traceId, context);
+          list[idx] = { ...target, active: false, status: 'dismissed', updatedAtUtc: now };
+          byField[field] = list;
+          const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
+          if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
+          const ev: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SUGGESTION_DISMISSED', actor: { kind: 'HUMAN', email: session.email }, payload: { suggestionId: directAction.suggestionId, field }, clientRequestId: directAction.clientRequestId };
+          await appendEvent(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
+          appendedEvents.push(ev);
+        }
+        if (directAction.type === 'react_suggestion') {
+          const reactions = Array.isArray(target.reactions) ? [...(target.reactions as Record<string, unknown>[])] : [];
+          const email = normalizeEmail(session.email);
+          const nextReactions = [
+            ...reactions.filter((entry) => normalizeEmail(String(entry.email ?? '')) !== email),
+            { email, reaction: directAction.reaction, tsUtc: now }
+          ];
+          list[idx] = { ...target, reactions: nextReactions, updatedAtUtc: now };
+          byField[field] = list;
+          const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, { ...doc, suggestions: { byField } }, current.etag);
+          if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
+          const ev: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: canonicalReactionType, actor: { kind: 'HUMAN', email: session.email }, payload: { suggestionId: directAction.suggestionId, field, reaction: directAction.reaction }, clientRequestId: directAction.clientRequestId };
+          await appendEvent(groupId, directAction.appointmentId, ev, { idempotencyKey: directAction.clientRequestId });
+          appendedEvents.push(ev);
+        }
+        if (directAction.type === 'apply_suggestion') {
+          const previousReconciliationStatus = String(((doc.reconciliation as Record<string, unknown>).status) ?? 'unreconciled');
+          const value = String(target.value ?? '');
+          list[idx] = { ...target, active: false, status: 'applied', updatedAtUtc: now };
+          const nextDocRaw = { ...doc, suggestions: { byField: { ...byField, [field]: list } }, ...(field === 'title' ? { title: value } : {}), ...(field === 'location' ? { locationDisplay: value, location: value, locationRaw: value } : {}), ...(field === 'time' ? { startTime: value } : {}) };
+          const reconciled = evaluateReconciliation(nextDocRaw, session.email);
+          const saved = await putAppointmentJsonWithEtag(groupId, directAction.appointmentId, reconciled.doc, current.etag);
+          if (!saved) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
+          const suggestionApplied: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SUGGESTION_APPLIED', actor: { kind: 'HUMAN', email: session.email }, payload: { suggestionId: directAction.suggestionId, field, value }, clientRequestId: `${directAction.clientRequestId}:applied` };
+          const fieldChanged: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'FIELD_CHANGED', actor: { kind: 'HUMAN', email: session.email }, payload: { field, to: value }, clientRequestId: directAction.clientRequestId };
+          await appendEvent(groupId, directAction.appointmentId, suggestionApplied, { idempotencyKey: suggestionApplied.clientRequestId });
+          await appendEvent(groupId, directAction.appointmentId, fieldChanged, { idempotencyKey: directAction.clientRequestId });
+          appendedEvents.push(suggestionApplied, fieldChanged);
+          const nextReconciliationStatus = reconciled.status;
+          if (previousReconciliationStatus !== nextReconciliationStatus) {
+            const reconciliationChanged: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'RECONCILIATION_CHANGED', actor: { kind: 'SYSTEM' }, payload: { from: previousReconciliationStatus, to: nextReconciliationStatus }, clientRequestId: `${directAction.clientRequestId}:reconciliation` };
+            const reconciliationConfirmation: AppointmentEvent = { id: randomUUID(), tsUtc: now, type: 'SYSTEM_CONFIRMATION', actor: { kind: 'SYSTEM' }, payload: { message: `Reconciliation status changed to ${nextReconciliationStatus}` }, clientRequestId: `${directAction.clientRequestId}:reconciliation-confirm` };
+            await appendEvent(groupId, directAction.appointmentId, reconciliationChanged, { idempotencyKey: reconciliationChanged.clientRequestId });
+            await appendEvent(groupId, directAction.appointmentId, reconciliationConfirmation, { idempotencyKey: reconciliationConfirmation.clientRequestId });
+            appendedEvents.push(reconciliationChanged, reconciliationConfirmation);
+          }
+        }
+      }
+
+      const latest = await getAppointmentJsonWithEtag(groupId, directAction.appointmentId);
+      const finalDoc = latest.doc ? expireSuggestions(ensureAppointmentDoc(latest.doc, session.email)) : doc;
+      return withDirectMeta({ status: 200, jsonBody: { ok: true, appendedEvents, suggestions: finalDoc.suggestions } }, traceId, context);
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'suggestion_action_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withDirectMeta(errorResponse(500, 'suggestion_action_failed', 'Failed suggestion action', traceId), traceId, context);
+    }
+  }
+
 
   if (directAction.type === 'dismiss_appointment_proposal') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);

@@ -1,3 +1,35 @@
+## 2026-02-27 01:10 UTC update (Appointment pane enhancement: proposals, constraints, suggestions)
+
+- Implemented proposal lifecycle coverage across `/api/direct` and drawer UX:
+  - Added/handled `PROPOSAL_PAUSED`, `PROPOSAL_RESUMED`, `PROPOSAL_EDITED`, `PROPOSAL_APPLIED` events.
+  - Added direct actions `pause_appointment_proposal`, `resume_appointment_proposal`, `edit_appointment_proposal` with `clientRequestId` idempotency.
+  - `apply_appointment_proposal` now emits `PROPOSAL_APPLIED` before existing field/system events.
+- Implemented constraints end-to-end:
+  - Added direct actions `add_constraint`, `edit_constraint`, `remove_constraint`.
+  - Added structured constraints tab controls (field/operator/value, grouped by member, edit/remove for own constraints).
+  - Constraint changes update `appointment.json`, recompute reconciliation, and emit reconciliation/system flip events deterministically.
+- Implemented suggestions end-to-end:
+  - Added direct actions `create_suggestion`, `dismiss_suggestion`, `react_suggestion`, `apply_suggestion`.
+  - Enforced cap of 3 active suggestions per member per field and proposer-only dismissal.
+  - Added canonical reaction emission `SUGGESTION_REACTED`; readers still tolerate legacy `SUGGESTION_REACTION`.
+  - Added suggestion create/apply/dismiss/react UI controls plus badges, conflict indicators, and reaction tooltip.
+- Hardened event rendering:
+  - Discussion projection now includes proposal lifecycle/constraint/suggestion system events.
+  - Changes tab now handles mixed material events with safe fallback text.
+- Added targeted appointment-domain tests for suggestion activity and constraints reconciliation transitions.
+
+### Known gaps remaining
+
+- Notifications end-to-end remains out-of-scope in this change.
+- Deep-link 403/404 safe redirect UX polish remains.
+- Mobile fullscreen appointment-drawer enhancement remains optional and not included.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by pre-existing missing `@azure/data-tables` dependency in this environment.
+
+
 ## 2026-02-27 00:28 UTC update (Prefer igniteGrace for POST /api/group/join session header)
 
 - Updated `apiFetch` session-header selection in `apps/web/src/lib/apiUrl.ts` to prefer `fs.igniteGraceSessionId` specifically for `POST /api/group/join` when a valid grace session exists for the request group.
