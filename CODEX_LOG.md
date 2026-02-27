@@ -1,3 +1,34 @@
+## 2026-02-27 07:13 UTC (Resolve appointment time: exact 3 unresolved time-only choices)
+
+### Objective
+Implement server-side `timeChoices` generation for unresolved time-only inputs so responses always include exactly three deterministic date-anchored options (`today`, `tomorrow`, `appointment`) with timezone-correct UTC ranges.
+
+### Approach
+- Updated `api/src/lib/time/timeChoices.ts`:
+  - Expanded unresolved intent detection to include `status: "partial"` plus missing `date` and time-of-day detection.
+  - Reworked choice generation to always return three entries in fixed order.
+  - Added optional `isPast` marker on `today` when the selected time-of-day is not upcoming.
+  - Kept appointment-date fallback to local `today` when appointment date is unavailable.
+- Updated `api/src/functions/direct.ts` to call `buildTimeChoicesForUnresolvedTimeOnly(...)` in the existing `resolve_appointment_time` response path.
+- Updated tests in:
+  - `api/src/lib/time/timeChoices.test.ts` for timezone-specific expected UTC values and fixed three-choice order.
+  - `api/src/functions/direct.test.ts` to align expected ids with `today/tomorrow/appointment`.
+
+### Files changed
+- `api/src/lib/time/timeChoices.ts`
+- `api/src/lib/time/timeChoices.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api test` ❌ failed in this environment due missing `@azure/data-tables` type resolution during API build.
+- `node --experimental-strip-types --test api/src/lib/time/timeChoices.test.ts api/src/functions/direct.test.ts` ❌ failed because tests import compiled `.js` paths that do not exist without build output.
+
+### Follow-ups
+- Optional UI follow-up: surface `isPast` visual treatment (gray/disabled) for `Today` when applicable.
+
 ## 2026-02-27 04:46 UTC (Appointment pane enhancement: prevent resolve_appointment_time on title intent messages)
 
 ### Objective

@@ -1,12 +1,13 @@
 import type { TimeIntent } from '../../../../packages/shared/src/types.js';
 
 export type TimeChoice = {
-  id: 'today' | 'next' | 'appointment';
+  id: 'today' | 'tomorrow' | 'appointment';
   label: string;
   dateLocal: string;
   startUtc: string;
   endUtc: string;
   timezone: string;
+  isPast?: boolean;
 };
 
 type BuildTimeChoicesArgs = {
@@ -96,34 +97,32 @@ const buildChoice = (id: TimeChoice['id'], label: string, dateLocal: string, hou
 };
 
 export const isTimeOnlyMissingDateIntent = (intent: TimeIntent, whenText: string): boolean => {
-  if (intent.status !== 'unresolved') return false;
+  if (intent.status !== 'unresolved' && intent.status !== 'partial') return false;
   if (!intent.missing?.includes('date')) return false;
   if (!parseTimeOfDay(whenText)) return false;
   if (EXPLICIT_DATE_ANCHOR.test(whenText)) return false;
   return true;
 };
 
-export const buildTimeChoices = ({ whenText, timezone, nowIso, appointmentDateLocal }: BuildTimeChoicesArgs): TimeChoice[] => {
+export const buildTimeChoicesForUnresolvedTimeOnly = ({ whenText, timezone, nowIso, appointmentDateLocal }: BuildTimeChoicesArgs): TimeChoice[] => {
   const parsedTime = parseTimeOfDay(whenText);
   if (!parsedTime) return [];
 
   const now = new Date(nowIso);
   const todayDateLocal = toLocalDate(now, timezone);
   const tomorrowDateLocal = localDatePlusDays(todayDateLocal, 1);
-  const choices: TimeChoice[] = [];
-
   const todayChoice = buildChoice('today', 'Today', todayDateLocal, parsedTime.hour, parsedTime.minute, timezone);
-  if (Date.parse(todayChoice.startUtc) > now.getTime()) {
-    choices.push(todayChoice);
-  }
-
-  const nextDateLocal = choices.some((choice) => choice.id === 'today') ? tomorrowDateLocal : todayDateLocal;
-  choices.push(buildChoice('next', 'Next available', nextDateLocal, parsedTime.hour, parsedTime.minute, timezone));
-
+  const tomorrowChoice = buildChoice('tomorrow', 'Tomorrow', tomorrowDateLocal, parsedTime.hour, parsedTime.minute, timezone);
   const appointmentAnchor = appointmentDateLocal && /^\d{4}-\d{2}-\d{2}$/.test(appointmentDateLocal)
     ? appointmentDateLocal
-    : nextDateLocal;
-  choices.push(buildChoice('appointment', 'On appointment date', appointmentAnchor, parsedTime.hour, parsedTime.minute, timezone));
+    : todayDateLocal;
+  const appointmentChoice = buildChoice('appointment', 'On appointment date', appointmentAnchor, parsedTime.hour, parsedTime.minute, timezone);
 
-  return choices;
+  if (Date.parse(todayChoice.startUtc) <= now.getTime()) {
+    todayChoice.isPast = true;
+  }
+
+  return [todayChoice, tomorrowChoice, appointmentChoice];
 };
+
+export { buildTimeChoicesForUnresolvedTimeOnly as buildTimeChoices };

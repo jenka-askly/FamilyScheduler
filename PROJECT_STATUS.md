@@ -1,3 +1,9 @@
+## 2026-02-27 07:13 UTC update (API: deterministic unresolved time-only choices)
+
+- Updated `/api/direct` `resolve_appointment_time` unresolved-time-only behavior to always return exactly three choices in stable order: `today`, `tomorrow`, `appointment`.
+- Replaced `next` choice semantics with explicit `Tomorrow` and retained `Today` even when the time is already in the past (now marked with optional `isPast: true`).
+- Added timezone-anchored UTC assertions for `8pm` in `America/Los_Angeles` to prevent prior date drift/regression.
+
 ## 2026-02-27 04:46 UTC update (Appointment pane enhancement: discussion intent gate for time resolver)
 
 - Fixed: title-intent discussion messages no longer trigger resolve_appointment_time (prevents 502 and misrouting).
