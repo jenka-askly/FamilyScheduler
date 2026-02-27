@@ -5001,3 +5001,4 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ### Known issues
 - API workspace build in this environment remains blocked by missing `@azure/data-tables` type/module resolution in table-related files.
+- Web appointment editor cancel flow now uses explicit dirty tracking for `+`-created appointments so unedited cancel/ESC/backdrop reliably deletes the auto-created blank row, while edited drafts are preserved on close.

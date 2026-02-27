@@ -23,6 +23,7 @@ type AppointmentEditorFormProps = {
   assumptions: string[];
   onConfirm: () => void;
   onCancel: () => void;
+  onDirty?: () => void;
 };
 
 export const AppointmentEditorForm = ({
@@ -43,7 +44,8 @@ export const AppointmentEditorForm = ({
   errorText,
   assumptions,
   onConfirm,
-  onCancel
+  onCancel,
+  onDirty
 }: AppointmentEditorFormProps) => {
   const [showAssumptions, setShowAssumptions] = useState(false);
 
@@ -57,7 +59,10 @@ export const AppointmentEditorForm = ({
       fullWidth
       label="When"
       value={whenValue}
-      onChange={(event) => onWhenChange(event.target.value)}
+      onChange={(event) => {
+        onDirty?.();
+        onWhenChange(event.target.value);
+      }}
       placeholder="e.g. next Tuesday 8–9pm"
       inputProps={{ onKeyDown: onWhenKeyDown }}
       error={Boolean(errorText)}
@@ -113,21 +118,30 @@ export const AppointmentEditorForm = ({
       fullWidth
       label="Description"
       value={descriptionValue}
-      onChange={(event) => onDescriptionChange(event.target.value)}
+      onChange={(event) => {
+        onDirty?.();
+        onDescriptionChange(event.target.value);
+      }}
     />
 
     <TextField
       fullWidth
       label="Location"
       value={locationValue}
-      onChange={(event) => onLocationChange(event.target.value)}
+      onChange={(event) => {
+        onDirty?.();
+        onLocationChange(event.target.value);
+      }}
     />
 
     <TextField
       fullWidth
       label="Notes"
       value={notesValue}
-      onChange={(event) => onNotesChange(event.target.value)}
+      onChange={(event) => {
+        onDirty?.();
+        onNotesChange(event.target.value);
+      }}
       multiline
       minRows={3}
       maxRows={3}
