@@ -4915,3 +4915,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm --filter @familyscheduler/web build` ✅ passed.
 3. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module resolution in this container.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/994154692f365a8c/artifacts/artifacts/undo-tabs.png`.
+
+## 2026-02-27 16:56 UTC update (Scan Image null-title persistence hardening)
+
+- Hardened `applyParsedFields` title handling in `api/src/lib/scan/appointmentScan.ts` by normalizing `parsed.title` once (`parsedTitle`) and using that value for both `initial` and `rescan` branches.
+- This guarantees `parsed.title === null` never leaves scan placeholder text behind in `initial` mode and keeps `rescan` behavior deterministic (trimmed string or empty).
+- Existing fallback behavior remains in place: notes first line/sentence → location-derived `Appointment at <location>` → `Appointment`.
+- Existing no-content guard remains in place in `parseAndApplyScan`: if title/date/startTime/location/notes are all empty, status is set to `failed`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` ⚠️ blocked by environment TypeScript build failure (`@azure/data-tables` missing), unrelated to scan flow.
+2. `rg -n "const parsedTitle =|if \(mode === 'rescan'\)|else if \(placeholderOrEmpty\)" api/src/lib/scan/appointmentScan.ts` ✅ confirms dedicated title branch now uses normalized parsed title and fallback path.

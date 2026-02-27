@@ -12473,3 +12473,31 @@ Prevent `Scanning…` / `Scanning...` from persisting as appointment title/descr
 ### Follow-ups
 
 - Run local scan flow manually with real OpenAI parse outputs to validate UI persistence across page reload for null-title and title-present responses.
+
+## 2026-02-27 16:56 UTC (Scan Image null-title persistence hardening)
+
+### Objective
+
+Ensure scan completion never persists `Scanning…` / `Scanning...` as appointment title when parser returns `title: null`, while preserving existing fallback derivation behavior.
+
+### Approach
+
+- Reviewed `appointmentScan.ts` apply path and confirmed empty-equivalent and fallback scaffolding was present.
+- Applied smallest-change hardening by introducing a normalized `parsedTitle` local variable and reusing it across `rescan` and `initial` title branches to remove duplicated trim/null checks.
+- Kept `hasMeaningfulParsedContent` / `parseAndApplyScan` no-content failure behavior unchanged.
+- Updated continuity docs with explicit verification outcome.
+
+### Files changed
+
+- `api/src/lib/scan/appointmentScan.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` ⚠️ failed at TypeScript build stage due pre-existing missing `@azure/data-tables` module in this container.
+- `rg -n "const parsedTitle =|if \(mode === 'rescan'\)|else if \(placeholderOrEmpty\)" api/src/lib/scan/appointmentScan.ts` ✅ confirmed normalized-title branch logic is present.
+
+### Follow-ups
+
+- In a local environment with full deps installed, run API tests and execute manual image-scan checks for: (a) null-title fallback, (b) explicit-title overwrite, (c) reload persistence.
