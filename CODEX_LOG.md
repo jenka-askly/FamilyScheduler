@@ -11846,3 +11846,36 @@ Remove the Share action and the Suggest composer section from the appointment dr
 
 ### Follow-ups
 - Human verification in browser: open appointment drawer and confirm header shows no Share button and no Suggest composer block above tabs.
+
+## 2026-02-27 03:11 UTC (Appointment Pane Enhancement – Discussion chat window cleanup, UI-only)
+
+### Objective
+Implement discussion-only chat rendering cleanup so the appointment Discussion tab feels like a real chat and removes duplicate/noisy proposal metadata lines.
+
+### Approach
+- Located discussion renderer and event text helpers in `apps/web/src/AppShell.tsx` and kept scope strictly to web UI.
+- Added a normalization pass (`normalizeDiscussionItems`) that maps raw appointment events into display items with explicit `kind`, `align`, actor labels, friendly text, and optional metadata.
+- Added visual-only duplicate suppression for consecutive title apply system pills where the first is `Title updated to "(updated)"` and next title update arrives within 5 seconds.
+- Changed chat metadata rendering to grouped headers: sender label appears only when sender run changes/system interruption/time-gap >10 minutes, and own messages only show time.
+- Updated bubble styling to cap width at 75%, keep left/right alignment, and render system messages as centered muted pills.
+- Added `id`/label wiring to discussion message input as quick accessibility cleanup.
+- Updated continuity docs with this behavior change.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "DISCUSSION|Discussion" apps/web/src` ✅
+- `rg -n "eventsPage|discussion|AppointmentEvent" apps/web/src` ✅
+- `rg -n "PROPOSAL_CREATED|PROPOSAL_APPLIED|SYSTEM_CONFIRMATION|RECONCILIATION_CHANGED" apps/web/src` ✅
+- `rg -n "Title updated to|Proposed title change" apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for browser screenshots; stopped intentionally via SIGINT.
+- Playwright screenshot capture ✅:
+  - `browser:/tmp/codex_browser_invocations/e002a387492bdb2e/artifacts/artifacts/discussion-mixed-chat.png`
+  - `browser:/tmp/codex_browser_invocations/e002a387492bdb2e/artifacts/artifacts/discussion-proposal-sequence.png`
+
+### Follow-ups
+- Human should run end-to-end member conversation in staging/local with two distinct accounts to validate sender grouping behavior against real event history.

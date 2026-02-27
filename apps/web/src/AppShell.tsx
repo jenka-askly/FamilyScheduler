@@ -92,6 +92,18 @@ type AppointmentDetailResponse = {
   suggestions?: { byField?: Record<string, Array<{ id: string; proposerEmail: string; field: 'title' | 'time' | 'location'; value: string; active: boolean; status: string; conflicted?: boolean; reactions?: Array<{ email: string; reaction: 'up' | 'down'; tsUtc: string }> }>> };
 };
 
+type DiscussionDisplayItem = {
+  id: string;
+  kind: 'chat' | 'system';
+  tsUtc: string;
+  actorKey: string;
+  actorLabel: string;
+  align: 'left' | 'right' | 'center';
+  text: string;
+  meta?: { proposalId?: string; field?: string; from?: string; to?: string };
+  showHeader?: boolean;
+};
+
 type DirectActionErrorPayload = {
   ok?: boolean;
   message?: string;
@@ -158,7 +170,7 @@ const getMaterialChangeMessageText = (event: AppointmentDetailEvent): string => 
     case 'FIELD_CHANGED':
       return `${String(event.payload.field)}: ${String(event.payload.from ?? event.payload.oldValue ?? '')} → ${String(event.payload.to ?? event.payload.newValue ?? '')}`;
     case 'RECONCILIATION_CHANGED':
-      return `Reconciliation changed to ${String(event.payload.to ?? event.payload.state ?? event.payload.value ?? 'updated')}`;
+      return `Reconciliation is now ${String(event.payload.to ?? event.payload.state ?? event.payload.value ?? 'updated')}`;
     case 'SYSTEM_CONFIRMATION':
       return typeof event.payload.message === 'string' && event.payload.message.trim().length > 0 ? event.payload.message : '';
     case 'CONSTRAINT_ADDED':
@@ -179,17 +191,77 @@ const getMaterialChangeMessageText = (event: AppointmentDetailEvent): string => 
   }
 };
 
-const getEventMessageText = (event: AppointmentDetailEvent): string => {
-  const materialMessage = getMaterialChangeMessageText(event);
-  if (materialMessage) return materialMessage;
-  if (event.type === 'USER_MESSAGE') return String(event.payload.message ?? event.payload.text ?? '');
-  return 'Update recorded';
+const getFriendlySystemText = (event: AppointmentDetailEvent): string => {
+  switch (event.type) {
+    case 'PROPOSAL_CREATED':
+      if (event.payload.field === 'title') {
+        return `Proposed title change: "${String(event.payload.from ?? 'Untitled')}" → "${String(event.payload.to ?? '')}"`;
+      }
+      return 'Proposal created';
+    case 'PROPOSAL_APPLIED':
+      if (event.payload.field === 'title') {
+        return `Title updated to "${String(event.payload.to ?? event.payload.value ?? '(updated)')}"`;
+      }
+      return 'Proposal applied';
+    case 'SYSTEM_CONFIRMATION': {
+      const text = String(event.payload.message ?? event.payload.text ?? '').trim();
+      return text || 'Update recorded';
+    }
+    case 'RECONCILIATION_CHANGED': {
+      const state = String(event.payload.to ?? event.payload.state ?? event.payload.value ?? '').toLowerCase();
+      const label = state === 'true' || state === 'reconciled' ? 'Reconciled' : 'Unreconciled';
+      return `Reconciliation is now ${label}`;
+    }
+    default:
+      return getMaterialChangeMessageText(event) || 'Update recorded';
+  }
 };
 
-const getEventAuthorLabel = (event: AppointmentDetailEvent): string => {
-  if (event.actor.kind === 'SYSTEM' || SYSTEM_DISCUSSION_EVENT_TYPES.has(event.type)) return 'System';
-  if (event.actor.kind === 'HUMAN') return event.actor.email ?? 'Member';
-  return event.actor.email ?? event.actor.kind;
+const normalizeDiscussionItems = (events: AppointmentDetailEvent[], sessionEmail: string): DiscussionDisplayItem[] => {
+  const currentUser = sessionEmail.trim().toLowerCase();
+  const chronological = [...events].reverse();
+  const normalized = chronological.map((event): DiscussionDisplayItem => {
+    const isChat = event.type === 'USER_MESSAGE';
+    const email = String(event.actor.email ?? event.actor.userKey ?? '').trim();
+    const actorKey = isChat ? (email.toLowerCase() || 'member') : 'system';
+    const actorLabel = isChat ? (email || 'Member') : 'System';
+    const text = isChat
+      ? String(event.payload.message ?? event.payload.text ?? '').trim()
+      : getFriendlySystemText(event).trim();
+    return {
+      id: event.id,
+      kind: isChat ? 'chat' : 'system',
+      tsUtc: event.tsUtc,
+      actorKey,
+      actorLabel,
+      align: !isChat ? 'center' : actorKey === currentUser ? 'right' : 'left',
+      text: text || 'Update recorded',
+      meta: {
+        proposalId: event.proposalId,
+        field: typeof event.payload.field === 'string' ? event.payload.field : undefined,
+        from: typeof event.payload.from === 'string' ? event.payload.from : undefined,
+        to: typeof event.payload.to === 'string' ? event.payload.to : undefined
+      }
+    };
+  });
+
+  const deduped = normalized.filter((item, index, list) => {
+    if (item.kind !== 'system') return true;
+    if (!item.text.startsWith('Title updated to "(updated)"')) return true;
+    const next = list[index + 1];
+    if (!next || next.kind !== 'system' || !next.text.startsWith('Title updated to')) return true;
+    const gapMs = Math.abs(new Date(next.tsUtc).getTime() - new Date(item.tsUtc).getTime());
+    return gapMs > 5_000;
+  });
+
+  return deduped.map((item, index, list) => {
+    if (item.kind !== 'chat') return item;
+    const prev = list[index - 1];
+    const prevIsSameSender = prev?.kind === 'chat' && prev.actorKey === item.actorKey;
+    const gapMs = prev ? Math.abs(new Date(item.tsUtc).getTime() - new Date(prev.tsUtc).getTime()) : Number.POSITIVE_INFINITY;
+    const showHeader = !prev || prev.kind !== 'chat' || !prevIsSameSender || gapMs > 10 * 60 * 1000;
+    return { ...item, showHeader };
+  });
 };
 const writeSession = (session: Session): void => {
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -577,6 +649,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (!latestChange || !pendingProposal) return;
     if (latestChange.proposalId && latestChange.proposalId === pendingProposal.proposalId) setPendingProposal(null);
   }, [detailsData?.eventsPage, pendingProposal]);
+
+  const discussionDisplayItems = useMemo(
+    () => detailsData ? normalizeDiscussionItems(detailsData.projections.discussionEvents, sessionEmail) : [],
+    [detailsData, sessionEmail]
+  );
 
   useEffect(() => {
     const hash = window.location.hash || '';
@@ -2594,33 +2671,36 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             {detailsTab === 'discussion' ? (
               <Stack spacing={1}>
                 {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
-                {[...detailsData.projections.discussionEvents].reverse().map((event) => {
-                  const isSystemEvent = SYSTEM_DISCUSSION_EVENT_TYPES.has(event.type) || event.actor.kind === 'SYSTEM';
-                  const isCurrentUser = !isSystemEvent && Boolean(event.actor.email) && event.actor.email?.trim().toLowerCase() === sessionEmail.trim().toLowerCase();
-                  const messageText = getEventMessageText(event);
-                  const authorLabel = getEventAuthorLabel(event);
-                  if (!messageText) return null;
+                {discussionDisplayItems.map((item, index) => {
+                  const prev = discussionDisplayItems[index - 1];
+                  const separated = !prev || prev.kind !== item.kind || (item.kind === 'chat' && prev.actorKey !== item.actorKey);
+                  const isMine = item.kind === 'chat' && item.align === 'right';
                   return (
-                    <Stack key={event.id} spacing={0.25} alignItems={isSystemEvent ? 'center' : isCurrentUser ? 'flex-end' : 'flex-start'}>
-                      {!isSystemEvent ? (
+                    <Stack
+                      key={item.id}
+                      spacing={0.5}
+                      alignItems={item.align === 'center' ? 'center' : item.align === 'right' ? 'flex-end' : 'flex-start'}
+                      sx={{ mt: separated ? 1.25 : 0.75 }}
+                    >
+                      {item.kind === 'chat' && item.showHeader ? (
                         <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
-                          {authorLabel} · {new Date(event.tsUtc).toLocaleString()}
+                          {isMine ? new Date(item.tsUtc).toLocaleTimeString() : `${item.actorLabel} · ${new Date(item.tsUtc).toLocaleTimeString()}`}
                         </Typography>
                       ) : null}
                       <Paper
                         variant="outlined"
                         sx={{
-                          p: isSystemEvent ? 0.5 : 1,
-                          px: isSystemEvent ? 1 : undefined,
-                          borderRadius: isSystemEvent ? 999 : 2,
-                          maxWidth: isSystemEvent ? 'fit-content' : '75%',
-                          bgcolor: isSystemEvent ? 'action.hover' : isCurrentUser ? 'primary.50' : 'background.paper',
+                          p: item.kind === 'system' ? 0.5 : 1,
+                          px: item.kind === 'system' ? 1.25 : undefined,
+                          borderRadius: item.kind === 'system' ? 999 : 2,
+                          maxWidth: item.kind === 'system' ? '80%' : '75%',
+                          bgcolor: item.kind === 'system' ? 'action.hover' : isMine ? 'primary.100' : 'grey.100',
                           color: 'text.primary',
-                          alignSelf: isSystemEvent ? 'center' : isCurrentUser ? 'flex-end' : 'flex-start'
+                          alignSelf: item.align === 'center' ? 'center' : item.align === 'right' ? 'flex-end' : 'flex-start'
                         }}
                       >
-                        <Typography variant="body2">{messageText}</Typography>
-                        {isSystemEvent ? <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography> : null}
+                        <Typography variant={item.kind === 'system' ? 'caption' : 'body2'}>{item.text}</Typography>
+                        {item.kind === 'system' ? <Typography variant="caption" color="text.secondary">{new Date(item.tsUtc).toLocaleTimeString()}</Typography> : null}
                       </Paper>
                     </Stack>
                   );
@@ -2656,7 +2736,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   </Paper>
                 ))}
                 <Stack direction="row" spacing={1}>
-                  <TextField fullWidth size="small" placeholder="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
+                  <TextField id="discussion-message-input" fullWidth size="small" placeholder="Message" label="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
                   <Button variant="contained" onClick={() => void sendDetailsMessage()} disabled={!detailsMessageText.trim()}>Send</Button>
                 </Stack>
               </Stack>
