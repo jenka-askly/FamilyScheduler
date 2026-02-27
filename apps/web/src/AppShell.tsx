@@ -79,6 +79,12 @@ type AppointmentDetailResponse = {
   projections: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] };
 };
 
+type DirectActionErrorPayload = {
+  ok?: boolean;
+  message?: string;
+  error?: string | { code?: string; message?: string };
+};
+
 type Session = { groupId: string; email: string; joinedAt: string };
 
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -512,6 +518,34 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setDetailsMessageText('');
   }
 
+  const appendLocalDiscussionErrorEvent = (message: string) => {
+    const syntheticEvent: AppointmentDetailEvent = {
+      id: `local-error-${createTraceId()}`,
+      tsUtc: new Date().toISOString(),
+      type: 'SYSTEM_CONFIRMATION',
+      actor: { kind: 'SYSTEM' },
+      payload: { message }
+    };
+    setDetailsData((prev) => prev ? {
+      ...prev,
+      eventsPage: [syntheticEvent, ...prev.eventsPage],
+      projections: {
+        discussionEvents: [syntheticEvent, ...prev.eventsPage].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
+        changeEvents: [syntheticEvent, ...prev.eventsPage].filter((event) => event.type === 'FIELD_CHANGED')
+      }
+    } : prev);
+  };
+
+  const buildDirectActionErrorMessage = (response: Response, payload: DirectActionErrorPayload, fallbackMessage: string) => {
+    const payloadError = payload.error;
+    const errorCode = typeof payloadError === 'string' ? payloadError : payloadError?.code;
+    const errorMessage = typeof payloadError === 'string' ? payloadError : payloadError?.message;
+    if (response.status === 400 && errorCode === 'title_proposal_pending') {
+      return '[Error] A title proposal is already pending. Apply, edit, or cancel it before creating another.';
+    }
+    return `[Error] ${errorCode ?? errorMessage ?? payload.message ?? fallbackMessage}`;
+  };
+
   const sendDetailsMessage = async () => {
     if (!detailsAppointmentId || !detailsMessageText.trim()) return;
     const text = detailsMessageText.trim();
@@ -522,8 +556,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'append_appointment_message', appointmentId: detailsAppointmentId, text, clientRequestId }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; from: string; to: string } | null };
-    if (!response.ok || !payload.ok) return;
+    const payload = await response.json() as DirectActionErrorPayload & { appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; from: string; to: string } | null };
+    if (!response.ok || !payload.ok) {
+      console.error('append_appointment_message failed', payload);
+      appendLocalDiscussionErrorEvent(buildDirectActionErrorMessage(response, payload, 'Unable to send message.'));
+      return;
+    }
     const newEvents = payload.appendedEvents ?? [];
     setDetailsData((prev) => prev ? {
       ...prev,
@@ -546,8 +584,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'apply_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value, clientRequestId }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; appointment?: Snapshot['appointments'][0]; appendedEvents?: AppointmentDetailEvent[] };
-    if (!response.ok || !payload.ok) return;
+    const payload = await response.json() as DirectActionErrorPayload & { appointment?: Snapshot['appointments'][0]; appendedEvents?: AppointmentDetailEvent[] };
+    if (!response.ok || !payload.ok) {
+      console.error('apply_appointment_proposal failed', payload);
+      appendLocalDiscussionErrorEvent(buildDirectActionErrorMessage(response, payload, 'Unable to apply proposal.'));
+      return;
+    }
     setPendingProposal(null);
     setDetailsData((prev) => prev ? {
       appointment: payload.appointment ?? prev.appointment,
