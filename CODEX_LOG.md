@@ -11992,3 +11992,33 @@ Add lightweight live updates for appointment details while the drawer is open (w
 ### Follow-ups
 - Manual app-authenticated verification still needed for end-to-end discussion suggestion card behavior with two distinct user accounts.
 
+
+## 2026-02-27 05:37 UTC (Fix resolve_appointment_time OPENAI_BAD_RESPONSE 502s)
+
+### Objective
+- Prevent `/api/direct` `resolve_appointment_time` from returning 502 when OpenAI returns malformed/partial time parse payloads (e.g., partial/unresolved without valid `missing`).
+
+### Approach
+- Kept the deterministic parser as baseline output and made AI parse failures non-fatal in `resolveTimeSpecWithFallback`.
+- On AI error (`OPENAI_BAD_RESPONSE`, call failures, etc.), now return `ok:true` with deterministic `timeLocal` and fallback metadata (`fallbackAttempted:true`, `usedFallback:false`).
+- Added compact input preview in fallback logs for traceable telemetry.
+- Updated and expanded tests to validate non-regression resolved cases and time-only malformed AI fallback behavior.
+
+### Files changed
+- `api/src/lib/time/resolveTimeSpecWithFallback.ts`
+- `api/src/lib/time/resolveTimeSpecWithFallback.test.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api test` ❌ failed at TypeScript build due to missing `@azure/data-tables` type/module resolution in this environment.
+- `node --experimental-strip-types --test api/src/lib/time/resolveTimeSpecWithFallback.test.ts api/src/functions/direct.test.ts` ❌ failed because tests import `.js` module paths that are only available after build output.
+
+### Follow-ups
+- Run `pnpm --filter @familyscheduler/api install` / dependency restore in local dev or CI environment with complete lockfile install and rerun API tests.
+- Manually verify `/api/direct` `resolve_appointment_time` for:
+  - `8pm`
+  - `set time to 4pm`
+  - `tomorrow at 6pm`
+  - `2/27/2026 all day`
