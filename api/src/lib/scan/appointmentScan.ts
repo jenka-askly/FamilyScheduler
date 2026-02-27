@@ -113,11 +113,12 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
   };
 
   const placeholderOrEmpty = isEmptyText(appointment.title);
+  const parsedTitle = parsed.title?.trim() ?? '';
   if (mode === 'rescan') {
-    appointment.title = (parsed.title ?? '').trim();
+    appointment.title = parsedTitle;
   } else if (placeholderOrEmpty) {
-    if (parsed.title && parsed.title.trim()) {
-      appointment.title = parsed.title.trim();
+    if (parsedTitle) {
+      appointment.title = parsedTitle;
     } else {
       const fallback =
         (parsed.notes && parsed.notes.trim() ? firstLineOrSentence(parsed.notes.trim(), 80) : '')
