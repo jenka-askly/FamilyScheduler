@@ -12819,3 +12819,70 @@ Fixed TSX syntax regression in AppShell.tsx (unmatched brace/tag) introduced dur
 ### Exact fix note
 
 - In `closeWhenEditor`, closed the `shouldDeletePendingNew` boolean expression correctly by restoring `&& editorDirty === false;` and removing stray `) { ...` / dangling `&&` tokens that broke TSX parsing.
+
+## 2026-02-27 19:53 UTC (Phase 2: remove delete confirms + session Undo restore via /api/direct)
+
+### Objective
+
+Implement Phase 2 deletion/undo UX and direct restore wiring:
+- remove delete confirm dialogs for appointments/members,
+- add session-only Undo menu beside Schedule/Members tabs,
+- restore appointments by `appointmentId` and members by `personId` via `/api/direct`.
+
+### Pre-flight (State Consistency Rule)
+
+- Reviewed prior entries:
+  - `2026-02-27 17:05 UTC (Deletion UX: immediate delete + session Undo + appointment soft delete)` documented a broader initial implementation.
+  - `2026-02-27 20:05 UTC (Phase 1: fix Schedule delete regression using appointmentId + index/doc store)` documented delete-by-`appointmentId` persistence and `ok:false` semantics when action not applied.
+  - `2026-02-27 19:45 UTC (Phase 1 AppShell TSX syntax regression fix)` documented syntax-only repair after Phase 1 edits.
+- Corroboration commands:
+  - `git status --short` ✅ clean before edits.
+  - `git log -n 20 --oneline` ✅ confirmed latest Phase 1 commits/merges.
+  - `rg -n "appointmentToDelete|personToDelete|<Dialog" apps/web/src/AppShell.tsx` ✅ confirmed no remaining appointment/person delete dialogs; other dialogs remain for unrelated features.
+  - `rg -n "restore_appointment|reactivate_person|delete_person" api/src/functions/direct.ts api/src/lib/actions/executor.ts` ✅ found restore/reactivate coverage and identified `restore_appointment` still code-based in direct parser.
+
+### Approach
+
+- Backend (`/api/direct`):
+  - Changed `restore_appointment` direct action parser to require `appointmentId` (instead of `code`).
+  - Added direct restore branch using index/doc store helper to restore by `appointmentId`.
+  - Added `restoreAppointmentById(...)` table helper to clear soft-delete fields (`isDeleted=false`, clear `deletedAt/deletedByUserKey/purgeAfterAt`) in both index and appointment doc records.
+  - Preserved Phase 1 response semantics (`ok:false` when action not applied / not found).
+  - Idempotent restore behavior: restoring an already-active appointment returns `ok:true` with harmless message.
+
+- Frontend (`AppShell`):
+  - Kept delete actions immediate (no confirm dialog state/UI).
+  - Updated session undo entry shape to use `key`, explicit `appointmentId/personId`, and timestamp `ts`.
+  - Added shared `pushUndo` and `removeUndoKey` helpers.
+  - Updated delete handlers:
+    - appointment label now `${code} — ${desc || '(no title)'} — ${date}${startTime ? ' ' + startTime : ''}`
+    - member label now `${name || email || personId}`
+    - on delete failure: remove undo entry + show inline error notice.
+  - Updated restore handlers:
+    - appointment restore calls `restore_appointment` with `appointmentId`
+    - member restore calls `reactivate_person` with `personId`
+    - restore-all runs sequentially and stops on first failure.
+  - Retained Undo icon/menu placement beside Schedule/Members tabs and only when undo list is non-empty.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `api/src/lib/tables/appointmentSoftDelete.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ⚠️ failed in this environment due missing `@azure/data-tables` resolution in API package.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped intentionally).
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/936eb36f20ac1552/artifacts/artifacts/phase2-undo-ui.png`.
+
+### Follow-ups
+
+- Manual runtime checks in a full environment:
+  - delete appointment/member has no confirm dialog and persists after refresh,
+  - undo menu restore paths succeed for both entity types,
+  - refresh clears session undo list and hides icon,
+  - restore failure path keeps undo entry and shows inline Alert.
