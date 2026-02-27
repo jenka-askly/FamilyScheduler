@@ -11650,3 +11650,41 @@ Ensure `POST /api/group/join` uses ignite grace session when present so QR join 
 ### Follow-ups
 
 - Human-run verification in browser for QR join scenario should confirm JoinGroupPage request-access path is bypassed on normal success flow.
+
+
+## 2026-02-27 01:42 UTC (Appointment pane enhancement round 2: pending proposal recovery + apply/cancel wiring)
+
+### Objective
+
+Resolve proposal pending dead-end where Apply/Cancel became unavailable and ensure apply/cancel round-trip updates title reliably after refresh.
+
+### Approach
+
+- Added `derivePendingProposal` in API direct handler and returned `pendingProposal` in `get_appointment_detail`.
+- Returned `pendingProposal` payload alongside `title_proposal_pending` in message append flow so UI can recover deterministically.
+- Added proposal lifecycle hardening: `PROPOSAL_APPLIED` closes active proposal detection; apply/dismiss now return `proposal_not_found` when appropriate.
+- Added appointment correlation logs for all direct actions with appointment context.
+- Updated web drawer details loading to hydrate/refresh pending proposal from server payload.
+- Updated web failure path: on `title_proposal_pending`, refetch detail to restore recoverable proposal card.
+- Updated apply/cancel success path to refetch detail so canonical appointment title drives header + list state.
+- Added minimal API unit tests for pending proposal derivation states (pending, paused, closed).
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "pendingProposal|title_proposal_pending|apply_appointment_proposal|dismiss_appointment_proposal|get_appointment_detail" ...` ✅ scoped affected codepaths.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed due pre-existing missing `@azure/data-tables` dependency in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started then stopped intentionally after screenshot capture.
+- Playwright capture ✅ `browser:/tmp/codex_browser_invocations/ac330e0de487faad/artifacts/artifacts/appointment-pane-round2.png`.
+
+### Follow-ups
+
+- Human staging run should execute manual verification script to confirm Network panel shows `apply_appointment_proposal` with `proposalId`, response `ok:true`, and persisted title across refresh.

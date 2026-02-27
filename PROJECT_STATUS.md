@@ -1,3 +1,31 @@
+## 2026-02-27 01:42 UTC update (Appointment pane enhancement round 2: proposal pending recovery + apply/cancel wiring)
+
+- Fixed proposal pending dead-end across API + web:
+  - `get_appointment_detail` now returns deterministic `pendingProposal` convenience payload (id/field/fromValue/toValue/status/actor/timestamps).
+  - `append_appointment_message` now returns `title_proposal_pending` with `pendingProposal` so UI can recover to actionable state.
+  - Web detail loader hydrates pending proposal state from server payload and keeps Apply/Cancel/Edit/Pause controls available from server truth.
+- Fixed apply/cancel recovery behavior:
+  - Apply/cancel now trigger detail refetch on success so drawer header/list title sync from canonical server data and persist on refresh.
+  - On `title_proposal_pending` during new proposal attempts, UI now immediately refetches detail and re-renders existing pending proposal card instead of dead-end error row.
+- Hardened proposal action robustness:
+  - Added explicit `proposal_not_found` for apply/dismiss when no active proposal exists.
+  - Proposal active detection now treats `PROPOSAL_APPLIED` as closed.
+  - Added appointment action correlation logs (`groupId`, `appointmentId`, `actionType`, `traceId`, `clientRequestId`) in `/api/direct`.
+- Added minimal targeted tests:
+  - New `derivePendingProposal` unit coverage for pending/paused/closed lifecycle derivation.
+
+### Known gaps remaining
+
+- Notifications/suggestions/constraints deeper workflow expansion remains intentionally out-of-scope for this bugfix pass.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by pre-existing environment dependency resolution (`@azure/data-tables`).
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual capture, then stopped intentionally.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ac330e0de487faad/artifacts/artifacts/appointment-pane-round2.png`.
+
+
 ## 2026-02-27 01:10 UTC update (Appointment pane enhancement: proposals, constraints, suggestions)
 
 - Implemented proposal lifecycle coverage across `/api/direct` and drawer UX:
