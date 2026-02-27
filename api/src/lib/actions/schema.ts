@@ -21,6 +21,7 @@ export type Action =
   | { type: 'set_appointment_desc'; code: string; desc: string }
   | { type: 'set_appointment_duration'; code: string; durationMins?: number }
   | { type: 'delete_appointment'; code: string }
+  | { type: 'restore_appointment'; code: string }
   | { type: 'add_people_to_appointment'; code: string; people: string[] }
   | { type: 'remove_people_from_appointment'; code: string; people: string[] }
   | { type: 'replace_people_on_appointment'; code: string; people: string[] }
@@ -109,6 +110,7 @@ const parseAction = (value: unknown): Action => {
   if (type === 'set_appointment_desc') return { type, code: assertString(value.code, 'code'), desc: typeof value.desc === 'string' ? value.desc.trim() : '' };
   if (type === 'set_appointment_duration') return { type, code: assertString(value.code, 'code'), durationMins: parseOptionalDuration(value.durationMins) };
   if (type === 'delete_appointment') return { type, code: assertString(value.code, 'code') };
+  if (type === 'restore_appointment') return { type, code: assertString(value.code, 'code') };
   if (type === 'add_people_to_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
   if (type === 'remove_people_from_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 1, 20) };
   if (type === 'replace_people_on_appointment') return { type, code: assertString(value.code, 'code'), people: assertPeopleArray(value.people, 'people', 0, 20) };

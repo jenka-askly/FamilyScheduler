@@ -12359,3 +12359,53 @@ Fix scan image title behavior where appointment title remained `Scanning…`/`Sc
 ### Follow-ups
 
 - Manual UI verification for parse/rescan/failed transitions in local running app (pending human runtime check).
+
+## 2026-02-27 17:05 UTC (Deletion UX: immediate delete + session Undo + appointment soft delete)
+
+### Objective
+
+Implement FamilyScheduler deletion UX changes: remove confirm dialogs, add session Undo menu for Schedule+Members, make appointment deletes soft (not hard splice), and support restore flows.
+
+### Approach
+
+- Added appointment soft-delete metadata in state normalization and model types.
+- Updated action schema + executor:
+  - `delete_appointment` now marks `isDeleted=true` with `deletedAt`/`deletedByUserKey`.
+  - Added `restore_appointment` action.
+  - Updated list/show appointment executor reads to ignore deleted rows.
+- Updated `/api/direct`:
+  - DirectAction/parser accepts `restore_appointment` and `reactivate_person`.
+  - `toResponseSnapshot` filters soft-deleted appointments from API snapshots.
+  - Added manual handler branch for `reactivate_person` (status to active).
+- Updated web AppShell:
+  - Removed appointment and member delete confirmation dialogs.
+  - Added immediate delete handlers with inline transient notice pattern.
+  - Added in-memory `undoList` and Undo menu anchored near Schedule/Members tabs.
+  - Added Restore per item, Restore last, Restore all (sequential).
+- Added defensive appointment filtering by `isDeleted` in `AppointmentCardList`.
+- Added targeted tests in executor/direct tests for soft-delete/restore and snapshot filtering.
+
+### Files changed
+
+- `api/src/lib/state.ts`
+- `api/src/lib/actions/schema.ts`
+- `api/src/lib/actions/executor.ts`
+- `api/src/lib/actions/executor.test.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed in container due missing `@azure/data-tables` resolution.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot, then intentionally stopped with SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/994154692f365a8c/artifacts/artifacts/undo-tabs.png`.
+
+### Follow-ups
+
+- Run API build/tests in an environment with `@azure/data-tables` available to validate newly added API-side tests end-to-end.

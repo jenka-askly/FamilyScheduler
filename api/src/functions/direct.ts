@@ -41,6 +41,7 @@ type DirectBody = { action?: unknown; groupId?: unknown; traceId?: unknown };
 type DirectAction =
   | { type: 'create_blank_appointment' }
   | { type: 'delete_appointment'; code: string }
+  | { type: 'restore_appointment'; code: string }
   | { type: 'set_appointment_date'; code: string; date: string }
   | { type: 'set_appointment_start_time'; code: string; startTime?: string }
   | { type: 'set_appointment_location'; code: string; location?: string; locationRaw?: string }
@@ -52,6 +53,7 @@ type DirectAction =
   | { type: 'create_blank_person' }
   | { type: 'update_person'; personId: string; name?: string; email?: string }
   | { type: 'delete_person'; personId: string }
+  | { type: 'reactivate_person'; personId: string }
   | { type: 'get_appointment_detail'; appointmentId: string; limit?: number; cursor?: EventCursor }
   | { type: 'append_appointment_message'; appointmentId: string; text: string; clientRequestId: string }
   | { type: 'apply_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; value: string; clientRequestId: string }
@@ -195,7 +197,7 @@ const deriveDateTimeParts = (start?: string, end?: string): { date: string; star
 };
 
 export const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
-  appointments: state.appointments.map((appointment) => {
+  appointments: state.appointments.filter((appointment) => appointment.isDeleted !== true).map((appointment) => {
     const derived = deriveDateTimeParts(appointment.start, appointment.end);
     return {
       id: appointment.id,
@@ -305,7 +307,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
   if (!type) throw new Error('action.type is required');
 
   if (type === 'create_blank_appointment') return { type };
-  if (type === 'delete_appointment') {
+  if (type === 'delete_appointment' || type === 'restore_appointment') {
     const code = asString(value.code);
     if (!code) throw new Error('code is required');
     return { type, code };
@@ -391,7 +393,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
     const email = typeof value.email === 'string' ? value.email : undefined;
     return { type, personId, name, email };
   }
-  if (type === 'delete_person') {
+  if (type === 'delete_person' || type === 'reactivate_person') {
     const personId = asString(value.personId);
     if (!personId) throw new Error('personId is required');
     return { type, personId };
@@ -1176,10 +1178,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     }
   }
 
-  if (directAction.type === 'delete_person') {
+  if (directAction.type === 'delete_person' || directAction.type === 'reactivate_person') {
     const person = loaded.state.people.find((entry) => entry.personId === directAction.personId);
     if (!person) return withDirectMeta(badRequest('Person not found', traceId), traceId, context);
-    person.status = 'removed';
+    person.status = directAction.type === 'delete_person' ? 'removed' : 'active';
     person.lastSeen = new Date().toISOString();
     try {
       const written = await storage.save(groupId, loaded.state, loaded.etag);

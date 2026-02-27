@@ -26,6 +26,7 @@ type Appointment = {
   scanCapturedAt: string | null;
   updatedAt?: string;
   time: TimeSpec;
+  isDeleted?: boolean;
 };
 
 
@@ -87,7 +88,7 @@ export function AppointmentCardList({
 
   return (
     <List disablePadding>
-      {appointments.map((appointment) => {
+      {appointments.filter((appointment) => appointment.isDeleted !== true).map((appointment) => {
         const scanRowActionState = scanRowActionStateById[appointment.id] ?? { busy: false, error: null };
         if (appointment.scanStatus === 'pending') {
           return (

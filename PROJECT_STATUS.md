@@ -4873,3 +4873,19 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` (run in this change set)
 2. `pnpm --filter @familyscheduler/web typecheck` (run in this change set)
+
+## 2026-02-27 17:05 UTC update (Deletion UX: immediate delete + session Undo + appointment soft delete)
+
+- Backend: `delete_appointment` is now soft delete (`isDeleted`, `deletedAt`, `deletedByUserKey`) and `restore_appointment` was added.
+- Backend snapshot shaping now excludes soft-deleted appointments from `/api/direct` snapshots.
+- Backend direct action parser now accepts `restore_appointment` and `reactivate_person`.
+- Frontend: removed appointment/member confirm delete dialogs; deletes now execute immediately with inline error/success notices.
+- Frontend: added session-scoped in-memory Undo list (appointments + members) with an Undo icon/menu beside Schedule/Members tabs, including Restore per-row, Restore last, and Restore all.
+- Frontend: appointment list rendering also defensively filters `isDeleted === true` rows.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+3. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module resolution in this container.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/994154692f365a8c/artifacts/artifacts/undo-tabs.png`.
