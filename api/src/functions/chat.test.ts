@@ -4,6 +4,8 @@ import { chat } from './chat.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
 import { setUsageMeterStoreForTests, type UsageMeterRecord } from '../lib/usageMeter.js';
+import { setGetAppointmentJsonForTests } from '../lib/tables/appointments.js';
+import { setListAppointmentIndexesForGroupForTests } from '../lib/tables/entities.js';
 
 const GROUP_ID = '11111111-1111-4111-8111-111111111111';
 const PHONE = '+14155550123';
@@ -20,6 +22,8 @@ const okAdapter = (): StorageAdapter => ({
 test.afterEach(() => {
   setStorageAdapterForTests(null);
   setUsageMeterStoreForTests(null);
+  setGetAppointmentJsonForTests(null);
+  setListAppointmentIndexesForGroupForTests(null);
   globalThis.fetch = originalFetch;
 });
 
@@ -220,4 +224,74 @@ test('chat records usage meter error on OpenAI failure', async () => {
   assert.equal(updates.length > 0, true);
   assert.equal(typeof updates.at(-1)?.lastErrorAtISO, 'string');
   assert.match(updates.at(-1)?.lastErrorSummary ?? '', /OpenAI HTTP 401/i);
+});
+
+
+test('chat list appointments uses AppointmentsIndex + appointment.json and bypasses OpenAI', async () => {
+  setStorageAdapterForTests(okAdapter());
+  let openAiCalled = false;
+  globalThis.fetch = (async () => {
+    openAiCalled = true;
+    throw new Error('OpenAI should not be called for deterministic list appointments');
+  }) as any;
+  setListAppointmentIndexesForGroupForTests(async () => ([
+    { partitionKey: GROUP_ID, rowKey: 'rk-2', appointmentId: 'appt-2', status: 'pending', hasScan: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', isDeleted: false },
+    { partitionKey: GROUP_ID, rowKey: 'rk-1', appointmentId: 'appt-1', status: 'parsed', hasScan: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', isDeleted: false }
+  ] as any));
+  setGetAppointmentJsonForTests(async (_groupId, appointmentId) => {
+    if (appointmentId === 'appt-2') {
+      return {
+        id: 'appt-2',
+        code: 'APPT-2',
+        title: 'Scan pending',
+        people: ['P-1'],
+        assigned: [],
+        location: '',
+        locationRaw: '',
+        locationDisplay: '',
+        locationMapQuery: '',
+        locationName: '',
+        locationAddress: '',
+        locationDirections: '',
+        notes: '',
+        scanStatus: 'pending'
+      };
+    }
+    return {
+      id: 'appt-1',
+      code: 'APPT-1',
+      title: 'Scan parsed',
+      people: ['P-1'],
+      assigned: [],
+      location: '',
+      locationRaw: '',
+      locationDisplay: '',
+      locationMapQuery: '',
+      locationName: '',
+      locationAddress: '',
+      locationDirections: '',
+      notes: '',
+      scanStatus: 'parsed'
+    };
+  });
+
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'list appointments', traceId: 't-list-index' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal(openAiCalled, false);
+  assert.equal((response.jsonBody as any).kind, 'reply');
+  assert.equal((response.jsonBody as any).snapshot.appointments.length, 2);
+  assert.equal((response.jsonBody as any).snapshot.appointments[0].id, 'appt-2');
+  assert.equal((response.jsonBody as any).snapshot.appointments[0].scanStatus, 'pending');
+});
+
+test('chat list appointments does not return clarify response when no rows found', async () => {
+  setStorageAdapterForTests(okAdapter());
+  setListAppointmentIndexesForGroupForTests(async () => []);
+  setGetAppointmentJsonForTests(async () => null);
+
+  const response = await chat({ json: async () => ({ groupId: GROUP_ID, message: 'appointments', traceId: 't-list-empty' }), headers: { get: () => 's1' } } as any, {} as any);
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).kind, 'reply');
+  assert.notEqual((response.jsonBody as any).message, 'Please clarify the change with a valid action and summary.');
+  assert.equal((response.jsonBody as any).snapshot.appointments.length, 0);
 });
