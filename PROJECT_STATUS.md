@@ -5031,3 +5031,13 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Direct delete path now soft-deletes index+doc and rebuilds snapshots from index/doc source, preventing reappearance from refresh loops.
 - Negative path returns `ok:false` + message and unchanged snapshot when delete cannot be applied.
 - Web appointment editor cancel flow now uses explicit dirty tracking for `+`-created appointments so unedited cancel/ESC/backdrop reliably deletes the auto-created blank row, while edited drafts are preserved on close.
+
+## 2026-02-27 19:45 UTC update (Phase 1 AppShell syntax repair)
+
+- Repaired a Phase 1 TSX syntax regression in `apps/web/src/AppShell.tsx` within `closeWhenEditor` by fixing an unmatched/malformed conditional expression tail (`shouldDeletePendingNew`).
+- Scope intentionally limited to parser-structure repair only; no feature behavior added.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web exec tsc -p tsconfig.json --pretty false --noEmit` ✅ passed after fix.
+2. `pnpm -r --if-present build` ⚠️ blocked by environment dependency issue in `api` (`@azure/data-tables` package unavailable due registry 403).

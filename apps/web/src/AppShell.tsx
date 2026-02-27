@@ -1213,16 +1213,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       && descDraftText.trim() === ''
       && locationDraftText.trim() === ''
       && notesDraftText.trim() === ''
-    ) {
-      const appointment = snapshot.appointments.find((item) => item.code === whenEditorCode);
-      if (appointment && isBlankAppointment(appointment)) {
-        const deleteResult = await sendDirectAction({ type: 'delete_appointment', appointmentId: appointment.id });
-        if (!deleteResult.ok) {
-          showNotice('error', deleteResult.message);
-          return;
-        }
-        setPendingNewAppointmentCode(null);
-        setActiveAppointmentCode(null);
       && editorDirty === false;
 
     if (shouldDeletePendingNew && whenEditorCode) {

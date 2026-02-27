@@ -12787,3 +12787,35 @@ Ensure cancel/close of the appointment editor reliably deletes only auto-created
 - Manual staging verification:
   - `+` then immediate cancel should issue create then delete and leave no blank appointment.
   - `+`, type one character, then cancel should keep appointment and skip delete.
+
+## 2026-02-27 19:45 UTC (Phase 1 AppShell TSX syntax regression fix)
+
+### Objective
+
+Fixed TSX syntax regression in AppShell.tsx (unmatched brace/tag) introduced during Phase 1 edits.
+
+### Approach
+
+- Located the first parse error from TypeScript (`TS1128` near line 1216).
+- Repaired the malformed `shouldDeletePendingNew` expression in `closeWhenEditor` by removing an accidentally inlined block and restoring the intended boolean tail condition.
+- Kept the change minimal and syntax-only (no feature behavior added).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅ clean before edit.
+- `git diff -- apps/web/src/AppShell.tsx` ✅ no pre-existing diff.
+- `pnpm --filter @familyscheduler/web exec tsc -p tsconfig.json --pretty false --noEmit` ❌ initially failed with `TS1128/TS1109/TS1005` in `AppShell.tsx`.
+- `sed -n '1180,1250p' apps/web/src/AppShell.tsx` ✅ inspected error region.
+- `sed -n '1200,1235p' apps/web/src/AppShell.tsx` ✅ inspected focused block.
+- `sed -n '3170,3240p' apps/web/src/AppShell.tsx` ✅ inspected trailing parser-fallthrough region.
+- `pnpm --filter @familyscheduler/web exec tsc -p tsconfig.json --pretty false --noEmit` ✅ passes after fix.
+- `pnpm -r --if-present build` ⚠️ web/shared build path unblocked; overall fails in `api` due missing `@azure/data-tables` in this environment.
+
+### Exact fix note
+
+- In `closeWhenEditor`, closed the `shouldDeletePendingNew` boolean expression correctly by restoring `&& editorDirty === false;` and removing stray `) { ...` / dangling `&&` tokens that broke TSX parsing.
