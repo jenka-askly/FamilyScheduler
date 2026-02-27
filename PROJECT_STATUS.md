@@ -1,3 +1,7 @@
+## 2026-02-27 20:18 UTC update (New appointment cancel auto-delete guard)
+
+- Canceling a newly created appointment now auto-deletes it only when it is still blank/untouched; if the draft has user-entered text, Cancel just closes the editor.
+
 ## 2026-02-27 16:45 UTC update (Scan Image flow: prevent persistent "Scanning..." title)
 
 - Updated `api/src/lib/scan/appointmentScan.ts` title application for `initial` mode to handle `parsed.title === null` without leaving placeholder text behind.
