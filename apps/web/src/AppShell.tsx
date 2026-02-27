@@ -1853,12 +1853,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setSendingEmailUpdate(true);
     setSendError(null);
     try {
+      const identity = identityPayload();
       const response = await apiFetch('/api/direct', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           groupId,
-          ...identityPayload(),
+          phone: identity.phone,
+          email: identity.email,
           action: {
             type: 'send_appointment_update_email',
             appointmentId: detailsAppointmentId,
@@ -1901,12 +1903,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       setPreviewLoading(true);
       setPreviewError(null);
       try {
+        const identity = identityPayload();
         const response = await apiFetch('/api/direct', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             groupId,
-            ...identityPayload(),
+            phone: identity.phone,
+            email: identity.email,
             action: {
               type: 'preview_appointment_update_email',
               appointmentId: detailsAppointmentId,
