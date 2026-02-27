@@ -1,3 +1,9 @@
+## 2026-02-27 03:05 UTC update (Appointment drawer de-scope: remove Share + Suggest UI)
+
+- Removed Share + Suggest UI from appointment drawer (de-scoped for now).
+- Removed drawer-header Share action button; header action row now only shows disabled Notify placeholder with clean spacing.
+- Removed Suggest composer block (suggest value input, field selector, and Suggest button) so tab controls/content shift up without dead gap.
+- Removed now-unused suggestion composer state + submit handler from web drawer component; existing suggestion activity rendering/actions remain unchanged.
 ## 2026-02-27 02:58 UTC update (Appointment pane enhancement: friendly proposal text in Changes + Discussion fallback)
 
 - Updated appointment event text mapping in `apps/web/src/AppShell.tsx` so Changes tab renders friendly text for proposal events instead of raw enum labels.
@@ -9,6 +15,7 @@
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual capture; terminated intentionally with SIGINT after screenshot capture.
 3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/32bfbf8b80ecbebb/artifacts/artifacts/appointment-pane-enhancement.png`.
 

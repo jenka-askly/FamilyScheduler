@@ -508,7 +508,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [isEditProposalOpen, setIsEditProposalOpen] = useState(false);
   const [constraintDraft, setConstraintDraft] = useState<{ field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; editingId?: string }>({ field: 'title', operator: 'contains', value: '' });
   const [constraintError, setConstraintError] = useState<string | null>(null);
-  const [suggestionDraft, setSuggestionDraft] = useState<{ field: 'title' | 'time' | 'location'; value: string }>({ field: 'title', value: '' });
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
@@ -797,16 +796,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; constraints?: AppointmentDetailResponse['constraints'] };
     if (!response.ok || !payload.ok) return;
     setDetailsData((prev) => prev ? ({ ...prev, constraints: payload.constraints ?? prev.constraints, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
-  };
-
-  const submitSuggestion = async () => {
-    if (!detailsAppointmentId || !suggestionDraft.value.trim()) return;
-    const clientRequestId = createTraceId();
-    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action: { type: 'create_suggestion', appointmentId: detailsAppointmentId, field: suggestionDraft.field, value: suggestionDraft.value.trim(), clientRequestId }, traceId: createTraceId() }) });
-    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; suggestions?: AppointmentDetailResponse['suggestions'] };
-    if (!response.ok || !payload.ok) return;
-    setSuggestionDraft((prev) => ({ ...prev, value: '' }));
-    setDetailsData((prev) => prev ? ({ ...prev, suggestions: payload.suggestions ?? prev.suggestions, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
   };
 
   const suggestionAction = async (action: Record<string, unknown>) => {
@@ -2584,30 +2573,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 <Typography variant="body2" color="text.secondary">{detailsData.appointment.desc || 'Appointment'} · {formatAppointmentTime(detailsData.appointment)} · {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
               )}
               <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button size="small" variant="outlined" onClick={async () => {
-                  const params = new URLSearchParams();
-                  params.set('appointmentId', detailsData.appointment.id);
-                  await navigator.clipboard.writeText(`${window.location.origin}/#/g/${groupId}/app?${params.toString()}`);
-                }}>Share</Button>
                 <Button size="small" variant="outlined" disabled>Notify (coming soon)</Button>
               </Stack>
             </Box>
             <Stack spacing={1}>
-              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                <TextField size="small" label="Suggest value" value={suggestionDraft.value} onChange={(event) => setSuggestionDraft((prev) => ({ ...prev, value: event.target.value }))} />
-                <TextField
-                  size="small"
-                  select
-                  label="Field"
-                  value={suggestionDraft.field}
-                  onChange={(event) => setSuggestionDraft((prev) => ({ ...prev, field: event.target.value as 'title' | 'time' | 'location' }))}
-                >
-                  <MenuItem value="title">Title</MenuItem>
-                  <MenuItem value="time">Time</MenuItem>
-                  <MenuItem value="location">Location</MenuItem>
-                </TextField>
-                <Button size="small" variant="outlined" onClick={() => void submitSuggestion()} disabled={!suggestionDraft.value.trim()}>Suggest</Button>
-              </Stack>
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
                   const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');

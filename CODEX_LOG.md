@@ -11822,3 +11822,27 @@ Fix title persistence after apply across reload/deploy and ship bundled appointm
 ### Follow-ups
 - Human runtime validation: apply title proposal, hard reload, and verify both list + detail header persist updated title from server responses.
 
+
+## 2026-02-27 03:05 UTC (Appointment drawer de-scope: remove Share + Suggest UI)
+
+### Objective
+Remove the Share action and the Suggest composer section from the appointment drawer UI (web only) with minimal, contained code changes.
+
+### Approach
+- Located the appointment drawer action row in `AppShell.tsx` and removed the Share button + clipboard deep-link handler.
+- Removed the Suggest composer row (input + field select + Suggest button) directly below the header actions.
+- Removed now-unused suggestion composer state and submit handler (`suggestionDraft`, `submitSuggestion`) while preserving existing suggestion activity cards/actions.
+- Updated project continuity docs with this behavior change.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "Share|Notify|Suggest value|suggestionDraft|submitSuggestion" apps/web/src/AppShell.tsx` ✅ verified target locations and post-change cleanup.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+- Human verification in browser: open appointment drawer and confirm header shows no Share button and no Suggest composer block above tabs.
