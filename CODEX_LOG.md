@@ -12170,6 +12170,31 @@ Center the invite modal QR code horizontally without changing other modal conten
 
 - Optional manual check in local browser with a live invite session to confirm centering across viewport sizes.
 
+
+## 2026-02-27 09:25 UTC (BREAKOUT organizer photo diagnostics + strict payload validation)
+
+### Objective
+
+Add deep, opt-in diagnostics for organizer profile-photo blob rendering in BREAKOUT (`?debugPhoto=1`) and enforce safer payload validation without changing auth model or fallback behavior.
+
+### Approach
+
+- Added debug-gated photo logger helpers (`dlog/dwarn/derr`) scoped to organizer page and activated only by query param.
+- Wrapped organizer profile photo fetch path with richer telemetry:
+  - request URL + session presence boolean
+  - response status/ok/redirect/type
+  - content-type/content-length/cache-control/etag headers
+  - request timing (performance.now)
+- Added strict payload checks before object URL creation:
+  - non-OK response: capture short body sample and set fallback error
+  - non-image or zero-byte payload: capture short body sample and set fallback error
+- Added debug-only image tag load/error logging and retained existing fallback behavior (`photoLoadError` on organizer image error).
+- Added object URL set/revoke logs to validate lifecycle timing.
+- Added debug-only “Reload photo” button that retriggers fetch via a reload tick state.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
 ## 2026-02-27 09:04 UTC (Grace session banner + login next/return wiring)
 
 ### Objective
@@ -12201,6 +12226,11 @@ Implement grace-session user notification in AppShell with sign-in redirect, and
 
 ### Commands run + outcomes
 
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Manual staging verification with `?debugPhoto=1` should confirm image payload/size logs, `img onLoad` signal, and revoke timing when version changes/unmount.
 - `rg -n "AppShell|PageHeader|breakoutError" apps web src` ✅ located AppShell/PageHeader insertion region (with expected missing top-level `web/src` paths in this repo layout).
 - `rg -n "getIgniteGraceSessionId|getAuthSessionId|getSessionId|igniteGrace" apps/web/src` ✅ located session helpers and grace key usage.
 - `rg -n "LandingSignInPage|/login\?next|returnTo|RedirectTo(Login|SignIn)Page" apps/web/src` ✅ located login/returnTo flow.
