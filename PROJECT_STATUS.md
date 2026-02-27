@@ -1,3 +1,16 @@
+## 2026-02-27 03:05 UTC update (Appointment drawer de-scope: remove Share + Suggest UI)
+
+- Removed Share + Suggest UI from appointment drawer (de-scoped for now).
+- Removed drawer-header Share action button; header action row now only shows disabled Notify placeholder with clean spacing.
+- Removed Suggest composer block (suggest value input, field selector, and Suggest button) so tab controls/content shift up without dead gap.
+- Removed now-unused suggestion composer state + submit handler from web drawer component; existing suggestion activity rendering/actions remain unchanged.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+
 ## 2026-02-27 02:42 UTC update (Appointment pane enhancement: title persistence + discussion UI polish)
 
 - Fixed title persistence across reload/deploy for appointment proposals: `apply_appointment_proposal` now updates both canonical appointment document (`appointment.json`) and persisted group state (`state.appointments[].title` + `desc` mirror for compatibility), so both detail and list snapshots retain the new title after reloads.
