@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { derivePendingProposal, direct, setAppointmentDocStoreForTests, setAppointmentEventStoreForTests } from './direct.js';
+import { derivePendingProposal, direct, setAppointmentDocStoreForTests, setAppointmentEventStoreForTests, toResponseSnapshot } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
 
@@ -504,4 +504,16 @@ test('resolve_appointment_time appointment choice uses appointment local date wh
   assert.equal(appointmentChoice?.dateLocal, '2026-03-10');
 
   global.fetch = originalFetch;
+});
+
+test('toResponseSnapshot filters soft-deleted appointments', () => {
+  const snapshot = (toResponseSnapshot as any)({
+    ...state(),
+    appointments: [
+      { id: 'appt-1', code: 'APPT-1', title: 'Visible', date: '2026-01-01', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '', isAllDay: true },
+      { id: 'appt-2', code: 'APPT-2', title: 'Hidden', date: '2026-01-01', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '', isAllDay: true, isDeleted: true }
+    ]
+  });
+  assert.equal(snapshot.appointments.length, 1);
+  assert.equal(snapshot.appointments[0].code, 'APPT-1');
 });

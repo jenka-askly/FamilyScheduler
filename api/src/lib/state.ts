@@ -51,6 +51,9 @@ export type Appointment = {
   scanImageMime?: string | null;
   scanCapturedAt?: string | null;
   scanAutoDate?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedByUserKey?: string;
 };
 
 export type AvailabilityRule = {
@@ -288,7 +291,10 @@ export const normalizeAppState = (state: AppState): AppState => {
       scanImageKey: typeof raw.scanImageKey === 'string' && raw.scanImageKey.trim() ? raw.scanImageKey.trim() : null,
       scanImageMime: typeof raw.scanImageMime === 'string' && raw.scanImageMime.trim() ? raw.scanImageMime.trim() : null,
       scanCapturedAt: typeof raw.scanCapturedAt === 'string' && raw.scanCapturedAt.trim() ? raw.scanCapturedAt.trim() : null,
-      scanAutoDate: Boolean(raw.scanAutoDate)
+      scanAutoDate: Boolean(raw.scanAutoDate),
+      isDeleted: raw.isDeleted === true,
+      deletedAt: typeof raw.deletedAt === 'string' && raw.deletedAt.trim() ? raw.deletedAt.trim() : undefined,
+      deletedByUserKey: typeof raw.deletedByUserKey === 'string' && raw.deletedByUserKey.trim() ? raw.deletedByUserKey.trim() : undefined
     };
   });
 

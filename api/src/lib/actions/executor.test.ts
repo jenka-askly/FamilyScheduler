@@ -159,3 +159,28 @@ test('J: confirm v2 is idempotent by prompt and enforces cap', () => {
   const count = first.nextState.rules.filter((rule: any) => rule.promptId === 'same-prompt').length;
   assert.equal(count, 1);
 });
+
+test('K: delete_appointment soft deletes and restore_appointment reverses', async () => {
+  const state = createEmptyAppState();
+  state.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '' });
+
+  let result = await executeActions(state, [{ type: 'delete_appointment', code: 'APPT-1' }], { activePersonId: 'P-1', timezoneName: 'America/Los_Angeles' });
+  assert.equal(result.nextState.appointments.length, 1);
+  assert.equal(result.nextState.appointments[0].isDeleted, true);
+  assert.equal(typeof result.nextState.appointments[0].deletedAt, 'string');
+
+  result = await executeActions(result.nextState, [{ type: 'restore_appointment', code: 'APPT-1' }], { activePersonId: 'P-1', timezoneName: 'America/Los_Angeles' });
+  assert.equal(result.nextState.appointments[0].isDeleted, false);
+  assert.equal(result.nextState.appointments[0].deletedAt, undefined);
+});
+
+test('L: deactivate_person and reactivate_person toggle status', async () => {
+  const state = createEmptyAppState();
+  state.people.push({ personId: 'P-1', name: 'Sam', status: 'active' });
+
+  let result = await executeActions(state, [{ type: 'deactivate_person', personId: 'P-1' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  assert.equal(result.nextState.people[0].status, 'removed');
+
+  result = await executeActions(result.nextState, [{ type: 'reactivate_person', personId: 'P-1' }], { activePersonId: null, timezoneName: 'America/Los_Angeles' });
+  assert.equal(result.nextState.people[0].status, 'active');
+});

@@ -44,6 +44,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CloseIcon from '@mui/icons-material/Close';
+import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -66,6 +67,7 @@ type UsageStatus = { status: 'loading' | 'ok' | 'error'; data?: UsagePayload };
 type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
 type CalendarView = 'month' | 'list' | 'week' | 'day';
 type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
+type UndoEntry = { id: string; entityType: 'appointment' | 'person'; code?: string; personId?: string; label: string; timestamp: number };
 
 type AppointmentDetailEvent = {
   id: string;
@@ -592,13 +594,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [isEditProposalOpen, setIsEditProposalOpen] = useState(false);
   const [constraintDraft, setConstraintDraft] = useState<{ field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; editingId?: string }>({ field: 'title', operator: 'contains', value: '' });
   const [constraintError, setConstraintError] = useState<string | null>(null);
-  const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
-  const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
+  const [undoList, setUndoList] = useState<UndoEntry[]>([]);
+  const [undoMenuAnchorEl, setUndoMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [personDraft, setPersonDraft] = useState<{ name: string; email: string }>({ name: '', email: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
   const [inviteMenuAnchorEl, setInviteMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ severity: 'error' | 'success' | 'info'; message: string } | null>(null);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteSessionId, setInviteSessionId] = useState<string | null>(null);
   const [inviteJoinUrl, setInviteJoinUrl] = useState<string>('');
@@ -1073,6 +1076,68 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (json.snapshot) setSnapshot(json.snapshot);
     if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
     return { ok: true, snapshot: json.snapshot ?? null, personId: json.personId } as const;
+  };
+
+  const showNotice = (severity: 'error' | 'success' | 'info', message: string) => {
+    setNotice({ severity, message });
+    window.setTimeout(() => {
+      setNotice((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
+  };
+
+  const deleteAppointment = async (appointment: Snapshot['appointments'][0]) => {
+    const entry: UndoEntry = { id: `appointment:${appointment.code}:${Date.now()}`, entityType: 'appointment', code: appointment.code, label: appointment.desc || appointment.code, timestamp: Date.now() };
+    const previous = snapshot;
+    setUndoList((prev) => [entry, ...prev]);
+    setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.filter((item) => item.code !== appointment.code) }));
+    const result = await sendDirectAction({ type: 'delete_appointment', code: appointment.code });
+    if (!result.ok) {
+      setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
+      setSnapshot(previous);
+      showNotice('error', result.message);
+    }
+  };
+
+  const deletePersonDirect = async (person: Snapshot['people'][0]) => {
+    const entry: UndoEntry = { id: `person:${person.personId}:${Date.now()}`, entityType: 'person', personId: person.personId, label: person.name || person.personId, timestamp: Date.now() };
+    setUndoList((prev) => [entry, ...prev]);
+    const result = await sendDirectAction({ type: 'delete_person', personId: person.personId });
+    if (!result.ok) {
+      setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
+      showNotice('error', result.message);
+      return;
+    }
+    if (editingPersonId === person.personId) {
+      setEditingPersonId(null);
+      setPersonEditError(null);
+    }
+  };
+
+  const restoreUndoEntry = async (entry: UndoEntry) => {
+    const result = entry.entityType === 'appointment'
+      ? await sendDirectAction({ type: 'restore_appointment', code: entry.code })
+      : await sendDirectAction({ type: 'reactivate_person', personId: entry.personId });
+    if (!result.ok) {
+      showNotice('error', result.message);
+      return false;
+    }
+    setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
+    showNotice('success', `Restored ${entry.label}`);
+    return true;
+  };
+
+  const restoreLastUndo = async () => {
+    const first = undoList[0];
+    if (!first) return;
+    await restoreUndoEntry(first);
+  };
+
+  const restoreAllUndo = async () => {
+    const copy = [...undoList];
+    for (const entry of copy) {
+      const ok = await restoreUndoEntry(entry);
+      if (!ok) break;
+    }
   };
 
   const addAppointment = async () => {
@@ -2040,18 +2105,24 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           <strong>Guest access (limited)</strong> You’re using a temporary invite session. Some features are disabled.
         </Alert>
       ) : null}
+      {notice ? (
+        <Alert severity={notice.severity} sx={{ maxWidth: 760, mb: 1.5 }}>
+          {notice.message}
+        </Alert>
+      ) : null}
       <div className="ui-shell">
         <aside className="ui-sidebar" aria-hidden="true" />
         <section className="ui-main">
           {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
 
-          <Box sx={{ backgroundColor: 'background.default', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ backgroundColor: 'background.default', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
             <Tabs
               value={activeSection === 'members' ? 'members' : 'calendar'}
               onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
               aria-label="Section tabs"
               sx={{
                 minHeight: 40,
+                flexGrow: 1,
                 '& .MuiTabs-flexContainer': { paddingLeft: BODY_PX, paddingRight: BODY_PX, gap: 1 },
                 '& .MuiTabs-indicator': { display: 'none' }
               }}
@@ -2085,6 +2156,30 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 }}
               />
             </Tabs>
+            {undoList.length > 0 ? (
+              <>
+                <Tooltip title="Undo (this session)">
+                  <IconButton aria-label="Undo (this session)" onClick={(event) => setUndoMenuAnchorEl(event.currentTarget)} sx={{ mr: 1 }}>
+                    <UndoOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Menu anchorEl={undoMenuAnchorEl} open={Boolean(undoMenuAnchorEl)} onClose={() => setUndoMenuAnchorEl(null)}>
+                  <MenuItem disabled>Undo (this session)</MenuItem>
+                  <Divider />
+                  {undoList.map((entry) => (
+                    <MenuItem key={entry.id} onClick={() => { void restoreUndoEntry(entry); }}>
+                      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ width: '100%', minWidth: 260 }}>
+                        <Typography variant="body2" noWrap title={entry.label} sx={{ maxWidth: 180 }}>{entry.label}</Typography>
+                        <Typography variant="caption" color="primary">Restore</Typography>
+                      </Stack>
+                    </MenuItem>
+                  ))}
+                  <Divider />
+                  <MenuItem onClick={() => { void restoreLastUndo(); }}>Restore last</MenuItem>
+                  <MenuItem onClick={() => { void restoreAllUndo(); }}>Restore all</MenuItem>
+                </Menu>
+              </>
+            ) : null}
           </Box>
 
           <Paper variant="outlined" sx={{ borderTop: 'none', borderRadius: 0 }}>
@@ -2217,7 +2312,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           )}
                           formatWhen={formatAppointmentTime}
                           onEdit={openWhenEditor}
-                          onDelete={setAppointmentToDelete}
+                          onDelete={(appointment) => { void deleteAppointment(appointment); }}
                           onSelectPeople={setSelectedAppointment}
                           onOpenScanViewer={setScanViewerAppointment}
                           onDismissScanRow={(appointment, action) => { void dismissScanAppointment(appointment, action); }}
@@ -2417,7 +2512,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Delete person">
-                                <IconButton size="small" aria-label="Delete person" onClick={() => setPersonToDelete(person)}>
+                                <IconButton size="small" aria-label="Delete person" onClick={() => { void deletePersonDirect(person); }}>
                                   <Trash2 />
                                 </IconButton>
                               </Tooltip>
@@ -2622,28 +2717,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
 
       <input ref={fileScanInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(event) => { void onPickScanFile(event); }} />
-      <Dialog open={Boolean(appointmentToDelete)} onClose={() => setAppointmentToDelete(null)} fullWidth maxWidth="xs">
-        <DialogTitle>Delete appointment</DialogTitle>
-        <DialogContent>
-          {appointmentToDelete ? <AppointmentDialogContext {...getAppointmentContext(appointmentToDelete)} /> : null}
-        </DialogContent>
-        <DialogActions>
-          <Button type="button" variant="outlined" onClick={() => setAppointmentToDelete(null)}>Cancel</Button>
-          <Button
-            type="button"
-            variant="contained"
-            color="error"
-            onClick={() => {
-              if (!appointmentToDelete) return;
-              void sendDirectAction({ type: 'delete_appointment', code: appointmentToDelete.code });
-              setAppointmentToDelete(null);
-            }}
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-
 
       <Dialog open={Boolean(scanViewerAppointment)} onClose={() => setScanViewerAppointment(null)} maxWidth="md" fullWidth>
         <DialogTitle>Scan</DialogTitle>
@@ -2703,31 +2776,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogActions>
           <Button type="button" variant="outlined" onClick={closeScanCaptureModal} disabled={scanCaptureBusy}>Cancel</Button>
           <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }} disabled={!isScanCaptureReady || scanCaptureBusy}>{scanCaptureBusy ? 'Scanning…' : 'Capture'}</Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog open={Boolean(personToDelete)} onClose={() => setPersonToDelete(null)} fullWidth maxWidth="sm">
-        <DialogTitle>{personToDelete ? `Delete ${personToDelete.name || personToDelete.personId}?` : 'Delete person?'}</DialogTitle>
-        <DialogContent>
-          <Typography>This will remove this person from the active allowlist. Existing history and appointments are preserved.</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button type="button" variant="outlined" onClick={() => setPersonToDelete(null)}>Cancel</Button>
-          <Button
-            type="button"
-            variant="contained"
-            color="error"
-            onClick={() => {
-              if (!personToDelete) return;
-              void sendDirectAction({ type: 'delete_person', personId: personToDelete.personId });
-              setPersonToDelete(null);
-              if (editingPersonId === personToDelete.personId) {
-                setEditingPersonId(null);
-                setPersonEditError(null);
-              }
-            }}
-          >
-            Confirm
-          </Button>
         </DialogActions>
       </Dialog>
 

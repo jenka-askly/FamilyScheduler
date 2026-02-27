@@ -353,9 +353,23 @@ export const executeActions = async (state: AppState, actions: Action[], context
     }
 
     if (action.type === 'delete_appointment') {
-      const index = nextState.appointments.findIndex((item) => normalizeCode(item.code) === normalizeCode(action.code));
-      if (index === -1) { effectsTextLines.push(`Not found: ${action.code}`); appliedAll = false; continue; }
-      const [removed] = nextState.appointments.splice(index, 1); effectsTextLines.push(`Deleted ${removed.code} — ${removed.title}`); continue;
+      const appointment = findAppointmentByCode(nextState, action.code);
+      if (!appointment) { effectsTextLines.push(`Not found: ${action.code}`); appliedAll = false; continue; }
+      appointment.isDeleted = true;
+      appointment.deletedAt = new Date().toISOString();
+      appointment.deletedByUserKey = context.activePersonId ?? undefined;
+      effectsTextLines.push(`Deleted ${appointment.code} — ${appointment.title}`);
+      continue;
+    }
+
+    if (action.type === 'restore_appointment') {
+      const appointment = findAppointmentByCode(nextState, action.code);
+      if (!appointment) { effectsTextLines.push(`Not found: ${action.code}`); appliedAll = false; continue; }
+      appointment.isDeleted = false;
+      appointment.deletedAt = undefined;
+      appointment.deletedByUserKey = undefined;
+      effectsTextLines.push(`Restored ${appointment.code} — ${appointment.title}`);
+      continue;
     }
 
     if (action.type === 'update_appointment_desc' || action.type === 'set_appointment_desc' || action.type === 'reschedule_appointment' || action.type === 'set_appointment_date' || action.type === 'set_appointment_start_time' || action.type === 'set_appointment_duration' || action.type === 'set_appointment_location' || action.type === 'set_appointment_notes' || action.type === 'add_people_to_appointment' || action.type === 'remove_people_from_appointment' || action.type === 'replace_people_on_appointment' || action.type === 'clear_people_on_appointment') {
@@ -421,8 +435,8 @@ export const executeActions = async (state: AppState, actions: Action[], context
       nextActivePersonId = person.personId; effectsTextLines.push(`Got it. You are ${person.name}.`); continue;
     }
 
-    if (action.type === 'list_appointments') { effectsTextLines.push(nextState.appointments.length > 0 ? nextState.appointments.map((a) => `${a.code} — ${a.title}`).join('\n') : '(none)'); continue; }
-    if (action.type === 'show_appointment') { const appointment = findAppointmentByCode(nextState, action.code); effectsTextLines.push(appointment ? `${appointment.code} — ${appointment.title}` : `Not found: ${action.code}`); continue; }
+    if (action.type === 'list_appointments') { const visibleAppointments = nextState.appointments.filter((appointment) => appointment.isDeleted !== true); effectsTextLines.push(visibleAppointments.length > 0 ? visibleAppointments.map((a) => `${a.code} — ${a.title}`).join('\n') : '(none)'); continue; }
+    if (action.type === 'show_appointment') { const appointment = findAppointmentByCode(nextState, action.code); effectsTextLines.push(appointment && appointment.isDeleted !== true ? `${appointment.code} — ${appointment.title}` : `Not found: ${action.code}`); continue; }
     if (action.type === 'list_people') { effectsTextLines.push(nextState.people.length ? nextState.people.map((p) => `${p.personId} — ${p.name} (${p.status})`).join('\n') : '(none)'); continue; }
     if (action.type === 'show_person') { const person = findPersonById(nextState, action.personId); effectsTextLines.push(person ? `${person.personId} — ${person.name}` : `Not found: ${action.personId}`); continue; }
     if (action.type === 'list_rules') { const rules = action.personId ? nextState.rules.filter((r) => r.personId === action.personId) : nextState.rules; effectsTextLines.push(rules.length ? rules.map((r) => `${r.code} — ${r.personId} ${r.kind} ${describeTime(r.date, r.startTime, r.durationMins)}`).join('\n') : '(none)'); continue; }
