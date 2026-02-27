@@ -2,6 +2,7 @@ import type { TableEntityResult } from '@azure/data-tables';
 import { getTableClient } from './tablesClient.js';
 import { TABLE_KEY_SEP } from './tableKeys.js';
 const listAppointmentIndexesForGroupForTests: { fn: ((groupId: string, max?: number) => Promise<AppointmentsIndexEntity[]>) | null } = { fn: null };
+const upsertAppointmentIndexForTests: { fn: ((entity: AppointmentsIndexEntity) => Promise<void>) | null } = { fn: null };
 
 export type MembershipStatus = 'active' | 'invited' | 'removed';
 
@@ -196,6 +197,7 @@ export const setListAppointmentIndexesForGroupForTests = (fn: ((groupId: string,
 };
 
 export const upsertAppointmentIndex = async (entity: AppointmentsIndexEntity): Promise<void> => {
+  if (upsertAppointmentIndexForTests.fn) return upsertAppointmentIndexForTests.fn(entity);
   const { startTime, ...rest } = entity;
   const parsed = typeof startTime === 'string' ? Date.parse(startTime) : Number.NaN;
   const entityToUpsert: AppointmentsIndexEntity = Number.isFinite(parsed)
@@ -208,6 +210,10 @@ export const upsertAppointmentIndex = async (entity: AppointmentsIndexEntity): P
   await getTableClient('AppointmentsIndex').upsertEntity(entityToUpsert, 'Merge');
 };
 
+
+export const setUpsertAppointmentIndexForTests = (fn: ((entity: AppointmentsIndexEntity) => Promise<void>) | null): void => {
+  upsertAppointmentIndexForTests.fn = fn;
+};
 export const listUserGroups = async (userKey: string, max = 200): Promise<UserGroupsEntity[]> => {
   const result: UserGroupsEntity[] = [];
   const client = getTableClient('UserGroups');
