@@ -686,6 +686,16 @@ type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'
 const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
 
 function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: string }) {
+  const debugPhoto = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debugPhoto') === '1';
+  const dlog = (...args: unknown[]) => {
+    if (debugPhoto) console.log('[photo]', ...args);
+  };
+  const dwarn = (...args: unknown[]) => {
+    if (debugPhoto) console.warn('[photo]', ...args);
+  };
+  const derr = (...args: unknown[]) => {
+    if (debugPhoto) console.error('[photo]', ...args);
+  };
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
   const [groupName, setGroupName] = useState<string>('');
@@ -699,6 +709,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [profilePhotoVersion, setProfilePhotoVersionState] = useState<string>(() => getPhotoVersion());
   const [profilePhotoObjectUrl, setProfilePhotoObjectUrl] = useState<string | null>(null);
   const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
+  const [profilePhotoReloadTick, setProfilePhotoReloadTick] = useState(0);
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
@@ -743,7 +754,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   }, []);
 
   useEffect(() => () => {
-    if (profilePhotoObjectUrl) URL.revokeObjectURL(profilePhotoObjectUrl);
+    if (profilePhotoObjectUrl) {
+      dlog('revoke object url', profilePhotoObjectUrl);
+      URL.revokeObjectURL(profilePhotoObjectUrl);
+    }
   }, [profilePhotoObjectUrl]);
 
   useEffect(() => {
@@ -933,22 +947,67 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       return;
     }
     let canceled = false;
-    setPhotoLoadError(false);
     const loadProfilePhoto = async () => {
+      const startAt = performance.now();
+      const requestUrl = `${apiUrl('/api/user/profile-photo')}?v=${encodeURIComponent(profilePhotoVersion)}`;
+      dlog('request', { url: requestUrl, hasSession: !!window.localStorage.getItem('fs.sessionId') });
+      setPhotoLoadError(false);
       try {
-        const response = await apiFetch(`${apiUrl('/api/user/profile-photo')}?v=${encodeURIComponent(profilePhotoVersion)}`, { method: 'GET' });
+        const response = await apiFetch(requestUrl, { method: 'GET' });
+        const endAt = performance.now();
+        const contentType = response.headers.get('content-type') ?? '';
+        dlog('response', {
+          status: response.status,
+          ok: response.ok,
+          redirected: response.redirected,
+          type: response.type,
+          headers: {
+            contentType,
+            contentLength: response.headers.get('content-length') ?? null,
+            cacheControl: response.headers.get('cache-control') ?? null,
+            etag: response.headers.get('etag') ?? null
+          },
+          timingMs: endAt - startAt
+        });
         if (!response.ok) {
+          dwarn('profile photo response not ok', { status: response.status, contentType });
+          try {
+            const sample = (await response.clone().text()).slice(0, 300);
+            dwarn('error response sample', sample);
+          } catch (error) {
+            derr('unable to read error response sample', error);
+          }
           if (!canceled) {
             setPhotoLoadError(true);
             setProfilePhotoObjectUrl(null);
           }
           return;
         }
+        const responseForSample = response.clone();
         const blob = await response.blob();
+        dlog('blob', { size: blob.size });
+        if (!contentType.startsWith('image/') || blob.size === 0) {
+          dwarn('invalid image payload', { contentType, size: blob.size });
+          try {
+            const sample = (await responseForSample.text()).slice(0, 300);
+            dwarn('invalid image payload sample', sample);
+          } catch (error) {
+            derr('unable to read invalid image payload sample', error);
+          }
+          if (!canceled) {
+            setPhotoLoadError(true);
+            setProfilePhotoObjectUrl(null);
+          }
+          return;
+        }
         if (canceled) return;
         const objectUrl = URL.createObjectURL(blob);
+        dlog('blob object url', objectUrl);
+        dlog('set object url', objectUrl);
         setProfilePhotoObjectUrl(objectUrl);
-      } catch {
+        setPhotoLoadError(false);
+      } catch (error) {
+        derr('profile photo load failed', error);
         if (!canceled) {
           setPhotoLoadError(true);
           setProfilePhotoObjectUrl(null);
@@ -960,7 +1019,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     return () => {
       canceled = true;
     };
-  }, [profilePhotoVersion, sessionId]);
+  }, [profilePhotoReloadTick, profilePhotoVersion, sessionId]);
 
 
   const uploadProfilePhoto = async (blob: Blob): Promise<void> => {
@@ -1263,13 +1322,38 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                     role={isOrganizer ? 'button' : undefined}
                     aria-label={isOrganizer ? 'Add or replace profile photo' : undefined}
                   >
-                    {personPhotoUrl ? <img className="ui-ignitePersonThumb" src={personPhotoUrl} alt={personName} onError={() => { if (isOrganizer) setPhotoLoadError(true); }} /> : <div className="ui-ignitePersonInitials">{personName.trim().charAt(0).toUpperCase() || '?'}</div>}
+                    {personPhotoUrl ? (
+                      <img
+                        className="ui-ignitePersonThumb"
+                        src={personPhotoUrl}
+                        alt={personName}
+                        onLoad={(event) => {
+                          if (!debugPhoto) return;
+                          dlog('img onLoad', {
+                            naturalWidth: event.currentTarget.naturalWidth,
+                            naturalHeight: event.currentTarget.naturalHeight,
+                            currentSrc: event.currentTarget.currentSrc
+                          });
+                        }}
+                        onError={(event) => {
+                          if (debugPhoto) {
+                            dwarn('img onError', { currentSrc: event.currentTarget.currentSrc });
+                          }
+                          if (isOrganizer) setPhotoLoadError(true);
+                        }}
+                      />
+                    ) : <div className="ui-ignitePersonInitials">{personName.trim().charAt(0).toUpperCase() || '?'}</div>}
                     {isOrganizer ? <CameraAltIcon className="ui-igniteCameraOverlay" fontSize="small" /> : null}
                     <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
                   </div>
                 );
               }) : null}
             </div>
+            {debugPhoto && photoLoadError ? (
+              <Button variant="text" size="small" onClick={() => { setProfilePhotoReloadTick((tick) => tick + 1); }}>
+                Reload photo
+              </Button>
+            ) : null}
           </div>
 
           <div className="ui-igniteSection ui-igniteFooterControls" style={{ marginTop: 16 }}>

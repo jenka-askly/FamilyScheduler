@@ -1,3 +1,15 @@
+## 2026-02-27 09:25 UTC update (BREAKOUT profile photo deep diagnostics)
+
+- Added query-param-gated diagnostics for organizer profile photo loading in BREAKOUT (`?debugPhoto=1`) with centralized `[photo]` debug/warn/error log helpers to avoid default console noise.
+- Hardened organizer profile photo loader validation prior to `URL.createObjectURL`: logs request/session presence, response metadata/headers/timing, non-OK text sample (trimmed to 300 chars), blob size, and rejects non-image or empty payloads while preserving initials fallback.
+- Added organizer image element lifecycle diagnostics in debug mode (`img onLoad` natural dimensions and `img onError` current source).
+- Added explicit object URL lifecycle logs for set/revoke to verify no premature revocation of active URL.
+- Added debug-only “Reload photo” trigger when organizer photo load errors occur.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
 ## 2026-02-27 08:47 UTC update (BREAKOUT profile photo auth fix)
 
 - Fixed BREAKOUT organizer profile photo loading to use authenticated `apiFetch` GET `/api/user/profile-photo` instead of direct `<img src>` URL loading.
