@@ -1,3 +1,29 @@
+## 2026-02-27 04:46 UTC (Appointment pane enhancement: prevent resolve_appointment_time on title intent messages)
+
+### Objective
+Stop erroneous discussion-time resolver calls for title-intent messages while preserving existing title proposal widget behavior.
+
+### Approach
+- Located the discussion submit path after `append_appointment_message` in `apps/web/src/AppShell.tsx` -> `buildSuggestionsForMessage` -> `generateSuggestionCandidates`.
+- Added explicit intent gates in `apps/web/src/lib/appointmentSuggestions.ts`:
+  - `isTitleIntentMessage(...)` for title commands (`change/update title to`, `rename to`, `call it`).
+  - `shouldResolveAppointmentTimeFromDiscussionMessage(...)` for time/date text only (time-of-day, relative date words, explicit date formats).
+- Updated candidate generation to call `resolveWhen(...)` only when the new gate permits it.
+- Extended tests to verify title intents do not invoke `resolveWhen`, while `tomorrow at 3pm` and explicit dates still pass through.
+
+### Files changed
+- `apps/web/src/lib/appointmentSuggestions.ts`
+- `apps/web/src/lib/appointmentSuggestions.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (bundle-size warning only).
+
+### Follow-ups
+- Human-run browser validation should confirm network panel: `change title to xyz` calls `append_appointment_message` but not `resolve_appointment_time`; `tomorrow at 3pm` still calls resolver.
+
 ## 2026-02-27 02:58 UTC (Appointment pane enhancement: remove raw proposal enum labels in Changes/Discussion)
 
 ### Objective

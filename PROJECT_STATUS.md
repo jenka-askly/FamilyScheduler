@@ -1,3 +1,9 @@
+## 2026-02-27 04:46 UTC update (Appointment pane enhancement: discussion intent gate for time resolver)
+
+- Fixed: title-intent discussion messages no longer trigger resolve_appointment_time (prevents 502 and misrouting).
+- Added strict discussion intent gate in web suggestion flow: title intents (`change/update title to`, `rename to`, `call it`) bypass time resolution; time/date-like intents continue to resolve.
+- Added/updated suggestion unit coverage for title intent bypass and discussion time/date gate behavior.
+
 ## 2026-02-27 03:05 UTC update (Appointment drawer de-scope: remove Share + Suggest UI)
 
 - Removed Share + Suggest UI from appointment drawer (de-scoped for now).

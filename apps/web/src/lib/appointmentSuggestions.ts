@@ -36,6 +36,10 @@ const TITLE_PATTERNS = [
   /^\s*call\s+it\s+(.+)/i
 ];
 
+const TIME_OF_DAY_INTENT_PATTERN = /\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:am|pm)?\b/i;
+const RELATIVE_DATE_INTENT_PATTERN = /\b(?:today|tomorrow|tonight|this\s+(?:morning|afternoon|evening|weekend)|next\s+(?:week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i;
+const EXPLICIT_DATE_INTENT_PATTERN = /\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?)\b/i;
+
 const LOCATION_PATTERN = /\b(?:at|in|location is|let'?s do)\s+(.+)/i;
 const CONSTRAINT_CUE_PATTERN = /\b(?:can'?t|cannot|not available|must|required|need(?:s)? to)\b/i;
 const CANT_DO_PATTERN = /\b(?:i\s+can'?t|i\s+cannot)\s+do\s+(.+)/i;
@@ -57,6 +61,16 @@ const createCandidate = (label: string, action: SuggestionDirectAction): Suggest
   label,
   action
 });
+
+export const isTitleIntentMessage = (messageText: string): boolean => TITLE_PATTERNS.some((pattern) => pattern.test(messageText.trim()));
+
+export const shouldResolveAppointmentTimeFromDiscussionMessage = (messageText: string): boolean => {
+  const trimmed = messageText.trim();
+  if (!trimmed || isTitleIntentMessage(trimmed)) return false;
+  return TIME_OF_DAY_INTENT_PATTERN.test(trimmed)
+    || RELATIVE_DATE_INTENT_PATTERN.test(trimmed)
+    || EXPLICIT_DATE_INTENT_PATTERN.test(trimmed);
+};
 
 export async function generateSuggestionCandidates({
   messageText,
@@ -83,7 +97,9 @@ export async function generateSuggestionCandidates({
     break;
   }
 
-  const resolvedWhen = await parsingHelpers.resolveWhen(trimmedMessage);
+  const resolvedWhen = shouldResolveAppointmentTimeFromDiscussionMessage(trimmedMessage)
+    ? await parsingHelpers.resolveWhen(trimmedMessage)
+    : null;
   if (resolvedWhen?.startTime) {
     const display = resolvedWhen.displayTime ?? formatDisplayTime(resolvedWhen.startTime);
     ranked.push(createCandidate(`Set start time to ${display}`, { type: 'set_appointment_start_time', code: appointmentDetailContext.appointmentCode, startTime: resolvedWhen.startTime }));
