@@ -11932,3 +11932,37 @@ Add lightweight live updates for appointment details while the drawer is open (w
 
 ### Follow-ups
 - Human should run quick desktop/mobile manual interaction pass in local browser to confirm scroll/tap ergonomics on touch devices.
+
+## 2026-02-27 05:12 UTC (Appointment Pane Enhancement – Chat Suggestions v1)
+
+### Objective
+- Implement author-only discussion suggestion cards (up to 3) that map to complete single direct actions and apply immediately on click.
+
+### Approach
+- Added a web-only suggestion model/generator (`appointmentSuggestions.ts`) with deterministic triggers and ranking:
+  - title rename verbs
+  - resolved time/date via existing `resolve_appointment_time` parser path
+  - explicit location phrase extraction
+  - single general `add_constraint` fallback for negation cues
+- Wired discussion submit flow to generate suggestions from appended `USER_MESSAGE` events and attach them to `activeSuggestionCard` under the source message.
+- Added author-only rendering checks, explicit dismiss button, and dismiss-on-any-keydown behavior in discussion input.
+- Added immediate single-action apply handler that calls `/api/direct`, surfaces inline errors, and refetches appointment detail on success.
+- Added focused unit tests for `generateSuggestionCandidates` and ran them with Node strip-types test runner.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/appointmentSuggestions.ts`
+- `apps/web/src/lib/appointmentSuggestions.test.ts`
+- `apps/web/tsconfig.json`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `node --experimental-strip-types --test apps/web/src/lib/appointmentSuggestions.test.ts` ✅ passed (6 tests)
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed
+- `pnpm --filter @familyscheduler/web build` ✅ passed
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT
+
+### Follow-ups
+- Manual app-authenticated verification still needed for end-to-end discussion suggestion card behavior with two distinct user accounts.
+
