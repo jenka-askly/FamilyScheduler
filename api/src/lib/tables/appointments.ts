@@ -2,6 +2,7 @@ import { createStorageAdapter } from '../storage/storageFactory.js';
 import { getContainerClient } from '../storage/blobClients.js';
 
 const getAppointmentJsonForTests: { fn: ((groupId: string, appointmentId: string) => Promise<Record<string, unknown> | null>) | null } = { fn: null };
+const putAppointmentJsonForTests: { fn: ((groupId: string, appointmentId: string, payload: Record<string, unknown>) => Promise<void>) | null } = { fn: null };
 
 const streamToText = async (readable: NodeJS.ReadableStream): Promise<string> => {
   const chunks: Buffer[] = [];
@@ -22,6 +23,7 @@ const getBlobClient = (groupId: string, appointmentId: string) => {
 export const appointmentJsonBlobPath = (groupId: string, appointmentId: string): string => `${prefix()}/${groupId}/appointments/${appointmentId}/appointment.json`;
 
 export const putAppointmentJson = async (groupId: string, appointmentId: string, payload: Record<string, unknown>): Promise<void> => {
+  if (putAppointmentJsonForTests.fn) return putAppointmentJsonForTests.fn(groupId, appointmentId, payload);
   const storage = createStorageAdapter();
   if (!storage.putBinary) throw new Error('Storage adapter missing putBinary');
   const body = Buffer.from(`${JSON.stringify(payload, null, 2)}\n`, 'utf-8');
@@ -75,4 +77,8 @@ export const putAppointmentJsonWithEtag = async (groupId: string, appointmentId:
 
 export const setGetAppointmentJsonForTests = (fn: ((groupId: string, appointmentId: string) => Promise<Record<string, unknown> | null>) | null): void => {
   getAppointmentJsonForTests.fn = fn;
+};
+
+export const setPutAppointmentJsonForTests = (fn: ((groupId: string, appointmentId: string, payload: Record<string, unknown>) => Promise<void>) | null): void => {
+  putAppointmentJsonForTests.fn = fn;
 };

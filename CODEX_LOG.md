@@ -12697,3 +12697,71 @@ When creating a new blank appointment via `+`, make Cancel/close delete that app
 
 - Manual verification in browser/staging still needed for exact interaction/network sequence:
   - `create_blank_appointment` followed by `delete_appointment` for immediate cancel.
+
+## 2026-02-27 20:05 UTC (Phase 1: fix Schedule delete regression using appointmentId + index/doc store)
+
+### Objective
+
+Implement Phase 1 delete reliability fix: make `/api/direct` delete operate by `appointmentId` against `AppointmentsIndex + appointment.json`, and return `ok:false` when delete/action is not applied.
+
+### Pre-flight state consistency
+
+- Reviewed `CODEX_LOG.md` entries around deletion and snapshot sourcing (including 2026-02-27 17:05 and 17:20).
+- Corroborated code state with:
+  - `git status`
+  - `git log -n 30 --oneline`
+  - `rg -n "delete_appointment" api/src apps/web/src`
+  - `rg -n "buildSnapshotFromIndex|AppointmentsIndex|appointment.json|list appointments" api/src apps/web/src`
+- Found mismatch vs prior "Deletion UX" log implications: frontend still sent delete by `code`, and direct delete path still flowed through state action executor instead of mutating authoritative index/doc store.
+- Per rule, trusted code and applied corrective implementation + log update.
+
+### Approach
+
+- Frontend:
+  - Changed Schedule delete dispatch to send `appointmentId`.
+  - Changed blank-new-appointment cancel auto-delete dispatch to send `appointmentId`.
+  - Preserved existing inline notice surfacing on failures.
+- Backend direct action parsing:
+  - Added backward-compatible delete parser support for both `{ appointmentId }` and legacy `{ code }`.
+- Backend delete execution semantics:
+  - Added direct delete branch that resolves `appointmentId` (uses id directly, legacy code fallback with explicit not-found/ambiguous failure).
+  - Executes soft delete against `AppointmentsIndex` + `appointment.json` via shared helper, not via state-array mutation.
+  - Added structured log line for delete path: `groupId`, `appointmentId`, `appliedAll`, `storeMutated=index/doc`.
+- Shared delete helper:
+  - Added `softDeleteAppointmentById(groupId, appointmentId, userKey, now)` in table layer.
+  - Reused helper from `appointmentScanDelete` to keep delete semantics consistent across scan/direct paths.
+- Direct response semantics:
+  - Updated `execution.appliedAll === false` responses to return `{ ok:false, message, snapshot }` (instead of success semantics).
+- Tests/seams:
+  - Added table/doc test seams for index lookup + appointment JSON put.
+  - Added direct tests for appointmentId delete success path and missing-id negative path.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/direct.ts`
+- `api/src/lib/tables/appointmentSoftDelete.ts` (new)
+- `api/src/functions/appointmentScanDelete.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/tables/appointments.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅
+- `git log -n 30 --oneline` ✅
+- `rg -n "delete_appointment" api/src apps/web/src` ✅
+- `rg -n "buildSnapshotFromIndex|AppointmentsIndex|appointment.json|list appointments" api/src apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ failed because this script runs full compiled API test suite and hits pre-existing unrelated failing tests.
+- `cd api && node --test dist/api/src/functions/direct.test.js` ⚠️ failed due pre-existing session/header assumptions in existing direct tests.
+
+### Follow-ups
+
+- Manual browser/network validation in human runtime:
+  - confirm `/api/direct` delete payload now contains `appointmentId` (not `code`)
+  - confirm deleted appointment does not reappear after polling/hard refresh
+  - confirm random appointmentId delete returns `{ ok:false, message: "Not found: <id>", snapshot }`.

@@ -4,8 +4,8 @@ import { Readable } from 'node:stream';
 import { derivePendingProposal, direct, setAppointmentDocStoreForTests, setAppointmentEventStoreForTests, toResponseSnapshot } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
-import { setGetAppointmentJsonForTests } from '../lib/tables/appointments.js';
-import { setListAppointmentIndexesForGroupForTests, setUpsertAppointmentIndexForTests } from '../lib/tables/entities.js';
+import { setGetAppointmentJsonForTests, setPutAppointmentJsonForTests } from '../lib/tables/appointments.js';
+import { setFindAppointmentIndexByIdForTests, setListAppointmentIndexesForGroupForTests, setUpsertAppointmentIndexForTests } from '../lib/tables/entities.js';
 
 const GROUP_ID = '22222222-2222-4222-8222-222222222222';
 const PHONE = '+14155550123';
@@ -28,7 +28,9 @@ test.afterEach(() => setStorageAdapterForTests(null));
 test.afterEach(() => setAppointmentDocStoreForTests(null));
 test.afterEach(() => setAppointmentEventStoreForTests(null));
 test.afterEach(() => setGetAppointmentJsonForTests(null));
+test.afterEach(() => setPutAppointmentJsonForTests(null));
 test.afterEach(() => setListAppointmentIndexesForGroupForTests(null));
+test.afterEach(() => setFindAppointmentIndexByIdForTests(null));
 test.afterEach(() => setUpsertAppointmentIndexForTests(null));
 test.afterEach(() => {
   delete process.env.OPENAI_API_KEY;
@@ -610,4 +612,65 @@ test('toResponseSnapshot filters soft-deleted appointments', () => {
   });
   assert.equal(snapshot.appointments.length, 1);
   assert.equal(snapshot.appointments[0].code, 'APPT-1');
+});
+
+
+test('delete_appointment uses appointmentId and soft-deletes index/doc backed snapshot', async () => {
+  const base = state();
+  base.appointments.push({ id: 'appt-1', code: 'APPT-1', title: 'Dentist', people: [], assigned: [] } as any);
+  const docs = new Map<string, Record<string, unknown>>([
+    ['appt-1', { id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', isDeleted: false }]
+  ]);
+  const indexes = new Map<string, any>([
+    ['appt-1', { partitionKey: GROUP_ID, rowKey: 'rk-1', appointmentId: 'appt-1', status: 'active', hasScan: false, createdAt: '2026-02-27T08:00:00.000Z', updatedAt: '2026-02-27T08:00:00.000Z', isDeleted: false }]
+  ]);
+
+  setFindAppointmentIndexByIdForTests(async (_groupId, appointmentId) => indexes.get(appointmentId) ?? null);
+  setUpsertAppointmentIndexForTests(async (entity) => { indexes.set(entity.appointmentId, entity); });
+  setListAppointmentIndexesForGroupForTests(async () => Array.from(indexes.values()).filter((entry) => entry.isDeleted !== true));
+  setGetAppointmentJsonForTests(async (_groupId, appointmentId) => docs.get(appointmentId) ?? null);
+  setPutAppointmentJsonForTests(async (_groupId, appointmentId, payload) => { docs.set(appointmentId, payload); });
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: base, etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called for index/doc soft delete path'); }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'delete_appointment', appointmentId: 'appt-1' } }) } as any, context());
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).ok, true);
+  assert.equal((response.jsonBody as any).snapshot.appointments.some((entry: any) => entry.id === 'appt-1'), false);
+  assert.equal(indexes.get('appt-1')?.isDeleted, true);
+  assert.equal(docs.get('appt-1')?.isDeleted, true);
+});
+
+test('delete_appointment returns ok:false + unchanged snapshot when appointmentId is missing from index', async () => {
+  const base = state();
+  const docs = new Map<string, Record<string, unknown>>([
+    ['appt-2', { id: 'appt-2', code: 'APPT-2', title: 'Keep me', date: '2026-03-02' }]
+  ]);
+  const indexes = new Map<string, any>([
+    ['appt-2', { partitionKey: GROUP_ID, rowKey: 'rk-2', appointmentId: 'appt-2', status: 'active', hasScan: false, createdAt: '2026-02-27T08:00:00.000Z', updatedAt: '2026-02-27T08:00:00.000Z', isDeleted: false }]
+  ]);
+
+  setFindAppointmentIndexByIdForTests(async (_groupId, appointmentId) => indexes.get(appointmentId) ?? null);
+  setUpsertAppointmentIndexForTests(async (entity) => { indexes.set(entity.appointmentId, entity); });
+  setListAppointmentIndexesForGroupForTests(async () => Array.from(indexes.values()).filter((entry) => entry.isDeleted !== true));
+  setGetAppointmentJsonForTests(async (_groupId, appointmentId) => docs.get(appointmentId) ?? null);
+  setPutAppointmentJsonForTests(async (_groupId, appointmentId, payload) => { docs.set(appointmentId, payload); });
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: base, etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called for missing delete'); }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'delete_appointment', appointmentId: 'missing-123' } }) } as any, context());
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).ok, false);
+  assert.match((response.jsonBody as any).message, /Not found: missing-123/);
+  assert.equal((response.jsonBody as any).snapshot.appointments.some((entry: any) => entry.id === 'appt-2'), true);
 });

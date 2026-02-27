@@ -30,6 +30,8 @@ import {
 import { appointmentJsonBlobPath, getAppointmentJsonWithEtag, putAppointmentJson, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
 import { rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js';
 import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
+import { softDeleteAppointmentById } from '../lib/tables/appointmentSoftDelete.js';
+import { userKeyFromEmail } from '../lib/identity/userKey.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -42,7 +44,8 @@ type DirectBody = { action?: unknown; groupId?: unknown; email?: unknown; phone?
 
 type DirectAction =
   | { type: 'create_blank_appointment' }
-  | { type: 'delete_appointment'; code: string }
+  | { type: 'delete_appointment'; appointmentId: string; code?: string }
+  | { type: 'delete_appointment'; code: string; appointmentId?: string }
   | { type: 'restore_appointment'; code: string }
   | { type: 'set_appointment_date'; code: string; date: string }
   | { type: 'set_appointment_start_time'; code: string; startTime?: string }
@@ -323,6 +326,17 @@ const buildDirectSnapshot = async (groupId: string, state: AppState, traceId: st
   return { ...toResponseSnapshot(state), appointments };
 };
 
+
+const resolveDeleteAppointmentId = (state: AppState, action: Extract<DirectAction, { type: 'delete_appointment' }>): { appointmentId: string } | { error: string } => {
+  if (action.appointmentId) return { appointmentId: action.appointmentId };
+  const code = action.code?.trim();
+  if (!code) return { error: 'appointmentId or code is required' };
+  const matches = state.appointments.filter((appointment) => (appointment.code ?? '').trim().toLowerCase() === code.toLowerCase());
+  if (matches.length === 0) return { error: `Not found: ${code}` };
+  if (matches.length > 1) return { error: `Ambiguous code: ${code}` };
+  return { appointmentId: matches[0].id };
+};
+
 const persistCreatedAppointmentDocAndIndex = async (groupId: string, beforeState: AppState, writtenState: AppState, actorEmail: string): Promise<void> => {
   const beforeIds = new Set(beforeState.appointments.map((appointment) => appointment.id));
   const created = writtenState.appointments.find((appointment) => !beforeIds.has(appointment.id));
@@ -359,7 +373,14 @@ const parseDirectAction = (value: unknown): DirectAction => {
   if (!type) throw new Error('action.type is required');
 
   if (type === 'create_blank_appointment') return { type };
-  if (type === 'delete_appointment' || type === 'restore_appointment') {
+  if (type === 'delete_appointment') {
+    const appointmentId = asString(value.appointmentId);
+    const code = asString(value.code);
+    if (appointmentId) return { type, appointmentId, ...(code ? { code } : {}) };
+    if (code) return { type, code };
+    throw new Error('appointmentId or code is required');
+  }
+  if (type === 'restore_appointment') {
     const code = asString(value.code);
     if (!code) throw new Error('code is required');
     return { type, code };
@@ -1182,9 +1203,29 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     }, opId);
   }
 
+  if (directAction.type === 'delete_appointment') {
+    const resolvedDelete = resolveDeleteAppointmentId(loaded.state, directAction);
+    if ('error' in resolvedDelete) {
+      const snapshot = await buildDirectSnapshot(groupId, loaded.state, traceId);
+      context.log(JSON.stringify({ event: 'direct_delete_appointment', traceId, groupId, appointmentId: directAction.appointmentId ?? null, appliedAll: false, storeMutated: 'index/doc', message: resolvedDelete.error }));
+      return withMeta({ status: 200, jsonBody: { ok: false, message: resolvedDelete.error, snapshot, traceId } });
+    }
+
+    const deleted = await softDeleteAppointmentById(groupId, resolvedDelete.appointmentId, userKeyFromEmail(session.email));
+    if (!deleted.ok) {
+      const snapshot = await buildDirectSnapshot(groupId, loaded.state, traceId);
+      context.log(JSON.stringify({ event: 'direct_delete_appointment', traceId, groupId, appointmentId: resolvedDelete.appointmentId, appliedAll: false, storeMutated: 'index/doc', message: deleted.message }));
+      return withMeta({ status: 200, jsonBody: { ok: false, message: deleted.message, snapshot, traceId } });
+    }
+
+    const writtenSnapshot = await buildDirectSnapshot(groupId, loaded.state, traceId);
+    context.log(JSON.stringify({ event: 'direct_delete_appointment', traceId, groupId, appointmentId: resolvedDelete.appointmentId, appliedAll: true, storeMutated: 'index/doc' }));
+    return withMeta({ status: 200, jsonBody: { ok: true, snapshot: writtenSnapshot } });
+  }
+
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: caller.memberId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (directAction.type === 'create_blank_appointment') {
-    if (!execution.appliedAll) return withMeta({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } });
+    if (!execution.appliedAll) return withMeta({ status: 200, jsonBody: { ok: false, message: execution.effectsTextLines.join(' | ') || 'Action could not be applied', snapshot: await buildDirectSnapshot(groupId, loaded.state, traceId), traceId } });
     try {
       const written = await storage.save(groupId, execution.nextState, loaded.etag);
       const createdAppointment = written.state.appointments[written.state.appointments.length - 1];
@@ -1267,7 +1308,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     }
   }
 
-  if (!execution.appliedAll) return withMeta({ status: 400, jsonBody: { ok: false, message: execution.effectsTextLines[0] ?? 'Action could not be applied', traceId } });
+  if (!execution.appliedAll) return withMeta({ status: 200, jsonBody: { ok: false, message: execution.effectsTextLines.join(' | ') || 'Action could not be applied', snapshot: await buildDirectSnapshot(groupId, loaded.state, traceId), traceId } });
 
   try {
     const written = await storage.save(groupId, execution.nextState, loaded.etag);

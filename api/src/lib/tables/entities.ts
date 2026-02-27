@@ -3,6 +3,7 @@ import { getTableClient } from './tablesClient.js';
 import { TABLE_KEY_SEP } from './tableKeys.js';
 const listAppointmentIndexesForGroupForTests: { fn: ((groupId: string, max?: number) => Promise<AppointmentsIndexEntity[]>) | null } = { fn: null };
 const upsertAppointmentIndexForTests: { fn: ((entity: AppointmentsIndexEntity) => Promise<void>) | null } = { fn: null };
+const findAppointmentIndexByIdForTests: { fn: ((groupId: string, appointmentId: string) => Promise<AppointmentsIndexEntity | null>) | null } = { fn: null };
 
 export type MembershipStatus = 'active' | 'invited' | 'removed';
 
@@ -163,6 +164,7 @@ export const getAppointmentIndexEntity = async (groupId: string, rowKey: string)
 };
 
 export const findAppointmentIndexById = async (groupId: string, appointmentId: string): Promise<AppointmentsIndexEntity | null> => {
+  if (findAppointmentIndexByIdForTests.fn) return findAppointmentIndexByIdForTests.fn(groupId, appointmentId);
   const client = getTableClient('AppointmentsIndex');
   const iter = client.listEntities<AppointmentsIndexEntity>({ queryOptions: { filter: `PartitionKey eq '${groupId}' and appointmentId eq '${appointmentId}'` } });
   for await (const entity of iter) return entity;
@@ -213,6 +215,10 @@ export const upsertAppointmentIndex = async (entity: AppointmentsIndexEntity): P
 
 export const setUpsertAppointmentIndexForTests = (fn: ((entity: AppointmentsIndexEntity) => Promise<void>) | null): void => {
   upsertAppointmentIndexForTests.fn = fn;
+};
+
+export const setFindAppointmentIndexByIdForTests = (fn: ((groupId: string, appointmentId: string) => Promise<AppointmentsIndexEntity | null>) | null): void => {
+  findAppointmentIndexByIdForTests.fn = fn;
 };
 export const listUserGroups = async (userKey: string, max = 200): Promise<UserGroupsEntity[]> => {
   const result: UserGroupsEntity[] = [];
