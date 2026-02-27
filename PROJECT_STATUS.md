@@ -1,3 +1,14 @@
+## 2026-02-27 00:28 UTC update (Prefer igniteGrace for POST /api/group/join session header)
+
+- Updated `apiFetch` session-header selection in `apps/web/src/lib/apiUrl.ts` to prefer `fs.igniteGraceSessionId` specifically for `POST /api/group/join` when a valid grace session exists for the request group.
+- Preserved existing precedence for all other endpoints (`fs.sessionId` first, then ignite grace fallback).
+- Kept ignite grace validity/scope checks unchanged by continuing to use `getIgniteGraceSessionId(requestGroupId)`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+
 ## 2026-02-27 00:05 UTC update (Members tab invite menu + QR modal for current group)
 
 - Replaced Members tab `+` behavior so it opens an anchored Invite menu instead of creating a blank person row.

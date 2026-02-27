@@ -11576,3 +11576,33 @@ Update the Members invite QR modal content to match Group Invite wording while r
 
 ### Follow-ups
 - Optional: add a focused UI test asserting invite modal labels/body/caption/button text to guard against regressions in wording.
+
+
+## 2026-02-27 00:28 UTC (Prefer igniteGrace session for group join calls)
+
+### Objective
+
+Ensure `POST /api/group/join` uses ignite grace session when present so QR join auto-admits non-members even if a stale/other durable `fs.sessionId` exists.
+
+### Approach
+
+- Located session header selection logic in `apps/web/src/lib/apiUrl.ts` (`apiFetch`).
+- Added explicit request method normalization and group-join detection (`path === '/api/group/join' && method === 'POST'`).
+- Scoped precedence override to this endpoint only:
+  - group join + valid grace session => use grace session
+  - otherwise retain existing precedence (`durable || grace`)
+- Kept grace-session validity/scope resolution unchanged by reusing `getIgniteGraceSessionId(requestGroupId)`.
+
+### Files changed
+
+- `apps/web/src/lib/apiUrl.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Human-run verification in browser for QR join scenario should confirm JoinGroupPage request-access path is bypassed on normal success flow.
