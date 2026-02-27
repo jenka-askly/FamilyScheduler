@@ -1,3 +1,17 @@
+## 2026-02-27 02:22 UTC update (Appointment pane UI polish bundle)
+
+- Header title refresh fixed: drawer header now reads from live appointment detail state and stays in sync after proposal apply refresh.
+- Countdown ticking display fixed: pending proposal countdown now ticks with interval-driven `remainingSeconds` updates.
+- Discussion author + indentation added: user/system authors render explicitly and messages use chat-style left/right alignment.
+- Collapse control changed to chevron toggle: replaced text button with accessible icon toggle (`aria-label` expand/collapse).
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual validation and screenshot capture.
+
+
 ## 2026-02-27 01:42 UTC update (Appointment pane enhancement round 2: proposal pending recovery + apply/cancel wiring)
 
 - Fixed proposal pending dead-end across API + web:
