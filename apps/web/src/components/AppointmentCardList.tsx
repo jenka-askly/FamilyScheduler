@@ -1,5 +1,5 @@
 import { ReactNode, useRef, useState } from 'react';
-import { Box, Button, Chip, IconButton, List, ListItem, Stack, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, IconButton, LinearProgress, List, ListItem, Stack, Tooltip, Typography } from '@mui/material';
 import type { TimeSpec } from '../../../../packages/shared/src/types.js';
 
 type Appointment = {
@@ -36,6 +36,8 @@ type AppointmentCardListProps = {
   onDelete: (appointment: Appointment) => void;
   onSelectPeople: (appointment: Appointment) => void;
   onOpenScanViewer: (appointment: Appointment) => void;
+  onDismissScanRow: (appointment: Appointment, action: 'cancel' | 'close') => void;
+  scanRowActionStateById: Record<string, { busy: boolean; error: string | null }>;
   onOpenDetails?: (appointment: Appointment) => void;
   activeAppointmentCode: string | null;
   scanViewIcon: ReactNode;
@@ -52,6 +54,8 @@ export function AppointmentCardList({
   onDelete,
   onSelectPeople,
   onOpenScanViewer,
+  onDismissScanRow,
+  scanRowActionStateById,
   onOpenDetails,
   activeAppointmentCode,
   scanViewIcon,
@@ -78,6 +82,66 @@ export function AppointmentCardList({
   return (
     <List disablePadding>
       {appointments.map((appointment) => {
+        const scanRowActionState = scanRowActionStateById[appointment.id] ?? { busy: false, error: null };
+        if (appointment.scanStatus === 'pending') {
+          return (
+            <ListItem
+              key={appointment.id}
+              disableGutters
+              data-appt-code={appointment.code}
+              sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}
+            >
+              <Stack spacing={1} sx={{ py: 0.25, px: 0.25 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>Scanning…</Typography>
+                  <Button
+                    type="button"
+                    size="small"
+                    variant="text"
+                    color="inherit"
+                    disabled={scanRowActionState.busy}
+                    onClick={() => onDismissScanRow(appointment, 'cancel')}
+                  >
+                    {scanRowActionState.busy ? 'Canceling…' : 'Cancel'}
+                  </Button>
+                </Stack>
+                <LinearProgress aria-label="Scanning in progress" />
+                {scanRowActionState.error ? <Alert severity="error">{scanRowActionState.error}</Alert> : null}
+              </Stack>
+            </ListItem>
+          );
+        }
+
+        if (appointment.scanStatus === 'failed') {
+          return (
+            <ListItem
+              key={appointment.id}
+              disableGutters
+              data-appt-code={appointment.code}
+              sx={{ display: 'block', borderBottom: (theme) => `1px solid ${theme.palette.divider}`, py: 0.75 }}
+            >
+              <Stack spacing={1} sx={{ py: 0.25, px: 0.25 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                  <Typography variant="body2" color="error.main" sx={{ fontWeight: 500 }}>
+                    Couldn’t extract an appointment from that image.
+                  </Typography>
+                  <Button
+                    type="button"
+                    size="small"
+                    variant="text"
+                    color="inherit"
+                    disabled={scanRowActionState.busy}
+                    onClick={() => onDismissScanRow(appointment, 'close')}
+                  >
+                    {scanRowActionState.busy ? 'Closing…' : 'Close'}
+                  </Button>
+                </Stack>
+                {scanRowActionState.error ? <Alert severity="error">{scanRowActionState.error}</Alert> : null}
+              </Stack>
+            </ListItem>
+          );
+        }
+
         const apptStatus = getStatus(appointment);
         const whenText = appointment.time?.intent?.status !== 'resolved' ? 'Unresolved' : formatWhen(appointment);
         const statusLabel = apptStatus === 'unreconcilable' ? 'Unreconcilable' : apptStatus === 'conflict' ? 'Conflict' : 'No conflict';

@@ -4820,3 +4820,28 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/81958407e5a45083/artifacts/artifacts/grace-banner.png`.
+
+## 2026-02-27 10:40 UTC update (Scan image rows: pending/failed guardrails + cancel/close delete)
+
+- Updated appointment list row rendering with a hard scan-status guardrail:
+  - `scanStatus === 'pending'` now renders a full-row non-interactive scanning placeholder (`Scanning…`) with an indeterminate progress bar and `Cancel` action.
+  - `scanStatus === 'failed'` now renders a full-row non-interactive failure row (`Couldn’t extract an appointment from that image.`) with `Close` action.
+  - Normal appointment row UI remains unchanged for non-pending/non-failed rows.
+- Added scan row action handling in web app:
+  - Cancel/Close use existing `/api/appointmentScanDelete` flow.
+  - Optimistic row removal from local snapshot.
+  - On success, `refreshSnapshot()` is called.
+  - On failure, row is restored and inline row-level error is shown.
+- Backend scan pending consistency updates:
+  - Initial scan-created appointment now persists `title: "Scanning…"` while pending.
+  - Rescan now writes `scanStatus: "pending"` immediately and returns; parse runs asynchronously and later updates to `parsed`/`failed`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api build` ✅ passed.
+3. `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Verification correction
+
+- `pnpm --filter @familyscheduler/api build` ⚠️ blocked in this container by pre-existing missing `@azure/data-tables` module/type declarations (`TS2307`), unrelated to this scan-row change.
