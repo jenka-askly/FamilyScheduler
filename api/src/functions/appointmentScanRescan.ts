@@ -2,7 +2,7 @@ import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azu
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { decodeImageBase64, scanBlobKey, applyParsedFields } from '../lib/scan/appointmentScan.js';
+import { decodeImageBase64, scanBlobKey, applyParsedFields, hasMeaningfulParsedContent } from '../lib/scan/appointmentScan.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { findAppointmentIndexById, upsertAppointmentIndex } from '../lib/tables/entities.js';
@@ -51,8 +51,13 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   void (async () => {
     try {
       const parsed = await parseAppointmentFromImage({ imageBase64, imageMime, timezone: typeof body.timezone === 'string' ? body.timezone : undefined, traceId });
-      applyParsedFields(appt, parsed.parsed, 'rescan');
-      appt.scanStatus = 'parsed';
+      if (hasMeaningfulParsedContent(parsed.parsed)) {
+        applyParsedFields(appt, parsed.parsed, 'rescan');
+        appt.scanStatus = 'parsed';
+      } else {
+        appt.scanStatus = 'failed';
+        appt.title = 'Appointment';
+      }
     } catch {
       appt.scanStatus = 'failed';
     }

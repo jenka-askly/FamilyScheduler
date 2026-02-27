@@ -28,6 +28,12 @@ type Appointment = {
   time: TimeSpec;
 };
 
+
+const isScanningPlaceholder = (value: string | undefined): boolean => {
+  const normalized = (value ?? '').trim();
+  return normalized === 'Scanning…' || normalized === 'Scanning...';
+};
+
 type AppointmentCardListProps = {
   appointments: Appointment[];
   getStatus: (appointment: Appointment) => 'unreconcilable' | 'conflict' | 'no_conflict';
@@ -148,7 +154,8 @@ export function AppointmentCardList({
         const isProblemStatus = statusLabel && statusLabel.toLowerCase() !== 'no conflict';
         const statusColor = apptStatus === 'unreconcilable' ? 'warning' : 'error';
         const peopleText = appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned';
-        const titleText = appointment.desc || 'Appointment';
+        const normalizedTitle = isScanningPlaceholder(appointment.desc) ? '' : appointment.desc;
+        const titleText = normalizedTitle || 'Appointment';
         const locationText = appointment.locationDisplay || appointment.location;
         const notesText = appointment.notes?.trim();
         const hasLongText = Boolean(notesText && notesText.length > 120);

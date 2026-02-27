@@ -4845,3 +4845,20 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification correction
 
 - `pnpm --filter @familyscheduler/api build` ⚠️ blocked in this container by pre-existing missing `@azure/data-tables` module/type declarations (`TS2307`), unrelated to this scan-row change.
+
+## 2026-02-27 15:51 UTC update (Scan Image placeholder title finalization)
+
+- Fixed scan completion flow so parsed/resolved appointments cannot retain placeholder title `Scanning…`.
+- Added title finalization and synthesis logic in scan apply path:
+  - uses `parsed.title` when present,
+  - otherwise derives from notes/location,
+  - falls back to `Appointment`.
+- Added parse-result quality gate (`hasMeaningfulParsedContent`) so scans with no usable extracted fields are marked `scanStatus: failed` instead of `parsed`.
+- Applied the same success/failure gate to both initial scan and rescan async completion handlers.
+- Added frontend safety guard so non-pending rows never display `Scanning…` as title (falls back to `Appointment`).
+- Added focused scan unit tests for placeholder replacement and meaningful-content detection.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` (run in this change set)
+2. `pnpm --filter @familyscheduler/web typecheck` (run in this change set)

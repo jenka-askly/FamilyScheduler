@@ -4,6 +4,9 @@ import type { StorageAdapter } from '../storage/storage.js';
 import { normalizeLocation } from '../location/normalize.js';
 import { parseAppointmentFromImage, type ParsedAppointmentFromImage } from '../ai/parseAppointmentFromImage.js';
 
+const SCAN_PLACEHOLDER_TITLE = 'Scanning…';
+const SCAN_PLACEHOLDER_ASCII = 'Scanning...';
+
 export const MAX_SCAN_BYTES = 3 * 1024 * 1024;
 export const scanMimeToExt = (mime: string): 'jpg' | 'png' | 'webp' => (mime === 'image/png' ? 'png' : (mime === 'image/webp' ? 'webp' : 'jpg'));
 export const scanBlobKey = (groupId: string, appointmentId: string, mime: string): string => `familyscheduler/groups/${groupId}/appointments/${appointmentId}/scan/scan.${scanMimeToExt(mime)}`;
@@ -57,8 +60,50 @@ export const createScannedAppointment = (state: AppState, timezone: string): App
   };
 };
 
+const isPlaceholderScanTitle = (value: string | undefined): boolean => {
+  const normalized = (value ?? '').trim();
+  return normalized === SCAN_PLACEHOLDER_TITLE || normalized === SCAN_PLACEHOLDER_ASCII;
+};
+
+const summarizeForTitle = (value: string): string => {
+  const firstLine = value.split('\n').map((line) => line.trim()).find(Boolean) ?? '';
+  const firstSentence = firstLine.split(/[.!?]/).map((part) => part.trim()).find(Boolean) ?? firstLine;
+  const collapsed = firstSentence.replace(/\s+/g, ' ').trim();
+  if (!collapsed) return '';
+  return collapsed.length > 60 ? `${collapsed.slice(0, 57).trimEnd()}...` : collapsed;
+};
+
+const pickTitleFromOtherFields = (parsed: ParsedAppointmentFromImage, appointment: Appointment): string => {
+  const fromNotes = summarizeForTitle(parsed.notes ?? appointment.notes ?? '');
+  if (fromNotes) return fromNotes;
+
+  const location = (parsed.location ?? appointment.locationRaw ?? appointment.locationDisplay ?? appointment.location ?? '').trim();
+  const dateOrTime = parsed.date ?? parsed.startTime ?? appointment.date ?? appointment.startTime;
+  if (location && dateOrTime) return `Appointment at ${location}`.slice(0, 160);
+  if (location) return `Appointment at ${location}`.slice(0, 160);
+
+  return 'Appointment';
+};
+
+const finalizeAppointmentTitle = (appointment: Appointment, parsed: ParsedAppointmentFromImage): void => {
+  const parsedTitle = (parsed.title ?? '').trim();
+  if (parsedTitle) {
+    appointment.title = parsedTitle;
+    return;
+  }
+  if (isPlaceholderScanTitle(appointment.title) || !appointment.title?.trim()) {
+    appointment.title = pickTitleFromOtherFields(parsed, appointment);
+  }
+};
+
+export const hasMeaningfulParsedContent = (parsed: ParsedAppointmentFromImage): boolean => {
+  const hasText = Boolean((parsed.title ?? '').trim() || (parsed.notes ?? '').trim() || (parsed.location ?? '').trim());
+  const hasDateOrTime = Boolean(parsed.date || parsed.startTime || parsed.endTime);
+  return hasText || hasDateOrTime;
+};
+
 export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppointmentFromImage, mode: 'initial' | 'rescan'): void => {
-  const isEmptyText = (value: string | undefined): boolean => !value || !value.trim() || value.trim().toLowerCase() === 'scanned item';
+  const isEmptyText = (value: string | undefined): boolean => !value || !value.trim() || value.trim().toLowerCase() === 'scanned item' || isPlaceholderScanTitle(value);
   const shouldApply = (curr: string | undefined, next: string | null): boolean => mode === 'rescan' ? true : (isEmptyText(curr) && next !== null);
 
   if (shouldApply(appointment.title, parsed.title)) appointment.title = parsed.title ?? '';
@@ -123,6 +168,7 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
   }
 
   if (parsed.date || parsed.startTime) appointment.scanAutoDate = false;
+  finalizeAppointmentTitle(appointment, parsed);
 };
 
 export type ParseAndApplyScanResult = { opId?: string; model?: string };
@@ -130,6 +176,11 @@ export type ParseAndApplyScanResult = { opId?: string; model?: string };
 export const parseAndApplyScan = async (storage: StorageAdapter, state: AppState, groupId: string, appointment: Appointment, imageBase64: string, imageMime: 'image/jpeg' | 'image/png' | 'image/webp', timezone: string | undefined, mode: 'initial' | 'rescan', traceId: string): Promise<ParseAndApplyScanResult> => {
   try {
     const parsed = await parseAppointmentFromImage({ imageBase64, imageMime, timezone, traceId });
+    if (!hasMeaningfulParsedContent(parsed.parsed)) {
+      appointment.scanStatus = 'failed';
+      appointment.title = 'Appointment';
+      return { opId: parsed.opId, model: parsed.model };
+    }
     applyParsedFields(appointment, parsed.parsed, mode);
     appointment.scanStatus = 'parsed';
     return { opId: parsed.opId, model: parsed.model };
