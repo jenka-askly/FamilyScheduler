@@ -13100,3 +13100,44 @@ Implement backend support for Yapper manual email update actions in `/api/direct
 ### Follow-ups
 
 - When environment has `@azure/data-tables` available, run API build/tests and execute end-to-end `/api/direct` preview/send smoke tests against dev data to validate ACS delivery paths and partial/all-fail behavior.
+
+## 2026-02-27 21:32 UTC (UI: fix Email update /api/direct payload to include top-level groupId/phone)
+
+### Objective
+
+Fix Email update dialog `/api/direct` request shape so both preview and send calls include top-level `groupId` and `phone`, preventing `groupId is required` validation errors caused by payload mismatch.
+
+### Approach
+
+- Updated both Email update direct-action calls in `apps/web/src/AppShell.tsx`:
+  - `send_appointment_update_email`
+  - `preview_appointment_update_email`
+- Normalized payload construction to explicitly pass top-level identity fields in the request body (`groupId`, `phone`, plus `email`) alongside `action`.
+- Kept all action payload fields unchanged (including `clientRequestId` for send).
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `CODEX_LOG.md`
+
+### Verification commands run + outcomes
+
+- `git status --short --branch` → exit 0
+- `sed -n '1,220p' CODEX_LOG.md` → exit 0
+- `rg -n "Email update|preview_appointment_update_email|send_appointment_update_email" apps/web/src/AppShell.tsx` → exit 0
+- `rg -n "apiFetch\(|/api/direct|action:" apps/web/src/AppShell.tsx` → exit 0
+- `cat package.json` → exit 0
+- `pnpm -w -r typecheck` → exit 0 (`no typecheck yet` root script output)
+- `pnpm --filter @familyscheduler/web build` → exit 0 (build succeeded; bundle-size warning from vite)
+
+### Manual smoke test result
+
+- Not executed in this non-interactive CLI environment.
+- Required manual validation remains:
+  - open appointment drawer → **Email update**
+  - confirm preview no longer shows `groupId is required`
+  - click **Send emails** and confirm no `groupId is required` error
+
+### Git status clean confirmation
+
+- Pending at this log point until commit is created.
