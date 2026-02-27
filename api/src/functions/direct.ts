@@ -32,6 +32,7 @@ import { rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js
 import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
 import { restoreAppointmentById, softDeleteAppointmentById } from '../lib/tables/appointmentSoftDelete.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
+import { sendEmail } from '../lib/email/acsEmail.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -72,7 +73,12 @@ type DirectAction =
   | { type: 'create_suggestion'; appointmentId: string; field: 'title' | 'time' | 'location'; value: string; clientRequestId: string }
   | { type: 'dismiss_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
   | { type: 'react_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; reaction: 'up' | 'down'; clientRequestId: string }
-  | { type: 'apply_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string };
+  | { type: 'apply_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
+  | { type: 'preview_appointment_update_email'; appointmentId: string; recipientPersonIds?: string[]; recipientEmails?: string[]; userMessage: string }
+  | { type: 'send_appointment_update_email'; appointmentId: string; recipientPersonIds?: string[]; recipientEmails?: string[]; userMessage: string; clientRequestId: string };
+
+type ResolvedNotificationRecipient = { personId?: string; display?: string; email: string };
+type ExcludedNotificationRecipient = { personId?: string; email?: string; reason: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;
@@ -94,6 +100,157 @@ const localDateFromResolvedStart = (startUtc: string, timezone: string): string 
   day: '2-digit'
 }).format(new Date(startUtc));
 
+const normalizeRecipientEmails = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === 'string' ? normalizeEmail(entry) : ''))
+    .filter((entry) => entry.length > 0);
+};
+
+const normalizeRecipientPersonIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => entry.length > 0);
+};
+
+const formatNotificationActor = (member: { name?: string; email?: string } | null, fallbackEmail: string): string => {
+  const display = member?.name?.trim();
+  return display ? `${display} <${fallbackEmail}>` : fallbackEmail;
+};
+
+const resolveWebBaseUrl = (): string => {
+  const base = process.env.WEB_BASE_URL?.trim() ?? '';
+  return base.replace(/\/$/, '');
+};
+
+const buildAppointmentLink = (groupId: string, appointmentId: string): string => {
+  const base = resolveWebBaseUrl();
+  if (!base) return `/#/g/${encodeURIComponent(groupId)}?appointmentId=${encodeURIComponent(appointmentId)}`;
+  return `${base}/#/g/${encodeURIComponent(groupId)}?appointmentId=${encodeURIComponent(appointmentId)}`;
+};
+
+const buildAppointmentEmailContent = (
+  appointment: ResponseSnapshot['appointments'][number],
+  actorLabel: string,
+  actorEmail: string,
+  userMessage: string,
+  appLink: string
+): { subject: string; plainText: string; html: string } => {
+  const title = (appointment.desc || 'Appointment').trim();
+  const localDate = appointment.date || 'Date TBD';
+  const time = appointment.startTime ? `${appointment.startTime}${appointment.durationMins ? ` · ${appointment.durationMins} min` : ''}` : (appointment.isAllDay ? 'All day' : 'Time TBD');
+  const location = appointment.locationDisplay || appointment.location || 'No location provided';
+  const senderLabel = actorLabel || actorEmail;
+  const messageBlock = userMessage.trim();
+  const subject = `[Yapper] Update: ${title} (${localDate})`;
+  const plainText = [
+    `Yapper appointment update`,
+    '',
+    `Title: ${title}`,
+    `Sent by: ${senderLabel}`,
+    `Time: ${localDate} ${time}`,
+    `Location: ${location}`,
+    '',
+    ...(messageBlock ? [`Message from sender:`, messageBlock, ''] : []),
+    'Replies are disabled for this email.',
+    `Open in Yapper: ${appLink}`
+  ].join('\n');
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">Yapper appointment update</h2><p style="margin:0 0 8px"><strong>Title:</strong> ${title}</p><p style="margin:0 0 8px"><strong>Sent by:</strong> ${senderLabel}</p><p style="margin:0 0 8px"><strong>Time:</strong> ${localDate} ${time}</p><p style="margin:0 0 16px"><strong>Location:</strong> ${location}</p>${messageBlock ? `<p style="margin:0 0 8px"><strong>Message from sender:</strong></p><blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #ddd;color:#333">${messageBlock.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>` : ''}<p style="margin:0 0 16px"><a href="${appLink}" style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px;font-weight:600">Open in Yapper</a></p><p style="margin:0;font-size:12px;color:#666">Replies are disabled. Use the link above to respond in Yapper.</p></div>`;
+  return { subject, plainText, html };
+};
+
+const resolveNotificationRecipients = (
+  state: AppState,
+  senderEmail: string,
+  recipientPersonIds?: string[],
+  recipientEmails?: string[]
+): { resolvedRecipients: ResolvedNotificationRecipient[]; excludedRecipients: ExcludedNotificationRecipient[]; excludedSelf: boolean } => {
+  const excludedRecipients: ExcludedNotificationRecipient[] = [];
+  const resolvedRecipients: ResolvedNotificationRecipient[] = [];
+  const dedupe = new Set<string>();
+  let excludedSelf = false;
+
+  const pushResolved = (recipient: ResolvedNotificationRecipient) => {
+    const normalized = normalizeEmail(recipient.email);
+    if (!normalized || !isPlausibleEmail(normalized)) {
+      excludedRecipients.push({ personId: recipient.personId, email: recipient.email, reason: 'invalid_email' });
+      return;
+    }
+    if (normalized === senderEmail) {
+      excludedSelf = true;
+      excludedRecipients.push({ personId: recipient.personId, email: normalized, reason: 'self_excluded' });
+      return;
+    }
+    if (dedupe.has(normalized)) return;
+    dedupe.add(normalized);
+    resolvedRecipients.push({ ...recipient, email: normalized });
+  };
+
+  if ((recipientPersonIds ?? []).length > 0) {
+    for (const personId of recipientPersonIds ?? []) {
+      const person = state.people.find((entry) => entry.personId === personId);
+      if (!person) {
+        excludedRecipients.push({ personId, reason: 'person_not_found' });
+        continue;
+      }
+      if (person.status !== 'active') {
+        excludedRecipients.push({ personId, email: person.email ?? undefined, reason: 'person_inactive' });
+        continue;
+      }
+      if (!person.email) {
+        excludedRecipients.push({ personId, reason: 'missing_email' });
+        continue;
+      }
+      pushResolved({ personId, display: person.name?.trim() || undefined, email: person.email });
+    }
+  } else {
+    for (const rawEmail of recipientEmails ?? []) {
+      const email = normalizeEmail(rawEmail);
+      if (!email || !isPlausibleEmail(email)) {
+        excludedRecipients.push({ email: rawEmail, reason: 'invalid_email' });
+        continue;
+      }
+      const person = state.people.find((entry) => normalizeEmail(entry.email ?? '') === email);
+      if (!person || person.status !== 'active') {
+        excludedRecipients.push({ email, reason: 'recipient_not_active_member' });
+        continue;
+      }
+      pushResolved({ personId: person.personId, display: person.name?.trim() || undefined, email });
+    }
+  }
+
+  return { resolvedRecipients, excludedRecipients, excludedSelf };
+};
+
+const mapLastNotification = (events: AppointmentEvent[]): Record<string, unknown> | null => {
+  const latest = events.find((event) => event.type === 'NOTIFICATION_SENT');
+  if (!latest) return null;
+  const payload = latest.payload ?? {};
+  const sentBy = (payload.sentBy && typeof payload.sentBy === 'object') ? payload.sentBy as Record<string, unknown> : {};
+  const failed = Array.isArray(payload.failedRecipients) ? payload.failedRecipients : [];
+  return {
+    sentAt: typeof payload.sentAt === 'string' ? payload.sentAt : latest.tsUtc,
+    sentBy: {
+      email: typeof sentBy.email === 'string' ? sentBy.email : '',
+      ...(typeof sentBy.display === 'string' && sentBy.display ? { display: sentBy.display } : {})
+    },
+    deliveryStatus: payload.deliveryStatus === 'partial' ? 'partial' : 'sent',
+    recipientCountSent: typeof payload.recipientCountSent === 'number' ? payload.recipientCountSent : 0,
+    recipientCountSelected: typeof payload.recipientCountSelected === 'number' ? payload.recipientCountSelected : 0,
+    failedRecipients: failed
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry) => {
+        const record = entry as Record<string, unknown>;
+        return {
+          email: typeof record.email === 'string' ? record.email : '',
+          ...(typeof record.display === 'string' && record.display ? { display: record.display } : {})
+        };
+      })
+      .filter((entry) => entry.email),
+    subject: typeof payload.subject === 'string' ? payload.subject : '[Yapper] Update'
+  };
+};
 
 
 const appointmentDocStore = {
@@ -571,6 +728,39 @@ const parseDirectAction = (value: unknown): DirectAction => {
     }
     return { type, appointmentId, suggestionId, field, clientRequestId };
   }
+  if (type === 'preview_appointment_update_email') {
+    const appointmentId = asString(value.appointmentId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    const recipientPersonIds = normalizeRecipientPersonIds(value.recipientPersonIds);
+    const recipientEmails = normalizeRecipientEmails(value.recipientEmails);
+    if (recipientPersonIds.length === 0 && recipientEmails.length === 0) throw new Error('recipientPersonIds or recipientEmails is required');
+    const userMessage = typeof value.userMessage === 'string' ? value.userMessage : '';
+    return {
+      type,
+      appointmentId,
+      ...(recipientPersonIds.length > 0 ? { recipientPersonIds } : {}),
+      ...(recipientEmails.length > 0 ? { recipientEmails } : {}),
+      userMessage
+    };
+  }
+  if (type === 'send_appointment_update_email') {
+    const appointmentId = asString(value.appointmentId);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    const recipientPersonIds = normalizeRecipientPersonIds(value.recipientPersonIds);
+    const recipientEmails = normalizeRecipientEmails(value.recipientEmails);
+    if (recipientPersonIds.length === 0 && recipientEmails.length === 0) throw new Error('recipientPersonIds or recipientEmails is required');
+    const userMessage = typeof value.userMessage === 'string' ? value.userMessage : '';
+    return {
+      type,
+      appointmentId,
+      ...(recipientPersonIds.length > 0 ? { recipientPersonIds } : {}),
+      ...(recipientEmails.length > 0 ? { recipientEmails } : {}),
+      userMessage,
+      clientRequestId
+    };
+  }
 
   throw new Error(`unsupported action type: ${type}`);
 };
@@ -646,13 +836,14 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
     try {
-      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, directAction.limit ?? 20, directAction.cursor);
+      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, directAction.cursor ? (directAction.limit ?? 20) : Math.max(directAction.limit ?? 20, 50), directAction.cursor);
       const appointmentDoc = await appointmentDocStore.getWithEtag(groupId, directAction.appointmentId);
       const doc = appointmentDoc.doc ? expireSuggestions(ensureAppointmentDoc(appointmentDoc.doc, session.email)) : null;
       const discussionTypes = new Set(['USER_MESSAGE', 'SYSTEM_CONFIRMATION', 'PROPOSAL_CREATED', 'PROPOSAL_PAUSED', 'PROPOSAL_RESUMED', 'PROPOSAL_EDITED', 'PROPOSAL_APPLIED', 'PROPOSAL_CANCELED', 'SUGGESTION_CREATED', 'SUGGESTION_APPLIED', 'SUGGESTION_DISMISSED', 'SUGGESTION_REACTED', 'SUGGESTION_REACTION', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED']);
       const discussionEvents = recent.events.filter((event) => discussionTypes.has(event.type));
       const changeEvents = recent.events.filter((event) => materialEventTypes.has(event.type));
       const pendingProposal = derivePendingProposal(recent.events);
+      const lastNotification = mapLastNotification(recent.events);
       return withMeta({
         status: 200,
         jsonBody: {
@@ -662,6 +853,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           nextCursor: recent.nextCursor,
           projections: { discussionEvents, changeEvents },
           pendingProposal,
+          ...(lastNotification ? { lastNotification } : {}),
           constraints: doc ? (doc.constraints as Record<string, unknown>) : { byMember: {} },
           suggestions: doc ? (doc.suggestions as Record<string, unknown>) : { byField: {} }
         }
@@ -670,6 +862,148 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       context.log(JSON.stringify({ event: 'appointment_detail_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
       return withMeta(errorResponse(500, 'appointment_detail_failed', 'Failed to load appointment detail', traceId));
     }
+  }
+
+
+  if (directAction.type === 'preview_appointment_update_email') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
+
+    const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
+    const recipients = resolveNotificationRecipients(
+      loaded.state,
+      normalizeEmail(session.email),
+      directAction.recipientPersonIds,
+      directAction.recipientEmails
+    );
+    const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
+    const actorLabel = formatNotificationActor({ name: senderPerson?.name, email: session.email }, session.email);
+    const content = buildAppointmentEmailContent(
+      responseAppointment,
+      actorLabel,
+      session.email,
+      directAction.userMessage,
+      buildAppointmentLink(groupId, directAction.appointmentId)
+    );
+
+    return withMeta({
+      status: 200,
+      jsonBody: {
+        ok: true,
+        subject: content.subject,
+        plainText: content.plainText,
+        html: content.html,
+        resolvedRecipients: recipients.resolvedRecipients,
+        excludedRecipients: recipients.excludedRecipients,
+        excludedSelf: recipients.excludedSelf
+      }
+    });
+  }
+
+  if (directAction.type === 'send_appointment_update_email') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
+
+    const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
+    const recipients = resolveNotificationRecipients(
+      loaded.state,
+      normalizeEmail(session.email),
+      directAction.recipientPersonIds,
+      directAction.recipientEmails
+    );
+    if (recipients.resolvedRecipients.length === 0) {
+      return withMeta(errorResponse(400, 'no_valid_recipients', 'No valid recipients selected', traceId));
+    }
+
+    const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
+    const actorLabel = formatNotificationActor({ name: senderPerson?.name, email: session.email }, session.email);
+    const content = buildAppointmentEmailContent(
+      responseAppointment,
+      actorLabel,
+      session.email,
+      directAction.userMessage,
+      buildAppointmentLink(groupId, directAction.appointmentId)
+    );
+
+    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 200);
+    const duplicate = existing.events.find((event) => {
+      if (event.type !== 'NOTIFICATION_SENT') return false;
+      if (event.clientRequestId !== directAction.clientRequestId) return false;
+      const sentBy = (event.payload.sentBy && typeof event.payload.sentBy === 'object') ? event.payload.sentBy as Record<string, unknown> : null;
+      return normalizeEmail(typeof sentBy?.email === 'string' ? sentBy.email : '') === normalizeEmail(session.email);
+    });
+    if (duplicate) {
+      const payload = duplicate.payload ?? {};
+      return withMeta({
+        status: 200,
+        jsonBody: {
+          ok: true,
+          sentAt: typeof payload.sentAt === 'string' ? payload.sentAt : duplicate.tsUtc,
+          deliveryStatus: payload.deliveryStatus === 'partial' ? 'partial' : 'sent',
+          recipientCountSent: typeof payload.recipientCountSent === 'number' ? payload.recipientCountSent : 0,
+          recipientCountSelected: typeof payload.recipientCountSelected === 'number' ? payload.recipientCountSelected : 0,
+          failedRecipients: Array.isArray(payload.failedRecipients) ? payload.failedRecipients : [],
+          subject: typeof payload.subject === 'string' ? payload.subject : content.subject,
+          excludedSelf: recipients.excludedSelf
+        }
+      });
+    }
+
+    const sendResults: Array<{ email: string; providerMessageId?: string; errorMessage?: string; personId?: string; display?: string }> = [];
+    for (const recipient of recipients.resolvedRecipients) {
+      try {
+        const provider = await sendEmail({ to: recipient.email, subject: content.subject, plainText: content.plainText, html: content.html });
+        sendResults.push({ email: recipient.email, providerMessageId: provider.id, personId: recipient.personId, display: recipient.display });
+      } catch (error) {
+        sendResults.push({ email: recipient.email, errorMessage: error instanceof Error ? error.message : String(error), personId: recipient.personId, display: recipient.display });
+      }
+    }
+
+    const successes = sendResults.filter((entry) => !entry.errorMessage);
+    const failures = sendResults.filter((entry) => !!entry.errorMessage);
+    if (successes.length === 0) {
+      return withMeta(errorResponse(502, 'notification_send_failed', 'Failed to send update email', traceId, {
+        recipientCountSelected: recipients.resolvedRecipients.length,
+        failedRecipients: failures.map((entry) => ({ email: entry.email, display: entry.display, personId: entry.personId, errorMessage: entry.errorMessage }))
+      }));
+    }
+
+    const sentAt = new Date().toISOString();
+    const deliveryStatus = failures.length > 0 ? 'partial' : 'sent';
+    const eventPayload = {
+      notificationId: randomUUID(),
+      sentAt,
+      sentBy: { email: normalizeEmail(session.email), ...(senderPerson?.name?.trim() ? { display: senderPerson.name.trim() } : {}), ...(senderPerson?.personId ? { personId: senderPerson.personId } : {}) },
+      recipientCountSelected: recipients.resolvedRecipients.length,
+      recipientCountSent: successes.length,
+      deliveryStatus,
+      failedRecipients: failures.map((entry) => ({ email: entry.email, ...(entry.display ? { display: entry.display } : {}), ...(entry.personId ? { personId: entry.personId } : {}), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}) })),
+      subject: content.subject,
+      ...(directAction.userMessage.trim() ? { userMessage: directAction.userMessage.trim() } : {}),
+      clientRequestId: directAction.clientRequestId
+    };
+    await appointmentEventStore.append(groupId, directAction.appointmentId, {
+      id: randomUUID(),
+      tsUtc: sentAt,
+      type: 'NOTIFICATION_SENT',
+      actor: { kind: 'HUMAN', email: normalizeEmail(session.email) },
+      payload: eventPayload,
+      clientRequestId: directAction.clientRequestId
+    }, { idempotencyKey: directAction.clientRequestId });
+
+    return withMeta({
+      status: 200,
+      jsonBody: {
+        ok: true,
+        sentAt,
+        deliveryStatus,
+        recipientCountSent: successes.length,
+        recipientCountSelected: recipients.resolvedRecipients.length,
+        failedRecipients: failures.map((entry) => ({ email: entry.email, ...(entry.display ? { display: entry.display } : {}), ...(entry.personId ? { personId: entry.personId } : {}), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}) })),
+        subject: content.subject,
+        excludedSelf: recipients.excludedSelf
+      }
+    });
   }
 
   if (directAction.type === 'append_appointment_message') {
