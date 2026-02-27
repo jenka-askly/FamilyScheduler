@@ -2,6 +2,21 @@
 
 - Eliminated mixed appointment sources in chat snapshots by routing chat snapshot appointment payloads through the index/doc-backed appointment snapshot builder.
 - Canceling a newly created untouched blank appointment now follows a single delete-by-code path and forces a post-delete snapshot refresh before editor teardown.
+## 2026-02-27 19:53 UTC update (Phase 2 delete UX + session Undo restore)
+
+- Schedule and Members trash actions now delete immediately (confirmation dialogs removed).
+- Added a session-only Undo menu icon next to Schedule/Members tabs; icon only shows when undo entries exist.
+- Undo menu now lists deleted appointments + members (most recent first) and supports per-item restore, Restore last, and Restore all.
+- Appointment restores call `/api/direct` with `restore_appointment` by `appointmentId`; member restores call `reactivate_person` by `personId`.
+- Delete/restore failures now surface through the existing inline notice Alert pattern; undo entries remain when restore fails.
+
+### Verification run
+
+1. `pnpm -r --if-present build` ⚠️ blocked by missing `@azure/data-tables` in this container's API package.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped intentionally).
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/936eb36f20ac1552/artifacts/artifacts/phase2-undo-ui.png`.
+
 
 ## 2026-02-27 20:18 UTC update (New appointment cancel auto-delete guard)
 

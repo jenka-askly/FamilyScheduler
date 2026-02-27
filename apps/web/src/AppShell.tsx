@@ -67,7 +67,14 @@ type UsageStatus = { status: 'loading' | 'ok' | 'error'; data?: UsagePayload };
 type ShellSection = 'overview' | 'calendar' | 'todos' | 'members' | 'settings';
 type CalendarView = 'month' | 'list' | 'week' | 'day';
 type TodoItem = { id: string; text: string; dueDate?: string; assignee?: string; done: boolean };
-type UndoEntry = { id: string; entityType: 'appointment' | 'person'; code?: string; personId?: string; label: string; timestamp: number };
+type UndoEntry = {
+  key: string;
+  entityType: 'appointment' | 'person';
+  appointmentId?: string;
+  personId?: string;
+  label: string;
+  ts: number;
+};
 
 type AppointmentDetailEvent = {
   id: string;
@@ -599,6 +606,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [constraintError, setConstraintError] = useState<string | null>(null);
   const [undoList, setUndoList] = useState<UndoEntry[]>([]);
   const [undoMenuAnchorEl, setUndoMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const pushUndo = (entry: UndoEntry) => setUndoList((prev) => [entry, ...prev]);
+  const removeUndoKey = (key: string) => setUndoList((prev) => prev.filter((entry) => entry.key !== key));
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
   const [personDraft, setPersonDraft] = useState<{ name: string; email: string }>({ name: '', email: '' });
   const [personEditError, setPersonEditError] = useState<string | null>(null);
@@ -1088,28 +1097,41 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }, 3500);
   };
 
-  const deleteAppointment = async (appointment: Snapshot['appointments'][0]) => {
-    const entry: UndoEntry = { id: `appointment:${appointment.code}:${Date.now()}`, entityType: 'appointment', code: appointment.code, label: appointment.desc || appointment.code, timestamp: Date.now() };
-    const previous = snapshot;
-    setUndoList((prev) => [entry, ...prev]);
-    setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.filter((item) => item.id !== appointment.id) }));
+  const handleDeleteAppointment = async (appointment: Snapshot['appointments'][0]) => {
+    const label = `${appointment.code} — ${appointment.desc || '(no title)'} — ${appointment.date}${appointment.startTime ? ` ${appointment.startTime}` : ''}`;
+    const entry: UndoEntry = {
+      key: `appointment:${appointment.id}:${Date.now()}`,
+      entityType: 'appointment',
+      appointmentId: appointment.id,
+      label,
+      ts: Date.now()
+    };
+    pushUndo(entry);
     const result = await sendDirectAction({ type: 'delete_appointment', appointmentId: appointment.id });
     if (!result.ok) {
-      setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
-      setSnapshot(previous);
-      showNotice('error', result.message);
-    }
-  };
-
-  const deletePersonDirect = async (person: Snapshot['people'][0]) => {
-    const entry: UndoEntry = { id: `person:${person.personId}:${Date.now()}`, entityType: 'person', personId: person.personId, label: person.name || person.personId, timestamp: Date.now() };
-    setUndoList((prev) => [entry, ...prev]);
-    const result = await sendDirectAction({ type: 'delete_person', personId: person.personId });
-    if (!result.ok) {
-      setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
-      showNotice('error', result.message);
+      removeUndoKey(entry.key);
+      showNotice('error', result.message || 'Delete failed');
       return;
     }
+    if (result.snapshot) setSnapshot(result.snapshot);
+  };
+
+  const handleDeletePerson = async (person: Snapshot['people'][0]) => {
+    const entry: UndoEntry = {
+      key: `person:${person.personId}:${Date.now()}`,
+      entityType: 'person',
+      personId: person.personId,
+      label: person.name || person.email || person.personId,
+      ts: Date.now()
+    };
+    pushUndo(entry);
+    const result = await sendDirectAction({ type: 'delete_person', personId: person.personId });
+    if (!result.ok) {
+      removeUndoKey(entry.key);
+      showNotice('error', result.message || 'Delete failed');
+      return;
+    }
+    if (result.snapshot) setSnapshot(result.snapshot);
     if (editingPersonId === person.personId) {
       setEditingPersonId(null);
       setPersonEditError(null);
@@ -1117,30 +1139,56 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const restoreUndoEntry = async (entry: UndoEntry) => {
-    const result = entry.entityType === 'appointment'
-      ? await sendDirectAction({ type: 'restore_appointment', code: entry.code })
-      : await sendDirectAction({ type: 'reactivate_person', personId: entry.personId });
-    if (!result.ok) {
-      showNotice('error', result.message);
+    try {
+      if (entry.entityType === 'appointment') {
+        if (!entry.appointmentId) {
+          showNotice('error', 'Restore failed');
+          return false;
+        }
+        const result = await sendDirectAction({ type: 'restore_appointment', appointmentId: entry.appointmentId });
+        if (!result.ok) {
+          showNotice('error', result.message || 'Restore failed');
+          return false;
+        }
+        removeUndoKey(entry.key);
+        if (result.snapshot) setSnapshot(result.snapshot);
+        showNotice('success', 'Restored');
+        return true;
+      }
+
+      if (!entry.personId) {
+        showNotice('error', 'Restore failed');
+        return false;
+      }
+      const result = await sendDirectAction({ type: 'reactivate_person', personId: entry.personId });
+      if (!result.ok) {
+        showNotice('error', result.message || 'Restore failed');
+        return false;
+      }
+      removeUndoKey(entry.key);
+      if (result.snapshot) setSnapshot(result.snapshot);
+      showNotice('success', 'Restored');
+      return true;
+    } catch (error) {
+      showNotice('error', String(error));
       return false;
     }
-    setUndoList((prev) => prev.filter((item) => item.id !== entry.id));
-    showNotice('success', `Restored ${entry.label}`);
-    return true;
   };
 
   const restoreLastUndo = async () => {
     const first = undoList[0];
     if (!first) return;
-    await restoreUndoEntry(first);
+    const ok = await restoreUndoEntry(first);
+    if (ok) setUndoMenuAnchorEl(null);
   };
 
   const restoreAllUndo = async () => {
     const copy = [...undoList];
     for (const entry of copy) {
       const ok = await restoreUndoEntry(entry);
-      if (!ok) break;
+      if (!ok) return;
     }
+    setUndoMenuAnchorEl(null);
   };
 
   const addAppointment = async () => {
@@ -2206,7 +2254,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   <MenuItem disabled>Undo (this session)</MenuItem>
                   <Divider />
                   {undoList.map((entry) => (
-                    <MenuItem key={entry.id} onClick={() => { void restoreUndoEntry(entry); }}>
+                    <MenuItem key={entry.key} onClick={async () => { const ok = await restoreUndoEntry(entry); if (ok) setUndoMenuAnchorEl(null); }}>
                       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ width: '100%', minWidth: 260 }}>
                         <Typography variant="body2" noWrap title={entry.label} sx={{ maxWidth: 180 }}>{entry.label}</Typography>
                         <Typography variant="caption" color="primary">Restore</Typography>
@@ -2351,7 +2399,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           )}
                           formatWhen={formatAppointmentTime}
                           onEdit={openWhenEditor}
-                          onDelete={(appointment) => { void deleteAppointment(appointment); }}
+                          onDelete={(appointment) => { void handleDeleteAppointment(appointment); }}
                           onSelectPeople={setSelectedAppointment}
                           onOpenScanViewer={setScanViewerAppointment}
                           onDismissScanRow={(appointment, action) => { void dismissScanAppointment(appointment, action); }}
@@ -2551,7 +2599,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Delete person">
-                                <IconButton size="small" aria-label="Delete person" onClick={() => { void deletePersonDirect(person); }}>
+                                <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }}>
                                   <Trash2 />
                                 </IconButton>
                               </Tooltip>
