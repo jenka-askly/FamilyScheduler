@@ -5108,3 +5108,20 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Preview now returns HTTP 400 when no selectable recipients remain after exclusions.
 - Send now uses existing ACS transport one recipient at a time, scans last 100 events for idempotency using `NOTIFICATION_SENT` payload `clientRequestId` + `sentBy.email`, supports partial success, and logs all-fail/partial summaries without logging bodies.
 - `NOTIFICATION_SENT` append remains success/partial-only; all-fail returns 502 and does not append the event.
+
+## 2026-02-27 21:36 UTC update (Mobile table width fix for tiny phone UI)
+
+- Updated `apps/web/src/styles/ui.css` to keep `.ui-tableScroll` bounded (`max-width: 100%`) and enable iOS momentum scrolling (`-webkit-overflow-scrolling: touch`).
+- Preserved desktop table readability with existing `.ui-tableScroll table { min-width: 900px; }`.
+- Added mobile override (`@media (max-width: 640px)`) so `.ui-tableScroll table` uses `min-width: 100%`, preventing forced wide-page layout on phones.
+
+### Verification run
+
+1. `pnpm -C apps/web run typecheck` ✅ passed.
+2. `pnpm -C apps/web run build` ✅ passed (existing vite chunk warning only).
+3. `pnpm -C apps/web run dev --host 0.0.0.0 --port 4173` ✅ started for viewport check and screenshot capture (terminated intentionally with SIGINT).
+4. Playwright mobile-viewport screenshot capture ✅ `browser:/tmp/codex_browser_invocations/8fd6eee904ee160f/artifacts/artifacts/mobile-ui-table-scroll-fix.png`.
+
+### Manual verification note
+
+- Real physical phone validation still recommended (e.g., iPhone Safari / Android Chrome) to confirm table-only horizontal swipe and no full-page horizontal overflow.
