@@ -674,11 +674,30 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
       if (!updatedAppointmentDoc) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
 
-      const stateAppointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
-      if (stateAppointment) {
-        stateAppointment.title = directAction.value;
-        stateAppointment.updatedAt = new Date().toISOString();
+      const maxStateSaveAttempts = 4;
+      let persistedState = loaded.state;
+      let persistedStateAppointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId) ?? appointment;
+      let stateSaveSucceeded = false;
+      for (let i = 0; i < maxStateSaveAttempts; i += 1) {
+        const baseLoaded = i === 0 ? { state: persistedState, etag: loaded.etag } : await storage.load(groupId);
+        const nextState = structuredClone(baseLoaded.state);
+        const nextAppointment = nextState.appointments.find((entry) => entry.id === directAction.appointmentId);
+        if (!nextAppointment) break;
+        nextAppointment.title = directAction.value;
+        (nextAppointment as unknown as Record<string, unknown>).desc = directAction.value;
+        nextAppointment.updatedAt = new Date().toISOString();
+        try {
+          const saved = await storage.save(groupId, nextState, baseLoaded.etag);
+          persistedState = saved.state;
+          persistedStateAppointment = saved.state.appointments.find((entry) => entry.id === directAction.appointmentId) ?? persistedStateAppointment;
+          stateSaveSucceeded = true;
+          break;
+        } catch (error) {
+          if (error instanceof ConflictError) continue;
+          throw error;
+        }
       }
+      if (!stateSaveSucceeded) return withDirectMeta(errorResponse(409, 'state_changed', 'State changed. Retry.', traceId), traceId, context);
 
       const proposalAppliedEvent: AppointmentEvent = {
         id: randomUUID(),
@@ -738,7 +757,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         status: 200,
         jsonBody: {
           ok: true,
-          appointment: toResponseSnapshot({ ...loaded.state, appointments: [loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId) ?? appointment] }).appointments[0],
+          appointment: toResponseSnapshot({ ...persistedState, appointments: [persistedStateAppointment] }).appointments[0],
           appendedEvents,
           eventsPageHead: appendedEvents
         }

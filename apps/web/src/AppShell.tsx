@@ -134,7 +134,18 @@ const SYSTEM_DISCUSSION_EVENT_TYPES = new Set([
   'RECONCILIATION_CHANGED'
 ]);
 
-const getEventMessageText = (event: AppointmentDetailEvent): string => String(event.payload.message ?? event.payload.text ?? event.payload.value ?? '');
+const getEventMessageText = (event: AppointmentDetailEvent): string => {
+  if (event.type === 'PROPOSAL_CREATED' && event.payload.field === 'title') {
+    return `Proposed title change: "${String(event.payload.from ?? 'Untitled')}" → "${String(event.payload.to ?? '')}"`;
+  }
+  if (event.type === 'PROPOSAL_APPLIED' && event.payload.field === 'title') {
+    return `Title updated to "${String(event.payload.to ?? event.payload.value ?? '(updated)')}"`;
+  }
+  if (event.type === 'PROPOSAL_CANCELED') return 'Proposal cancelled';
+  if (event.type === 'SYSTEM_CONFIRMATION') return String(event.payload.message ?? 'System update');
+  if (event.type === 'USER_MESSAGE') return String(event.payload.message ?? event.payload.text ?? '');
+  return '';
+};
 
 const getEventAuthorLabel = (event: AppointmentDetailEvent): string => {
   if (event.actor.kind === 'SYSTEM' || SYSTEM_DISCUSSION_EVENT_TYPES.has(event.type)) return 'System';
@@ -1857,7 +1868,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           day.getFullYear() === now.getFullYear() &&
                           day.getMonth() === now.getMonth() &&
                           day.getDate() === now.getDate();
-                        return (
+                  return (
                           <div key={dateKey} className={`ui-cal-cell ${inMonth ? '' : 'ui-cal-outside'} ${isToday ? 'ui-cal-today' : ''}`}>
                             <div className="ui-cal-dateRow">
                               <span>{day.getDate()}</span>
@@ -1936,7 +1947,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             const dayAppointments = appointmentsByDate[dateKey] ?? [];
                             const dayTodos = todosByDate[dateKey] ?? [];
                             const isToday = isSameLocalDay(day, new Date());
-                            return (
+                  return (
                               <div key={dateKey} className={`ui-week-col ${isToday ? 'ui-cal-today' : ''}`}>
                                 <div className="ui-week-colHeader">
                                   <div className="ui-week-colHeaderTop">
@@ -1984,7 +1995,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           const dayAppointments = appointmentsByDate[dateKey] ?? [];
                           const dayTodos = todosByDate[dateKey] ?? [];
                           const isToday = isSameLocalDay(dayCursor, new Date());
-                          return (
+                  return (
                             <div className="ui-day">
                               <div className={`ui-dayHeader ${isToday ? 'ui-cal-today' : ''}`}>
                                 <div className="ui-dayHeaderTitle">{dayLabel}</div>
@@ -2580,23 +2591,28 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   const isCurrentUser = !isSystemEvent && Boolean(event.actor.email) && event.actor.email?.trim().toLowerCase() === sessionEmail.trim().toLowerCase();
                   const messageText = getEventMessageText(event);
                   const authorLabel = getEventAuthorLabel(event);
+                  if (!messageText) return null;
                   return (
-                    <Stack key={event.id} spacing={0.25} alignItems={isSystemEvent ? 'stretch' : isCurrentUser ? 'flex-end' : 'flex-start'}>
-                      <Typography variant="caption" color="text.secondary" sx={{ px: isSystemEvent ? 0 : 0.5 }}>
-                        {authorLabel} · {new Date(event.tsUtc).toLocaleString()}
-                      </Typography>
+                    <Stack key={event.id} spacing={0.25} alignItems={isSystemEvent ? 'center' : isCurrentUser ? 'flex-end' : 'flex-start'}>
+                      {!isSystemEvent ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+                          {authorLabel} · {new Date(event.tsUtc).toLocaleString()}
+                        </Typography>
+                      ) : null}
                       <Paper
                         variant="outlined"
                         sx={{
-                          p: 1,
-                          borderRadius: 2,
-                          maxWidth: isSystemEvent ? '100%' : '85%',
-                          bgcolor: isSystemEvent ? 'action.hover' : isCurrentUser ? 'primary.main' : 'background.paper',
-                          color: isSystemEvent ? 'text.primary' : isCurrentUser ? 'primary.contrastText' : 'text.primary',
-                          alignSelf: isSystemEvent ? 'stretch' : isCurrentUser ? 'flex-end' : 'flex-start'
+                          p: isSystemEvent ? 0.5 : 1,
+                          px: isSystemEvent ? 1 : undefined,
+                          borderRadius: isSystemEvent ? 999 : 2,
+                          maxWidth: isSystemEvent ? 'fit-content' : '75%',
+                          bgcolor: isSystemEvent ? 'action.hover' : isCurrentUser ? 'primary.50' : 'background.paper',
+                          color: 'text.primary',
+                          alignSelf: isSystemEvent ? 'center' : isCurrentUser ? 'flex-end' : 'flex-start'
                         }}
                       >
-                        <Typography variant="body2">{messageText || event.type}</Typography>
+                        <Typography variant="body2">{messageText}</Typography>
+                        {isSystemEvent ? <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography> : null}
                       </Paper>
                     </Stack>
                   );

@@ -1,3 +1,24 @@
+## 2026-02-27 02:42 UTC update (Appointment pane enhancement: title persistence + discussion UI polish)
+
+- Fixed title persistence across reload/deploy for appointment proposals: `apply_appointment_proposal` now updates both canonical appointment document (`appointment.json`) and persisted group state (`state.appointments[].title` + `desc` mirror for compatibility), so both detail and list snapshots retain the new title after reloads.
+- Drawer header refresh now follows live detail data end-to-end because the apply response now returns snapshot data derived from the persisted post-save group state.
+- Discussion UI polished:
+  - Removed raw enum-style rows from discussion rendering and replaced with friendly message text for proposal/system events.
+  - Rendered system/proposal lifecycle entries as centered muted pills with timestamps.
+  - Rendered human chat as left/right bounded bubbles (non-full-width), including author + timestamp meta line.
+  - Lightened current-user bubble styling to a subtle tint for readability.
+- Countdown behavior retained as ticking interval-based display (500ms updates) with existing cleanup on unmount/proposal clear.
+- Header collapse control remains icon-only chevron toggle with accessible expand/collapse `aria-label`s.
+- Added/extended direct API regression tests for title proposal apply persistence into canonical state and response snapshot consistency.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by pre-existing environment dependency resolution (`@azure/data-tables`).
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (then intentionally stopped with SIGINT).
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/1971b080977a5cf3/artifacts/artifacts/appointment-pane-polish.png`.
+
+
 ## 2026-02-27 02:22 UTC update (Appointment pane UI polish bundle)
 
 - Header title refresh fixed: drawer header now reads from live appointment detail state and stays in sync after proposal apply refresh.

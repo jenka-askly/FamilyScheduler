@@ -11762,3 +11762,32 @@ Batch-fix drawer UI issues: stale header title refresh, proposal countdown ticki
 ### Follow-ups
 
 - Human should run full interactive acceptance flow (propose title -> wait countdown -> apply -> verify header title + discussion attribution) on local/staging data with real identities.
+
+## 2026-02-27 02:42 UTC (Appointment pane enhancement bundle: persistence + discussion UI polish)
+
+### Objective
+Fix title persistence after apply across reload/deploy and ship bundled appointment drawer/discussion UI polish with minimal-risk deltas.
+
+### Approach
+- Traced proposal apply path in `/api/direct` and found it only wrote `appointment.json` + events, mutating in-memory state without persisting canonical group state.
+- Updated `apply_appointment_proposal` to persist group state with optimistic retry (`storage.save` + conflict retry), updating appointment `title` and compatibility `desc`.
+- Returned apply response snapshot from the persisted state write result to keep drawer/header/list in immediate sync.
+- Adjusted discussion rendering in web app to use friendly event text, centered muted system pills, and constrained left/right chat bubbles with author/time metadata.
+- Added targeted API tests for persistence regression and response snapshot/list-source consistency.
+
+### Files changed
+- `api/src/functions/direct.ts`
+- `api/src/functions/direct.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ failed due pre-existing missing `@azure/data-tables` dependency during API build in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot via browser tool ✅ captured `browser:/tmp/codex_browser_invocations/1971b080977a5cf3/artifacts/artifacts/appointment-pane-polish.png`.
+
+### Follow-ups
+- Human runtime validation: apply title proposal, hard reload, and verify both list + detail header persist updated title from server responses.
+

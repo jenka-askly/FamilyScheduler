@@ -318,10 +318,14 @@ test('apply_appointment_proposal succeeds when appointment.json is initially mis
     location: '',
     notes: ''
   }];
+  let savedTitle = '';
   const adapter: StorageAdapter = {
     async initIfMissing() {},
-    async load() { return { state: baseState, etag: 'etag-1' }; },
-    async save() { throw new Error('save should not be called for apply'); }
+    async load() { return { state: structuredClone(baseState), etag: 'etag-1' }; },
+    async save(_groupId, nextState) {
+      savedTitle = nextState.appointments.find((item: any) => item.id === 'APPT-1')?.title ?? '';
+      return { state: nextState, etag: 'etag-2' };
+    }
   };
   setStorageAdapterForTests(adapter);
 
@@ -366,4 +370,41 @@ test('apply_appointment_proposal succeeds when appointment.json is initially mis
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).ok, true);
   assert.ok(getDocCalls >= 2);
+  assert.equal(savedTitle, 'New title');
+  assert.equal((response.jsonBody as any).appointment?.desc, 'New title');
+});
+
+
+test('apply_appointment_proposal persists updated title for subsequent list snapshots', async () => {
+  const baseState = state();
+  baseState.appointments = [{ id: 'APPT-1', code: 'APPT-1', title: 'Old title', date: '2026-03-01', isAllDay: false, people: [], location: '', notes: '' }];
+  let currentState = structuredClone(baseState);
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: structuredClone(currentState), etag: 'etag-1' }; },
+    async save(_groupId, nextState) { currentState = structuredClone(nextState); return { state: nextState, etag: 'etag-2' }; }
+  };
+  setStorageAdapterForTests(adapter);
+
+  setAppointmentDocStoreForTests({
+    async getWithEtag() { return { doc: { id: 'APPT-1', title: 'Old title', reconciliation: { status: 'unreconciled' } }, etag: 'doc-etag-1' }; },
+    async put() {},
+    async putWithEtag() { return true; }
+  });
+  setAppointmentEventStoreForTests({
+    async hasLatestIdempotencyKey() { return false; },
+    async recent() {
+      return {
+        events: [{ id: 'ev-proposal', tsUtc: '2026-03-01T00:00:00.000Z', type: 'PROPOSAL_CREATED', actor: { kind: 'SYSTEM' }, proposalId: 'proposal-1', payload: { field: 'title', from: 'Old title', to: 'New title', proposalId: 'proposal-1' } } as any],
+        nextCursor: null
+      };
+    },
+    async append(_groupId: string, _appointmentId: string, event: any) { return { appended: true, event, chunkId: 1 }; }
+  });
+
+  const applyResponse = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'apply_appointment_proposal', appointmentId: 'APPT-1', proposalId: 'proposal-1', field: 'title', value: 'New title', clientRequestId: 'req-list-1' } }) } as any, context());
+  assert.equal(applyResponse.status, 200);
+
+  const loaded = await adapter.load(GROUP_ID);
+  assert.equal(loaded.state.appointments[0]?.title, 'New title');
 });
