@@ -5,7 +5,8 @@ import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl } from './lib/apiUrl';
+import { apiFetch, apiUrl, isIgniteGraceActiveForGroup } from './lib/apiUrl';
+import { getSafeNextPathFromHash } from './lib/returnTo';
 import { generateSuggestionCandidates, parseResolvedWhenFromTimeSpec, type SuggestionCandidate, type SuggestionDirectAction } from './lib/appointmentSuggestions';
 import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
@@ -615,6 +616,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
+  const showGraceBanner = isIgniteGraceActiveForGroup(groupId);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const breakoutInFlightRef = useRef(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
@@ -1957,6 +1959,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }
   };
 
+  const goToSignIn = () => {
+    const next = getSafeNextPathFromHash(window.location.hash || '');
+    window.location.hash = `/login?next=${encodeURIComponent(next)}`;
+  };
+
 
   return (
     <Page variant="workspace">
@@ -1980,6 +1987,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Session</div>
           <div style={{ color: 'var(--muted)' }}>{breakoutError}</div>
         </div>
+      ) : null}
+      {showGraceBanner ? (
+        <Alert
+          severity="info"
+          sx={{ maxWidth: 760, mb: 1.5 }}
+          action={<Button color="inherit" size="small" onClick={goToSignIn}>Sign in</Button>}
+        >
+          <strong>Guest access (limited)</strong> You’re using a temporary invite session. Some features are disabled.
+        </Alert>
       ) : null}
       <div className="ui-shell">
         <aside className="ui-sidebar" aria-hidden="true" />

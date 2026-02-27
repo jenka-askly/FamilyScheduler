@@ -12169,3 +12169,46 @@ Center the invite modal QR code horizontally without changing other modal conten
 ### Follow-ups
 
 - Optional manual check in local browser with a live invite session to confirm centering across viewport sizes.
+
+## 2026-02-27 09:04 UTC (Grace session banner + login next/return wiring)
+
+### Objective
+
+Implement grace-session user notification in AppShell with sign-in redirect, and ensure auth completion returns users to the original route (with grace-aware fallback).
+
+### Approach
+
+- Added `isIgniteGraceActiveForGroup(groupId)` in web session helpers and backed it with a pure computation helper for unit testing.
+- Added `returnTo` helper module to centralize route sanitization (`sanitizeReturnTo`) and safe hash-to-next conversion for login redirects.
+- Updated `AppShell` to render a persistent info `Alert` under `PageHeader` when grace is active for the current group and no durable session exists.
+- Added Sign in CTA to navigate to `/#/login?next=<current-path>`.
+- Updated `AuthDonePage` to keep normal `returnTo` behavior and add fallback logic:
+  - missing/invalid `returnTo` + valid grace group/session => `/g/{groupId}/app`
+  - otherwise `/`
+- Added unit tests for grace active-state computation and returnTo/next sanitization.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/App.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/lib/graceAccess.ts`
+- `apps/web/src/lib/graceAccess.test.ts`
+- `apps/web/src/lib/returnTo.ts`
+- `apps/web/src/lib/returnTo.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "AppShell|PageHeader|breakoutError" apps web src` ✅ located AppShell/PageHeader insertion region (with expected missing top-level `web/src` paths in this repo layout).
+- `rg -n "getIgniteGraceSessionId|getAuthSessionId|getSessionId|igniteGrace" apps/web/src` ✅ located session helpers and grace key usage.
+- `rg -n "LandingSignInPage|/login\?next|returnTo|RedirectTo(Login|SignIn)Page" apps/web/src` ✅ located login/returnTo flow.
+- `node --test apps/web/src/lib/appointmentSuggestions.test.ts apps/web/src/lib/returnTo.test.ts apps/web/src/lib/graceAccess.test.ts` ✅ passed.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot; intentionally stopped via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/81958407e5a45083/artifacts/artifacts/grace-banner.png`.
+
+### Follow-ups
+
+- Optional: add React-level UI tests around AppShell banner visibility/CTA navigation once a browser/unit test framework is introduced for `apps/web`.

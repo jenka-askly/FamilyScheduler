@@ -6,9 +6,10 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl, getAuthSessionId, getSessionId } from './lib/apiUrl';
+import { apiFetch, apiUrl, getAuthSessionId, getIgniteGraceGroupId, getIgniteGraceSessionId, getSessionId } from './lib/apiUrl';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
+import { isValidReturnTo, sanitizeReturnTo } from './lib/returnTo';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CloseIcon from '@mui/icons-material/Close';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
@@ -103,14 +104,6 @@ const createTraceId = (): string => {
 const createAttemptId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `attempt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-const sanitizeReturnTo = (value?: string): string => {
-  if (typeof value !== 'string') return '/';
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 200) return '/';
-  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('://')) return '/';
-  return trimmed;
 };
 
 const parseHashRoute = (hash: string): { type: 'home' } | { type: 'login'; notice?: string; next?: string } | { type: 'create' } | { type: 'join' | 'app'; groupId: string; error?: string; traceId?: string } | { type: 'ignite'; groupId: string } | { type: 'igniteJoin'; groupId: string; sessionId: string } | { type: 'handoff'; groupId: string; email?: string; next?: string } | { type: 'authConsume'; token?: string; attemptId?: string; returnTo?: string } | { type: 'authDone'; returnTo?: string } => {
@@ -647,7 +640,13 @@ function AuthConsumePage({ token, attemptId, returnTo }: { token?: string; attem
 }
 
 function AuthDonePage({ returnTo }: { returnTo?: string }) {
-  const nextPath = sanitizeReturnTo(returnTo);
+  const fallbackPath = useMemo(() => {
+    const graceGroupId = getIgniteGraceGroupId();
+    if (!graceGroupId) return '/';
+    if (!getIgniteGraceSessionId(graceGroupId)) return '/';
+    return `/g/${graceGroupId}/app`;
+  }, []);
+  const nextPath = isValidReturnTo(returnTo) ? sanitizeReturnTo(returnTo) : fallbackPath;
   const [showCloseHint, setShowCloseHint] = useState(false);
 
   const returnToApp = () => {
