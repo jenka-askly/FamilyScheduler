@@ -6,7 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, isIgniteGraceActiveForGroup } from './lib/apiUrl';
-import { getSafeNextPathFromHash } from './lib/returnTo';
+import { buildLoginPathWithNextFromHash } from './lib/returnTo';
 import { generateSuggestionCandidates, parseResolvedWhenFromTimeSpec, type SuggestionCandidate, type SuggestionDirectAction } from './lib/appointmentSuggestions';
 import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
@@ -2155,8 +2155,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const goToSignIn = () => {
-    const next = getSafeNextPathFromHash(window.location.hash || '');
-    window.location.hash = `/login?next=${encodeURIComponent(next)}`;
+    window.location.hash = buildLoginPathWithNextFromHash(window.location.hash || '');
   };
 
 

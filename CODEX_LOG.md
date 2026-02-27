@@ -12912,3 +12912,50 @@ Implement Phase 2 deletion/undo UX and direct restore wiring:
   - undo menu restore paths succeed for both entity types,
   - refresh clears session undo list and hides icon,
   - restore failure path keeps undo entry and shows inline Alert.
+
+## 2026-02-27 20:31 UTC (igniteGrace header notice + login next redirect)
+
+### Objective
+
+Implement the igniteGrace guest-access UX glue:
+- persistent guest banner in AppShell for grace-without-durable-session,
+- sign-in CTA to `/login?next=<current in-app route>`,
+- preserve existing sanitized return-to behavior and auth-done fallback semantics.
+
+### Approach
+
+- Confirmed existing code already had:
+  - `isIgniteGraceActiveForGroup` in client session helpers,
+  - grace banner rendering in `AppShell`,
+  - sanitized `next` parsing and `returnTo` handling in login/auth-done routes.
+- Reduced duplication by extracting login-next path builder helper in `returnTo.ts` and reusing it in `AppShell` CTA handler.
+- Added focused unit tests for:
+  - encoded login-next route generation from hash path,
+  - grace-active false case when grace group mismatches current group.
+- Updated continuity docs (`PROJECT_STATUS.md`, `CODEX_LOG.md`).
+
+### Files changed
+
+- `apps/web/src/lib/returnTo.ts`
+- `apps/web/src/lib/returnTo.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/graceAccess.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "function AppShell|const AppShell|PageHeader|breakoutError" apps/web/src` ✅
+- `rg -n "getSessionId\(|getAuthSessionId\(|getIgniteGraceSessionId\(" apps/web/src` ✅
+- `rg -n "parseHashRoute|window\.location\.hash|function nav\(|const nav" apps/web/src` ✅
+- `rg -n "LandingSignInPage|AuthDonePage|/login\?next|returnTo" apps/web/src/App.tsx apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/returnTo.test.ts src/lib/graceAccess.test.ts` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+
+- Manual browser verification still required in a full runtime environment for end-to-end magic-link flow:
+  1) grace banner visible on `/#/g/:groupId/app` without durable auth,
+  2) CTA routes to `/#/login?next=...`,
+  3) post-auth returns to expected group app route,
+  4) banner disappears after durable auth and grace clear.

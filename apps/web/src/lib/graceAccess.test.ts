@@ -20,4 +20,14 @@ describe('computeIsIgniteGraceActiveForGroup', () => {
       igniteGraceGroupId: 'group-1'
     }), false);
   });
+
+  it('returns false when grace belongs to a different group', () => {
+    assert.equal(computeIsIgniteGraceActiveForGroup({
+      groupId: 'group-1',
+      durableSessionId: null,
+      igniteGraceSessionId: 'grace-123',
+      igniteGraceGroupId: 'group-2'
+    }), false);
+  });
+
 });
