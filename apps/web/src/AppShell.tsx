@@ -77,6 +77,8 @@ type AppointmentDetailResponse = {
   eventsPage: AppointmentDetailEvent[];
   nextCursor: { chunkId: number; index: number } | null;
   projections: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] };
+  constraints?: { byMember?: Record<string, Array<{ id: string; field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string }>> };
+  suggestions?: { byField?: Record<string, Array<{ id: string; proposerEmail: string; field: 'title' | 'time' | 'location'; value: string; active: boolean; status: string; conflicted?: boolean; reactions?: Array<{ email: string; reaction: 'up' | 'down'; tsUtc: string }> }>> };
 };
 
 type DirectActionErrorPayload = {
@@ -84,6 +86,14 @@ type DirectActionErrorPayload = {
   message?: string;
   error?: string | { code?: string; message?: string };
 };
+
+
+const discussionEventTypes = new Set(['USER_MESSAGE', 'SYSTEM_CONFIRMATION', 'PROPOSAL_CREATED', 'PROPOSAL_PAUSED', 'PROPOSAL_RESUMED', 'PROPOSAL_EDITED', 'PROPOSAL_APPLIED', 'PROPOSAL_CANCELED', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED', 'SUGGESTION_CREATED', 'SUGGESTION_APPLIED', 'SUGGESTION_DISMISSED', 'SUGGESTION_REACTED', 'SUGGESTION_REACTION']);
+
+const buildProjections = (events: AppointmentDetailEvent[]) => ({
+  discussionEvents: events.filter((event) => discussionEventTypes.has(event.type)),
+  changeEvents: events.filter((event) => event.type !== 'USER_MESSAGE')
+});
 
 type Session = { groupId: string; email: string; joinedAt: string };
 
@@ -408,6 +418,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; from: string; to: string; countdownEndsAt: number; paused: boolean }>(null);
   const [titleEditDraft, setTitleEditDraft] = useState('');
   const [isEditProposalOpen, setIsEditProposalOpen] = useState(false);
+  const [constraintDraft, setConstraintDraft] = useState<{ field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; editingId?: string }>({ field: 'title', operator: 'contains', value: '' });
+  const [constraintError, setConstraintError] = useState<string | null>(null);
+  const [suggestionDraft, setSuggestionDraft] = useState<{ field: 'title' | 'time' | 'location'; value: string }>({ field: 'title', value: '' });
   const [appointmentToDelete, setAppointmentToDelete] = useState<Snapshot['appointments'][0] | null>(null);
   const [personToDelete, setPersonToDelete] = useState<Snapshot['people'][0] | null>(null);
   const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
@@ -486,19 +499,16 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] } };
+    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions'] };
     if (!response.ok || !payload.ok || !payload.appointment || !payload.eventsPage || !payload.projections) throw new Error(payload.message ?? 'Unable to load details');
-    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections };
+    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, constraints: payload.constraints, suggestions: payload.suggestions };
     setDetailsData((prev) => {
       if (!cursor || !prev) return next;
       const merged = [...prev.eventsPage, ...next.eventsPage.filter((event) => !prev.eventsPage.some((existing) => existing.id === event.id))];
       return {
         ...next,
         eventsPage: merged,
-        projections: {
-          discussionEvents: merged.filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
-          changeEvents: merged.filter((event) => event.type === 'FIELD_CHANGED')
-        }
+        projections: buildProjections(merged)
       };
     });
   }
@@ -529,10 +539,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setDetailsData((prev) => prev ? {
       ...prev,
       eventsPage: [syntheticEvent, ...prev.eventsPage],
-      projections: {
-        discussionEvents: [syntheticEvent, ...prev.eventsPage].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
-        changeEvents: [syntheticEvent, ...prev.eventsPage].filter((event) => event.type === 'FIELD_CHANGED')
-      }
+      projections: buildProjections([syntheticEvent, ...prev.eventsPage])
     } : prev);
   };
 
@@ -566,10 +573,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setDetailsData((prev) => prev ? {
       ...prev,
       eventsPage: [...newEvents, ...prev.eventsPage],
-      projections: {
-        discussionEvents: [...newEvents, ...prev.eventsPage].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
-        changeEvents: [...newEvents, ...prev.eventsPage].filter((event) => event.type === 'FIELD_CHANGED')
-      }
+      projections: buildProjections([...newEvents, ...prev.eventsPage])
     } : prev);
     if (payload.proposal) setPendingProposal({ ...payload.proposal, countdownEndsAt: Date.now() + 5000, paused: false });
   };
@@ -595,10 +599,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       appointment: payload.appointment ?? prev.appointment,
       nextCursor: prev.nextCursor,
       eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
-      projections: {
-        discussionEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
-        changeEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'FIELD_CHANGED')
-      }
+      projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ])
     } : prev);
     if (payload.appointment) {
       setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
@@ -619,11 +620,96 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setDetailsData((prev) => prev ? {
       ...prev,
       eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
-      projections: {
-        discussionEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'USER_MESSAGE' || event.type === 'SYSTEM_CONFIRMATION' || event.type === 'PROPOSAL_CREATED'),
-        changeEvents: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ].filter((event) => event.type === 'FIELD_CHANGED')
-      }
+      projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ])
     } : prev);
+  };
+
+  const pauseOrResumePendingProposal = async (mode: 'pause' | 'resume') => {
+    if (!detailsAppointmentId || !pendingProposal) return;
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        groupId,
+        action: { type: mode === 'pause' ? 'pause_appointment_proposal' : 'resume_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, clientRequestId },
+        traceId: createTraceId()
+      })
+    });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
+    if (!response.ok || !payload.ok) return;
+    setPendingProposal((prev) => prev ? { ...prev, paused: mode === 'pause' } : prev);
+    setDetailsData((prev) => prev ? {
+      ...prev,
+      eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
+      projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ])
+    } : prev);
+  };
+
+  const editPendingProposal = async (value: string) => {
+    if (!detailsAppointmentId || !pendingProposal) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, action: { type: 'edit_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value: trimmed, clientRequestId }, traceId: createTraceId() })
+    });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
+    if (!response.ok || !payload.ok) return;
+    setPendingProposal((prev) => prev ? { ...prev, to: trimmed, paused: false } : prev);
+    setDetailsData((prev) => prev ? {
+      ...prev,
+      eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
+      projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ])
+    } : prev);
+  };
+
+
+  const submitConstraint = async () => {
+    if (!detailsAppointmentId) return;
+    if (!constraintDraft.value.trim()) {
+      setConstraintError('Use structured fields.');
+      return;
+    }
+    setConstraintError(null);
+    const clientRequestId = createTraceId();
+    const action = constraintDraft.editingId
+      ? { type: 'edit_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, constraintId: constraintDraft.editingId, field: constraintDraft.field, operator: constraintDraft.operator, value: constraintDraft.value.trim(), clientRequestId }
+      : { type: 'add_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, field: constraintDraft.field, operator: constraintDraft.operator, value: constraintDraft.value.trim(), clientRequestId };
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action, traceId: createTraceId() }) });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; constraints?: AppointmentDetailResponse['constraints'] };
+    if (!response.ok || !payload.ok) return;
+    setConstraintDraft({ field: 'title', operator: 'contains', value: '' });
+    setDetailsData((prev) => prev ? ({ ...prev, constraints: payload.constraints ?? prev.constraints, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
+  };
+
+  const removeConstraint = async (constraintId: string) => {
+    if (!detailsAppointmentId) return;
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action: { type: 'remove_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, constraintId, clientRequestId }, traceId: createTraceId() }) });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; constraints?: AppointmentDetailResponse['constraints'] };
+    if (!response.ok || !payload.ok) return;
+    setDetailsData((prev) => prev ? ({ ...prev, constraints: payload.constraints ?? prev.constraints, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
+  };
+
+  const submitSuggestion = async () => {
+    if (!detailsAppointmentId || !suggestionDraft.value.trim()) return;
+    const clientRequestId = createTraceId();
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action: { type: 'create_suggestion', appointmentId: detailsAppointmentId, field: suggestionDraft.field, value: suggestionDraft.value.trim(), clientRequestId }, traceId: createTraceId() }) });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; suggestions?: AppointmentDetailResponse['suggestions'] };
+    if (!response.ok || !payload.ok) return;
+    setSuggestionDraft((prev) => ({ ...prev, value: '' }));
+    setDetailsData((prev) => prev ? ({ ...prev, suggestions: payload.suggestions ?? prev.suggestions, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
+  };
+
+  const suggestionAction = async (action: Record<string, unknown>) => {
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action, traceId: createTraceId() }) });
+    const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; suggestions?: AppointmentDetailResponse['suggestions']; appointment?: Snapshot['appointments'][0] };
+    if (!response.ok || !payload.ok) return;
+    setDetailsData((prev) => prev ? ({ ...prev, appointment: payload.appointment ?? prev.appointment, suggestions: payload.suggestions ?? prev.suggestions, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
+    if (payload.appointment) setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
   };
 
   const closeRulePromptModal = () => {
@@ -2397,6 +2483,31 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 <Button size="small" variant="outlined" disabled>Notify (coming soon)</Button>
               </Stack>
             </Box>
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <TextField size="small" label="Suggest value" value={suggestionDraft.value} onChange={(event) => setSuggestionDraft((prev) => ({ ...prev, value: event.target.value }))} />
+                <TextField
+                  size="small"
+                  select
+                  label="Field"
+                  value={suggestionDraft.field}
+                  onChange={(event) => setSuggestionDraft((prev) => ({ ...prev, field: event.target.value as 'title' | 'time' | 'location' }))}
+                >
+                  <MenuItem value="title">Title</MenuItem>
+                  <MenuItem value="time">Time</MenuItem>
+                  <MenuItem value="location">Location</MenuItem>
+                </TextField>
+                <Button size="small" variant="outlined" onClick={() => void submitSuggestion()} disabled={!suggestionDraft.value.trim()}>Suggest</Button>
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
+                  const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
+                  if (!active.length) return null;
+                  const conflicted = active.some((entry) => entry.conflicted);
+                  return <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />;
+                })}
+              </Stack>
+            </Stack>
             <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
               <Tab value="discussion" label="Discussion" />
               <Tab value="changes" label="Changes" />
@@ -2420,7 +2531,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                       <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply Now</Button>
-                      <Button size="small" onClick={() => setPendingProposal((prev) => prev ? { ...prev, paused: true } : prev)}>Pause</Button>
+                      <Button size="small" onClick={() => void pauseOrResumePendingProposal(pendingProposal.paused ? 'resume' : 'pause')}>{pendingProposal.paused ? 'Resume' : 'Pause'}</Button>
                       <Button size="small" onClick={() => void dismissPendingProposal()}>Cancel</Button>
                       <Button size="small" onClick={() => {
                         setTitleEditDraft(pendingProposal.to);
@@ -2429,6 +2540,18 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                     </Stack>
                   </Paper>
                 ) : null}
+                {Object.entries(detailsData.suggestions?.byField ?? {}).flatMap(([field, list]) => (list ?? []).filter((entry) => entry.active && entry.status === 'active').map((entry) => ({ field, entry }))).map(({ field, entry }) => (
+                  <Paper key={entry.id} variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="body2">Suggestion ({field}): {entry.value}</Typography>
+                    <Typography variant="caption" color="text.secondary">by {entry.proposerEmail} {entry.conflicted ? '· conflicted' : ''}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                      <Button size="small" variant="contained" onClick={() => void suggestionAction({ type: 'apply_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, clientRequestId: createTraceId() })}>Apply</Button>
+                      {entry.proposerEmail?.toLowerCase() === sessionEmail.toLowerCase() ? <Button size="small" onClick={() => void suggestionAction({ type: 'dismiss_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, clientRequestId: createTraceId() })}>Dismiss</Button> : null}
+                      <Tooltip title={(entry.reactions ?? []).map((reaction) => `${reaction.email} ${reaction.reaction === 'up' ? '👍' : '👎'}`).join(', ') || 'No reactions'}><Button size="small" onClick={() => void suggestionAction({ type: 'react_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, reaction: 'up', clientRequestId: createTraceId() })}>👍</Button></Tooltip>
+                      <Button size="small" onClick={() => void suggestionAction({ type: 'react_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, reaction: 'down', clientRequestId: createTraceId() })}>👎</Button>
+                    </Stack>
+                  </Paper>
+                ))}
                 <Stack direction="row" spacing={1}>
                   <TextField fullWidth size="small" placeholder="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
                   <Button variant="contained" onClick={() => void sendDetailsMessage()} disabled={!detailsMessageText.trim()}>Send</Button>
@@ -2439,13 +2562,51 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               <Stack spacing={1}>
                 {detailsData.projections.changeEvents.map((event) => (
                   <Paper key={event.id} variant="outlined" sx={{ p: 1 }} title={event.sourceTextSnapshot || ''}>
-                    <Typography variant="body2">{String(event.payload.field)}: {String(event.payload.from ?? event.payload.oldValue ?? '')} → {String(event.payload.to ?? event.payload.newValue ?? '')}</Typography>
-                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography>
+                    <Typography variant="body2">
+                      {event.type === 'FIELD_CHANGED' ? `${String(event.payload.field)}: ${String(event.payload.from ?? event.payload.oldValue ?? '')} → ${String(event.payload.to ?? event.payload.newValue ?? '')}`
+                        : event.type === 'CONSTRAINT_ADDED' ? `Constraint added (${String((event.payload.constraint as Record<string, unknown> | undefined)?.field ?? '')})`
+                          : event.type === 'CONSTRAINT_REMOVED' ? 'Constraint removed'
+                            : event.type.startsWith('SUGGESTION_') ? `${event.type} (${String(event.payload.field ?? '')})`
+                              : `${event.type} occurred`}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()} · {event.actor.email ?? event.actor.kind}</Typography>
                   </Paper>
                 ))}
               </Stack>
             ) : null}
-            {detailsTab === 'constraints' ? <Alert severity="info">Constraints management is available via direct actions and will render here as structured controls.</Alert> : null}
+            {detailsTab === 'constraints' ? (
+              <Stack spacing={1}>
+                {constraintError ? <Alert severity="warning">{constraintError}</Alert> : null}
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <TextField size="small" select label="Field" value={constraintDraft.field} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, field: event.target.value as 'title' | 'time' | 'location' | 'general' }))}>
+                    <MenuItem value="title">Title</MenuItem><MenuItem value="time">Time</MenuItem><MenuItem value="location">Location</MenuItem><MenuItem value="general">General</MenuItem>
+                  </TextField>
+                  <TextField size="small" select label="Operator" value={constraintDraft.operator} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, operator: event.target.value as 'equals' | 'contains' | 'not_contains' | 'required' }))}>
+                    <MenuItem value="equals">equals</MenuItem><MenuItem value="contains">contains</MenuItem><MenuItem value="not_contains">not contains</MenuItem><MenuItem value="required">required</MenuItem>
+                  </TextField>
+                  <TextField size="small" label="Value" value={constraintDraft.value} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, value: event.target.value }))} />
+                  <Button size="small" variant="contained" onClick={() => void submitConstraint()}>{constraintDraft.editingId ? 'Save' : 'Add constraint'}</Button>
+                </Stack>
+                {Object.entries(detailsData.constraints?.byMember ?? {}).map(([memberEmail, list]) => (
+                  <Paper key={memberEmail} variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="subtitle2">{memberEmail}</Typography>
+                    <Stack spacing={0.5}>
+                      {(list ?? []).map((constraint) => (
+                        <Stack key={constraint.id} direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                          <Typography variant="body2">{constraint.field} {constraint.operator} {constraint.value}</Typography>
+                          {memberEmail.toLowerCase() === sessionEmail.toLowerCase() ? (
+                            <Stack direction="row" spacing={0.5}>
+                              <Button size="small" onClick={() => setConstraintDraft({ field: constraint.field, operator: constraint.operator, value: constraint.value, editingId: constraint.id })}>Edit</Button>
+                              <Button size="small" color="error" onClick={() => void removeConstraint(constraint.id)}>Remove</Button>
+                            </Stack>
+                          ) : null}
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : null}
           </Stack>
         ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
       </Drawer>
@@ -2462,7 +2623,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             variant="contained"
             onClick={() => {
               setIsEditProposalOpen(false);
-              void applyPendingProposal(titleEditDraft);
+              void editPendingProposal(titleEditDraft);
             }}
             disabled={!titleEditDraft.trim()}
           >

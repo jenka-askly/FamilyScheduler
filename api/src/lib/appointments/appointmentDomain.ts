@@ -104,8 +104,63 @@ export const evaluateReconciliation = (docRaw: Record<string, unknown>, actorEma
   };
 };
 
+export const activeConstraintsForMember = (docRaw: Record<string, unknown>, memberEmail: string): Constraint[] => {
+  const doc = ensureAppointmentDoc(docRaw, memberEmail);
+  const byMember = asRecord(asRecord(doc.constraints).byMember);
+  const list = byMember[memberEmail];
+  if (!Array.isArray(list)) return [];
+  return list.map((entry) => asRecord(entry) as unknown as Constraint).filter((entry) => entry.active !== false);
+};
+
+export const upsertConstraintForMember = (
+  docRaw: Record<string, unknown>,
+  memberEmail: string,
+  input: { constraintId?: string; field: Constraint['field']; operator: NonNullable<Constraint['operator']>; value: string; type?: string }
+): { doc: Record<string, unknown>; added: Constraint; removed?: Constraint } => {
+  const doc = ensureAppointmentDoc(docRaw, memberEmail);
+  const byMember = asRecord(asRecord(doc.constraints).byMember);
+  const current = Array.isArray(byMember[memberEmail]) ? [...(byMember[memberEmail] as Record<string, unknown>[])] : [];
+  const now = new Date().toISOString();
+  let removed: Constraint | undefined;
+  if (input.constraintId) {
+    const idx = current.findIndex((entry) => asString(asRecord(entry).id) === input.constraintId);
+    if (idx >= 0) {
+      removed = asRecord(current[idx]) as unknown as Constraint;
+      current.splice(idx, 1);
+    }
+  }
+  const added: Constraint = {
+    id: input.constraintId || randomUUID(),
+    type: input.type || 'structured',
+    field: input.field,
+    operator: input.operator,
+    value: input.value,
+    active: true,
+    createdAtUtc: removed?.createdAtUtc || now,
+    updatedAtUtc: now
+  };
+  current.push(added as unknown as Record<string, unknown>);
+  byMember[memberEmail] = current;
+  return { doc: { ...doc, constraints: { byMember } }, added, removed };
+};
+
+export const removeConstraintForMember = (docRaw: Record<string, unknown>, memberEmail: string, constraintId: string): { doc: Record<string, unknown>; removed: Constraint | null } => {
+  const doc = ensureAppointmentDoc(docRaw, memberEmail);
+  const byMember = asRecord(asRecord(doc.constraints).byMember);
+  const current = Array.isArray(byMember[memberEmail]) ? [...(byMember[memberEmail] as Record<string, unknown>[])] : [];
+  const idx = current.findIndex((entry) => asString(asRecord(entry).id) === constraintId);
+  if (idx < 0) return { doc, removed: null };
+  const removed = asRecord(current[idx]) as unknown as Constraint;
+  current.splice(idx, 1);
+  byMember[memberEmail] = current;
+  return { doc: { ...doc, constraints: { byMember } }, removed };
+};
+
 export const materialEventTypes = new Set([
-  'FIELD_CHANGED', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED', 'RECONCILIATION_CHANGED', 'SUGGESTION_DISMISSED', 'SUGGESTION_APPLIED', 'NOTIFICATION_SENT'
+  'FIELD_CHANGED', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED', 'RECONCILIATION_CHANGED',
+  'SUGGESTION_CREATED', 'SUGGESTION_DISMISSED', 'SUGGESTION_APPLIED', 'SUGGESTION_REACTED', 'SUGGESTION_REACTION',
+  'PROPOSAL_PAUSED', 'PROPOSAL_RESUMED', 'PROPOSAL_EDITED', 'PROPOSAL_APPLIED',
+  'NOTIFICATION_SENT'
 ]);
 
 export const expireSuggestions = (docRaw: Record<string, unknown>): Record<string, unknown> => {
@@ -124,6 +179,14 @@ export const expireSuggestions = (docRaw: Record<string, unknown>): Record<strin
     });
   }
   return { ...doc, suggestions: { byField } };
+};
+
+export const activeSuggestionsByField = (docRaw: Record<string, unknown>, field: Suggestion['field']): Suggestion[] => {
+  const doc = expireSuggestions(docRaw);
+  const byField = asRecord(asRecord(doc.suggestions).byField);
+  const list = byField[field];
+  if (!Array.isArray(list)) return [];
+  return list.map((entry) => asRecord(entry) as unknown as Suggestion).filter((entry) => entry.active !== false && entry.status === 'active');
 };
 
 export const newSuggestion = (params: { proposerEmail: string; field: 'title' | 'time' | 'location'; value: string; conflicted?: boolean }): Suggestion => {
