@@ -6,6 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl } from './lib/apiUrl';
+import { generateSuggestionCandidates, parseResolvedWhenFromTimeSpec, type SuggestionCandidate, type SuggestionDirectAction } from './lib/appointmentSuggestions';
 import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
 import {
@@ -40,6 +41,8 @@ import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import CloseIcon from '@mui/icons-material/Close';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -108,6 +111,12 @@ type DirectActionErrorPayload = {
   ok?: boolean;
   message?: string;
   error?: string | { code?: string; message?: string };
+};
+
+type ActiveSuggestionCard = {
+  sourceMessageId: string;
+  candidates: SuggestionCandidate[];
+  visibleToEmail: string;
 };
 
 
@@ -574,6 +583,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [detailsTab, setDetailsTab] = useState<'discussion' | 'changes' | 'constraints'>('discussion');
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [detailsMessageText, setDetailsMessageText] = useState('');
+  const [activeSuggestionCard, setActiveSuggestionCard] = useState<ActiveSuggestionCard | null>(null);
+  const [suggestionActionError, setSuggestionActionError] = useState<string | null>(null);
   const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; from: string; to: string; countdownEndsAt: number; paused: boolean }>(null);
   const [proposalNowMs, setProposalNowMs] = useState(() => Date.now());
   const [titleEditDraft, setTitleEditDraft] = useState('');
@@ -715,6 +726,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setDetailsData(null);
     setPendingProposal(null);
     setDetailsMessageText('');
+    setActiveSuggestionCard(null);
+    setSuggestionActionError(null);
     shouldPinDiscussionToBottomRef.current = true;
   }
 
@@ -791,6 +804,70 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     return `[Error] ${errorCode ?? errorMessage ?? payload.message ?? fallbackMessage}`;
   };
 
+  const resolveMessageWhen = async (messageText: string): Promise<{ date?: string; startTime?: string; displayTime?: string } | null> => {
+    if (!detailsData?.appointment?.id) return null;
+    const timezone = detailsData.appointment.time?.resolved?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+    try {
+      const response = await apiFetch('/api/direct', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          action: {
+            type: 'resolve_appointment_time',
+            appointmentId: detailsData.appointment.id,
+            whenText: messageText,
+            timezone
+          }
+        })
+      });
+      const json = await response.json() as { ok?: boolean; time?: TimeSpec };
+      if (!response.ok || !json.ok) return null;
+      return parseResolvedWhenFromTimeSpec(json.time);
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const buildSuggestionsForMessage = async (sourceMessageId: string, messageText: string) => {
+    if (!detailsData?.appointment) return;
+    const candidates = await generateSuggestionCandidates({
+      messageText,
+      appointmentDetailContext: { appointmentId: detailsData.appointment.id, appointmentCode: detailsData.appointment.code },
+      sessionUserEmail: sessionEmail,
+      parsingHelpers: {
+        resolveWhen: resolveMessageWhen,
+        createClientRequestId: createTraceId
+      }
+    });
+    if (candidates.length > 0) {
+      setSuggestionActionError(null);
+      setActiveSuggestionCard({ sourceMessageId, candidates, visibleToEmail: sessionEmail });
+      return;
+    }
+    setActiveSuggestionCard((prev) => (prev?.sourceMessageId === sourceMessageId ? null : prev));
+  };
+
+  const applySuggestionCandidate = async (candidate: SuggestionCandidate) => {
+    if (!detailsData?.appointment) return;
+    const action: SuggestionDirectAction = candidate.action.type === 'add_constraint'
+      ? { ...candidate.action, clientRequestId: createTraceId() }
+      : candidate.action;
+    const response = await apiFetch('/api/direct', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ groupId, action, traceId: createTraceId() })
+    });
+    const payload = await response.json() as DirectActionErrorPayload;
+    if (!response.ok || !payload.ok) {
+      setSuggestionActionError(buildDirectActionErrorMessage(response, payload, 'Unable to apply suggestion.'));
+      return;
+    }
+    setSuggestionActionError(null);
+    setActiveSuggestionCard(null);
+    await loadAppointmentDetails(detailsData.appointment.id);
+  };
+
   const sendDetailsMessage = async () => {
     if (!detailsAppointmentId || !detailsMessageText.trim()) return;
     const text = detailsMessageText.trim();
@@ -816,6 +893,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       eventsPage: [...newEvents, ...prev.eventsPage],
       projections: buildProjections([...newEvents, ...prev.eventsPage])
     } : prev);
+    const sourceEvent = newEvents.find((event) => event.type === 'USER_MESSAGE' && String(event.payload.message ?? event.payload.text ?? '').trim() === text);
+    if (sourceEvent) {
+      await buildSuggestionsForMessage(sourceEvent.id, text);
+    }
     if (payload.proposal) setPendingProposal({ ...payload.proposal, countdownEndsAt: Date.now() + 5000, paused: false });
   };
 
@@ -2759,6 +2840,24 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                         <Typography variant={item.kind === 'system' ? 'caption' : 'body2'}>{item.text}</Typography>
                         {item.kind === 'system' ? <Typography variant="caption" color="text.secondary">{new Date(item.tsUtc).toLocaleTimeString()}</Typography> : null}
                       </Paper>
+                      {item.kind === 'chat' && activeSuggestionCard?.sourceMessageId === item.id && activeSuggestionCard.visibleToEmail.toLowerCase() === sessionEmail.toLowerCase() ? (
+                        <Paper variant="outlined" sx={{ p: 1, width: '100%', maxWidth: 420 }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">Suggestions</Typography>
+                            <IconButton size="small" aria-label="Dismiss suggestions" onClick={() => setActiveSuggestionCard(null)}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                          <Stack spacing={0.5}>
+                            {activeSuggestionCard.candidates.map((candidate) => (
+                              <Button key={candidate.id} size="small" variant="text" startIcon={<AutoFixHighIcon fontSize="small" />} sx={{ justifyContent: 'flex-start' }} onClick={() => void applySuggestionCandidate(candidate)}>
+                                {candidate.label}
+                              </Button>
+                            ))}
+                          </Stack>
+                          {suggestionActionError ? <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>{suggestionActionError}</Typography> : null}
+                        </Paper>
+                      ) : null}
                     </Stack>
                   );
                 })}
@@ -2793,7 +2892,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   </Paper>
                 ))}
                 <Stack direction="row" spacing={1}>
-                  <TextField id="discussion-message-input" fullWidth size="small" placeholder="Message" label="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
+                  <TextField id="discussion-message-input" fullWidth size="small" placeholder="Message" label="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (activeSuggestionCard) setActiveSuggestionCard(null); if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
                   <Button variant="contained" onClick={() => void sendDetailsMessage()} disabled={!detailsMessageText.trim()}>Send</Button>
                 </Stack>
               </Stack>

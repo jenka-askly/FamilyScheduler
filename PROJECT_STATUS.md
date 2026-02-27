@@ -4718,3 +4718,12 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web typecheck` ✅
+
+## 2026-02-27 05:12 UTC update (Appointment Pane Enhancement – Chat Suggestions v1)
+
+- Chat Suggestions v1: author-only, schema-valid 1-click actions under message; dismiss-on-typing; uses existing natural time/date parsing; single-action apply; no undo.
+- Added deterministic suggestion candidate generation for discussion messages with priority ordering: Title > Time > Date > Location > Constraint.
+- Suggestions render only under the triggering message for the message author, with explicit dismiss (X) and inline apply error handling.
+- Suggestion selection now executes exactly one `/api/direct` action immediately, then refetches appointment details on success.
+- Reused existing natural time/date parsing flow through `resolve_appointment_time` + `TimeSpec` normalization used by appointment editors.
+
