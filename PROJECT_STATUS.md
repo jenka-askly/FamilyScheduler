@@ -4684,3 +4684,17 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Known remaining issues
 
 - API build/test remains blocked in this container by missing `@azure/data-tables` type resolution during `tsc`.
+
+## 2026-02-27 03:32 UTC update (Discussion chat UI cleanup)
+
+- Discussion chat UI cleaned up: grouped sender headers, capped bubble widths, removed noisy duplicate '(updated)' title update message, improved system/proposal pill copy.
+- Discussion rendering now normalizes raw events into display items (`chat`/`system`) to enforce friendly copy and alignment rules without mutating stored events.
+- Discussion message composer input now has an explicit `id` + visible label wiring for accessibility.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped intentionally)
+3. Playwright screenshot captures:
+   - `browser:/tmp/codex_browser_invocations/e002a387492bdb2e/artifacts/artifacts/discussion-mixed-chat.png`
+   - `browser:/tmp/codex_browser_invocations/e002a387492bdb2e/artifacts/artifacts/discussion-proposal-sequence.png`
