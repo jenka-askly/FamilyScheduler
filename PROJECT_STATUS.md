@@ -4978,3 +4978,22 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked in this container by missing `@azure/data-tables` dependency during TypeScript build.
+
+## 2026-02-27 19:00 UTC update (API build TS2353 fix in appointments snapshot)
+
+### Current milestone
+- Stabilize API TypeScript build compatibility while preserving runtime behavior.
+
+### What changed
+- Fixed TS2353 in appointment snapshot assembly by separating legacy time input construction from snapshot response construction.
+- `code` now remains in the snapshot response object and is no longer included in the legacy input object used for `getTimeSpec`.
+- `buildAppointmentsSnapshot` now has an explicit return type alias for snapshot rows.
+
+### Files touched
+- `api/src/lib/appointments/buildAppointmentsSnapshot.ts`
+
+### Verification
+1. `pnpm -r --if-present build` ⚠️ blocked by existing environment dependency gap (`@azure/data-tables` missing), but TS2353 fix applied in the updated snapshot builder path.
+
+### Known issues
+- API workspace build in this environment remains blocked by missing `@azure/data-tables` type/module resolution in table-related files.

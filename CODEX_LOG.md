@@ -12629,3 +12629,31 @@ Unify `/api/direct` and `/api/chat` appointment list sourcing so direct snapshot
 
 - In staging, validate `/api/direct` snapshot after `create_blank_appointment` includes existing indexed appointments plus new blank appointment without list swap.
 - Run API tests in an environment with `@azure/data-tables` available.
+
+## 2026-02-27 19:00 UTC (TS2353 fix in buildAppointmentsSnapshot: remove `code` from LegacyInput path)
+
+### Objective
+
+Resolve TypeScript TS2353 in `buildAppointmentsSnapshot.ts` where `code` was being passed into a legacy time-input object shape.
+
+### Approach
+
+- Split time construction into a dedicated legacy input object (`legacyInput`) containing only fields accepted by `getTimeSpec` legacy input contract (no `code`).
+- Normalized time by calling `getTimeSpec(legacyInput, ...)` and assigning result to `appt`.
+- Built final snapshot row in an explicit snapshot-typed variable (`snapshotAppt: ResponseAppointment`) and assigned `code` there.
+- Made `buildAppointmentsSnapshot` return type explicit as `Promise<ResponseAppointment[]>` to avoid undesirable inference.
+
+### Files changed
+
+- `api/src/lib/appointments/buildAppointmentsSnapshot.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ⚠️ TS2353 path addressed; workspace build still blocked by pre-existing missing `@azure/data-tables` module/type resolution in API table modules.
+- verification target: `pnpm -r build ✅`
+
+### Follow-ups
+
+- Re-run `pnpm -r --if-present build` in an environment with `@azure/data-tables` available to confirm full workspace green.

@@ -31,6 +31,8 @@ export type AppointmentSnapshotItem = {
   scanCapturedAt: string | null;
 };
 
+type ResponseAppointment = AppointmentSnapshotItem;
+
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
   if (!start || !end) return { date: start?.slice(0, 10) ?? '', isAllDay: true };
   const startDate = new Date(start);
@@ -45,7 +47,7 @@ export const buildAppointmentsSnapshot = async (
   timezone: string,
   people: Person[],
   traceId = 'unknown'
-): Promise<AppointmentSnapshotItem[]> => {
+): Promise<ResponseAppointment[]> => {
   const indexes = await listAppointmentIndexesForGroup(groupId);
   const peopleById = new Map(people.map((person) => [person.personId, person.name]));
   const appointments: AppointmentSnapshotItem[] = [];
@@ -67,23 +69,26 @@ export const buildAppointmentsSnapshot = async (
       ? doc.scanStatus
       : null;
 
-    appointments.push({
+    const legacyInput: Parameters<typeof getTimeSpec>[0] = {
+      schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
+      date: typeof doc.date === 'string' ? doc.date : undefined,
+      startTime: typeof doc.startTime === 'string' ? doc.startTime : undefined,
+      durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : undefined,
+      timezone: typeof doc.timezone === 'string' ? doc.timezone : timezone,
+      isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : undefined,
+      time: (doc.time && typeof doc.time === 'object' ? doc.time as TimeSpec : undefined),
+      start,
+      end
+    };
+    const appt = getTimeSpec(legacyInput, typeof doc.timezone === 'string' ? doc.timezone : timezone);
+
+    const snapshotAppt: ResponseAppointment = {
       id,
       code,
       desc: typeof doc.title === 'string' ? doc.title : '',
       schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
       updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : undefined,
-      time: getTimeSpec({
-        code,
-        date: typeof doc.date === 'string' ? doc.date : undefined,
-        startTime: typeof doc.startTime === 'string' ? doc.startTime : undefined,
-        durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : undefined,
-        timezone: typeof doc.timezone === 'string' ? doc.timezone : timezone,
-        isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : undefined,
-        time: (doc.time && typeof doc.time === 'object' ? doc.time as TimeSpec : undefined),
-        start,
-        end
-      }, typeof doc.timezone === 'string' ? doc.timezone : timezone),
+      time: appt,
       date: typeof doc.date === 'string' ? doc.date : derived.date,
       startTime: typeof doc.startTime === 'string' ? doc.startTime : derived.startTime,
       durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : derived.durationMins,
@@ -102,7 +107,9 @@ export const buildAppointmentsSnapshot = async (
       scanImageKey: typeof doc.scanImageKey === 'string' ? doc.scanImageKey : null,
       scanImageMime: typeof doc.scanImageMime === 'string' ? doc.scanImageMime : null,
       scanCapturedAt: typeof doc.scanCapturedAt === 'string' ? doc.scanCapturedAt : null
-    });
+    };
+
+    appointments.push(snapshotAppt);
   }
 
   return appointments;
