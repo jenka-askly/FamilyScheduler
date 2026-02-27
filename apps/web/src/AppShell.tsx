@@ -38,6 +38,7 @@ import {
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
@@ -113,6 +114,32 @@ const BODY_PX = 2;
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const SYSTEM_DISCUSSION_EVENT_TYPES = new Set([
+  'SYSTEM_CONFIRMATION',
+  'PROPOSAL_CREATED',
+  'PROPOSAL_PAUSED',
+  'PROPOSAL_RESUMED',
+  'PROPOSAL_EDITED',
+  'PROPOSAL_APPLIED',
+  'PROPOSAL_CANCELED',
+  'CONSTRAINT_ADDED',
+  'CONSTRAINT_REMOVED',
+  'SUGGESTION_CREATED',
+  'SUGGESTION_APPLIED',
+  'SUGGESTION_DISMISSED',
+  'SUGGESTION_REACTED',
+  'SUGGESTION_REACTION',
+  'RECONCILIATION_CHANGED'
+]);
+
+const getEventMessageText = (event: AppointmentDetailEvent): string => String(event.payload.message ?? event.payload.text ?? event.payload.value ?? '');
+
+const getEventAuthorLabel = (event: AppointmentDetailEvent): string => {
+  if (event.actor.kind === 'SYSTEM' || SYSTEM_DISCUSSION_EVENT_TYPES.has(event.type)) return 'System';
+  if (event.actor.kind === 'HUMAN') return event.actor.email ?? 'Member';
+  return event.actor.email ?? event.actor.kind;
 };
 const writeSession = (session: Session): void => {
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -426,6 +453,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [detailsMessageText, setDetailsMessageText] = useState('');
   const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; from: string; to: string; countdownEndsAt: number; paused: boolean }>(null);
+  const [proposalNowMs, setProposalNowMs] = useState(() => Date.now());
   const [titleEditDraft, setTitleEditDraft] = useState('');
   const [isEditProposalOpen, setIsEditProposalOpen] = useState(false);
   const [constraintDraft, setConstraintDraft] = useState<{ field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; editingId?: string }>({ field: 'title', operator: 'contains', value: '' });
@@ -488,6 +516,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }, [pendingProposal]);
 
   useEffect(() => {
+    if (!pendingProposal || pendingProposal.paused) return;
+    const interval = window.setInterval(() => {
+      setProposalNowMs(Date.now());
+    }, 500);
+    return () => window.clearInterval(interval);
+  }, [pendingProposal]);
+
+  useEffect(() => {
     const latestChange = detailsData?.eventsPage.find((event) => event.type === 'FIELD_CHANGED' && event.payload.field === 'title');
     if (!latestChange || !pendingProposal) return;
     if (latestChange.proposalId && latestChange.proposalId === pendingProposal.proposalId) setPendingProposal(null);
@@ -536,6 +572,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }
 
   function openAppointmentDetails(appt: Snapshot['appointments'][0]) {
+    setHeaderCollapsed(false);
     setDetailsOpen(true);
     setDetailsAppointmentId(appt.id);
     setDetailsTab('discussion');
@@ -543,6 +580,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }
 
   function closeAppointmentDetails() {
+    setHeaderCollapsed(false);
     setDetailsOpen(false);
     setDetailsAppointmentId(null);
     setDetailsData(null);
@@ -2477,11 +2515,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         </DialogActions>
       </Dialog>
 
-      <Drawer open={detailsOpen} title={detailsData?.appointment.desc || 'Appointment details'} onClose={closeAppointmentDetails}>
+      <Drawer open={detailsOpen} title={detailsData?.appointment.desc || (snapshot.appointments.find((entry) => entry.id === detailsAppointmentId)?.desc ?? 'Appointment details')} onClose={closeAppointmentDetails}>
         {detailsData ? (
           <Stack spacing={1.5}>
             <Box>
-              <Button size="small" onClick={() => setHeaderCollapsed((prev) => !prev)}>{headerCollapsed ? 'Expand header' : 'Collapse header'}</Button>
+              <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+                <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
+                  {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                </IconButton>
+              </Stack>
               {!headerCollapsed ? (
                 <Stack spacing={0.5}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsData.appointment.desc || 'Appointment'}</Typography>
@@ -2533,18 +2575,38 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             {detailsTab === 'discussion' ? (
               <Stack spacing={1}>
                 {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
-                {[...detailsData.projections.discussionEvents].reverse().map((event) => (
-                  <Paper key={event.id} variant="outlined" sx={{ p: 1, bgcolor: event.type === 'SYSTEM_CONFIRMATION' ? 'action.hover' : 'background.paper' }}>
-                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()}</Typography>
-                    <Typography variant="body2">{String(event.payload.message ?? event.payload.text ?? event.payload.value ?? '')}</Typography>
-                  </Paper>
-                ))}
+                {[...detailsData.projections.discussionEvents].reverse().map((event) => {
+                  const isSystemEvent = SYSTEM_DISCUSSION_EVENT_TYPES.has(event.type) || event.actor.kind === 'SYSTEM';
+                  const isCurrentUser = !isSystemEvent && Boolean(event.actor.email) && event.actor.email?.trim().toLowerCase() === sessionEmail.trim().toLowerCase();
+                  const messageText = getEventMessageText(event);
+                  const authorLabel = getEventAuthorLabel(event);
+                  return (
+                    <Stack key={event.id} spacing={0.25} alignItems={isSystemEvent ? 'stretch' : isCurrentUser ? 'flex-end' : 'flex-start'}>
+                      <Typography variant="caption" color="text.secondary" sx={{ px: isSystemEvent ? 0 : 0.5 }}>
+                        {authorLabel} · {new Date(event.tsUtc).toLocaleString()}
+                      </Typography>
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: 1,
+                          borderRadius: 2,
+                          maxWidth: isSystemEvent ? '100%' : '85%',
+                          bgcolor: isSystemEvent ? 'action.hover' : isCurrentUser ? 'primary.main' : 'background.paper',
+                          color: isSystemEvent ? 'text.primary' : isCurrentUser ? 'primary.contrastText' : 'text.primary',
+                          alignSelf: isSystemEvent ? 'stretch' : isCurrentUser ? 'flex-end' : 'flex-start'
+                        }}
+                      >
+                        <Typography variant="body2">{messageText || event.type}</Typography>
+                      </Paper>
+                    </Stack>
+                  );
+                })}
                 {pendingProposal ? (
                   <Paper variant="outlined" sx={{ p: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>Proposed title change:</Typography>
                     <Typography variant="body2">"{pendingProposal.from || 'Untitled'}" → "{pendingProposal.to}"</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {pendingProposal.paused ? 'Paused' : `Auto-apply in ${Math.max(0, Math.ceil((pendingProposal.countdownEndsAt - Date.now()) / 1000))}s`}
+                      {pendingProposal.paused ? 'Paused' : `Auto-apply in ${Math.max(0, Math.ceil((pendingProposal.countdownEndsAt - proposalNowMs) / 1000))}s`}
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                       <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply Now</Button>

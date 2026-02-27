@@ -11722,3 +11722,43 @@ Fix `apply_appointment_proposal` returning `appointment_not_found` for newly cre
 ### Follow-ups
 
 - Re-run API tests in an environment with complete Azure table dependencies; then validate full create→propose→apply flow in staging and capture network/log proof (`ok:true`).
+
+
+## 2026-02-27 02:22 UTC (Appointment pane UI polish bundle)
+
+### Objective
+
+Batch-fix drawer UI issues: stale header title refresh, proposal countdown ticking, discussion speaker identity + indentation, and chevron collapse affordance.
+
+### Approach
+
+- Updated appointment drawer title source to always resolve from live `detailsData.appointment` state (with snapshot fallback by `detailsAppointmentId`).
+- Added ticking countdown state (`proposalNowMs`) with a 500ms interval for visible decrementing remaining seconds, cleaned up on dependency changes/unmount.
+- Added discussion helpers:
+  - system event type map
+  - author label mapping (`HUMAN` -> email/member, `SYSTEM` -> System)
+  - unified message extraction
+- Refined discussion row rendering to chat-style layout:
+  - current user right-aligned
+  - others left-aligned
+  - system events full-width muted styling
+  - compact author + timestamp line above bubbles
+- Replaced text-based header collapse control with an accessible chevron icon toggle (`IconButton` + `aria-label`), while preserving Share/Notify actions.
+- Reset collapse state when opening/closing drawer to keep per-drawer-session behavior deterministic.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "get_appointment_detail|pendingProposal|Collapse header|discussionEvents|Auto-apply" apps/web/src/AppShell.tsx` ✅ scoped code paths.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot and manual validation.
+
+### Follow-ups
+
+- Human should run full interactive acceptance flow (propose title -> wait countdown -> apply -> verify header title + discussion attribution) on local/staging data with real identities.
