@@ -4966,3 +4966,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm --filter @familyscheduler/api test` ⚠️ blocked by missing `@azure/data-tables` module resolution in this container (`TS2307`).
 2. `pnpm install` ⚠️ blocked by package registry access (`ERR_PNPM_FETCH_403`) in this container.
 3. `rg "storage_target|DEBUG_STORAGE_TARGET|describeStorageTarget|blobNameForGroup" api/src/functions/chat.ts api/src/functions/direct.ts api/src/lib/storage/storageFactory.ts api/src/lib/storage/storageFactory.test.ts -n` ✅ confirms instrumentation and helper are present.
+
+## 2026-02-27 17:20 UTC update (Direct/chat appointment list consistency via index+docs)
+
+- Added shared appointment snapshot builder `api/src/lib/appointments/buildAppointmentsSnapshot.ts` that reads `AppointmentsIndex` + `appointment.json` docs and maps to response snapshot appointment shape with graceful skip+log for missing docs.
+- Updated `/api/chat` list-appointments path to use shared builder, removing duplicate inline index/doc parsing logic.
+- Updated `/api/direct` snapshot responses to source `appointments` from the shared index/doc builder while keeping `people/rules/historyCount` from `state.json`.
+- Updated direct `create_blank_appointment` flow to persist new `appointment.json` and upsert matching `AppointmentsIndex` row so newly created blanks immediately appear in chat/direct list snapshots.
+- Added test seams for `upsertAppointmentIndex` and a targeted direct test verifying snapshot source consistency and new blank persistence into doc+index paths.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked in this container by missing `@azure/data-tables` dependency during TypeScript build.

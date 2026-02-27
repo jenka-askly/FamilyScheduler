@@ -4,6 +4,8 @@ import { Readable } from 'node:stream';
 import { derivePendingProposal, direct, setAppointmentDocStoreForTests, setAppointmentEventStoreForTests, toResponseSnapshot } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
+import { setGetAppointmentJsonForTests } from '../lib/tables/appointments.js';
+import { setListAppointmentIndexesForGroupForTests, setUpsertAppointmentIndexForTests } from '../lib/tables/entities.js';
 
 const GROUP_ID = '22222222-2222-4222-8222-222222222222';
 const PHONE = '+14155550123';
@@ -25,6 +27,9 @@ const state = () => ({
 test.afterEach(() => setStorageAdapterForTests(null));
 test.afterEach(() => setAppointmentDocStoreForTests(null));
 test.afterEach(() => setAppointmentEventStoreForTests(null));
+test.afterEach(() => setGetAppointmentJsonForTests(null));
+test.afterEach(() => setListAppointmentIndexesForGroupForTests(null));
+test.afterEach(() => setUpsertAppointmentIndexForTests(null));
 test.afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.DIRECT_VERSION;
@@ -68,6 +73,57 @@ test('direct accepts body.email on create_blank_appointment while authenticating
 
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).ok, true);
+});
+
+
+test('create_blank_appointment returns index/doc snapshot and persists new appointment index+doc', async () => {
+  const base = state();
+  base.appointments.push({
+    id: 'existing-1', code: 'APPT-13', title: 'Indexed Existing', schemaVersion: 2, updatedAt: '2026-02-27T08:00:00.000Z',
+    date: '2026-03-01', startTime: '09:00', durationMins: 60, timezone: 'America/Los_Angeles', isAllDay: false,
+    assigned: [], people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: ''
+  } as any);
+
+  const docStore = new Map<string, Record<string, unknown>>([
+    ['existing-1', { id: 'existing-1', code: 'APPT-13', title: 'Indexed Existing', date: '2026-03-01', startTime: '09:00', durationMins: 60, isAllDay: false, timezone: 'America/Los_Angeles', people: [], location: '', locationRaw: '', locationDisplay: '', locationMapQuery: '', locationName: '', locationAddress: '', locationDirections: '', notes: '', scanStatus: null, scanImageKey: null, scanImageMime: null, scanCapturedAt: null, updatedAt: '2026-02-27T08:00:00.000Z' }]
+  ]);
+
+  const indexes: any[] = [{ partitionKey: GROUP_ID, rowKey: 'rk-existing', appointmentId: 'existing-1', status: 'active', hasScan: false, createdAt: '2026-02-27T08:00:00.000Z', updatedAt: '2026-02-27T08:00:00.000Z', isDeleted: false }];
+  setListAppointmentIndexesForGroupForTests(async () => indexes as any);
+  setGetAppointmentJsonForTests(async (_groupId, appointmentId) => docStore.get(appointmentId) ?? null);
+  setUpsertAppointmentIndexForTests(async (entity) => {
+    indexes.unshift(entity);
+  });
+
+  setAppointmentDocStoreForTests({
+    async getWithEtag(_groupId, appointmentId) {
+      return { doc: docStore.get(appointmentId) ?? null, etag: 'etag-doc' };
+    },
+    async put(_groupId, appointmentId, payload) {
+      docStore.set(appointmentId, payload);
+    },
+    async putWithEtag(_groupId, appointmentId, payload) {
+      docStore.set(appointmentId, payload);
+      return true;
+    }
+  });
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: base, etag: 'etag-1' }; },
+    async save(_groupId, nextState) { return { state: nextState, etag: 'etag-2' }; }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ json: async () => ({ groupId: GROUP_ID, action: { type: 'create_blank_appointment' } }) } as any, context());
+  assert.equal(response.status, 200);
+  const snapshot = (response.jsonBody as any).snapshot;
+  assert.equal(snapshot.appointments.length, 2);
+  assert.equal(snapshot.appointments.some((item: any) => item.code === 'APPT-13'), true);
+  const created = snapshot.appointments.find((item: any) => item.code !== 'APPT-13');
+  assert.ok(created);
+  assert.equal(docStore.has(created.id), true);
+  assert.equal(indexes.some((entity) => entity.appointmentId === created.id), true);
 });
 test('direct returns group_not_found when group is missing', async () => {
   const adapter: StorageAdapter = { async initIfMissing() {}, async save() { throw new Error('not used'); }, async load() { throw new GroupNotFoundError(); } };

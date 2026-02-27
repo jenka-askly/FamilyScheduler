@@ -12594,3 +12594,38 @@ Add diagnostics (behind `DEBUG_STORAGE_TARGET=1`) to reveal and compare the effe
 ### Follow-ups
 
 - Human local verify (with dependencies and function host available): run API, invoke `/api/chat` and `/api/direct` for same `groupId` with `DEBUG_STORAGE_TARGET=1`, and confirm `debug.storageTarget` objects match.
+
+## 2026-02-27 17:20 UTC (Fix direct/chat appointment snapshot split-brain via AppointmentsIndex + appointment docs)
+
+### Objective
+
+Unify `/api/direct` and `/api/chat` appointment list sourcing so direct snapshots no longer swap to state-only appointments, and ensure `create_blank_appointment` writes both `appointment.json` and `AppointmentsIndex`.
+
+### Approach
+
+- Verified existing state in code and logs: chat list was index/doc-backed while direct snapshots used `state.appointments`.
+- Added shared helper `buildAppointmentsSnapshot(...)` to read `AppointmentsIndex`, hydrate appointment docs, map to response appointment shape, and gracefully skip missing blobs.
+- Switched chat list command path to shared helper (deduped chat-specific inline parser).
+- Switched direct snapshot returns to `buildDirectSnapshot(...)` so appointments come from shared index/doc helper while people/rules/history continue from state snapshot logic.
+- Added direct create persistence step to diff before/after state for new appointment, write canonical appointment doc, and upsert `AppointmentsIndex` row.
+- Added test seam for appointment-index upsert and a direct test that seeds index/docs and asserts returned snapshot includes pre-indexed + newly created appointment with doc/index persistence.
+
+### Files changed
+
+- `api/src/lib/appointments/buildAppointmentsSnapshot.ts` (new)
+- `api/src/functions/chat.ts`
+- `api/src/functions/direct.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "toResponseSnapshot\(|create_blank_appointment|listAppointmentIndexesForGroup|getAppointmentJson|AppointmentsIndex|upsertAppointmentIndex" api/src/functions/direct.ts api/src/lib -S` ✅
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ failed in this environment because API TypeScript build cannot resolve `@azure/data-tables`.
+
+### Follow-ups
+
+- In staging, validate `/api/direct` snapshot after `create_blank_appointment` includes existing indexed appointments plus new blank appointment without list swap.
+- Run API tests in an environment with `@azure/data-tables` available.

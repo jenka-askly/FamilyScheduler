@@ -7,7 +7,7 @@ import { MissingConfigError } from '../lib/errors/configError.js';
 import { errorResponse, logConfigMissing } from '../lib/http/errorResponse.js';
 import { parseToActions } from '../lib/openai/openaiClient.js';
 import { buildRulesOnlyPrompt } from '../lib/openai/prompts.js';
-import { type AppState, type Appointment } from '../lib/state.js';
+import { type AppState } from '../lib/state.js';
 import { getTimeSpec } from '../lib/time/timeSpec.js';
 import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter, describeStorageTarget } from '../lib/storage/storageFactory.js';
@@ -19,8 +19,7 @@ import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { recordUsageError, recordUsageSuccess } from '../lib/usageMeter.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { recordOpenAiSuccess } from '../lib/usage/usageTables.js';
-import { getAppointmentJson } from '../lib/tables/appointments.js';
-import { listAppointmentIndexesForGroup } from '../lib/tables/entities.js';
+import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
 
 type ChatRequest = { message?: unknown; groupId?: unknown; email?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
@@ -115,69 +114,6 @@ const withSnapshot = <T extends Record<string, unknown>>(payload: T, state: AppS
 
 
 const LIST_APPOINTMENTS_COMMANDS = new Set(['list appointments', 'show appointments', 'appointments']);
-
-const parseAppointmentFromDoc = (appointmentId: string, doc: Record<string, unknown>): Appointment | null => {
-  const id = typeof doc.id === 'string' && doc.id.trim() ? doc.id.trim() : appointmentId;
-  const code = typeof doc.code === 'string' && doc.code.trim() ? doc.code.trim() : `APPT-${appointmentId.slice(-6).toUpperCase()}`;
-  const title = typeof doc.title === 'string' ? doc.title : '';
-  const assigned = Array.isArray(doc.assigned) ? doc.assigned.filter((item): item is string => typeof item === 'string') : [];
-  const people = Array.isArray(doc.people) ? doc.people.filter((item): item is string => typeof item === 'string') : [];
-  const scanStatus = doc.scanStatus === 'pending' || doc.scanStatus === 'parsed' || doc.scanStatus === 'failed' || doc.scanStatus === 'deleted'
-    ? doc.scanStatus
-    : null;
-  return {
-    id,
-    code,
-    title,
-    schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
-    updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : undefined,
-    start: typeof doc.start === 'string' ? doc.start : undefined,
-    end: typeof doc.end === 'string' ? doc.end : undefined,
-    date: typeof doc.date === 'string' ? doc.date : undefined,
-    startTime: typeof doc.startTime === 'string' ? doc.startTime : undefined,
-    durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : undefined,
-    timezone: typeof doc.timezone === 'string' ? doc.timezone : undefined,
-    isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : undefined,
-    assigned,
-    people,
-    location: typeof doc.location === 'string' ? doc.location : '',
-    locationRaw: typeof doc.locationRaw === 'string' ? doc.locationRaw : '',
-    locationDisplay: typeof doc.locationDisplay === 'string' ? doc.locationDisplay : '',
-    locationMapQuery: typeof doc.locationMapQuery === 'string' ? doc.locationMapQuery : '',
-    locationName: typeof doc.locationName === 'string' ? doc.locationName : '',
-    locationAddress: typeof doc.locationAddress === 'string' ? doc.locationAddress : '',
-    locationDirections: typeof doc.locationDirections === 'string' ? doc.locationDirections : '',
-    notes: typeof doc.notes === 'string' ? doc.notes : '',
-    scanStatus,
-    scanImageKey: typeof doc.scanImageKey === 'string' ? doc.scanImageKey : null,
-    scanImageMime: typeof doc.scanImageMime === 'string' ? doc.scanImageMime : null,
-    scanCapturedAt: typeof doc.scanCapturedAt === 'string' ? doc.scanCapturedAt : null,
-    scanAutoDate: typeof doc.scanAutoDate === 'boolean' ? doc.scanAutoDate : undefined
-  };
-};
-
-const buildSnapshotFromIndex = async (groupId: string, state: AppState, traceId: string): Promise<ResponseSnapshot> => {
-  const indexes = await listAppointmentIndexesForGroup(groupId);
-  const appointments: Appointment[] = [];
-  let blobLoadFailures = 0;
-  for (const index of indexes) {
-    const doc = await getAppointmentJson(groupId, index.appointmentId);
-    if (!doc) {
-      blobLoadFailures += 1;
-      console.warn(JSON.stringify({ traceId, stage: 'chat_list_appointments_missing_blob', groupId, appointmentId: index.appointmentId }));
-      continue;
-    }
-    const appointment = parseAppointmentFromDoc(index.appointmentId, doc);
-    if (!appointment) {
-      blobLoadFailures += 1;
-      console.warn(JSON.stringify({ traceId, stage: 'chat_list_appointments_invalid_blob', groupId, appointmentId: index.appointmentId }));
-      continue;
-    }
-    appointments.push(appointment);
-  }
-  console.info(JSON.stringify({ traceId, stage: 'chat_list_appointments_index_loaded', groupId, indexCount: indexes.length, returnedCount: appointments.length, blobLoadFailures }));
-  return toResponseSnapshot({ ...state, appointments });
-};
 
 type RuleRequestItem = { personId: string; status: 'available' | 'unavailable'; date: string; startTime?: string; durationMins?: number; timezone?: string; promptId?: string; originalPrompt?: string };
 type DraftErrorCode = 'MODEL_QUESTION' | 'DISALLOWED_ACTION' | 'ZERO_VALID_RULE_ITEMS' | 'ZERO_INTERVALS' | 'SCHEMA_VALIDATION_FAILED';
@@ -605,7 +541,8 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (normalized === 'help') return respond({ kind: 'reply', assistantText: 'Try commands: add person with phone, add appointment, add unavailable rule, list people.' });
 
     if (LIST_APPOINTMENTS_COMMANDS.has(normalized)) {
-      const snapshot = await buildSnapshotFromIndex(groupId, state, traceId);
+      const appointments = await buildAppointmentsSnapshot(groupId, process.env.TZ ?? 'America/Los_Angeles', state.people, traceId);
+      const snapshot = { ...toResponseSnapshot(state), appointments };
       const assistantText = snapshot.appointments.length > 0
         ? `Listed ${snapshot.appointments.length} appointment(s).`
         : 'No appointments found.';

@@ -28,6 +28,8 @@ import {
   upsertConstraintForMember
 } from '../lib/appointments/appointmentDomain.js';
 import { appointmentJsonBlobPath, getAppointmentJsonWithEtag, putAppointmentJson, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
+import { rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js';
+import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -315,6 +317,41 @@ const nextPersonId = (state: AppState): string => `P-${state.people.reduce((max,
   const match = person.personId.match(/^P-(\d+)$/i);
   return match ? Math.max(max, Number(match[1])) : max;
 }, 0) + 1}`;
+
+const buildDirectSnapshot = async (groupId: string, state: AppState, traceId: string): Promise<ResponseSnapshot> => {
+  const appointments = await buildAppointmentsSnapshot(groupId, process.env.TZ ?? 'America/Los_Angeles', state.people, traceId);
+  return { ...toResponseSnapshot(state), appointments };
+};
+
+const persistCreatedAppointmentDocAndIndex = async (groupId: string, beforeState: AppState, writtenState: AppState, actorEmail: string): Promise<void> => {
+  const beforeIds = new Set(beforeState.appointments.map((appointment) => appointment.id));
+  const created = writtenState.appointments.find((appointment) => !beforeIds.has(appointment.id));
+  if (!created?.id) return;
+
+  await appointmentDocStore.put(groupId, created.id, ensureAppointmentDoc(created as unknown as Record<string, unknown>, actorEmail));
+
+  const indexIso = (() => {
+    if (created.start) return created.start;
+    const date = typeof created.date === 'string' ? created.date : '';
+    const startTime = typeof created.startTime === 'string' ? created.startTime : '';
+    if (date && startTime) return `${date}T${startTime}:00.000Z`;
+    if (date) return `${date}T00:00:00.000Z`;
+    return created.updatedAt ?? new Date().toISOString();
+  })();
+  const now = new Date().toISOString();
+  await upsertAppointmentIndex({
+    partitionKey: groupId,
+    rowKey: rowKeyFromIso(indexIso, created.id),
+    appointmentId: created.id,
+    startTime: created.start,
+    status: 'active',
+    hasScan: Boolean(created.scanImageKey),
+    scanCapturedAt: created.scanCapturedAt ?? undefined,
+    createdAt: created.updatedAt ?? now,
+    updatedAt: created.updatedAt ?? now,
+    isDeleted: false
+  });
+};
 
 const parseDirectAction = (value: unknown): DirectAction => {
   if (!isRecord(value)) throw new Error('action must be an object');
@@ -1154,7 +1191,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       if (createdAppointment?.id) {
         await loadOrEnsureAppointment(groupId, createdAppointment.id, session.email);
       }
-      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+      await persistCreatedAppointmentDocAndIndex(groupId, loaded.state, written.state, session.email);
+      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: await buildDirectSnapshot(groupId, written.state, traceId) } });
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
@@ -1171,7 +1209,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     loaded.state.people.push({ personId, name: '', email: '', cellE164: '', cellDisplay: '', status: 'active', createdAt: now, lastSeen: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' });
     try {
       const written = await storage.save(groupId, loaded.state, loaded.etag);
-      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state), personId } });
+      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: await buildDirectSnapshot(groupId, written.state, traceId), personId } });
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
@@ -1200,7 +1238,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     person.lastSeen = new Date().toISOString();
     try {
       const written = await storage.save(groupId, loaded.state, loaded.etag);
-      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: await buildDirectSnapshot(groupId, written.state, traceId) } });
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
@@ -1218,7 +1256,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     person.lastSeen = new Date().toISOString();
     try {
       const written = await storage.save(groupId, loaded.state, loaded.etag);
-      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: await buildDirectSnapshot(groupId, written.state, traceId) } });
     } catch (error) {
       if (error instanceof MissingConfigError) {
         logConfigMissing('direct', traceId, error.missing);
@@ -1233,7 +1271,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   try {
     const written = await storage.save(groupId, execution.nextState, loaded.etag);
-    return withMeta({ status: 200, jsonBody: { ok: true, snapshot: toResponseSnapshot(written.state) } });
+    return withMeta({ status: 200, jsonBody: { ok: true, snapshot: await buildDirectSnapshot(groupId, written.state, traceId) } });
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('direct', traceId, error.missing);
