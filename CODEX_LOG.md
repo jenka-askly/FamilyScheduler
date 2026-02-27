@@ -11908,3 +11908,27 @@ Add lightweight live updates for appointment details while the drawer is open (w
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed after Drawer ref typing fix.
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 - Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/85edc398be578b8d/artifacts/artifacts/appointment-drawer-polling.png`.
+
+## 2026-02-27 03:56 UTC (Appointment pane enhancement: single-click/tap drawer open)
+
+### Objective
+- Change appointment list interaction so a single click/tap opens the appointment drawer on desktop and mobile, replacing double-click as the primary trigger.
+
+### Approach
+- Updated `AppointmentCardList` row interaction from `onDoubleClick` to `onClick`.
+- Kept existing touch long-press path as a secondary trigger and retained long-press suppression logic to avoid duplicate open behavior on touch release.
+- Added keyboard accessibility for row activation (`Enter`/`Space`) by making rows focusable button-like elements.
+- Kept inline row action controls (`scan`, `edit`, `assign`, `delete`, text expansion actions) using `event.stopPropagation()` so they do not trigger drawer open.
+- Updated continuity status in `PROJECT_STATUS.md` per workflow requirements.
+
+### Files changed
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "AppointmentCardList|onDoubleClick|longPress|openAppointmentDetails|setSelectedAppointmentId|setDrawerOpen" apps/web` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+- Human should run quick desktop/mobile manual interaction pass in local browser to confirm scroll/tap ergonomics on touch devices.
