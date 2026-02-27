@@ -1,3 +1,32 @@
+## 2026-02-27 08:47 UTC (BREAKOUT profile photo 401 fix via apiFetch + blob URL)
+
+### Objective
+
+Eliminate BREAKOUT organizer profile-photo 401s by replacing direct image URL loads with authenticated fetch requests that include `x-session-id`.
+
+### Approach
+
+- Replaced organizer profile-photo URL construction/preload (`new Image().src`) with an async `apiFetch` image loader.
+- Converted successful image responses to blob URLs for `<img>` rendering.
+- Added blob URL cleanup with `URL.revokeObjectURL` on URL replacement/unmount.
+- Added fallback behavior to initials/avatar path on fetch failures and image `onError`.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "profile-photo|profilePhoto|personPhotoUrl|new Image\(\)" apps/web/src/App.tsx` ✅
+- `rg -n "user/profile-photo" apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+
+- Manual staging validation: login → dashboard → BREAKOUT and confirm `/api/user/profile-photo` appears as fetch/XHR with `x-session-id` and no 401.
+
 ## 2026-02-27 08:03 UTC (Index-backed chat appointment listing for scan persistence)
 
 ### Objective

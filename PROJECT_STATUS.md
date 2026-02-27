@@ -1,3 +1,15 @@
+## 2026-02-27 08:47 UTC update (BREAKOUT profile photo auth fix)
+
+- Fixed BREAKOUT organizer profile photo loading to use authenticated `apiFetch` GET `/api/user/profile-photo` instead of direct `<img src>` URL loading.
+- Added blob URL rendering flow (`URL.createObjectURL`) for organizer photo and graceful fallback to initials when fetch fails or image decode errors.
+- Added object URL lifecycle cleanup (`URL.revokeObjectURL`) when photo versions refresh and on unmount to prevent memory growth.
+- Removed unauthenticated `new Image().src` preload path that caused 401s on environments requiring `x-session-id`.
+
+### Verification run
+
+1. `rg -n "user/profile-photo" apps/web/src` ✅ confirms profile-photo reads are fetch-based in organizer flow.
+2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
 ## 2026-02-27 08:03 UTC update (Chat list appointments reads AppointmentsIndex + appointment.json)
 
 - Added deterministic list command router in `/api/chat` for `list appointments`, `show appointments`, and `appointments` that bypasses LLM parsing.

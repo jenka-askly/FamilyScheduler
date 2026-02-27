@@ -697,7 +697,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [photoUpdatedAtByPersonId, setPhotoUpdatedAtByPersonId] = useState<Record<string, string>>({});
   const [photoObjectUrlsByPersonId, setPhotoObjectUrlsByPersonId] = useState<Record<string, { key: string; url: string }>>({});
   const [profilePhotoVersion, setProfilePhotoVersionState] = useState<string>(() => getPhotoVersion());
-  const [profilePhotoHasImage, setProfilePhotoHasImage] = useState<boolean>(false);
+  const [profilePhotoObjectUrl, setProfilePhotoObjectUrl] = useState<string | null>(null);
+  const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
   const [createdByPersonId, setCreatedByPersonId] = useState<string>('');
   const [peopleByPersonId, setPeopleByPersonId] = useState<Record<string, { name?: string }>>({});
   const [groupMetaPeople, setGroupMetaPeople] = useState<Array<{ personId: string; name: string }>>([]);
@@ -740,6 +741,10 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       if (photo?.url) URL.revokeObjectURL(photo.url);
     });
   }, []);
+
+  useEffect(() => () => {
+    if (profilePhotoObjectUrl) URL.revokeObjectURL(profilePhotoObjectUrl);
+  }, [profilePhotoObjectUrl]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -921,18 +926,42 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
     return true;
   };
 
-  const profilePhotoUrl = (): string => `${apiUrl('/api/user/profile-photo')}?v=${encodeURIComponent(profilePhotoVersion)}`;
-
   useEffect(() => {
     if (!sessionId) {
-      setProfilePhotoHasImage(false);
+      setPhotoLoadError(false);
+      setProfilePhotoObjectUrl(null);
       return;
     }
-    const img = new Image();
-    img.onload = () => setProfilePhotoHasImage(true);
-    img.onerror = () => setProfilePhotoHasImage(false);
-    img.src = profilePhotoUrl();
+    let canceled = false;
+    setPhotoLoadError(false);
+    const loadProfilePhoto = async () => {
+      try {
+        const response = await apiFetch(`${apiUrl('/api/user/profile-photo')}?v=${encodeURIComponent(profilePhotoVersion)}`, { method: 'GET' });
+        if (!response.ok) {
+          if (!canceled) {
+            setPhotoLoadError(true);
+            setProfilePhotoObjectUrl(null);
+          }
+          return;
+        }
+        const blob = await response.blob();
+        if (canceled) return;
+        const objectUrl = URL.createObjectURL(blob);
+        setProfilePhotoObjectUrl(objectUrl);
+      } catch {
+        if (!canceled) {
+          setPhotoLoadError(true);
+          setProfilePhotoObjectUrl(null);
+        }
+      }
+    };
+    void loadProfilePhoto();
+
+    return () => {
+      canceled = true;
+    };
   }, [profilePhotoVersion, sessionId]);
+
 
   const uploadProfilePhoto = async (blob: Blob): Promise<void> => {
     const sessionToken = getSessionId();
@@ -1223,8 +1252,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                 const hasPhoto = Boolean(photoUpdatedAtByPersonId[personId]);
                 const personName = combinedPeopleByPersonId[personId]?.name || personId;
                 const isOrganizer = personId === organizerPersonId;
-                const personPhotoUrl = isOrganizer && profilePhotoHasImage
-                  ? profilePhotoUrl()
+                const personPhotoUrl = isOrganizer && profilePhotoObjectUrl && !photoLoadError
+                  ? profilePhotoObjectUrl
                   : (hasPhoto ? photoObjectUrlsByPersonId[personId]?.url : '');
                 return (
                   <div
@@ -1234,7 +1263,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                     role={isOrganizer ? 'button' : undefined}
                     aria-label={isOrganizer ? 'Add or replace profile photo' : undefined}
                   >
-                    {personPhotoUrl ? <img className="ui-ignitePersonThumb" src={personPhotoUrl} alt={personName} /> : <div className="ui-ignitePersonInitials">{personName.trim().charAt(0).toUpperCase() || '?'}</div>}
+                    {personPhotoUrl ? <img className="ui-ignitePersonThumb" src={personPhotoUrl} alt={personName} onError={() => { if (isOrganizer) setPhotoLoadError(true); }} /> : <div className="ui-ignitePersonInitials">{personName.trim().charAt(0).toUpperCase() || '?'}</div>}
                     {isOrganizer ? <CameraAltIcon className="ui-igniteCameraOverlay" fontSize="small" /> : null}
                     <Typography variant="caption" className="ui-ignitePersonName">{personName}</Typography>
                   </div>
@@ -1267,7 +1296,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         </DialogContent>
         <DialogActions>
           <Button onClick={closeScanCaptureModal}>Cancel</Button>
-          <Button variant="contained" onClick={() => { void capturePhoto(); }}>{profilePhotoHasImage ? 'Replace profile photo' : 'Add as profile photo'}</Button>
+          <Button variant="contained" onClick={() => { void capturePhoto(); }}>{profilePhotoObjectUrl && !photoLoadError ? 'Replace profile photo' : 'Add as profile photo'}</Button>
         </DialogActions>
       </Dialog>
       <FooterHelp />
