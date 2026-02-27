@@ -74,8 +74,8 @@ type DirectAction =
   | { type: 'dismiss_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
   | { type: 'react_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; reaction: 'up' | 'down'; clientRequestId: string }
   | { type: 'apply_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
-  | { type: 'preview_appointment_update_email'; appointmentId: string; recipientPersonIds?: string[]; recipientEmails?: string[]; userMessage: string }
-  | { type: 'send_appointment_update_email'; appointmentId: string; recipientPersonIds?: string[]; recipientEmails?: string[]; userMessage: string; clientRequestId: string };
+  | { type: 'preview_appointment_update_email'; groupId: string; appointmentId: string; recipientPersonIds: string[]; userMessage?: string }
+  | { type: 'send_appointment_update_email'; groupId: string; appointmentId: string; recipientPersonIds: string[]; userMessage?: string; clientRequestId: string };
 
 type ResolvedNotificationRecipient = { personId?: string; display?: string; email: string };
 type ExcludedNotificationRecipient = { personId?: string; email?: string; reason: string };
@@ -99,13 +99,6 @@ const localDateFromResolvedStart = (startUtc: string, timezone: string): string 
   month: '2-digit',
   day: '2-digit'
 }).format(new Date(startUtc));
-
-const normalizeRecipientEmails = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => (typeof entry === 'string' ? normalizeEmail(entry) : ''))
-    .filter((entry) => entry.length > 0);
-};
 
 const normalizeRecipientPersonIds = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -153,18 +146,17 @@ const buildAppointmentEmailContent = (
     `Location: ${location}`,
     '',
     ...(messageBlock ? [`Message from sender:`, messageBlock, ''] : []),
-    'Replies are disabled for this email.',
+    'Do not reply to this email.',
     `Open in Yapper: ${appLink}`
   ].join('\n');
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">Yapper appointment update</h2><p style="margin:0 0 8px"><strong>Title:</strong> ${title}</p><p style="margin:0 0 8px"><strong>Sent by:</strong> ${senderLabel}</p><p style="margin:0 0 8px"><strong>Time:</strong> ${localDate} ${time}</p><p style="margin:0 0 16px"><strong>Location:</strong> ${location}</p>${messageBlock ? `<p style="margin:0 0 8px"><strong>Message from sender:</strong></p><blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #ddd;color:#333">${messageBlock.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>` : ''}<p style="margin:0 0 16px"><a href="${appLink}" style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px;font-weight:600">Open in Yapper</a></p><p style="margin:0;font-size:12px;color:#666">Replies are disabled. Use the link above to respond in Yapper.</p></div>`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">Yapper appointment update</h2><p style="margin:0 0 8px"><strong>Title:</strong> ${title}</p><p style="margin:0 0 8px"><strong>Sent by:</strong> ${senderLabel}</p><p style="margin:0 0 8px"><strong>Time:</strong> ${localDate} ${time}</p><p style="margin:0 0 16px"><strong>Location:</strong> ${location}</p>${messageBlock ? `<p style="margin:0 0 8px"><strong>Message from sender:</strong></p><blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #ddd;color:#333">${messageBlock.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>` : ''}<p style="margin:0 0 16px"><a href="${appLink}" style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px;font-weight:600">Open in Yapper</a></p><p style="margin:0;font-size:12px;color:#666">Do not reply to this email. Use the link above to respond in Yapper.</p></div>`;
   return { subject, plainText, html };
 };
 
 const resolveNotificationRecipients = (
   state: AppState,
   senderEmail: string,
-  recipientPersonIds?: string[],
-  recipientEmails?: string[]
+  recipientPersonIds: string[]
 ): { resolvedRecipients: ResolvedNotificationRecipient[]; excludedRecipients: ExcludedNotificationRecipient[]; excludedSelf: boolean } => {
   const excludedRecipients: ExcludedNotificationRecipient[] = [];
   const resolvedRecipients: ResolvedNotificationRecipient[] = [];
@@ -187,37 +179,21 @@ const resolveNotificationRecipients = (
     resolvedRecipients.push({ ...recipient, email: normalized });
   };
 
-  if ((recipientPersonIds ?? []).length > 0) {
-    for (const personId of recipientPersonIds ?? []) {
-      const person = state.people.find((entry) => entry.personId === personId);
-      if (!person) {
-        excludedRecipients.push({ personId, reason: 'person_not_found' });
-        continue;
-      }
-      if (person.status !== 'active') {
-        excludedRecipients.push({ personId, email: person.email ?? undefined, reason: 'person_inactive' });
-        continue;
-      }
-      if (!person.email) {
-        excludedRecipients.push({ personId, reason: 'missing_email' });
-        continue;
-      }
-      pushResolved({ personId, display: person.name?.trim() || undefined, email: person.email });
+  for (const personId of recipientPersonIds) {
+    const person = state.people.find((entry) => entry.personId === personId);
+    if (!person) {
+      excludedRecipients.push({ personId, reason: 'person_not_found' });
+      continue;
     }
-  } else {
-    for (const rawEmail of recipientEmails ?? []) {
-      const email = normalizeEmail(rawEmail);
-      if (!email || !isPlausibleEmail(email)) {
-        excludedRecipients.push({ email: rawEmail, reason: 'invalid_email' });
-        continue;
-      }
-      const person = state.people.find((entry) => normalizeEmail(entry.email ?? '') === email);
-      if (!person || person.status !== 'active') {
-        excludedRecipients.push({ email, reason: 'recipient_not_active_member' });
-        continue;
-      }
-      pushResolved({ personId: person.personId, display: person.name?.trim() || undefined, email });
+    if (person.status !== 'active') {
+      excludedRecipients.push({ personId, email: person.email ?? undefined, reason: 'person_inactive' });
+      continue;
     }
+    if (!person.email) {
+      excludedRecipients.push({ personId, reason: 'no_email' });
+      continue;
+    }
+    pushResolved({ personId, display: person.name?.trim() || undefined, email: person.email });
   }
 
   return { resolvedRecipients, excludedRecipients, excludedSelf };
@@ -729,37 +705,26 @@ const parseDirectAction = (value: unknown): DirectAction => {
     return { type, appointmentId, suggestionId, field, clientRequestId };
   }
   if (type === 'preview_appointment_update_email') {
+    const actionGroupId = asString(value.groupId);
     const appointmentId = asString(value.appointmentId);
+    if (!actionGroupId) throw new Error('groupId is required');
     if (!appointmentId) throw new Error('appointmentId is required');
+    if (!Array.isArray(value.recipientPersonIds)) throw new Error('recipientPersonIds must be an array');
     const recipientPersonIds = normalizeRecipientPersonIds(value.recipientPersonIds);
-    const recipientEmails = normalizeRecipientEmails(value.recipientEmails);
-    if (recipientPersonIds.length === 0 && recipientEmails.length === 0) throw new Error('recipientPersonIds or recipientEmails is required');
-    const userMessage = typeof value.userMessage === 'string' ? value.userMessage : '';
-    return {
-      type,
-      appointmentId,
-      ...(recipientPersonIds.length > 0 ? { recipientPersonIds } : {}),
-      ...(recipientEmails.length > 0 ? { recipientEmails } : {}),
-      userMessage
-    };
+    const userMessage = typeof value.userMessage === 'string' ? value.userMessage : undefined;
+    return { type, groupId: actionGroupId, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}) };
   }
   if (type === 'send_appointment_update_email') {
+    const actionGroupId = asString(value.groupId);
     const appointmentId = asString(value.appointmentId);
     const clientRequestId = asString(value.clientRequestId);
+    if (!actionGroupId) throw new Error('groupId is required');
     if (!appointmentId) throw new Error('appointmentId is required');
+    if (!Array.isArray(value.recipientPersonIds)) throw new Error('recipientPersonIds must be an array');
     if (!clientRequestId) throw new Error('clientRequestId is required');
     const recipientPersonIds = normalizeRecipientPersonIds(value.recipientPersonIds);
-    const recipientEmails = normalizeRecipientEmails(value.recipientEmails);
-    if (recipientPersonIds.length === 0 && recipientEmails.length === 0) throw new Error('recipientPersonIds or recipientEmails is required');
-    const userMessage = typeof value.userMessage === 'string' ? value.userMessage : '';
-    return {
-      type,
-      appointmentId,
-      ...(recipientPersonIds.length > 0 ? { recipientPersonIds } : {}),
-      ...(recipientEmails.length > 0 ? { recipientEmails } : {}),
-      userMessage,
-      clientRequestId
-    };
+    const userMessage = typeof value.userMessage === 'string' ? value.userMessage : undefined;
+    return { type, groupId: actionGroupId, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}), clientRequestId };
   }
 
   throw new Error(`unsupported action type: ${type}`);
@@ -866,6 +831,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
 
   if (directAction.type === 'preview_appointment_update_email') {
+    if (directAction.groupId !== groupId) return withMeta(errorResponse(400, 'invalid_group_id', 'groupId mismatch', traceId));
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
@@ -873,16 +839,22 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const recipients = resolveNotificationRecipients(
       loaded.state,
       normalizeEmail(session.email),
-      directAction.recipientPersonIds,
-      directAction.recipientEmails
+      directAction.recipientPersonIds
     );
+    if (recipients.resolvedRecipients.length === 0) {
+      return withMeta(errorResponse(400, 'no_selectable_recipients', 'No selectable recipients', traceId, {
+        excludedRecipients: recipients.excludedRecipients,
+        excludedSelf: recipients.excludedSelf
+      }));
+    }
+
     const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
     const actorLabel = formatNotificationActor({ name: senderPerson?.name, email: session.email }, session.email);
     const content = buildAppointmentEmailContent(
       responseAppointment,
       actorLabel,
       session.email,
-      directAction.userMessage,
+      directAction.userMessage ?? '',
       buildAppointmentLink(groupId, directAction.appointmentId)
     );
 
@@ -901,6 +873,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   }
 
   if (directAction.type === 'send_appointment_update_email') {
+    if (directAction.groupId !== groupId) return withMeta(errorResponse(400, 'invalid_group_id', 'groupId mismatch', traceId));
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
@@ -908,11 +881,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const recipients = resolveNotificationRecipients(
       loaded.state,
       normalizeEmail(session.email),
-      directAction.recipientPersonIds,
-      directAction.recipientEmails
+      directAction.recipientPersonIds
     );
     if (recipients.resolvedRecipients.length === 0) {
-      return withMeta(errorResponse(400, 'no_valid_recipients', 'No valid recipients selected', traceId));
+      return withMeta(errorResponse(400, 'no_selectable_recipients', 'No selectable recipients', traceId));
     }
 
     const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
@@ -921,15 +893,18 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       responseAppointment,
       actorLabel,
       session.email,
-      directAction.userMessage,
+      directAction.userMessage ?? '',
       buildAppointmentLink(groupId, directAction.appointmentId)
     );
 
-    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 200);
+    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 100);
     const duplicate = existing.events.find((event) => {
       if (event.type !== 'NOTIFICATION_SENT') return false;
-      if (event.clientRequestId !== directAction.clientRequestId) return false;
-      const sentBy = (event.payload.sentBy && typeof event.payload.sentBy === 'object') ? event.payload.sentBy as Record<string, unknown> : null;
+      const payload = event.payload && typeof event.payload === 'object' ? event.payload as Record<string, unknown> : null;
+      if (!payload) return false;
+      const payloadClientRequestId = typeof payload.clientRequestId === 'string' ? payload.clientRequestId : event.clientRequestId;
+      if (payloadClientRequestId !== directAction.clientRequestId) return false;
+      const sentBy = (payload.sentBy && typeof payload.sentBy === 'object') ? payload.sentBy as Record<string, unknown> : null;
       return normalizeEmail(typeof sentBy?.email === 'string' ? sentBy.email : '') === normalizeEmail(session.email);
     });
     if (duplicate) {
@@ -962,6 +937,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const successes = sendResults.filter((entry) => !entry.errorMessage);
     const failures = sendResults.filter((entry) => !!entry.errorMessage);
     if (successes.length === 0) {
+      const topErrorMessage = failures.find((entry) => entry.errorMessage)?.errorMessage ?? 'unknown_send_error';
+      context.log(JSON.stringify({ event: 'appointment_update_email_all_failed', traceId, groupId, appointmentId: directAction.appointmentId, failureCount: failures.length, topErrorMessage }));
       return withMeta(errorResponse(502, 'notification_send_failed', 'Failed to send update email', traceId, {
         recipientCountSelected: recipients.resolvedRecipients.length,
         failedRecipients: failures.map((entry) => ({ email: entry.email, display: entry.display, personId: entry.personId, errorMessage: entry.errorMessage }))
@@ -970,6 +947,17 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
     const sentAt = new Date().toISOString();
     const deliveryStatus = failures.length > 0 ? 'partial' : 'sent';
+    if (deliveryStatus === 'partial') {
+      context.log(JSON.stringify({
+        event: 'appointment_update_email_partial',
+        traceId,
+        groupId,
+        appointmentId: directAction.appointmentId,
+        successCount: successes.length,
+        failCount: failures.length,
+        failedEmails: failures.slice(0, 20).map((entry) => entry.email)
+      }));
+    }
     const eventPayload = {
       notificationId: randomUUID(),
       sentAt,
@@ -979,7 +967,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       deliveryStatus,
       failedRecipients: failures.map((entry) => ({ email: entry.email, ...(entry.display ? { display: entry.display } : {}), ...(entry.personId ? { personId: entry.personId } : {}), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}) })),
       subject: content.subject,
-      ...(directAction.userMessage.trim() ? { userMessage: directAction.userMessage.trim() } : {}),
+      ...(directAction.userMessage?.trim() ? { userMessage: directAction.userMessage.trim() } : {}),
       clientRequestId: directAction.clientRequestId
     };
     await appointmentEventStore.append(groupId, directAction.appointmentId, {
