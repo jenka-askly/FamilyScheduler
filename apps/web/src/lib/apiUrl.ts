@@ -120,16 +120,18 @@ const warnMissingSession = (path: string, traceId?: string): void => {
 export const apiFetch = async (path: string, init: RequestInit = {}): Promise<Response> => {
   const headers = new Headers(init.headers);
   if (init.body != null && !headers.has('content-type')) headers.set('content-type', 'application/json');
+  const requestMethod = (init.method ?? 'GET').toUpperCase();
+  const isGroupJoinCall = path === '/api/group/join' && requestMethod === 'POST';
   const requestSummary = summarizeRequestBody(init.body);
   const requestGroupId = typeof requestSummary?.groupId === 'string' ? requestSummary.groupId : undefined;
   const durableSessionId = getSessionId();
   const igniteGraceSessionId = getIgniteGraceSessionId(requestGroupId);
-  const sessionIdToUse = durableSessionId || igniteGraceSessionId;
+  const sessionIdToUse = isGroupJoinCall && igniteGraceSessionId ? igniteGraceSessionId : durableSessionId || igniteGraceSessionId;
   if (sessionIdToUse && !headers.has('x-session-id')) headers.set('x-session-id', sessionIdToUse);
   const response = await fetch(apiUrl(path), { ...init, headers });
   const contentType = response.headers.get('content-type') ?? '';
   if (response.status === 400) {
-    console.warn('[apiFetch] bad_request', { path, method: init.method ?? 'GET', request: requestSummary });
+    console.warn('[apiFetch] bad_request', { path, method: requestMethod, request: requestSummary });
   }
   if (contentType.includes('application/json')) {
     try {
