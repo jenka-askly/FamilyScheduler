@@ -12819,3 +12819,36 @@ Fixed TSX syntax regression in AppShell.tsx (unmatched brace/tag) introduced dur
 ### Exact fix note
 
 - In `closeWhenEditor`, closed the `shouldDeletePendingNew` boolean expression correctly by restoring `&& editorDirty === false;` and removing stray `) { ...` / dangling `&&` tokens that broke TSX parsing.
+
+
+## 2026-02-27 19:53 UTC (Cancel-delete blank appt + chat snapshot appointment source unification)
+
+### Objective
+
+- Ensure `/api/chat` snapshot appointments are always sourced from `AppointmentsIndex + appointment.json` (no state-world resurrection).
+- Clean up `closeWhenEditor('cancel')` for new untouched appointments to use one delete path and refresh canonical snapshot before close.
+
+### Approach
+
+- Added `buildChatSnapshot(state, groupId, timezone, traceId)` in chat function to compose snapshot with:
+  - `appointments` from `buildAppointmentsSnapshot(...)`
+  - all other snapshot fields preserved from existing `toResponseSnapshot(state)` mapping.
+- Converted chat `withSnapshot` helper to async and routed all snapshot-bearing chat replies through the new snapshot builder.
+- Updated list-appointments chat command path to use the same `buildChatSnapshot(...)` helper (single source).
+- Tightened `closeWhenEditor('cancel')` delete flow to a single delete-by-code call wrapped in `try/finally`, with `refreshSnapshot()` on success and deterministic `setPendingNewAppointmentCode(null)` cleanup.
+
+### Files changed
+
+- `api/src/functions/chat.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm -r --if-present build` ⚠️ failed in this environment due missing `@azure/data-tables` module in API package type resolution.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Manual repro results
+
+- Staging/manual browser repro steps were not executable in this container-only environment; implementation aligns directly to requested acceptance conditions and network sequencing expectations.

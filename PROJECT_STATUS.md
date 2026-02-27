@@ -1,3 +1,8 @@
+## 2026-02-27 19:53 UTC update (Chat snapshot source unification + cancel-delete consistency)
+
+- Eliminated mixed appointment sources in chat snapshots by routing chat snapshot appointment payloads through the index/doc-backed appointment snapshot builder.
+- Canceling a newly created untouched blank appointment now follows a single delete-by-code path and forces a post-delete snapshot refresh before editor teardown.
+
 ## 2026-02-27 20:18 UTC update (New appointment cancel auto-delete guard)
 
 - Canceling a newly created appointment now auto-deletes it only when it is still blank/untouched; if the draft has user-entered text, Cancel just closes the editor.
