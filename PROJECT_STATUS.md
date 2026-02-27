@@ -5061,3 +5061,16 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web exec tsc -p tsconfig.json --pretty false --noEmit` ✅ passed after fix.
 2. `pnpm -r --if-present build` ⚠️ blocked by environment dependency issue in `api` (`@azure/data-tables` package unavailable due registry 403).
+
+## 2026-02-27 20:31 UTC update (igniteGrace guest banner sign-in redirect glue)
+
+- AppShell now uses the existing grace-session helper (`isIgniteGraceActiveForGroup(groupId)`) to show a persistent info alert under the page header when a group-scoped ignite grace session is active and no durable `fs.sessionId` exists.
+- The grace alert includes a `Sign in` CTA that now routes through a shared helper to `/#/login?next=<encoded-current-route>` using a sanitized in-app hash path.
+- Added `buildLoginPathWithNextFromHash` to centralize hash→login-next routing and avoid duplicated route string construction.
+- Auth flow behavior remains server-semantic unchanged: `LandingSignInPage` continues sending sanitized `returnTo`, and `AuthDonePage` continues fallback routing to grace group app (`/g/:groupId/app`) or `/` when `returnTo` is missing/invalid.
+- Added/extended unit tests for return-to/login-next path construction and grace-group activity edge cases.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web exec node --test src/lib/returnTo.test.ts src/lib/graceAccess.test.ts` ✅ passed.
+2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.

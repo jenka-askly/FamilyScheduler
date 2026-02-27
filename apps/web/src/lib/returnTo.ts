@@ -18,3 +18,8 @@ export const getSafeNextPathFromHash = (hash: string): string => {
   const candidate = queryString ? `${path}?${queryString}` : path;
   return sanitizeReturnTo(candidate);
 };
+
+export const buildLoginPathWithNextFromHash = (hash: string): string => {
+  const next = getSafeNextPathFromHash(hash);
+  return `/login?next=${encodeURIComponent(next)}`;
+};
