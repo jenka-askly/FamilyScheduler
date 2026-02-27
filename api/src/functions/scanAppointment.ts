@@ -4,7 +4,7 @@ import { createStorageAdapter, MissingConfigError } from '../lib/storage/storage
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { parseAppointmentFromImage } from '../lib/ai/parseAppointmentFromImage.js';
-import { applyParsedFields, decodeImageBase64, scanBlobKey } from '../lib/scan/appointmentScan.js';
+import { applyParsedFields, decodeImageBase64, hasMeaningfulParsedContent, scanBlobKey } from '../lib/scan/appointmentScan.js';
 import type { Appointment } from '../lib/state.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
@@ -183,8 +183,13 @@ export async function scanAppointment(request: HttpRequest, _context: Invocation
     void (async () => {
       try {
         const parsed = await parseAppointmentFromImage({ imageBase64: body.imageBase64 as string, imageMime, timezone: typeof body.timezone === 'string' ? body.timezone : undefined, traceId });
-        applyParsedFields(appointment, parsed.parsed, 'initial');
-        appointment.scanStatus = 'parsed';
+        if (hasMeaningfulParsedContent(parsed.parsed)) {
+          applyParsedFields(appointment, parsed.parsed, 'initial');
+          appointment.scanStatus = 'parsed';
+        } else {
+          appointment.scanStatus = 'failed';
+          appointment.title = 'Appointment';
+        }
         appointment.updatedAt = new Date().toISOString();
         await putAppointmentJson(groupId, appointment.id, appointment as unknown as Record<string, unknown>);
         await upsertAppointmentIndex({ partitionKey: groupId, rowKey, appointmentId: appointment.id, startTime: appointment.start, status: appointment.scanStatus ?? 'parsed', hasScan: true, scanCapturedAt: appointment.scanCapturedAt ?? now, createdAt: now, updatedAt: appointment.updatedAt, isDeleted: false });

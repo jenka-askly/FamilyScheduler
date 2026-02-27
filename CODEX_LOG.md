@@ -12286,3 +12286,40 @@ Implement locked scan-image flow behavior so pending/failed scan appointments re
 ### Verification correction
 
 - `pnpm --filter @familyscheduler/api build` ⚠️ blocked by pre-existing missing `@azure/data-tables` dependency/type resolution in this environment (`TS2307`).
+
+## 2026-02-27 15:51 UTC (Scan Image flow: clear "Scanning…" title after parse)
+
+### Objective
+
+Fix scan image completion so parsed/resolved appointments never persist placeholder title/description `Scanning…`, add empty-extraction failure handling, and add a frontend safety guard.
+
+### Approach
+
+- Located scan pipeline in `api/src/lib/scan/appointmentScan.ts` and async scan/rescan handlers.
+- Added title finalization helpers in scan library to:
+  - treat scanning placeholders as empty,
+  - prefer parsed title,
+  - synthesize from notes/location,
+  - fallback to `Appointment`.
+- Added `hasMeaningfulParsedContent` gate and used it in initial scan + rescan completion flows to mark no-signal extractions as `failed`.
+- Added frontend guard in appointment list rendering to treat `Scanning…`/`Scanning...` titles as empty (fallback to `Appointment`) in non-pending row rendering path.
+- Added targeted scan unit coverage for placeholder replacement and meaningful-content detection.
+
+### Files changed
+
+- `api/src/lib/scan/appointmentScan.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `api/src/lib/scan/appointmentScan.test.ts`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` ⚠️ failed in environment due missing `@azure/data-tables` module during API build.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+
+- Run full scan + rescan manual flows in a configured environment (with Azure Tables dependency available) to verify pending->parsed/failed transitions and persisted titles across reload.
