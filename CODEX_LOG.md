@@ -12323,3 +12323,39 @@ Fix scan image completion so parsed/resolved appointments never persist placehol
 ### Follow-ups
 
 - Run full scan + rescan manual flows in a configured environment (with Azure Tables dependency available) to verify pending->parsed/failed transitions and persisted titles across reload.
+
+## 2026-02-27 16:11 UTC (Scan Image flow: clear Scanning placeholder after parse)
+
+### Objective
+
+Fix scan image title behavior where appointment title remained `Scanning…`/`Scanning...` after parse completed.
+
+### Approach
+
+- Updated `applyParsedFields` empty-equivalent title check to normalize and treat the following as empty-equivalent:
+  - empty/whitespace
+  - `scanned item`
+  - `scanning…`
+  - `scanning...`
+  - `scanning` (defensive)
+- Added targeted unit coverage for ASCII placeholder (`Scanning...`) to ensure parsed title replaces placeholder in initial scan mode.
+- Updated project status with bugfix + verification summary.
+
+### Files changed
+
+- `api/src/lib/scan/appointmentScan.ts`
+- `api/src/lib/scan/appointmentScan.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `node --test api/src/lib/scan/appointmentScan.test.ts` ❌ failed in-source due ESM `.js` import path expectation before build output exists.
+- `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` ❌ failed because script runs full API suite with pre-existing unrelated failures in container.
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `node --test api/dist/api/src/lib/scan/appointmentScan.test.js` ✅ passed targeted compiled scan tests (includes new regression case).
+- `rg -n "isEmptyText|scanning…|scanning\.\.\." api/src/lib/scan/appointmentScan.ts api/src/lib/scan/appointmentScan.test.ts -S` ✅ confirmed empty-equivalent logic + regression test.
+
+### Follow-ups
+
+- Manual UI verification for parse/rescan/failed transitions in local running app (pending human runtime check).

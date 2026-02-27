@@ -1,3 +1,14 @@
+## 2026-02-27 16:11 UTC update (Scan Image title placeholder fix)
+
+- Fixed scan parse apply logic so initial-mode title replacement treats `Scanning…` and `Scanning...` placeholder values as empty-equivalent (plus defensive `Scanning`) in `applyParsedFields`.
+- Kept existing `scanned item` empty-equivalent behavior unchanged.
+- Added regression test coverage for ASCII placeholder path to ensure parsed titles overwrite placeholder text.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api build` ✅ passed.
+2. `node --test api/dist/api/src/lib/scan/appointmentScan.test.js` ✅ passed.
+
 ## 2026-02-27 09:25 UTC update (BREAKOUT profile photo deep diagnostics)
 
 - Added query-param-gated diagnostics for organizer profile photo loading in BREAKOUT (`?debugPhoto=1`) with centralized `[photo]` debug/warn/error log helpers to avoid default console noise.
