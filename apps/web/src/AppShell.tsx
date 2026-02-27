@@ -541,6 +541,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
+  const identityPayload = () => ({ email: sessionEmail, phone: sessionEmail });
 
   async function renameGroupName(nextName: string): Promise<void> {
     const normalized = normalizeGroupName(nextName);
@@ -690,7 +691,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
     });
     const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; pendingProposal?: AppointmentDetailResponse['pendingProposal']; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions'] };
     if (!response.ok || !payload.ok || !payload.appointment || !payload.eventsPage || !payload.projections) throw new Error(payload.message ?? 'Unable to load details');
@@ -862,7 +863,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, ...identityPayload(), action, traceId: createTraceId() })
     });
     const payload = await response.json() as DirectActionErrorPayload;
     if (!response.ok || !payload.ok) {
@@ -882,7 +883,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action: { type: 'append_appointment_message', appointmentId: detailsAppointmentId, text, clientRequestId }, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'append_appointment_message', appointmentId: detailsAppointmentId, text, clientRequestId }, traceId: createTraceId() })
     });
     const payload = await response.json() as DirectActionErrorPayload & { appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; from: string; to: string } | null; pendingProposal?: AppointmentDetailResponse['pendingProposal'] };
     if (!response.ok || !payload.ok) {
@@ -914,7 +915,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action: { type: 'apply_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value, clientRequestId }, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'apply_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value, clientRequestId }, traceId: createTraceId() })
     });
     const payload = await response.json() as DirectActionErrorPayload & { appointment?: Snapshot['appointments'][0]; appendedEvents?: AppointmentDetailEvent[] };
     if (!response.ok || !payload.ok) {
@@ -933,7 +934,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action: { type: 'dismiss_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, clientRequestId }, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'dismiss_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, clientRequestId }, traceId: createTraceId() })
     });
     const payload = await response.json() as DirectActionErrorPayload & { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
     if (!response.ok || !payload.ok) {
@@ -974,7 +975,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ groupId, action: { type: 'edit_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value: trimmed, clientRequestId }, traceId: createTraceId() })
+      body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'edit_appointment_proposal', appointmentId: detailsAppointmentId, proposalId: pendingProposal.proposalId, field: pendingProposal.field, value: trimmed, clientRequestId }, traceId: createTraceId() })
     });
     const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
     if (!response.ok || !payload.ok) return;
@@ -998,7 +999,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const action = constraintDraft.editingId
       ? { type: 'edit_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, constraintId: constraintDraft.editingId, field: constraintDraft.field, operator: constraintDraft.operator, value: constraintDraft.value.trim(), clientRequestId }
       : { type: 'add_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, field: constraintDraft.field, operator: constraintDraft.operator, value: constraintDraft.value.trim(), clientRequestId };
-    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action, traceId: createTraceId() }) });
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, ...identityPayload(), action, traceId: createTraceId() }) });
     const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; constraints?: AppointmentDetailResponse['constraints'] };
     if (!response.ok || !payload.ok) return;
     setConstraintDraft({ field: 'title', operator: 'contains', value: '' });
@@ -1008,14 +1009,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const removeConstraint = async (constraintId: string) => {
     if (!detailsAppointmentId) return;
     const clientRequestId = createTraceId();
-    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action: { type: 'remove_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, constraintId, clientRequestId }, traceId: createTraceId() }) });
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'remove_constraint', appointmentId: detailsAppointmentId, memberEmail: sessionEmail, constraintId, clientRequestId }, traceId: createTraceId() }) });
     const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; constraints?: AppointmentDetailResponse['constraints'] };
     if (!response.ok || !payload.ok) return;
     setDetailsData((prev) => prev ? ({ ...prev, constraints: payload.constraints ?? prev.constraints, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
   };
 
   const suggestionAction = async (action: Record<string, unknown>) => {
-    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, action, traceId: createTraceId() }) });
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, ...identityPayload(), action, traceId: createTraceId() }) });
     const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[]; suggestions?: AppointmentDetailResponse['suggestions']; appointment?: Snapshot['appointments'][0] };
     if (!response.ok || !payload.ok) return;
     setDetailsData((prev) => prev ? ({ ...prev, appointment: payload.appointment ?? prev.appointment, suggestions: payload.suggestions ?? prev.suggestions, eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ], projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ]) }) : prev);
@@ -1049,7 +1050,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setTranscript((p) => [...p, { role: 'user', text: trimmed }]);
     setIsSubmitting(true);
     try {
-      const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, ...extraBody }) });
+      const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: trimmed, groupId, ...identityPayload(), ...extraBody }) });
       if (!response.ok) {
         setTranscript((p) => [...p, { role: 'assistant', text: 'error: unable to fetch reply' }]);
         return;
@@ -1071,7 +1072,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const sendDirectAction = async (action: Record<string, unknown>) => {
-    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId }) });
+    const response = await apiFetch('/api/direct', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, groupId, ...identityPayload() }) });
     const json = await response.json() as { ok?: boolean; snapshot?: Snapshot; message?: string; personId?: string };
     if (json.snapshot) setSnapshot(json.snapshot);
     if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
@@ -1399,7 +1400,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
 
   const refreshSnapshot = async () => {
-    const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId }) });
+    const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, ...identityPayload() }) });
     if (!response.ok) return;
     const json = await response.json() as ChatResponse;
     if (json.snapshot) setSnapshot(json.snapshot);
@@ -1800,7 +1801,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: outgoing, groupId, ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
+        body: JSON.stringify({ message: outgoing, groupId, ...identityPayload(), ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
       });
       const json = (await response.json()) as Record<string, unknown> & { snapshot?: Snapshot; kind?: string; message?: string };
       if (json.snapshot) setSnapshot(json.snapshot);
@@ -1884,7 +1885,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (didInitialLoad.current) return;
     didInitialLoad.current = true;
     authLog({ stage: 'initial_chat_triggered' });
-    apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId }) })
+    apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, ...identityPayload() }) })
       .then(async (response) => {
         if (!response.ok) return;
         const json = (await response.json()) as ChatResponse;

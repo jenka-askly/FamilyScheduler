@@ -36,7 +36,7 @@ export type ResponseSnapshot = {
   historyCount?: number;
 };
 
-type DirectBody = { action?: unknown; groupId?: unknown; traceId?: unknown };
+type DirectBody = { action?: unknown; groupId?: unknown; email?: unknown; phone?: unknown; traceId?: unknown };
 
 type DirectAction =
   | { type: 'create_blank_appointment' }
@@ -511,6 +511,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
   const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return withDirectMeta(session.response, traceId, context);
+  const bodyEmail = typeof body.email === 'string' ? normalizeEmail(body.email) : '';
+  if (bodyEmail && bodyEmail !== normalizeEmail(session.email)) {
+    context.log(JSON.stringify({ event: 'direct_identity_body_email_mismatch', traceId, groupId, bodyEmailDomain: bodyEmail.split('@')[1] ?? 'unknown', sessionEmailDomain: session.email.split('@')[1] ?? 'unknown' }));
+  }
   logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: session.email.split('@')[1] ?? 'unknown' });
 
   let directAction: DirectAction;

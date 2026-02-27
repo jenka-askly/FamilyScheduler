@@ -12501,3 +12501,56 @@ Ensure scan completion never persists `Scanning…` / `Scanning...` as appointme
 ### Follow-ups
 
 - In a local environment with full deps installed, run API tests and execute manual image-scan checks for: (a) null-title fallback, (b) explicit-title overwrite, (c) reload persistence.
+
+## 2026-02-27 17:49 UTC (Option A: email identity payload alignment for /api/chat + /api/direct)
+
+### Objective
+
+Align client payload identity across `/api/chat` and `/api/direct` to prevent snapshot lineage divergence, while keeping compatibility and current session-based auth intact.
+
+### Pre-edit consistency check
+
+- Ran required searches and confirmed code state before edits:
+  - `rg -n "phone" apps/web/src/AppShell.tsx api/src/functions/direct.ts api/src/functions/chat.ts api/src/lib/groupAuth.ts api/src/functions/scanAppointment.ts api/src/functions/appointmentScanRescan.ts api/src/functions/appointmentScanDelete.ts api/src/functions/appointmentScanImage.ts`
+  - `rg -n "ChatRequest" api/src/functions/chat.ts`
+  - `rg -n "DirectBody" api/src/functions/direct.ts`
+  - `cat CODEX_LOG.md`
+- Result: previous CODEX_LOG notes referenced phone→email migration context from earlier architecture, but current code already authenticates by session email (`requireSessionEmail`) and no longer uses `validateJoinRequest(...phone)` in these handlers. Trusted code as source of truth.
+
+### Approach
+
+- Web client:
+  - Added `identityPayload()` in `AppShell.tsx` and injected `{ email: sessionEmail, phone: sessionEmail }` into `/api/chat` and `/api/direct` JSON bodies.
+  - Kept payload compatibility by preserving `phone` as mirrored email string.
+- API:
+  - Extended request body types to accept optional `email`/`phone` in `chat`, `direct`, and scan JSON handlers.
+  - Added lightweight mismatch instrumentation in `chat` and `direct` if `body.email` differs from session email.
+- Tests:
+  - Added new direct handler test that passes body `email` and authenticates with session header; asserts successful `create_blank_appointment` response.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/direct.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `api/src/functions/appointmentScanDelete.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "phone" apps/web/src/AppShell.tsx api/src/functions/direct.ts api/src/functions/chat.ts api/src/lib/groupAuth.ts api/src/functions/scanAppointment.ts api/src/functions/appointmentScanRescan.ts api/src/functions/appointmentScanDelete.ts api/src/functions/appointmentScanImage.ts` ✅
+- `rg -n "ChatRequest" api/src/functions/chat.ts` ✅
+- `rg -n "DirectBody" api/src/functions/direct.ts` ✅
+- `cat CODEX_LOG.md` ✅
+- `rg -n "type DirectBody|type ChatRequest|identityPayload|body\.email|phone\?: unknown" apps/web/src/AppShell.tsx api/src/functions/direct.ts api/src/functions/chat.ts api/src/functions/scanAppointment.ts api/src/functions/appointmentScanRescan.ts api/src/functions/appointmentScanDelete.ts api/src/functions/direct.test.ts` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ failed due pre-existing missing `@azure/data-tables` module/type declarations in this container.
+
+### Follow-ups
+
+- Manual browser Network verification (human-run): confirm `/api/chat` and `/api/direct` payloads include `email` and `phone` mirror value.
+- Manual reproduction check (human-run): `+` then cancel should keep appointment lineage stable.

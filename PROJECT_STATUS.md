@@ -4927,3 +4927,23 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/api test -- appointmentScan.test.ts` ⚠️ blocked by environment TypeScript build failure (`@azure/data-tables` missing), unrelated to scan flow.
 2. `rg -n "const parsedTitle =|if \(mode === 'rescan'\)|else if \(placeholderOrEmpty\)" api/src/lib/scan/appointmentScan.ts` ✅ confirms dedicated title branch now uses normalized parsed title and fallback path.
+
+## 2026-02-27 17:49 UTC update (Option A identity alignment: send email on chat/direct payloads)
+
+- Confirmed repo is already session-email gated on API routes (`requireSessionEmail`) and does **not** use legacy `validateJoinRequest(body.groupId, body.phone)` in current `chat/direct/scan` handlers.
+- Updated web request payloads to consistently include identity fields on `/api/chat` and `/api/direct` calls:
+  - `email: sessionEmail`
+  - `phone: sessionEmail` (temporary compatibility mirror)
+- Added API request-shape compatibility fields so handlers accept body identity fields without breaking:
+  - `DirectBody` and `ChatRequest` now include optional `email`/`phone`.
+  - Scan JSON body types also include optional `email`/`phone` for consistency.
+- Added mismatch instrumentation:
+  - `/api/direct`: logs `direct_identity_body_email_mismatch` when body email disagrees with authenticated session email.
+  - `/api/chat`: logs `identity_body_email_mismatch` under the same mismatch condition.
+- Added targeted API regression test for Option A compatibility path:
+  - verifies `/api/direct` succeeds for `create_blank_appointment` when body contains `email` and auth is still based on session email.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by pre-existing missing `@azure/data-tables` module/type declarations in this environment.

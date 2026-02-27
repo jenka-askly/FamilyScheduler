@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
 import { derivePendingProposal, direct, setAppointmentDocStoreForTests, setAppointmentEventStoreForTests, toResponseSnapshot } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
@@ -31,6 +32,43 @@ test.afterEach(() => {
   delete process.env.TIME_RESOLVE_OPENAI_FALLBACK;
 });
 
+
+
+test('direct accepts body.email on create_blank_appointment while authenticating by session email', async () => {
+  const sessionId = '11111111-1111-4111-8111-111111111111';
+  const sessionBlobName = `familyscheduler/sessions/${sessionId}.json`;
+  const sessionBody = Buffer.from(JSON.stringify({
+    v: 1,
+    email: 'dev@example.com',
+    kind: 'full',
+    createdAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString()
+  }), 'utf8');
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save(_groupId, nextState) { return { state: nextState, etag: 'etag-2' }; },
+    async getBinary(blobName: string) {
+      if (blobName === sessionBlobName) {
+        return { contentType: 'application/json', stream: Readable.from(sessionBody) as any };
+      }
+      const error = new Error('not found') as Error & { statusCode?: number; code?: string };
+      error.statusCode = 404;
+      error.code = 'BlobNotFound';
+      throw error;
+    }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({
+    headers: new Headers({ 'x-session-id': sessionId }),
+    json: async () => ({ groupId: GROUP_ID, email: 'dev@example.com', action: { type: 'create_blank_appointment' } })
+  } as any, context());
+
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).ok, true);
+});
 test('direct returns group_not_found when group is missing', async () => {
   const adapter: StorageAdapter = { async initIfMissing() {}, async save() { throw new Error('not used'); }, async load() { throw new GroupNotFoundError(); } };
   setStorageAdapterForTests(adapter);
