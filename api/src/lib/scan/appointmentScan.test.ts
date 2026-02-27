@@ -79,6 +79,25 @@ test('applyParsedFields treats ASCII scanning placeholder as empty-equivalent', 
   assert.equal(appointment.title, 'Pediatrician follow-up');
 });
 
+
+test('applyParsedFields uses Appointment fallback when parsed title/notes/location are empty', () => {
+  const appointment = makeAppointment();
+  appointment.title = 'Scanning...';
+
+  applyParsedFields(appointment, {
+    title: null,
+    date: null,
+    startTime: null,
+    endTime: null,
+    durationMins: null,
+    timezone: null,
+    location: null,
+    notes: null
+  }, 'initial');
+
+  assert.equal(appointment.title, 'Appointment');
+});
+
 test('hasMeaningfulParsedContent requires extracted fields', () => {
   assert.equal(hasMeaningfulParsedContent({ title: null, date: null, startTime: null, endTime: null, durationMins: null, timezone: null, location: null, notes: null }), false);
   assert.equal(hasMeaningfulParsedContent({ title: null, date: '2026-03-10', startTime: null, endTime: null, durationMins: null, timezone: null, location: null, notes: null }), true);
