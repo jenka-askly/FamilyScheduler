@@ -77,6 +77,16 @@ type AppointmentDetailResponse = {
   eventsPage: AppointmentDetailEvent[];
   nextCursor: { chunkId: number; index: number } | null;
   projections: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] };
+  pendingProposal?: {
+    id: string;
+    field: 'title';
+    fromValue: string | null;
+    toValue: string;
+    status: 'pending' | 'paused';
+    createdTsUtc: string;
+    countdownEndsTsUtc: string | null;
+    actor: { kind: 'HUMAN' | 'SYSTEM' | 'AGENT'; userKey?: string; email?: string };
+  } | null;
   constraints?: { byMember?: Record<string, Array<{ id: string; field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string }>> };
   suggestions?: { byField?: Record<string, Array<{ id: string; proposerEmail: string; field: 'title' | 'time' | 'location'; value: string; active: boolean; status: string; conflicted?: boolean; reactions?: Array<{ email: string; reaction: 'up' | 'down'; tsUtc: string }> }>> };
 };
@@ -494,14 +504,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }, [snapshot.appointments, detailsOpen]);
 
   async function loadAppointmentDetails(appointmentId: string, cursor?: { chunkId: number; index: number } | null) {
+    if (!appointmentId) throw new Error('appointmentId is required');
     const response = await apiFetch('/api/direct', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions'] };
+    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; pendingProposal?: AppointmentDetailResponse['pendingProposal']; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions'] };
     if (!response.ok || !payload.ok || !payload.appointment || !payload.eventsPage || !payload.projections) throw new Error(payload.message ?? 'Unable to load details');
-    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, constraints: payload.constraints, suggestions: payload.suggestions };
+    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, pendingProposal: payload.pendingProposal ?? null, constraints: payload.constraints, suggestions: payload.suggestions };
     setDetailsData((prev) => {
       if (!cursor || !prev) return next;
       const merged = [...prev.eventsPage, ...next.eventsPage.filter((event) => !prev.eventsPage.some((existing) => existing.id === event.id))];
@@ -511,6 +522,17 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         projections: buildProjections(merged)
       };
     });
+    if (!cursor) {
+      const serverPending = payload.pendingProposal;
+      setPendingProposal(serverPending ? {
+        proposalId: serverPending.id,
+        field: serverPending.field,
+        from: serverPending.fromValue ?? '',
+        to: serverPending.toValue,
+        countdownEndsAt: Date.now() + 5000,
+        paused: serverPending.status === 'paused'
+      } : null);
+    }
   }
 
   function openAppointmentDetails(appt: Snapshot['appointments'][0]) {
@@ -563,10 +585,13 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, action: { type: 'append_appointment_message', appointmentId: detailsAppointmentId, text, clientRequestId }, traceId: createTraceId() })
     });
-    const payload = await response.json() as DirectActionErrorPayload & { appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; from: string; to: string } | null };
+    const payload = await response.json() as DirectActionErrorPayload & { appendedEvents?: AppointmentDetailEvent[]; proposal?: { proposalId: string; field: 'title'; from: string; to: string } | null; pendingProposal?: AppointmentDetailResponse['pendingProposal'] };
     if (!response.ok || !payload.ok) {
       console.error('append_appointment_message failed', payload);
       appendLocalDiscussionErrorEvent(buildDirectActionErrorMessage(response, payload, 'Unable to send message.'));
+      const payloadError = payload.error;
+      const errorCode = typeof payloadError === 'string' ? payloadError : payloadError?.code;
+      if (response.status === 400 && errorCode === 'title_proposal_pending') await loadAppointmentDetails(detailsAppointmentId);
       return;
     }
     const newEvents = payload.appendedEvents ?? [];
@@ -594,16 +619,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       appendLocalDiscussionErrorEvent(buildDirectActionErrorMessage(response, payload, 'Unable to apply proposal.'));
       return;
     }
-    setPendingProposal(null);
-    setDetailsData((prev) => prev ? {
-      appointment: payload.appointment ?? prev.appointment,
-      nextCursor: prev.nextCursor,
-      eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
-      projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ])
-    } : prev);
-    if (payload.appointment) {
-      setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
-    }
+    await loadAppointmentDetails(detailsAppointmentId);
+    if (payload.appointment) setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
   };
 
   const dismissPendingProposal = async () => {
@@ -616,12 +633,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     });
     const payload = await response.json() as { ok?: boolean; appendedEvents?: AppointmentDetailEvent[] };
     if (!response.ok || !payload.ok) return;
-    setPendingProposal(null);
-    setDetailsData((prev) => prev ? {
-      ...prev,
-      eventsPage: [ ...(payload.appendedEvents ?? []), ...prev.eventsPage ],
-      projections: buildProjections([ ...(payload.appendedEvents ?? []), ...prev.eventsPage ])
-    } : prev);
+    await loadAppointmentDetails(detailsAppointmentId);
   };
 
   const pauseOrResumePendingProposal = async (mode: 'pause' | 'resume') => {

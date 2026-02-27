@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { direct } from './direct.js';
+import { derivePendingProposal, direct } from './direct.js';
 import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
 
@@ -172,4 +172,103 @@ test('resolve_appointment_time returns 502 when AI call fails', async () => {
   assert.equal(saveCalls, 0);
 
   global.fetch = originalFetch;
+});
+
+test('derivePendingProposal returns active title proposal in pending state', () => {
+  const pending = derivePendingProposal([
+    {
+      id: 'ev-created',
+      tsUtc: '2026-01-01T00:00:00.000Z',
+      type: 'PROPOSAL_CREATED',
+      actor: { kind: 'SYSTEM' },
+      proposalId: 'proposal-1',
+      payload: { field: 'title', from: 'Old title', to: 'New title', proposalId: 'proposal-1' }
+    } as any
+  ]);
+
+  assert.deepEqual(pending, {
+    id: 'proposal-1',
+    field: 'title',
+    fromValue: 'Old title',
+    toValue: 'New title',
+    status: 'pending',
+    createdTsUtc: '2026-01-01T00:00:00.000Z',
+    countdownEndsTsUtc: null,
+    actor: { kind: 'SYSTEM' }
+  });
+});
+
+test('derivePendingProposal returns paused status and edited value when proposal is paused', () => {
+  const pending = derivePendingProposal([
+    {
+      id: 'ev-created',
+      tsUtc: '2026-01-01T00:00:00.000Z',
+      type: 'PROPOSAL_CREATED',
+      actor: { kind: 'SYSTEM' },
+      proposalId: 'proposal-1',
+      payload: { field: 'title', from: 'Old title', to: 'Draft title', proposalId: 'proposal-1' }
+    } as any,
+    {
+      id: 'ev-edited',
+      tsUtc: '2026-01-01T00:00:01.000Z',
+      type: 'PROPOSAL_EDITED',
+      actor: { kind: 'HUMAN', email: 'dev@example.com' },
+      proposalId: 'proposal-1',
+      payload: { proposalId: 'proposal-1', beforeText: 'Draft title', afterText: 'Edited title' }
+    } as any,
+    {
+      id: 'ev-paused',
+      tsUtc: '2026-01-01T00:00:02.000Z',
+      type: 'PROPOSAL_PAUSED',
+      actor: { kind: 'HUMAN', email: 'dev@example.com' },
+      proposalId: 'proposal-1',
+      payload: { proposalId: 'proposal-1' }
+    } as any
+  ]);
+
+  assert.equal(pending?.status, 'paused');
+  assert.equal(pending?.toValue, 'Edited title');
+});
+
+test('derivePendingProposal returns null when proposal has been applied or canceled', () => {
+  const applied = derivePendingProposal([
+    {
+      id: 'ev-created',
+      tsUtc: '2026-01-01T00:00:00.000Z',
+      type: 'PROPOSAL_CREATED',
+      actor: { kind: 'SYSTEM' },
+      proposalId: 'proposal-1',
+      payload: { field: 'title', from: 'Old title', to: 'New title', proposalId: 'proposal-1' }
+    } as any,
+    {
+      id: 'ev-applied',
+      tsUtc: '2026-01-01T00:00:03.000Z',
+      type: 'PROPOSAL_APPLIED',
+      actor: { kind: 'HUMAN', email: 'dev@example.com' },
+      proposalId: 'proposal-1',
+      payload: { proposalId: 'proposal-1', field: 'title' }
+    } as any
+  ]);
+
+  const canceled = derivePendingProposal([
+    {
+      id: 'ev-created',
+      tsUtc: '2026-01-01T00:00:00.000Z',
+      type: 'PROPOSAL_CREATED',
+      actor: { kind: 'SYSTEM' },
+      proposalId: 'proposal-2',
+      payload: { field: 'title', from: 'Old title', to: 'New title', proposalId: 'proposal-2' }
+    } as any,
+    {
+      id: 'ev-cancel',
+      tsUtc: '2026-01-01T00:00:04.000Z',
+      type: 'PROPOSAL_CANCELED',
+      actor: { kind: 'HUMAN', email: 'dev@example.com' },
+      proposalId: 'proposal-2',
+      payload: { proposalId: 'proposal-2', field: 'title' }
+    } as any
+  ]);
+
+  assert.equal(applied, null);
+  assert.equal(canceled, null);
 });

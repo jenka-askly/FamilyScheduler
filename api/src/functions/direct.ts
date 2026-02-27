@@ -95,8 +95,50 @@ const detectTitleProposal = (textRaw: string): string | null => {
 const latestActiveTitleProposal = (events: AppointmentEvent[]): AppointmentEvent | null => {
   const latestProposal = events.find((event) => event.type === 'PROPOSAL_CREATED' && event.payload.field === 'title');
   if (!latestProposal?.proposalId) return null;
-  const closed = events.some((event) => event.proposalId === latestProposal.proposalId && (event.type === 'FIELD_CHANGED' || event.type === 'PROPOSAL_CANCELED'));
+  const closed = events.some((event) => event.proposalId === latestProposal.proposalId && (event.type === 'FIELD_CHANGED' || event.type === 'PROPOSAL_CANCELED' || event.type === 'PROPOSAL_APPLIED'));
   return closed ? null : latestProposal;
+};
+
+export type PendingProposalResponse = {
+  id: string;
+  field: 'title';
+  fromValue: string | null;
+  toValue: string;
+  status: 'pending' | 'paused';
+  createdTsUtc: string;
+  countdownEndsTsUtc: string | null;
+  actor: AppointmentEvent['actor'];
+};
+
+export const derivePendingProposal = (events: AppointmentEvent[]): PendingProposalResponse | null => {
+  const created = events.find((event) => event.type === 'PROPOSAL_CREATED' && event.payload.field === 'title' && !!event.proposalId);
+  if (!created?.proposalId) return null;
+  const proposalId = created.proposalId;
+  const lifecycle = events.filter((event) => event.proposalId === proposalId);
+  const isClosed = lifecycle.some((event) => event.type === 'PROPOSAL_CANCELED' || event.type === 'PROPOSAL_APPLIED' || event.type === 'FIELD_CHANGED');
+  if (isClosed) return null;
+
+  const edited = lifecycle.find((event) => event.type === 'PROPOSAL_EDITED');
+  const paused = lifecycle.find((event) => event.type === 'PROPOSAL_PAUSED');
+  const resumed = lifecycle.find((event) => event.type === 'PROPOSAL_RESUMED');
+  const pausedAfterResume = paused && (!resumed || Date.parse(paused.tsUtc) > Date.parse(resumed.tsUtc));
+
+  return {
+    id: proposalId,
+    field: 'title',
+    fromValue: typeof created.payload.from === 'string' ? created.payload.from : null,
+    toValue: typeof edited?.payload.afterText === 'string' ? edited.payload.afterText : String(created.payload.to ?? ''),
+    status: pausedAfterResume ? 'paused' : 'pending',
+    createdTsUtc: created.tsUtc,
+    countdownEndsTsUtc: null,
+    actor: created.actor
+  };
+};
+
+const logAppointmentAction = (context: InvocationContext, traceId: string, groupId: string, action: DirectAction): void => {
+  if (!('appointmentId' in action)) return;
+  const clientRequestId = 'clientRequestId' in action && typeof action.clientRequestId === 'string' ? action.clientRequestId : null;
+  context.log(JSON.stringify({ event: 'appointment_action', traceId, groupId, appointmentId: action.appointmentId, actionType: action.type, clientRequestId }));
 };
 
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
@@ -435,6 +477,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   }
   const caller = membership.member;
   logAuth({ traceId, stage: 'gate_allowed', memberId: caller.memberId });
+  logAppointmentAction(context, traceId, groupId, directAction);
 
   if (directAction.type === 'get_appointment_detail') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
@@ -447,6 +490,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       const discussionTypes = new Set(['USER_MESSAGE', 'SYSTEM_CONFIRMATION', 'PROPOSAL_CREATED', 'PROPOSAL_PAUSED', 'PROPOSAL_RESUMED', 'PROPOSAL_EDITED', 'PROPOSAL_APPLIED', 'PROPOSAL_CANCELED', 'SUGGESTION_CREATED', 'SUGGESTION_APPLIED', 'SUGGESTION_DISMISSED', 'SUGGESTION_REACTED', 'SUGGESTION_REACTION', 'CONSTRAINT_ADDED', 'CONSTRAINT_REMOVED']);
       const discussionEvents = recent.events.filter((event) => discussionTypes.has(event.type));
       const changeEvents = recent.events.filter((event) => materialEventTypes.has(event.type));
+      const pendingProposal = derivePendingProposal(recent.events);
       return withDirectMeta({
         status: 200,
         jsonBody: {
@@ -455,6 +499,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           eventsPage: recent.events,
           nextCursor: recent.nextCursor,
           projections: { discussionEvents, changeEvents },
+          pendingProposal,
           constraints: doc ? (doc.constraints as Record<string, unknown>) : { byMember: {} },
           suggestions: doc ? (doc.suggestions as Record<string, unknown>) : { byField: {} }
         }
@@ -489,8 +534,12 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
       if (proposedTitle) {
         const recent = await getRecentEvents(groupId, directAction.appointmentId, 50);
-        if (latestActiveTitleProposal(recent.events)) {
-          return withDirectMeta(errorResponse(400, 'title_proposal_pending', 'title_proposal_pending', traceId), traceId, context);
+        const pendingProposal = derivePendingProposal(recent.events);
+        if (pendingProposal) {
+          return withDirectMeta({
+            ...errorResponse(400, 'title_proposal_pending', 'title_proposal_pending', traceId),
+            jsonBody: { ...errorResponse(400, 'title_proposal_pending', 'title_proposal_pending', traceId).jsonBody, pendingProposal }
+          }, traceId, context);
         }
         const proposalId = randomUUID();
         const proposalEvent: AppointmentEvent = {
@@ -528,7 +577,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       if (directAction.value.length > TITLE_MAX_LENGTH) return withDirectMeta(errorResponse(400, 'invalid_title', `title must be at most ${TITLE_MAX_LENGTH} characters`, traceId), traceId, context);
       const recent = await getRecentEvents(groupId, directAction.appointmentId, 200);
       const activeProposal = latestActiveTitleProposal(recent.events);
-      if (!activeProposal || activeProposal.proposalId !== directAction.proposalId) {
+      if (!activeProposal) {
+        return withDirectMeta(errorResponse(404, 'proposal_not_found', 'Proposal not found', traceId), traceId, context);
+      }
+      if (activeProposal.proposalId !== directAction.proposalId) {
         return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
       }
 
@@ -819,6 +871,10 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withDirectMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId), traceId, context);
     try {
+      const recent = await getRecentEvents(groupId, directAction.appointmentId, 200);
+      const activeProposal = latestActiveTitleProposal(recent.events);
+      if (!activeProposal) return withDirectMeta(errorResponse(404, 'proposal_not_found', 'Proposal not found', traceId), traceId, context);
+      if (activeProposal.proposalId !== directAction.proposalId) return withDirectMeta(errorResponse(400, 'proposal_not_active', 'Proposal is not active', traceId), traceId, context);
       const cancelEvent: AppointmentEvent = {
         id: randomUUID(),
         tsUtc: new Date().toISOString(),
