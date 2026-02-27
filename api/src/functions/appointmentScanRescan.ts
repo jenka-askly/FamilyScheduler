@@ -12,7 +12,7 @@ import type { Appointment } from '../lib/state.js';
 
 export async function appointmentScanRescan(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = `scan-rescan-${Date.now()}`;
-  const body = await request.json() as { groupId?: unknown; appointmentId?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
+  const body = await request.json() as { groupId?: unknown; email?: unknown; phone?: unknown; appointmentId?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId, { groupId });

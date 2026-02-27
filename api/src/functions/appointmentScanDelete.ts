@@ -9,7 +9,7 @@ import { userKeyFromEmail } from '../lib/identity/userKey.js';
 
 export async function appointmentScanDelete(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = `scan-del-${Date.now()}`;
-  const body = await request.json() as { groupId?: unknown; appointmentId?: unknown };
+  const body = await request.json() as { groupId?: unknown; email?: unknown; phone?: unknown; appointmentId?: unknown };
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
   const session = await requireSessionEmail(request, traceId, { groupId });

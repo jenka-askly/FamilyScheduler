@@ -22,7 +22,7 @@ import { recordOpenAiSuccess } from '../lib/usage/usageTables.js';
 import { getAppointmentJson } from '../lib/tables/appointments.js';
 import { listAppointmentIndexesForGroup } from '../lib/tables/entities.js';
 
-type ChatRequest = { message?: unknown; groupId?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; email?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };
@@ -354,6 +354,10 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
     const sessionAuth = await requireSessionEmail(request, traceId, { groupId });
     if (!sessionAuth.ok) return sessionAuth.response;
+    const bodyEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (bodyEmail && bodyEmail.toLowerCase() !== sessionAuth.email.toLowerCase()) {
+      console.warn(JSON.stringify({ traceId, route: '/api/chat', stage: 'identity_body_email_mismatch', groupId, bodyEmailDomain: bodyEmail.split('@')[1] ?? 'unknown', sessionEmailDomain: sessionAuth.email.split('@')[1] ?? 'unknown' }));
+    }
     const messageLen = typeof body.message === 'string' ? body.message.trim().length : 0;
     console.info(JSON.stringify({ traceId, route: '/api/chat', groupId, emailDomain: sessionAuth.email.split('@')[1] ?? 'unknown', messageLen }));
     logAuth({ traceId, stage: 'gate_in', groupId, emailDomain: sessionAuth.email.split('@')[1] ?? 'unknown' });
