@@ -12657,3 +12657,43 @@ Resolve TypeScript TS2353 in `buildAppointmentsSnapshot.ts` where `code` was bei
 ### Follow-ups
 
 - Re-run `pnpm -r --if-present build` in an environment with `@azure/data-tables` available to confirm full workspace green.
+
+## 2026-02-27 19:14 UTC (New blank appointment cancel auto-delete)
+
+### Objective
+
+When creating a new blank appointment via `+`, make Cancel/close delete that appointment only if it is still blank and untouched; if edited, Cancel should just close the dialog.
+
+### State consistency check first (requested)
+
+- Reviewed prior log entries for snapshot unification + `buildAppointmentsSnapshot` + identity payload alignment and corroborated against current code paths.
+- Confirmed in `apps/web/src/AppShell.tsx`:
+  - `addAppointment()` calls `create_blank_appointment` then opens editor with created appointment.
+  - `closeWhenEditor()` was the shared close/cancel handler before this change.
+- Log and code are aligned for those prior fixes; no corrective log rewrite needed.
+
+### Approach
+
+- Added `pendingNewAppointmentCode` state to track the newly created candidate appointment for guarded deletion on cancel.
+- Added conservative `isBlankAppointment(...)` helper and cancel guard logic in `closeWhenEditor(reason)`:
+  - Only attempts delete when reason is `cancel`, editor code equals pending code, persisted appointment is blank, and all current draft fields are still blank.
+  - Delete is issued before editor state reset to avoid race/confusion.
+- Cleared pending candidate on successful confirm/save and when opening a different appointment.
+- Wired dialog close + form cancel to call `closeWhenEditor('cancel')` consistently.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "addAppointment|closeWhenEditor|openWhenEditor|AppointmentEditorForm|confirmWhenDraft|create_blank_appointment" apps/web/src/AppShell.tsx` ✅
+- `pnpm -r --if-present build` ⚠️ failed in this environment due missing `@azure/data-tables` in API package.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+
+- Manual verification in browser/staging still needed for exact interaction/network sequence:
+  - `create_blank_appointment` followed by `delete_appointment` for immediate cancel.
