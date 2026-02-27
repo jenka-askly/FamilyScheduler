@@ -12440,3 +12440,36 @@ Fix scan apply behavior so title/description placeholders do not remain stuck at
 
 - Manual app-level scan verification (pending/parsed/reload/rescan) should be run in the full runtime environment with real image uploads to confirm user-visible flow end-to-end.
 
+
+
+## 2026-02-27 16:46 UTC (Scan Image flow: placeholder title persistence fix)
+
+### Objective
+
+Prevent `Scanning…` / `Scanning...` from persisting as appointment title/description when scan parse completes without a `parsed.title`.
+
+### Approach
+
+- Updated `applyParsedFields` empty-equivalent detection for title placeholders.
+- Replaced generic title `shouldApply` gate with dedicated initial/rescan title handling:
+  - rescan always writes trimmed parsed title (or empty string)
+  - initial mode replaces placeholder/empty titles with parsed title when present, otherwise computes fallback from parsed notes/location/default.
+- Added local helper `firstLineOrSentence(text, maxLen)` for deterministic note-derived title fallback.
+- Added regression test for the `parsed.title=null` + empty notes/location path to ensure fallback becomes `Appointment`.
+
+### Files changed
+
+- `api/src/lib/scan/appointmentScan.ts`
+- `api/src/lib/scan/appointmentScan.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed in container due missing `@azure/data-tables` dependency during build.
+- `rg -n "firstLineOrSentence|normalized === 'scanning…'|normalized === 'scanning\.\.\.'|normalized === 'scanning'|placeholderOrEmpty" api/src/lib/scan/appointmentScan.ts` ✅
+- `rg -n "uses Appointment fallback" api/src/lib/scan/appointmentScan.test.ts` ✅
+
+### Follow-ups
+
+- Run local scan flow manually with real OpenAI parse outputs to validate UI persistence across page reload for null-title and title-present responses.

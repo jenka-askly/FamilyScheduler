@@ -65,16 +65,16 @@ const isPlaceholderScanTitle = (value: string | undefined): boolean => {
   return normalized === SCAN_PLACEHOLDER_TITLE || normalized === SCAN_PLACEHOLDER_ASCII;
 };
 
-const summarizeForTitle = (value: string): string => {
+const firstLineOrSentence = (value: string, maxLen: number): string => {
   const firstLine = value.split('\n').map((line) => line.trim()).find(Boolean) ?? '';
-  const firstSentence = firstLine.split(/[.!?]/).map((part) => part.trim()).find(Boolean) ?? firstLine;
+  const firstSentence = firstLine.split('.').map((part) => part.trim()).find(Boolean) ?? firstLine;
   const collapsed = firstSentence.replace(/\s+/g, ' ').trim();
   if (!collapsed) return '';
-  return collapsed.length > 60 ? `${collapsed.slice(0, 57).trimEnd()}...` : collapsed;
+  return collapsed.length > maxLen ? `${collapsed.slice(0, maxLen - 3).trimEnd()}...` : collapsed;
 };
 
 const pickTitleFromOtherFields = (parsed: ParsedAppointmentFromImage, appointment: Appointment): string => {
-  const fromNotes = summarizeForTitle(parsed.notes ?? appointment.notes ?? '');
+  const fromNotes = firstLineOrSentence(parsed.notes ?? appointment.notes ?? '', 80);
   if (fromNotes) return fromNotes;
 
   const location = (parsed.location ?? appointment.locationRaw ?? appointment.locationDisplay ?? appointment.location ?? '').trim();
@@ -107,12 +107,25 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
     const normalized = (value ?? '').trim().toLowerCase();
     return normalized === ''
       || normalized === 'scanned item'
-      || isPlaceholderScanTitle(value)
+      || normalized === 'scanning…'
+      || normalized === 'scanning...'
       || normalized === 'scanning';
   };
-  const shouldApply = (curr: string | undefined, next: string | null): boolean => mode === 'rescan' ? true : (isEmptyText(curr) && next !== null);
 
-  if (shouldApply(appointment.title, parsed.title)) appointment.title = parsed.title ?? '';
+  const placeholderOrEmpty = isEmptyText(appointment.title);
+  if (mode === 'rescan') {
+    appointment.title = (parsed.title ?? '').trim();
+  } else if (placeholderOrEmpty) {
+    if (parsed.title && parsed.title.trim()) {
+      appointment.title = parsed.title.trim();
+    } else {
+      const fallback =
+        (parsed.notes && parsed.notes.trim() ? firstLineOrSentence(parsed.notes.trim(), 80) : '')
+        || (parsed.location && parsed.location.trim() ? `Appointment at ${parsed.location.trim()}` : '')
+        || 'Appointment';
+      appointment.title = fallback;
+    }
+  }
 
   const hasParsedDate = Boolean(parsed.date);
   const dateIsEmptyEquivalent = !appointment.date || !appointment.date.trim() || appointment.scanAutoDate === true;

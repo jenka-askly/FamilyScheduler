@@ -1,3 +1,18 @@
+## 2026-02-27 16:45 UTC update (Scan Image flow: prevent persistent "Scanning..." title)
+
+- Updated `api/src/lib/scan/appointmentScan.ts` title application for `initial` mode to handle `parsed.title === null` without leaving placeholder text behind.
+- Expanded empty-equivalent title detection in `applyParsedFields` to treat `''`, whitespace, `scanned item`, `scanning…`, `scanning...`, and `scanning` as placeholder/empty values.
+- Added local `firstLineOrSentence(text, maxLen)` helper and used it for title fallback derivation when no parsed title is returned.
+- Initial scan fallback now derives title from notes first line/sentence, then location (`Appointment at <location>`), then `Appointment`.
+- Existing no-meaningful-content behavior remains: parse results with no extracted title/date/startTime/location/notes are marked `scanStatus='failed'` in `parseAndApplyScan`.
+- Added regression test to assert fallback title becomes `Appointment` when parsed title/notes/location are all empty.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test` ⚠️ blocked in this container by missing `@azure/data-tables` dependency during TypeScript build.
+2. `rg -n "firstLineOrSentence|normalized === 'scanning…'|normalized === 'scanning\.\.\.'|normalized === 'scanning'|placeholderOrEmpty" api/src/lib/scan/appointmentScan.ts` ✅ confirms requested title-empty equivalence and fallback logic.
+3. `rg -n "uses Appointment fallback" api/src/lib/scan/appointmentScan.test.ts` ✅ confirms regression test coverage for null title/notes/location fallback.
+
 ## 2026-02-27 16:24 UTC update (Scan Image placeholder apply fix)
 
 - Updated `applyParsedFields` empty-equivalent title logic to treat scan placeholder title values via `isPlaceholderScanTitle(...)` so initial parse can replace `Scanning…` / `Scanning...` with extracted parsed title.
