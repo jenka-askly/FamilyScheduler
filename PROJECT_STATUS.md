@@ -5256,3 +5256,10 @@ Verification note:
   - Timer delivery path: `reminderTick` (1-minute schedule) using reminder index blobs.
 - Reminder delivery enforces both global opt-out and per-group mute before sending emails.
 - Appointment detail payload now includes derived `reminders` state for UI rendering.
+
+## 2026-02-28 11:25 UTC update (ACS email dependency pin + Reply-To enforcement)
+
+- API dependency now pins `@azure/communication-email` to `1.1.0` in `api/package.json` to align fresh-clone dependency intent with the existing lockfile entry.
+- ACS email send path now supports optional `EMAIL_REPLY_TO_ADDRESS` (or per-call `replyTo`) and injects `replyTo` in `EmailClient.beginSend(...)` only when configured.
+- Optional suppression headers are now supported behind `EMAIL_SUPPRESS_HEADERS=true` (or explicit per-call headers) without changing sender/from behavior.
+- Existing “Do not reply …” body copy and call sites remain unchanged.

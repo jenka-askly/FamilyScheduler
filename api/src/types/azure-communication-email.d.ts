@@ -7,6 +7,8 @@ declare module '@azure/communication-email' {
       senderAddress: string;
       content: { subject: string; plainText?: string; html?: string };
       recipients: { to: Array<{ address: string }> };
+      replyTo?: Array<{ address: string }>;
+      headers?: Record<string, string>;
     }): Promise<{ pollUntilDone(): Promise<EmailSendResponse> }>;
   }
 }
