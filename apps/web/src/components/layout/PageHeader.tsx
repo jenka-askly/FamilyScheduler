@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Snackbar, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
@@ -9,7 +9,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import TextField from '@mui/material/TextField';
 import { useColorMode } from '../../colorMode';
 import { PRODUCT } from '../../product';
-import { buildSessionDebugText } from '../../lib/sessionDebug';
+import { buildSessionDebugText, clearAllSessionKeys, clearDurableSessionKeys, clearGraceSessionKeys } from '../../lib/sessionDebug';
 import { sanitizeSessionEmail } from '../../lib/validate';
 
 const ContentCopyIcon = () => (
@@ -50,8 +50,10 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isRenamePending, setIsRenamePending] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [debugMenuAnchorEl, setDebugMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [debugText, setDebugText] = useState('');
   const [debugCopied, setDebugCopied] = useState(false);
+  const [debugNotice, setDebugNotice] = useState<string | null>(null);
   const [detectedApiSession, setDetectedApiSession] = useState<boolean>(() => Boolean(window.localStorage.getItem('fs.sessionId')));
   const [detectedSessionEmail, setDetectedSessionEmail] = useState<string | null>(() => sanitizeSessionEmail(window.localStorage.getItem('fs.sessionEmail')));
   const [detectedSessionName, setDetectedSessionName] = useState<string | null>(() => window.localStorage.getItem('fs.sessionName'));
@@ -122,6 +124,32 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
     setDebugCopied(false);
     setDebugOpen(true);
     setAnchorEl(null);
+  };
+
+  const closeDebugSubmenu = () => setDebugMenuAnchorEl(null);
+
+  const closeAllMenusAndDebugDialog = () => {
+    setAnchorEl(null);
+    setDebugMenuAnchorEl(null);
+    setDebugOpen(false);
+  };
+
+  const clearDebugKeys = (mode: 'durable' | 'grace' | 'all') => {
+    if (mode === 'durable') {
+      clearDurableSessionKeys();
+      setDebugNotice('Cleared DSID');
+    } else if (mode === 'grace') {
+      clearGraceSessionKeys();
+      setDebugNotice('Cleared GSID');
+    } else {
+      clearAllSessionKeys();
+      setDebugNotice('Cleared all session keys');
+    }
+    setDetectedApiSession(Boolean(window.localStorage.getItem('fs.sessionId')));
+    const nextSessionEmail = sanitizeSessionEmail(window.localStorage.getItem('fs.sessionEmail'));
+    setDetectedSessionEmail(nextSessionEmail);
+    setDetectedSessionName(window.localStorage.getItem('fs.sessionName'));
+    closeAllMenusAndDebugDialog();
   };
 
   const copyDebug = async () => {
@@ -368,11 +396,36 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              openDebug();
+              setDebugMenuAnchorEl(event.currentTarget);
             }}
           >
-            <ListItemText primary="Debug" />
+            <ListItemText primary="Debug" secondary="Show or clear session ids" />
           </MenuItem>
+          <Menu
+            anchorEl={debugMenuAnchorEl}
+            open={Boolean(debugMenuAnchorEl)}
+            onClose={closeDebugSubmenu}
+          >
+            <MenuItem
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeDebugSubmenu();
+                openDebug();
+              }}
+            >
+              <ListItemText primary="Show debug data" secondary="Masked local session snapshot" />
+            </MenuItem>
+            <MenuItem onClick={() => clearDebugKeys('durable')}>
+              <ListItemText primary="Clear DSID" secondary="Clear durable session keys" />
+            </MenuItem>
+            <MenuItem onClick={() => clearDebugKeys('grace')}>
+              <ListItemText primary="Clear GSID" secondary="Clear grace session keys" />
+            </MenuItem>
+            <MenuItem onClick={() => clearDebugKeys('all')}>
+              <ListItemText primary="Clear ALL" secondary="Clear both DSID and GSID" />
+            </MenuItem>
+          </Menu>
           <Divider />
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
@@ -398,6 +451,9 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               sx={{ mt: 1 }}
             />
             {debugCopied ? <Alert severity="success" sx={{ mt: 1.5 }}>Copied</Alert> : null}
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Reload page to re-evaluate session.
+            </Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => { void copyDebug(); }}>Copy</Button>
@@ -411,6 +467,9 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only invited email addresses can access this group.'}</Typography> : null}
       {copied ? <Alert severity="success">Copied</Alert> : null}
       {renameError ? <Alert severity="error">{renameError}</Alert> : null}
+      <Snackbar open={Boolean(debugNotice)} autoHideDuration={2500} onClose={() => setDebugNotice(null)}>
+        <Alert severity="success" onClose={() => setDebugNotice(null)} sx={{ width: '100%' }}>{debugNotice}</Alert>
+      </Snackbar>
     </Stack>
   );
 }

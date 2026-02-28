@@ -26,6 +26,32 @@ const safeCall = <T>(fn: () => T, fallback: T): T => {
   }
 };
 
+const removeLocalStorageKey = (key: string): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // no-op: storage may be unavailable in some environments
+  }
+};
+
+export function clearDurableSessionKeys(): void {
+  removeLocalStorageKey('fs.sessionId');
+  removeLocalStorageKey('fs.sessionEmail');
+  removeLocalStorageKey('fs.sessionName');
+}
+
+export function clearGraceSessionKeys(): void {
+  removeLocalStorageKey('fs.igniteGraceSessionId');
+  removeLocalStorageKey('fs.igniteGraceGroupId');
+  removeLocalStorageKey('fs.igniteGraceExpiresAtUtc');
+}
+
+export function clearAllSessionKeys(): void {
+  clearDurableSessionKeys();
+  clearGraceSessionKeys();
+}
+
 export function buildSessionDebugText(args: { hash: string; groupId?: string }): string {
   const hash = args.hash || '';
   const groupId = args.groupId;

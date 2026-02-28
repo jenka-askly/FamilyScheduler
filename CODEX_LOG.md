@@ -13639,3 +13639,50 @@ Add a mobile-friendly Debug action in the app burger menu that opens a copyable 
 
 ### Follow-ups
 - Run full local manual flow with a real group and permissions matrix to validate copied payload values under real user sessions.
+
+## 2026-02-28 07:39 UTC (Debug submenu: show data + clear DSID/GSID/ALL)
+
+### Objective
+
+Replace the single burger-menu Debug action with a Debug submenu that supports showing existing debug data and clearing DSID/GSID/all session keys with mobile-friendly feedback.
+
+### Approach
+
+- Extended `sessionDebug.ts` with guarded clear helpers:
+  - `clearDurableSessionKeys()`
+  - `clearGraceSessionKeys()`
+  - `clearAllSessionKeys()`
+- Updated `PageHeader` burger menu:
+  - Replaced one-click `Debug` with a submenu anchor item.
+  - Added submenu entries for **Show debug data**, **Clear DSID**, **Clear GSID**, **Clear ALL**.
+  - Added success Snackbar feedback after clear actions.
+  - Ensured clear actions close menus + debug dialog.
+  - Added debug dialog hint text: “Reload page to re-evaluate session.”
+- Extended `sessionDebug.test.ts` with unit tests for all clear helpers and unavailable-storage guard behavior.
+- Updated `PROJECT_STATUS.md` to document the new clear actions for mobile troubleshooting.
+
+### Files changed
+
+- `apps/web/src/lib/sessionDebug.ts`
+- `apps/web/src/lib/sessionDebug.test.ts`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "MenuItem|Menu|Drawer|Burger|PageHeader|showMenuButton" apps/web/src` ✅
+- `rg -n "Debug|buildSessionDebugText|sessionDebug|navigator\.clipboard\.writeText" apps/web/src` ✅
+- `rg -n "buildSessionDebugText" apps/web/src/lib` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/sessionDebug.test.ts` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI verification (stopped intentionally via SIGINT after capture)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/159566febf61c83b/artifacts/artifacts/debug-submenu-mobile.png`
+
+### Follow-ups
+
+- Manual phone verification in a real signed-in/signed-out session context:
+  1) burger → Debug → Show debug data
+  2) Clear DSID and confirm sessionId fields are empty in debug data
+  3) Clear ALL and confirm all `fs.*` debug fields are empty
+
