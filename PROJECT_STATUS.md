@@ -5277,3 +5277,11 @@ Verification note:
 1. `pnpm --filter @familyscheduler/web build` ✅ passed.
 2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked in this environment by missing `@azure/data-tables` module/type resolution.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+
+## 2026-02-28 23:47 UTC update (Profile modal UX parity: blocking actions + camera capture)
+
+- Profile editor modal now renders actions by mode: blocking gate shows **Sign out + Save** only; non-blocking modal shows **Cancel + Save** only.
+- Blocking mode remains non-dismissible via backdrop/ESC and still keeps the modal open on save failure.
+- Profile photo controls now provide **Take photo** (camera capture with confirm/retake) and **Choose file** fallback.
+- Camera capture now reuses shared camera utilities aligned with breakout organizer capture behavior (`getUserMedia` + JPEG frame capture) and uploads via existing `PUT /api/user/profile-photo` endpoint.
+- Added inline, non-fatal camera unavailability messaging while preserving file upload fallback.

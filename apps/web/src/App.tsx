@@ -9,6 +9,7 @@ import { PageHeader } from './components/layout/PageHeader';
 import { ProfileEditorModal } from './components/ProfileEditorModal';
 import { apiFetch, apiUrl, getAuthSessionId, getIgniteGraceGroupId, getIgniteGraceSessionId, getSessionId } from './lib/apiUrl';
 import { applyIgniteJoinSessionResult, clearIgniteGraceStorageKeys } from './lib/igniteJoinSession';
+import { captureVideoFrameAsJpeg, requestEnvironmentCameraStream } from './lib/cameraCapture';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import { getUserProfile } from './lib/userProfileApi';
@@ -697,7 +698,6 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
   const [scanCaptureOpen, setScanCaptureOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scanCaptureVideoRef = useRef<HTMLVideoElement | null>(null);
-  const scanCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const scanCaptureStreamRef = useRef<MediaStream | null>(null);
   const prevJoinedRef = useRef(0);
   const prevJoinedPersonIdsRef = useRef<string[]>([]);
@@ -1076,7 +1076,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await requestEnvironmentCameraStream();
       scanCaptureStreamRef.current = stream;
       setScanCaptureOpen(true);
     } catch {
@@ -1086,17 +1086,8 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
 
   const capturePhoto = async () => {
     const video = scanCaptureVideoRef.current;
-    const canvas = scanCaptureCanvasRef.current;
-    if (!video || !canvas) return;
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    context.drawImage(video, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if (!blob) return;
+    if (!video) return;
+    const blob = await captureVideoFrameAsJpeg(video);
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result ?? ''));
@@ -1354,7 +1345,6 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
         <DialogTitle>Capture photo</DialogTitle>
         <DialogContent>
           <Box component="video" ref={scanCaptureVideoRef} autoPlay playsInline muted sx={{ width: '100%', minHeight: 280, borderRadius: 1, objectFit: 'cover', backgroundColor: 'black' }} />
-          <canvas ref={scanCaptureCanvasRef} style={{ display: 'none' }} />
         </DialogContent>
         <DialogActions>
           <Button onClick={closeScanCaptureModal}>Cancel</Button>

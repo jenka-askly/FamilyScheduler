@@ -37,9 +37,9 @@ export const putUserProfile = async (displayName: string): Promise<UserProfile> 
   };
 };
 
-export const uploadUserProfilePhoto = async (file: File): Promise<void> => {
+export const uploadUserProfilePhoto = async (file: Blob, filename = 'profile.jpg'): Promise<void> => {
   const form = new FormData();
-  form.append('file', file);
+  form.append('file', file, filename);
   const response = await apiFetch('/api/user/profile-photo', { method: 'PUT', body: form });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { message?: string; error?: string } | null;
