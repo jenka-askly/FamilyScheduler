@@ -1,3 +1,50 @@
+## 2026-02-28 05:49 UTC (Grace guest debug popup + copy support)
+
+### Objective
+
+Implement a client-only, mobile-friendly debug popup for the ignite grace guest banner with one-tap copy, gated behind debug switches, without changing auth semantics.
+
+### Approach
+
+- Added `graceDebug` helper module as a single source of truth for generating masked debug snapshot text.
+- Wired `AppShell` guest banner to expose a `Debug` action only when `debugGrace=1` exists in hash query or `VITE_DEBUG_AUTH_LOGS === 'true'`.
+- Added `Dialog` UI with read-only multiline debug text and `Copy` action using existing clipboard success pattern (`Copied to clipboard.` alert with timeout).
+- Added unit tests for debug text output keys, masking behavior, and invalid expiry handling.
+
+### Files changed
+
+- `apps/web/src/lib/graceDebug.ts`
+- `apps/web/src/lib/graceDebug.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/lib/sessionLog.ts`
+- `apps/web/src/lib/apiUrl`
+- `apps/web/src/lib/returnTo`
+- `apps/web/src/lib/graceAccess`
+- `apps/web/src/lib/sessionLog`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Guest access \(limited\)|showGraceBanner|buildLoginPathWithNextFromHash" apps/web/src/AppShell.tsx` ✅
+- `rg -n "isIgniteGraceGuestForGroup|getIgniteGraceSessionId|getSessionId|getAuthSessionId" apps/web/src/lib/apiUrl.ts` ✅
+- `rg -n "buildLoginPathWithNextFromHash|getSafeNextPathFromHash|next=" apps/web/src/lib/returnTo.ts` ✅
+- `rg -n "navigator\.clipboard\.writeText|Copied to clipboard" apps/web/src/App.tsx` ✅
+- `rg -n "getGraceDebugText|Grace debug|debugGrace" apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/graceDebug.test.ts` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped with SIGINT after capture).
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/3ecdb19ead6a901a/artifacts/artifacts/grace-debug-dialog-mobile.png`.
+
+### Follow-ups
+
+- Manual smoke on a phone/browser session in grace guest state:
+  1) visit `/#/g/<groupId>/app?debugGrace=1`
+  2) open guest-banner `Debug`
+  3) tap `Copy` and verify clipboard + copied confirmation.
+
+
 ## 2026-02-28 00:20 UTC (Docs cleanup alignment to implemented architecture + auth/direct flows)
 
 ### Objective

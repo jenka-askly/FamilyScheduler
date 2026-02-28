@@ -1,4 +1,4 @@
-const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+const debugAuthLogsEnabled = import.meta.env?.VITE_DEBUG_AUTH_LOGS === 'true';
 
 export const sessionLog = (event: string, data?: Record<string, unknown>): void => {
   if (!debugAuthLogsEnabled) return;

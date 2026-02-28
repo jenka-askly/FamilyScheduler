@@ -2,7 +2,7 @@ import { sessionLog } from './sessionLog';
 import { computeIsIgniteGraceActiveForGroup } from './graceAccess';
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
-const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const configuredApiBaseUrl = import.meta.env?.VITE_API_BASE_URL?.trim();
 
 const apiBaseUrl = configuredApiBaseUrl ? trimTrailingSlash(configuredApiBaseUrl) : '';
 const SESSION_ID_KEY = 'fs.sessionId';
@@ -11,7 +11,7 @@ const IGNITE_GRACE_GROUP_ID_KEY = 'fs.igniteGraceGroupId';
 const IGNITE_GRACE_EXPIRES_AT_KEY = 'fs.igniteGraceExpiresAtUtc';
 const PROVISIONAL_EXPIRED_NOTICE = 'Please verify your email to continue';
 const warnedUnauthorizedTraceIds = new Set<string>();
-const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+const debugAuthLogsEnabled = import.meta.env?.VITE_DEBUG_AUTH_LOGS === 'true';
 const authLog = (payload: Record<string, unknown>): void => {
   if (!debugAuthLogsEnabled) return;
   console.log(payload);
