@@ -1277,16 +1277,16 @@
 
 ## 2026-02-24 11:47 UTC update (auth model documentation alignment)
 
-- Added a new authoritative auth model spec at `docs/AUTH_MODEL.md` with explicit separation of **Current (Implemented)** and **Planned (Not Implemented Yet)** behavior.
+- Added a new authoritative auth model spec at `docs/specs/SPEC_AUTH_MODEL.md` with explicit separation of **Current (Implemented)** and **Planned (Not Implemented Yet)** behavior.
 - Added a prominent README link to the new auth model document under Specifications.
 - Marked `docs/api.md` as legacy/stale because it documents `/api/auth/login` token flows not implemented in the current codebase.
 - No runtime code paths were changed; this is documentation-only.
 
 ### Success criteria
 
-- `docs/AUTH_MODEL.md` exists and clearly separates current behavior from planned behavior.
-- `README.md` links directly to `docs/AUTH_MODEL.md`.
-- `docs/api.md` starts with a legacy/stale banner pointing readers to `docs/AUTH_MODEL.md`.
+- `docs/specs/SPEC_AUTH_MODEL.md` exists and clearly separates current behavior from planned behavior.
+- `README.md` links directly to `docs/specs/SPEC_AUTH_MODEL.md`.
+- `docs/api.md` starts with a legacy/stale banner pointing readers to `docs/specs/SPEC_AUTH_MODEL.md`.
 
 ### Non-regressions
 
@@ -1295,8 +1295,8 @@
 
 ### How to verify locally
 
-1. Run `test -f docs/AUTH_MODEL.md` and confirm the file exists.
-2. Run `rg -n "AUTH_MODEL\.md|Auth model|Legacy / stale doc" README.md docs/AUTH_MODEL.md docs/api.md` and confirm references are present.
+1. Run `test -f docs/specs/SPEC_AUTH_MODEL.md` and confirm the file exists.
+2. Run `rg -n "AUTH_MODEL\.md|Auth model|Legacy / stale doc" README.md docs/specs/SPEC_AUTH_MODEL.md docs/api.md` and confirm references are present.
 3. Run `sed -n '1,20p' docs/api.md` and confirm the legacy/stale banner appears at the top.
 
 
@@ -2142,7 +2142,7 @@
 - Enforced labeled inferred durations (no unlabeled defaults) and required concrete resolved intervals to include both `startUtc` and `endUtc`.
 - Stopped swallowing AI preview failures: `/api/direct` `resolve_appointment_time` now returns `502` with structured error payload.
 - Persisted duration provenance on confirm/reschedule by accepting `timeResolved` metadata and writing it through appointment update paths.
-- Updated shared TimeSpec schema and `docs/TIME_DATE_SPEC.md` to document duration provenance semantics.
+- Updated shared TimeSpec schema and `docs/specs/SPEC_TIME_DATE.md` to document duration provenance semantics.
 
 ## 2026-02-22 update (TimeSpec AI-first fallback cleanup)
 
@@ -4253,7 +4253,7 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ## 2026-02-25 06:40 UTC update (auth docs cleanup to email-only)
 
-- Rewrote `docs/AUTH_MODEL.md` into an email/session-only contract reference and removed legacy telephony identity wording from the auth model spec.
+- Rewrote `docs/specs/SPEC_AUTH_MODEL.md` into an email/session-only contract reference and removed legacy telephony identity wording from the auth model spec.
 - Cleaned remaining docs-scoped telephony mentions detected by `rg` in:
   - `docs/email-env.md`
   - `docs/runbook.md`
@@ -4261,7 +4261,7 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Scope of this update is documentation-only; no runtime behavior changed in application code.
 
 ### Success criteria
-- `docs/AUTH_MODEL.md` presents an email-only model and session header contract.
+- `docs/specs/SPEC_AUTH_MODEL.md` presents an email-only model and session header contract.
 - `rg -n "phone_required|validateJoinRequest|\\bphone\\b" docs -S` returns no matches.
 
 ### Non-regressions
@@ -4269,7 +4269,7 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - API and web codepaths are untouched.
 
 ### How to verify
-1. Run `nl -ba docs/AUTH_MODEL.md | sed -n '1,220p'` and confirm title and sections describe email/session identity.
+1. Run `nl -ba docs/specs/SPEC_AUTH_MODEL.md | sed -n '1,220p'` and confirm title and sections describe email/session identity.
 2. Run `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\\bphone\\b" docs -S` and confirm no output.
 3. Optionally run repo-wide informational scan:
    - `rg -n --hidden --glob '!.git' "phone_required|validateJoinRequest|\\bphone\\b" -S .`
