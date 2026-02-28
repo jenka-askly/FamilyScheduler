@@ -5,6 +5,7 @@ const DEFAULT_USER_PREFS_BLOB_PREFIX = 'familyscheduler/users';
 
 export type UserPrefs = {
   emailUpdatesEnabled: boolean;
+  mutedGroupIds: string[];
   updatedAt: string;
 };
 
@@ -22,15 +23,36 @@ const streamToString = async (stream: NodeJS.ReadableStream): Promise<string> =>
 
 const defaultPrefs = (): UserPrefs => ({
   emailUpdatesEnabled: true,
+  mutedGroupIds: [],
   updatedAt: new Date(0).toISOString()
 });
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const normalizeMutedGroupIds = (value: unknown): string[] | null => {
+  if (!Array.isArray(value)) return null;
+  const dedupe = new Set<string>();
+  const ids: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') return null;
+    const normalized = entry.trim().toLowerCase();
+    if (!UUID_PATTERN.test(normalized)) return null;
+    if (dedupe.has(normalized)) continue;
+    dedupe.add(normalized);
+    ids.push(normalized);
+  }
+  return ids;
+};
 
 const coerceUserPrefs = (value: unknown): UserPrefs | null => {
   if (!value || typeof value !== 'object') return null;
   const rec = value as Record<string, unknown>;
   if (typeof rec.emailUpdatesEnabled !== 'boolean') return null;
+  const mutedGroupIds = rec.mutedGroupIds === undefined ? [] : normalizeMutedGroupIds(rec.mutedGroupIds);
+  if (!mutedGroupIds) return null;
   return {
     emailUpdatesEnabled: rec.emailUpdatesEnabled,
+    mutedGroupIds,
     updatedAt: typeof rec.updatedAt === 'string' && rec.updatedAt ? rec.updatedAt : new Date(0).toISOString()
   };
 };
@@ -62,10 +84,16 @@ export const getUserPrefs = async (storage: StorageAdapter, email: string, trace
 };
 
 export const setEmailUpdatesEnabled = async (storage: StorageAdapter, email: string, enabled: boolean): Promise<UserPrefs> => {
+  const previous = await getUserPrefs(storage, email);
+  return setUserPrefs(storage, email, { emailUpdatesEnabled: enabled, mutedGroupIds: previous.mutedGroupIds });
+};
+
+export const setUserPrefs = async (storage: StorageAdapter, email: string, nextPrefs: { emailUpdatesEnabled: boolean; mutedGroupIds: string[] }): Promise<UserPrefs> => {
   if (!storage.putBinary) throw new Error('storage_put_binary_not_supported');
 
   const next: UserPrefs = {
-    emailUpdatesEnabled: enabled,
+    emailUpdatesEnabled: nextPrefs.emailUpdatesEnabled,
+    mutedGroupIds: nextPrefs.mutedGroupIds,
     updatedAt: new Date().toISOString()
   };
   await storage.putBinary(getBlobNameForUserPrefs(email), Buffer.from(JSON.stringify(next), 'utf8'), 'application/json; charset=utf-8', {
@@ -73,4 +101,16 @@ export const setEmailUpdatesEnabled = async (storage: StorageAdapter, email: str
     updatedAt: next.updatedAt
   });
   return next;
+};
+
+export const setUserPrefsPartial = async (
+  storage: StorageAdapter,
+  email: string,
+  patch: { emailUpdatesEnabled?: boolean; mutedGroupIds?: string[] }
+): Promise<UserPrefs> => {
+  const previous = await getUserPrefs(storage, email);
+  return setUserPrefs(storage, email, {
+    emailUpdatesEnabled: typeof patch.emailUpdatesEnabled === 'boolean' ? patch.emailUpdatesEnabled : previous.emailUpdatesEnabled,
+    mutedGroupIds: patch.mutedGroupIds ?? previous.mutedGroupIds
+  });
 };

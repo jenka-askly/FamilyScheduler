@@ -51,6 +51,7 @@ type DashboardPayload = {
 type UserPreferencesPayload = {
   ok?: boolean;
   emailUpdatesEnabled?: boolean;
+  mutedGroupIds?: string[];
   message?: string;
 };
 
@@ -72,6 +73,7 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [prefsError, setPrefsError] = useState<string | null>(null);
+  const [mutedGroupIds, setMutedGroupIds] = useState<string[]>([]);
 
   const loadDashboard = async () => {
     setLoadingGroups(true);
@@ -107,6 +109,8 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         return;
       }
       setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+      if (Array.isArray(payload.mutedGroupIds)) setMutedGroupIds(payload.mutedGroupIds);
+      setMutedGroupIds(Array.isArray(payload.mutedGroupIds) ? payload.mutedGroupIds : []);
     } catch {
       setPrefsError('Unable to load notification preferences.');
     } finally {
@@ -133,8 +137,42 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         return;
       }
       setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+      if (Array.isArray(payload.mutedGroupIds)) setMutedGroupIds(payload.mutedGroupIds);
+      setMutedGroupIds(Array.isArray(payload.mutedGroupIds) ? payload.mutedGroupIds : []);
     } catch {
       setEmailUpdatesEnabled(previous);
+      setPrefsError('Unable to save notification preferences.');
+    } finally {
+      setPrefsSaving(false);
+    }
+  };
+
+
+  const handleToggleMutedGroup = async (groupId: string, nextMuted: boolean) => {
+    if (prefsSaving) return;
+    const previous = mutedGroupIds;
+    const next = nextMuted
+      ? [...new Set([...mutedGroupIds, groupId])]
+      : mutedGroupIds.filter((id) => id !== groupId);
+    setMutedGroupIds(next);
+    setPrefsSaving(true);
+    setPrefsError(null);
+    try {
+      const response = await apiFetch('/api/user/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mutedGroupIds: next })
+      });
+      const payload = await response.json() as UserPreferencesPayload;
+      if (!response.ok || !payload.ok || !Array.isArray(payload.mutedGroupIds)) {
+        setMutedGroupIds(previous);
+        setPrefsError(payload.message ?? 'Unable to save notification preferences.');
+        return;
+      }
+      setMutedGroupIds(payload.mutedGroupIds);
+      if (typeof payload.emailUpdatesEnabled === 'boolean') setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+    } catch {
+      setMutedGroupIds(previous);
       setPrefsError('Unable to save notification preferences.');
     } finally {
       setPrefsSaving(false);
@@ -251,6 +289,21 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         {prefsLoading ? <Typography variant="caption" color="text.secondary">Loading…</Typography> : null}
         {prefsSaving ? <Typography variant="caption" color="text.secondary">Saving…</Typography> : null}
         {prefsError ? <Typography variant="body2" color="error">{prefsError}</Typography> : null}
+        <Divider sx={{ my: 1 }} />
+        <Typography variant="caption" color="text.secondary">Muted groups</Typography>
+        <Stack spacing={0.25} sx={{ mt: 0.5 }}>
+          {groups.filter((group) => group.myStatus === 'active').map((group) => (
+            <Stack key={group.groupId} direction="row" alignItems="center" justifyContent="space-between">
+              <Typography variant="body2">{group.groupName}</Typography>
+              <Switch
+                checked={mutedGroupIds.includes(group.groupId)}
+                disabled={prefsLoading || prefsSaving}
+                onChange={(_event, checked) => { void handleToggleMutedGroup(group.groupId, checked); }}
+              />
+            </Stack>
+          ))}
+          {groups.filter((group) => group.myStatus === 'active').length === 0 ? <Typography variant="caption" color="text.secondary">Join a group to manage per-group mute settings.</Typography> : null}
+        </Stack>
       </Box>
 
       <Box>

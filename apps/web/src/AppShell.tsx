@@ -104,6 +104,7 @@ type AppointmentDetailResponse = {
   } | null;
   constraints?: { byMember?: Record<string, Array<{ id: string; field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string }>> };
   suggestions?: { byField?: Record<string, Array<{ id: string; proposerEmail: string; field: 'title' | 'time' | 'location'; value: string; active: boolean; status: string; conflicted?: boolean; reactions?: Array<{ email: string; reaction: 'up' | 'down'; tsUtc: string }> }>> };
+  reminders?: Array<{ reminderId: string; offsetMinutes: number; dueAtIso: string; createdAt: string; message?: string; status: 'scheduled' | 'sent' | 'failed' | 'canceled'; sentAt?: string; canceledAt?: string }>;
   lastNotification?: {
     sentAt: string;
     sentBy: { email: string; display?: string };
@@ -165,7 +166,7 @@ type NotificationHistoryItem = {
   recipientCountSent?: number;
   excludedCount?: number;
   failedRecipients?: Array<{ email: string; display?: string; errorMessage?: string }>;
-  excludedRecipients?: Array<{ email?: string; display?: string; reason: 'opted_out' | 'no_email' | 'self' }>;
+  excludedRecipients?: Array<{ email?: string; display?: string; reason: 'opted_out' | 'muted_group' | 'no_email' | 'self' }>;
   userMessage?: string;
   diffSummary?: unknown;
 };
@@ -650,6 +651,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [sendingEmailUpdate, setSendingEmailUpdate] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<EmailSendResult | null>(null);
+  const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState(15);
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderError, setReminderError] = useState<string | null>(null);
   const [activeSuggestionCard, setActiveSuggestionCard] = useState<ActiveSuggestionCard | null>(null);
   const [suggestionActionError, setSuggestionActionError] = useState<string | null>(null);
   const [pendingProposal, setPendingProposal] = useState<null | { proposalId: string; field: 'title'; from: string; to: string; countdownEndsAt: number; paused: boolean }>(null);
@@ -758,9 +763,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ groupId, ...identityPayload(), action: { type: 'get_appointment_detail', appointmentId, limit: 20, cursor: cursor ?? undefined }, traceId: createTraceId() })
     });
-    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; pendingProposal?: AppointmentDetailResponse['pendingProposal']; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions']; lastNotification?: AppointmentDetailResponse['lastNotification'] };
+    const payload = await response.json() as { ok?: boolean; message?: string; appointment?: Snapshot['appointments'][0]; eventsPage?: AppointmentDetailEvent[]; nextCursor?: { chunkId: number; index: number } | null; projections?: { discussionEvents: AppointmentDetailEvent[]; changeEvents: AppointmentDetailEvent[] }; pendingProposal?: AppointmentDetailResponse['pendingProposal']; constraints?: AppointmentDetailResponse['constraints']; suggestions?: AppointmentDetailResponse['suggestions']; reminders?: AppointmentDetailResponse['reminders']; lastNotification?: AppointmentDetailResponse['lastNotification'] };
     if (!response.ok || !payload.ok || !payload.appointment || !payload.eventsPage || !payload.projections) throw new Error(payload.message ?? 'Unable to load details');
-    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, pendingProposal: payload.pendingProposal ?? null, constraints: payload.constraints, suggestions: payload.suggestions, lastNotification: payload.lastNotification };
+    const next: AppointmentDetailResponse = { appointment: payload.appointment, eventsPage: payload.eventsPage, nextCursor: payload.nextCursor ?? null, projections: payload.projections, pendingProposal: payload.pendingProposal ?? null, constraints: payload.constraints, suggestions: payload.suggestions, reminders: payload.reminders, lastNotification: payload.lastNotification };
     setDetailsData((prev) => {
       if (!cursor || !prev) return next;
       const merged = [...prev.eventsPage, ...next.eventsPage.filter((event) => !prev.eventsPage.some((existing) => existing.id === event.id))];
@@ -1983,6 +1988,75 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       setSendError(error instanceof Error ? error.message : 'Unable to send email update.');
     } finally {
       setSendingEmailUpdate(false);
+    }
+  };
+
+
+  const createReminder = async () => {
+    if (!detailsAppointmentId || reminderBusy) return;
+    setReminderBusy(true);
+    setReminderError(null);
+    try {
+      const response = await apiFetch('/api/direct', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          ...identityPayload(),
+          action: {
+            type: 'create_appointment_reminder',
+            appointmentId: detailsAppointmentId,
+            offsetMinutes: reminderOffsetMinutes,
+            message: reminderMessage,
+            clientRequestId: createTraceId()
+          },
+          traceId: createTraceId()
+        })
+      });
+      const payload = await response.json() as DirectActionErrorPayload;
+      if (!response.ok || !payload.ok) {
+        setReminderError(payload.message ?? 'Unable to create reminder.');
+        return;
+      }
+      setReminderMessage('');
+      await loadAppointmentDetails(detailsAppointmentId);
+    } catch (error) {
+      setReminderError(error instanceof Error ? error.message : 'Unable to create reminder.');
+    } finally {
+      setReminderBusy(false);
+    }
+  };
+
+  const cancelReminder = async (reminderId: string) => {
+    if (!detailsAppointmentId || reminderBusy) return;
+    setReminderBusy(true);
+    setReminderError(null);
+    try {
+      const response = await apiFetch('/api/direct', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          ...identityPayload(),
+          action: {
+            type: 'cancel_appointment_reminder',
+            appointmentId: detailsAppointmentId,
+            reminderId,
+            clientRequestId: createTraceId()
+          },
+          traceId: createTraceId()
+        })
+      });
+      const payload = await response.json() as DirectActionErrorPayload;
+      if (!response.ok || !payload.ok) {
+        setReminderError(payload.message ?? 'Unable to cancel reminder.');
+        return;
+      }
+      await loadAppointmentDetails(detailsAppointmentId);
+    } catch (error) {
+      setReminderError(error instanceof Error ? error.message : 'Unable to cancel reminder.');
+    } finally {
+      setReminderBusy(false);
     }
   };
 
@@ -3296,6 +3370,38 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                     return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
                   })()}
                 </Typography>
+
+              <Stack spacing={0.75} sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary">Reminders</Typography>
+                {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
+                {(detailsData.reminders ?? []).map((reminder) => (
+                  <Stack key={reminder.reminderId} direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                    <Typography variant="body2">
+                      {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
+                    </Typography>
+                    {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
+                  </Stack>
+                ))}
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <TextField
+                    size="small"
+                    select
+                    label="Offset"
+                    value={reminderOffsetMinutes}
+                    onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
+                    sx={{ minWidth: 140 }}
+                  >
+                    <MenuItem value={15}>15 minutes</MenuItem>
+                    <MenuItem value={30}>30 minutes</MenuItem>
+                    <MenuItem value={60}>1 hour</MenuItem>
+                    <MenuItem value={1440}>1 day</MenuItem>
+                  </TextField>
+                  <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} />
+                  <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId}>Add reminder</Button>
+                </Stack>
+                {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
+              </Stack>
+
               </Stack>
             </Box>
             <Stack spacing={1}>

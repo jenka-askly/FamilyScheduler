@@ -5244,3 +5244,15 @@ Implemented runtime behavior updates for QR join/auth semantics:
 Verification note:
 - Web typecheck passes.
 - API test/build execution is currently blocked in this container by missing/unfetchable Azure table dependencies.
+
+## 2026-02-28 09:05 UTC update (Yapper manual email Phase 4B+4C)
+
+- Added per-group mute preferences in user prefs (`mutedGroupIds`) with server-side enforcement for manual email updates and scheduled reminders.
+- Manual email recipient preview now marks muted members as non-selectable with `Muted this group`; opted-out behavior remains unchanged.
+- Dashboard Notifications now includes per-group mute toggles for active groups.
+- Added appointment reminder lifecycle:
+  - Direct actions: `create_appointment_reminder`, `cancel_appointment_reminder`
+  - Event types: `REMINDER_SCHEDULED`, `REMINDER_CANCELED`, `REMINDER_SENT`
+  - Timer delivery path: `reminderTick` (1-minute schedule) using reminder index blobs.
+- Reminder delivery enforces both global opt-out and per-group mute before sending emails.
+- Appointment detail payload now includes derived `reminders` state for UI rendering.

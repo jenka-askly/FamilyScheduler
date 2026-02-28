@@ -13942,3 +13942,67 @@ Add appointment notification history support for manual email updates by introdu
 - Appointment pane History button + dialog verified in rendered web app screenshot flow.
 - Full staging appointment-history data validation is pending human run in staging (requires real appointment events and auth context).
 - `git status --short --branch` ✅ post-commit clean (`## work`).
+
+## 2026-02-28 10:59 UTC (Yapper manual email “Send update” Phase 4B+4C)
+
+### Objective
+
+Implement Phase 4B per-group mute (prefs + enforcement + UI) and Phase 4C scheduled email reminders (direct actions + timer delivery + UI).
+
+### Approach
+
+- Extended user preference schema/storage from `emailUpdatesEnabled` to include `mutedGroupIds` (UUID list), preserving backward compatibility defaults.
+- Updated `/api/user/preferences` GET/POST to return and persist both fields with partial updates and validation (UUID format + max 500 entries).
+- Updated `/api/direct` manual email flows (`preview_appointment_update_email`, `send_appointment_update_email`) to exclude both opted-out and group-muted recipients server-side.
+- Updated preview recipient disabled reasons so muted recipients render `Muted this group`.
+- Added reminder lifecycle in `/api/direct`:
+  - `create_appointment_reminder`
+  - `cancel_appointment_reminder`
+  - derived reminder projection added to `get_appointment_detail` payload.
+- Added event type support: `REMINDER_SCHEDULED`, `REMINDER_CANCELED`, `REMINDER_SENT`.
+- Added reminder index storage helper for due-time bucket scanning.
+- Added timer-trigger function `reminderTick` (registered via `app.timer`) to send due reminders every minute, enforce opt-out + per-group mute, append `REMINDER_SENT`, and clear processed index entries.
+- Updated dashboard notifications UI to manage per-group mute list.
+- Updated appointment drawer UI to list reminders and allow add/cancel reminder actions.
+
+### Files changed
+
+- `api/src/lib/prefs/userPrefs.ts`
+- `api/src/functions/userPreferencesGet.ts`
+- `api/src/functions/userPreferencesSet.ts`
+- `api/src/functions/direct.ts`
+- `api/src/functions/reminderTick.ts`
+- `api/src/lib/appointments/reminderIndex.ts`
+- `api/src/lib/appointments/appointmentEvents.ts`
+- `api/src/lib/appointments/appointmentDomain.ts`
+- `api/src/index.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short --branch` ✅
+- `git rev-parse HEAD` ✅
+- `git log -n 30 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `rg -n "user/preferences|emailUpdatesEnabled|UserPrefs" api/src -S` ✅
+- `rg -n "prefs\.json|USER_PREFS_BLOB_PREFIX|userKey" api/src -S` ✅
+- `rg -n "send_appointment_update_email|opted_out|excludedRecipients" api/src/functions/direct.ts -n` ✅
+- `find api -maxdepth 6 -name "function.json" -print` ✅
+- `rg -n --hidden --glob '!.git' --glob '!node_modules' "(timerTrigger|TimerTrigger|schedule|CRON)" api -S` ✅
+- `rg -n "NOTIFICATION_SENT|getRecentEvents\(|appendEvent\(" api/src -S` ✅
+- `cat package.json` ✅
+- `pnpm -w -r typecheck` ✅ (workspace script is a placeholder and prints `no typecheck yet`)
+- `pnpm -w -r build` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` at workspace level)
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ fails in this environment due missing `@azure/data-tables` dependency/type declarations; reminderTick compile issues introduced in this task were fixed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture, then intentionally stopped with SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/e96c2c0e109ffde6/artifacts/artifacts/phase4b4c-dashboard.png`.
+- `git status --short --branch` ✅
+
+### Follow-ups
+
+- Run API build/tests in an environment where `@azure/data-tables` is installed to validate end-to-end type/build checks.
+- Execute staging validation flow for reminder tick timing and muted/opt-out recipient enforcement.

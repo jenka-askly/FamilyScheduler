@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { requireSessionFromRequest, HttpError } from '../lib/auth/sessions.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
-import { setEmailUpdatesEnabled } from '../lib/prefs/userPrefs.js';
+import { normalizeMutedGroupIds, setUserPrefsPartial } from '../lib/prefs/userPrefs.js';
 
 export async function userPreferencesSet(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = randomUUID();
@@ -15,20 +15,38 @@ export async function userPreferencesSet(request: HttpRequest, _context: Invocat
     return errorResponse(400, 'invalid_json', 'Request body must be valid JSON', traceId);
   }
 
-  const emailUpdatesEnabled = (body && typeof body === 'object') ? (body as { emailUpdatesEnabled?: unknown }).emailUpdatesEnabled : undefined;
-  if (typeof emailUpdatesEnabled !== 'boolean') {
+  const requestBody = (body && typeof body === 'object') ? body as { emailUpdatesEnabled?: unknown; mutedGroupIds?: unknown } : {};
+  const hasEmailUpdatesEnabled = requestBody.emailUpdatesEnabled !== undefined;
+  const hasMutedGroupIds = requestBody.mutedGroupIds !== undefined;
+  if (!hasEmailUpdatesEnabled && !hasMutedGroupIds) {
+    return errorResponse(400, 'invalid_request', 'Provide at least one supported preference field', traceId);
+  }
+
+  if (hasEmailUpdatesEnabled && typeof requestBody.emailUpdatesEnabled !== 'boolean') {
     return errorResponse(400, 'invalid_request', 'emailUpdatesEnabled must be a boolean', traceId);
+  }
+
+  let mutedGroupIds: string[] | undefined;
+  if (hasMutedGroupIds) {
+    const normalized = normalizeMutedGroupIds(requestBody.mutedGroupIds);
+    if (!normalized) return errorResponse(400, 'invalid_request', 'mutedGroupIds must be an array of UUID strings', traceId);
+    if (normalized.length > 500) return errorResponse(400, 'invalid_request', 'mutedGroupIds cannot exceed 500 entries', traceId);
+    mutedGroupIds = normalized;
   }
 
   try {
     const session = await requireSessionFromRequest(request, traceId);
     const storage = createStorageAdapter();
-    const prefs = await setEmailUpdatesEnabled(storage, session.email, emailUpdatesEnabled);
+    const prefs = await setUserPrefsPartial(storage, session.email, {
+      ...(hasEmailUpdatesEnabled ? { emailUpdatesEnabled: requestBody.emailUpdatesEnabled as boolean } : {}),
+      ...(hasMutedGroupIds ? { mutedGroupIds } : {})
+    });
     return {
       status: 200,
       jsonBody: {
         ok: true,
-        emailUpdatesEnabled: prefs.emailUpdatesEnabled
+        emailUpdatesEnabled: prefs.emailUpdatesEnabled,
+        mutedGroupIds: prefs.mutedGroupIds
       }
     };
   } catch (error) {
