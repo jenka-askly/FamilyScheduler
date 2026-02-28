@@ -6,10 +6,12 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
+import { ProfileEditorModal } from './components/ProfileEditorModal';
 import { apiFetch, apiUrl, getAuthSessionId, getIgniteGraceGroupId, getIgniteGraceSessionId, getSessionId } from './lib/apiUrl';
 import { applyIgniteJoinSessionResult, clearIgniteGraceStorageKeys } from './lib/igniteJoinSession';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
+import { getUserProfile } from './lib/userProfileApi';
 import { isValidReturnTo, sanitizeReturnTo } from './lib/returnTo';
 import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import CloseIcon from '@mui/icons-material/Close';
@@ -260,10 +262,9 @@ function LandingSignInPage({ notice, nextPath = '/' }: { notice?: string; nextPa
   );
 }
 
-function CreateGroupPage() {
+function CreateGroupPage({ profileDisplayName, onOpenProfile, onRequireProfile }: { profileDisplayName: string; onOpenProfile: (blocking?: boolean) => void; onRequireProfile: () => void }) {
   const [groupName, setGroupName] = useState('');
   const [creatorEmail, setCreatorEmail] = useState('');
-  const [creatorName, setCreatorName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
@@ -280,9 +281,8 @@ function CreateGroupPage() {
   const hasSessionEmail = Boolean(sanitizeSessionEmail(window.localStorage.getItem(SESSION_EMAIL_KEY)));
   const hasSignedInSession = hasApiSession && hasSessionEmail;
   const trimmedGroupName = groupName.trim();
-  const trimmedCreatorName = creatorName.trim();
   const trimmedCreatorEmail = creatorEmail.trim();
-  const canSubmit = Boolean(trimmedGroupName && trimmedCreatorName && trimmedCreatorEmail) && !isCreating;
+  const canSubmit = Boolean(trimmedGroupName && trimmedCreatorEmail && profileDisplayName.trim()) && !isCreating;
 
   const shareUrl = useMemo(() => {
     if (shareLink) return shareLink;
@@ -314,11 +314,21 @@ function CreateGroupPage() {
       setError('Your email is required.');
       return;
     }
+    if (!profileDisplayName.trim()) {
+      setError('Set a display name to continue.');
+      onRequireProfile();
+      return;
+    }
     setIsCreating(true);
     try {
-      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName: trimmedGroupName, creatorEmail: trimmedCreatorEmail, creatorName: trimmedCreatorName }) });
+      const response = await apiFetch('/api/group/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupName: trimmedGroupName, creatorEmail: trimmedCreatorEmail }) });
       const data = await response.json();
       if (!response.ok) {
+        if (data?.error === 'PROFILE_INCOMPLETE') {
+          setError('Set a display name to continue.');
+          onRequireProfile();
+          return;
+        }
         setError(data.message ?? 'Failed to create group');
         return;
       }
@@ -326,7 +336,6 @@ function CreateGroupPage() {
       const link = `${window.location.origin}/#/g/${data.groupId}`;
       const sanitizedCreatorEmail = sanitizeSessionEmail(creatorEmail.trim());
       if (sanitizedCreatorEmail) window.localStorage.setItem(SESSION_EMAIL_KEY, sanitizedCreatorEmail);
-      if (trimmedCreatorName) window.localStorage.setItem(SESSION_NAME_KEY, trimmedCreatorName);
       setCreatedGroupId(data.groupId);
       setShareLink(link);
       setShowCreateForm(false);
@@ -342,6 +351,7 @@ function CreateGroupPage() {
         title="Create a Family Schedule"
         description="Create a private shared schedule. Only people you add can access it."
         showGroupSummary={false}
+        onOpenProfile={() => onOpenProfile(false)}
       />
 
       <div className="ui-authContainer">
@@ -349,7 +359,8 @@ function CreateGroupPage() {
           {showCreateForm ? (
             <>
               <TextField label="Group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} required inputProps={{ maxLength: 60 }} placeholder="Mom Knee Surgery" fullWidth />
-              <TextField label="Your name" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} required inputProps={{ maxLength: 40 }} placeholder="Joe" fullWidth />
+              <TextField label="Signed in as" value={profileDisplayName || trimmedCreatorEmail} helperText={!profileDisplayName ? 'Set a display name to continue.' : undefined} InputProps={{ readOnly: true }} fullWidth />
+              <Button variant="text" onClick={() => onOpenProfile(false)} sx={{ alignSelf: 'flex-start' }}>Edit profile</Button>
               <TextField
                 label="Your email"
                 value={creatorEmail}
@@ -395,6 +406,7 @@ function CreateGroupPage() {
     </Page>
   );
 }
+
 
 function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; routeError?: string; traceId?: string }) {
   const [email, setEmail] = useState('');
@@ -1680,6 +1692,9 @@ export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getAuthSessionId()));
   const [dashboardPrefsState, setDashboardPrefsState] = useState<DashboardPrefsState | null>(null);
+  const [profileDisplayName, setProfileDisplayName] = useState('');
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalBlocking, setProfileModalBlocking] = useState(false);
   const sessionEmail = useMemo(() => {
     const rawSessionEmail = window.localStorage.getItem(SESSION_EMAIL_KEY);
     const sanitizedSessionEmail = sanitizeSessionEmail(rawSessionEmail);
@@ -1737,6 +1752,15 @@ export function App() {
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
 
+  useEffect(() => {
+    const onOpenProfile = () => {
+      setProfileModalOpen(true);
+      setProfileModalBlocking(false);
+    };
+    window.addEventListener('fs:open-profile', onOpenProfile);
+    return () => window.removeEventListener('fs:open-profile', onOpenProfile);
+  }, []);
+
   const route = useMemo(() => parseHashRoute(hash), [hash]);
   const routeScopedHasApiSession =
     route.type === 'app' || route.type === 'ignite'
@@ -1763,59 +1787,112 @@ export function App() {
     if (route.type !== 'home') setDashboardPrefsState(null);
   }, [route.type]);
 
+  useEffect(() => {
+    if (!hasApiSession) {
+      setProfileDisplayName('');
+      setProfileModalOpen(false);
+      setProfileModalBlocking(false);
+      return;
+    }
+    let cancelled = false;
+    void getUserProfile()
+      .then((profile) => {
+        if (cancelled) return;
+        const nextName = (profile.displayName ?? '').trim();
+        setProfileDisplayName(nextName);
+        if (nextName) {
+          window.localStorage.setItem(SESSION_NAME_KEY, nextName);
+          setProfileModalOpen(false);
+          setProfileModalBlocking(false);
+        } else {
+          setProfileModalOpen(true);
+          setProfileModalBlocking(true);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasApiSession]);
+
+  let content: ReactNode;
   if ((route.type === 'app' || route.type === 'ignite') && !routeScopedHasApiSession) {
     authDebug('route_redirect_login', {
       routeType: route.type,
       hasApiSession,
       routeScopedHasApiSession
     });
-    return <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
-  }
-  if (route.type === 'home') {
+    content = <RedirectToSignInPage message={ROOT_SIGN_IN_MESSAGE} />;
+  } else if (route.type === 'home') {
     if (!routeScopedHasApiSession) {
-      return (
+      content = (
         <MarketingLayout hasApiSession={false} onSignIn={() => nav('/login')}>
           <ProductHomePage onSignIn={() => nav('/login')} />
         </MarketingLayout>
       );
+    } else {
+      content = (
+        <MarketingLayout
+          hasApiSession
+          sessionEmail={sessionEmail}
+          sessionName={sessionName}
+          onSignOut={signOut}
+          emailUpdatesEnabled={dashboardPrefsState?.emailUpdatesEnabled ?? null}
+          prefsLoading={dashboardPrefsState?.prefsLoading ?? true}
+          prefsSaving={dashboardPrefsState?.prefsSaving ?? false}
+          prefsError={dashboardPrefsState?.prefsError ?? null}
+          onToggleEmailUpdates={dashboardPrefsState?.onToggleEmailUpdates}
+        >
+          <DashboardHomePage
+            onCreateGroup={() => nav('/create')}
+            onPrefsStateChange={setDashboardPrefsState}
+          />
+        </MarketingLayout>
+      );
     }
-    return (
-      <MarketingLayout
-        hasApiSession
-        sessionEmail={sessionEmail}
-        sessionName={sessionName}
-        onSignOut={signOut}
-        emailUpdatesEnabled={dashboardPrefsState?.emailUpdatesEnabled ?? null}
-        prefsLoading={dashboardPrefsState?.prefsLoading ?? true}
-        prefsSaving={dashboardPrefsState?.prefsSaving ?? false}
-        prefsError={dashboardPrefsState?.prefsError ?? null}
-        onToggleEmailUpdates={dashboardPrefsState?.onToggleEmailUpdates}
-      >
-        <DashboardHomePage
-          onCreateGroup={() => nav('/create')}
-          onPrefsStateChange={setDashboardPrefsState}
-        />
-      </MarketingLayout>
-    );
-  }
-  if (route.type === 'login') return <LandingSignInPage notice={route.notice} nextPath={route.next} />;
-  if (route.type === 'create' && !routeScopedHasApiSession) return <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
-  if (route.type === 'create') return <CreateGroupPage />;
-  if (route.type === 'handoff') return <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
-  if (route.type === 'join') return <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
-  if (route.type === 'authConsume') return <AuthConsumePage token={route.token} attemptId={route.attemptId} returnTo={route.returnTo} />;
-  if (route.type === 'authDone') return <AuthDonePage returnTo={route.returnTo} />;
-  if (route.type === 'igniteJoin') return <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
-  if (route.type === 'ignite') {
-    return (
+  } else if (route.type === 'login') content = <LandingSignInPage notice={route.notice} nextPath={route.next} />;
+  else if (route.type === 'create' && !routeScopedHasApiSession) content = <RedirectToLoginPage next="/create" notice="Please sign in to create a group." />;
+  else if (route.type === 'create') {
+    content = <CreateGroupPage profileDisplayName={profileDisplayName} onOpenProfile={(blocking) => { setProfileModalOpen(true); setProfileModalBlocking(Boolean(blocking)); }} onRequireProfile={() => { setProfileModalOpen(true); setProfileModalBlocking(true); }} />;
+  } else if (route.type === 'handoff') content = <HandoffPage groupId={route.groupId} email={route.email} next={route.next} />;
+  else if (route.type === 'join') content = <JoinGroupPage groupId={route.groupId} routeError={route.error} traceId={route.traceId} />;
+  else if (route.type === 'authConsume') content = <AuthConsumePage token={route.token} attemptId={route.attemptId} returnTo={route.returnTo} />;
+  else if (route.type === 'authDone') content = <AuthDonePage returnTo={route.returnTo} />;
+  else if (route.type === 'igniteJoin') content = <IgniteJoinPage groupId={route.groupId} sessionId={route.sessionId} />;
+  else if (route.type === 'ignite') {
+    content = (
       <GroupAuthGate groupId={route.groupId}>
         {(email) => <IgniteOrganizerPage groupId={route.groupId} email={email} />}
       </GroupAuthGate>
     );
+  } else {
+    content = (
+      <GroupAuthGate groupId={route.groupId}>
+        {(email) => <AppShell groupId={route.groupId} sessionEmail={email} />}
+      </GroupAuthGate>
+    );
   }
+
   return (
-    <GroupAuthGate groupId={route.groupId}>
-      {(email) => <AppShell groupId={route.groupId} sessionEmail={email} />}
-    </GroupAuthGate>
+    <>
+      {content}
+      <ProfileEditorModal
+        isOpen={profileModalOpen}
+        isBlocking={profileModalBlocking}
+        onClose={() => {
+          if (profileModalBlocking) return;
+          setProfileModalOpen(false);
+        }}
+        onSaved={(displayName) => {
+          window.localStorage.setItem(SESSION_NAME_KEY, displayName);
+          setProfileDisplayName(displayName);
+          setProfileModalOpen(false);
+          setProfileModalBlocking(false);
+        }}
+        onSignOut={signOut}
+      />
+    </>
   );
 }

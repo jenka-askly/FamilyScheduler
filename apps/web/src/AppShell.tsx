@@ -2567,6 +2567,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         sessionName={signedInPersonName}
         onDashboardClick={() => window.location.assign(`${window.location.origin}/`)}
         onAddSampleData={addSampleData}
+        onOpenProfile={() => window.dispatchEvent(new CustomEvent('fs:open-profile'))}
       />
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>

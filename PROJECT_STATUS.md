@@ -2,6 +2,14 @@
 
 - Fixed a JSX conditional in `PageHeader` by switching `showGroupSummary ? (...) : null` to `showGroupSummary && (...)` to resolve a TypeScript parser mismatch that reported `'}' expected` near end-of-file.
 - No behavior change intended; this is a syntax-shape stabilization for the same render condition.
+## 2026-02-28 23:09 UTC update (Profile hard gate + blocking modal + create-group identity source)
+
+- Added API profile endpoints: `GET /api/user/profile` and `PUT /api/user/profile` for authenticated display-name read/update (`displayName` required, max 40 chars).
+- `POST /api/group/create` now derives creator display name from `UserProfiles` and returns `400 { error: "PROFILE_INCOMPLETE" }` when profile display name is missing/blank.
+- Create Group UI no longer includes editable “Your name”; it now shows read-only “Signed in as …” and “Edit profile”.
+- Added profile editor modal with display-name + photo upload support; first authenticated load hard-gates on empty display name with a blocking modal that only allows Save or Sign out.
+- Added header menu entry “Profile” (app shell header) that opens the same modal in non-blocking mode.
+- Backward compatibility: `creatorName` is still accepted in create-group request body but ignored server-side.
 
 ## 2026-02-28 22:10 UTC update (Dashboard Home UEX + group restore undo)
 
