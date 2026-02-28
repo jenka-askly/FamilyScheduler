@@ -40,14 +40,10 @@ type Props = {
   showGroupSummary?: boolean;
   onDashboardClick?: () => void;
   showMenuButton?: boolean;
-  emailUpdatesEnabled?: boolean | null;
-  prefsLoading?: boolean;
-  prefsSaving?: boolean;
-  prefsError?: string | null;
-  onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
+  onAddSampleData?: () => Promise<{ ok: boolean; message?: string }>;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true, emailUpdatesEnabled, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true, onAddSampleData }: Props) {
   const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -156,6 +152,14 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
     setDetectedSessionEmail(nextSessionEmail);
     setDetectedSessionName(window.localStorage.getItem('fs.sessionName'));
     closeAllMenusAndDebugDialog();
+  };
+
+
+  const handleAddSampleData = async () => {
+    if (!onAddSampleData) return;
+    closeAllMenusAndDebugDialog();
+    const result = await onAddSampleData();
+    setDebugNotice(result.ok ? 'Sample data added for this group' : (result.message || 'Failed to add sample data'));
   };
 
   const copyDebug = async () => {
@@ -433,6 +437,9 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
                 <MenuItem onClick={() => clearDebugKeys('all')}>
                   <ListItemText primary="Clear ALL" secondary="Clear both DSID and GSID" />
                 </MenuItem>
+                <MenuItem disabled={!groupId || !onAddSampleData} onClick={() => { void handleAddSampleData(); }}>
+                  <ListItemText primary="Add sample data (this group)" secondary="Dogfood seed data (idempotent)" />
+                </MenuItem>
               </Menu>
               <Divider />
             </>
@@ -499,7 +506,7 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       {renameError ? <Alert severity="error">{renameError}</Alert> : null}
       {enableDebugMenu ? (
         <Snackbar open={Boolean(debugNotice)} autoHideDuration={2500} onClose={() => setDebugNotice(null)}>
-          <Alert severity="success" onClose={() => setDebugNotice(null)} sx={{ width: '100%' }}>{debugNotice}</Alert>
+          <Alert severity={debugNotice?.toLowerCase().includes('failed') ? 'error' : 'success'} onClose={() => setDebugNotice(null)} sx={{ width: '100%' }}>{debugNotice}</Alert>
         </Snackbar>
       ) : null}
     </Stack>

@@ -1,6 +1,7 @@
 export type Person = {
   id: string;
   name: string;
+  seedTag?: string;
 };
 
 export type AppointmentLocation = {
