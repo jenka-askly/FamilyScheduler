@@ -73,7 +73,6 @@ export async function igniteSpinoff(request: HttpRequest, _context: InvocationCo
     cellE164: organizer?.cellE164 ?? '',
     cellDisplay: organizer?.cellDisplay ?? ''
   }];
-  stateB.members = [{ memberId, email: normalizedEmail, status: 'active', joinedAt: nowISO }];
   await storage.initIfMissing(newGroupId, stateB);
 
   const loadedB = await storage.load(newGroupId);

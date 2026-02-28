@@ -12,7 +12,7 @@ import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter, describeStorageTarget } from '../lib/storage/storageFactory.js';
 import type { StorageAdapter } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.js';
+import { isPlausibleEmail, normalizeEmail, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
@@ -41,7 +41,6 @@ import { addReminderIndexEntry, removeReminderIndexEntry } from '../lib/appointm
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
-  people: Array<{ personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -557,7 +556,6 @@ export const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       scanCapturedAt: appointment.scanCapturedAt ?? null
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, email: person.email ?? '', cellDisplay: person.cellDisplay ?? person.cellE164 ?? '', cellE164: person.cellE164 ?? '', status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
 });
@@ -1188,9 +1186,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
     return withMeta(membership.response);
   }
-  const caller = loaded.state.members.find((member) => normalizeEmail(member.email) === normalizeEmail(session.email));
-  if (!caller) return withMeta(errorResponse(403, 'not_allowed', 'Not allowed', traceId));
-  logAuth({ traceId, stage: 'gate_allowed', userKey: membership.userKey, memberId: caller.memberId });
+  logAuth({ traceId, stage: 'gate_allowed', userKey: membership.userKey });
   logAppointmentAction(context, traceId, groupId, directAction);
 
   if (directAction.type === 'get_appointment_detail') {
@@ -2110,7 +2106,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     }
   }
 
-  const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: caller.memberId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
+  const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: resolveActivePersonIdForEmail(loaded.state, session.email), timezoneName: process.env.TZ ?? 'America/Los_Angeles' });
   if (directAction.type === 'create_blank_appointment') {
     if (!execution.appliedAll) return withMeta({ status: 200, jsonBody: { ok: false, message: execution.effectsTextLines.join(' | ') || 'Action could not be applied', snapshot: await buildDirectSnapshot(groupId, loaded.state, traceId), traceId } });
     try {

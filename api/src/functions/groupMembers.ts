@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { listGroupMembers } from '../lib/tables/entities.js';
+import { getUserProfileEntity, listGroupMembers } from '../lib/tables/entities.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 
@@ -19,14 +19,19 @@ export async function groupMembers(request: HttpRequest, _context: InvocationCon
   if (!membership.ok) return membership.response;
 
   const members = await listGroupMembers(groupId, ['active', 'invited']);
+  const membersWithProfiles = await Promise.all(members.map(async (member) => ({
+    member,
+    profile: await getUserProfileEntity(member.userKey)
+  })));
   return {
     status: 200,
     jsonBody: {
       ok: true,
       groupId,
-      members: members.map((member) => ({
+      members: membersWithProfiles.map(({ member, profile }) => ({
         userKey: member.userKey,
         email: member.email,
+        displayName: profile?.displayName,
         status: member.status,
         invitedAt: member.invitedAt,
         joinedAt: member.joinedAt,

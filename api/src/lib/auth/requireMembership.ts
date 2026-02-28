@@ -1,6 +1,6 @@
 import type { HttpResponseInit } from '@azure/functions';
 import { errorResponse } from '../http/errorResponse.js';
-import type { AppState, Member } from '../state.js';
+import type { AppState } from '../state.js';
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
@@ -17,10 +17,6 @@ export const getEmailDomain = (email: string): string => {
   return domain;
 };
 
-export const findActiveMemberByEmail = (state: AppState, email: string): Member | null => (
-  state.members.find((member) => member.status === 'active' && member.email === normalizeEmail(email)) ?? null
-);
-
 export const findActivePersonByEmail = (state: AppState, email: string): AppState['people'][number] | null => {
   const normalizedEmail = normalizeEmail(email);
   return state.people.find((person) => person.status === 'active' && normalizeEmail(person.email ?? '') === normalizedEmail) ?? null;
@@ -28,19 +24,18 @@ export const findActivePersonByEmail = (state: AppState, email: string): AppStat
 
 export const resolveActivePersonIdForEmail = (state: AppState, email: string): string | null => {
   const activePerson = findActivePersonByEmail(state, email);
-  if (activePerson?.personId) return activePerson.personId;
-  return findActiveMemberByEmail(state, email)?.memberId ?? null;
+  return activePerson?.personId ?? null;
 };
 
 export type MemberResult =
-  | { ok: true; member: Member }
+  | { ok: true; personId: string }
   | { ok: false; response: HttpResponseInit };
 
 export const requireActiveMember = (state: AppState, email: string, traceId: string): MemberResult => {
-  const member = findActiveMemberByEmail(state, email);
-  if (!member) {
+  const personId = resolveActivePersonIdForEmail(state, email);
+  if (!personId) {
     console.info(JSON.stringify({ event: 'membership_denied', traceId, emailDomain: getEmailDomain(email) }));
     return { ok: false, response: errorResponse(403, 'not_allowed', 'Not allowed', traceId) };
   }
-  return { ok: true, member };
+  return { ok: true, personId };
 };

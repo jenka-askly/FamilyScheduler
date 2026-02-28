@@ -5227,3 +5227,9 @@ Verification note:
 
 1. `pnpm -r --if-present build` ⚠️ fails in API package in this environment due to missing `@azure/data-tables` module/type resolution.
 2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+## 2026-02-28 22:20 UTC update (Option 1 completion: table-backed membership)
+
+- Option 1 complete: blob membership arrays removed from production paths; membership/auth gating is table-backed (`GroupMembers`/`UserGroups`).
+- Members UI now resolves roster exclusively from `/api/group/members` and no longer depends on `snapshot.people`.
+- `/api/chat` and `/api/direct` snapshots are now focused on appointments/rules (no roster payload).

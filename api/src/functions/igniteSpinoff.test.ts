@@ -22,7 +22,7 @@ test('igniteSpinoff seeds organizer person with source name and email', async ()
       createdAt: now,
       updatedAt: now,
       people: [{ personId: 'P-ORIGIN', name: 'Alex Organizer', email: 'alex@example.com', status: 'active', createdAt: now, timezone: 'America/New_York', notes: 'Lead', cellE164: '+14155550123', cellDisplay: '(415) 555-0123' }],
-      members: [{ memberId: 'P-ORIGIN', email: 'alex@example.com', status: 'active', joinedAt: now }],
+      members: [],
       appointments: [],
       rules: [],
       history: []
@@ -64,8 +64,6 @@ test('igniteSpinoff seeds organizer person with source name and email', async ()
   assert.equal(body.sessionId, undefined);
   const breakout = groups.get(body.newGroupId);
   assert.ok(breakout);
-  assert.equal(breakout?.state.members.length, 1);
-  assert.equal(breakout?.state.members[0]?.email, 'alex@example.com');
   assert.equal(breakout?.state.people.length, 1);
   assert.equal(breakout?.state.people[0]?.name, 'Alex Organizer');
   assert.equal(breakout?.state.people[0]?.email, 'alex@example.com');
