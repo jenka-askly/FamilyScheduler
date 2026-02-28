@@ -14155,3 +14155,33 @@ Implement immediate dashboard group deletion (no confirm modal) with inline undo
 
 ### Follow-ups
 - Manual browser validation for dashboard delete/undo timing and cross-tab already-active restore behavior.
+
+
+## 2026-02-28 22:10 UTC (Dogfood seed-only sample data command)
+
+### Objective
+Implement deterministic, idempotent dogfood sample-data seeding via `/api/direct` and expose a single Debug menu trigger in web UI, with strict debug/dogfood gates and no clear/reset action.
+
+### Approach
+- Extended shared/API person shape to support optional `seedTag` and preserved it during state normalization.
+- Added direct action parsing + handling for `seed_sample_data`, including `DOGFOOD` gate returning 404 when disabled.
+- Implemented deterministic in-handler seed refresh for people + appointments, updating blob `appointment.json`, AppointmentsIndex projection, and persisted app state in one flow.
+- Added web Debug submenu item to invoke `seed_sample_data` and surface success/error feedback using existing notice/snackbar patterns.
+- Updated project status to document behavior + gating.
+
+### Files changed
+- `packages/shared/src/types.ts`
+- `api/src/lib/state.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pwsh -Command "$env:VITE_DOGFOOD='1'; npm --prefix apps/web run build"` ✅
+
+### Follow-ups
+- Manual dogfood smoke: click **Add sample data (this group)** twice and verify no duplicates, deterministic overwrite behavior, and immediate snapshot refresh.
