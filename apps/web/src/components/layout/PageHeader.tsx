@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
@@ -9,6 +9,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import TextField from '@mui/material/TextField';
 import { useColorMode } from '../../colorMode';
 import { PRODUCT } from '../../product';
+import { buildSessionDebugText } from '../../lib/sessionDebug';
 import { sanitizeSessionEmail } from '../../lib/validate';
 
 const ContentCopyIcon = () => (
@@ -48,6 +49,9 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
   const [groupNameDraft, setGroupNameDraft] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [isRenamePending, setIsRenamePending] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugText, setDebugText] = useState('');
+  const [debugCopied, setDebugCopied] = useState(false);
   const [detectedApiSession, setDetectedApiSession] = useState<boolean>(() => Boolean(window.localStorage.getItem('fs.sessionId')));
   const [detectedSessionEmail, setDetectedSessionEmail] = useState<string | null>(() => sanitizeSessionEmail(window.localStorage.getItem('fs.sessionEmail')));
   const [detectedSessionName, setDetectedSessionName] = useState<string | null>(() => window.localStorage.getItem('fs.sessionName'));
@@ -109,6 +113,24 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       setCopied(true);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const openDebug = () => {
+    const hash = typeof window === 'undefined' ? '' : (window.location.hash || '');
+    setDebugText(buildSessionDebugText({ hash, groupId }));
+    setDebugCopied(false);
+    setDebugOpen(true);
+    setAnchorEl(null);
+  };
+
+  const copyDebug = async () => {
+    try {
+      await navigator.clipboard.writeText(debugText);
+      setDebugCopied(true);
+      window.setTimeout(() => setDebugCopied(false), 2000);
+    } catch {
+      setDebugCopied(false);
     }
   };
 
@@ -342,6 +364,16 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </MenuItem>
           ) : null}
           {(hasApiSession ?? detectedApiSession) ? <Divider /> : null}
+          <MenuItem
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              openDebug();
+            }}
+          >
+            <ListItemText primary="Debug" />
+          </MenuItem>
+          <Divider />
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
               <Typography>Dark mode</Typography>
@@ -354,6 +386,24 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </Stack>
           </MenuItem>
         </Menu>
+        <Dialog open={debugOpen} onClose={() => setDebugOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle>Debug</DialogTitle>
+          <DialogContent>
+            <TextField
+              multiline
+              fullWidth
+              minRows={10}
+              value={debugText}
+              InputProps={{ readOnly: true }}
+              sx={{ mt: 1 }}
+            />
+            {debugCopied ? <Alert severity="success" sx={{ mt: 1.5 }}>Copied</Alert> : null}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => { void copyDebug(); }}>Copy</Button>
+            <Button onClick={() => setDebugOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
       </Paper>
       ) : null}
       {title ? <Typography variant="h6">{title}</Typography> : null}
