@@ -2339,3 +2339,10 @@ traces
 1. `git diff -- apps/web/src/App.tsx` and confirm only targeted changes are present.
 2. `pnpm --filter @familyscheduler/web build` in a fully provisioned environment.
 3. Manually exercise `/#/`, `/#/g/<id>`, `/#/g/<id>/app`, `/#/g/<id>/ignite`, `/#/s/<id>/<sessionId>`, and `/#/handoff?...`.
+
+## 2026-02-28 — User email update preference toggle (Phase 2 groundwork)
+
+- Added user-level email preference APIs at `GET/POST /api/user/preferences`, keyed by authenticated email and requiring `x-session-id` header.
+- Added dashboard Settings section toggle: **Receive appointment update emails** with load/save states and inline error handling.
+- Preference storage defaults to ON when no prefs blob exists (`familyscheduler/users/<userKey>/prefs.json` unless `USER_PREFS_BLOB_PREFIX` is set).
+- Note: this branch does not currently contain `preview_appointment_update_email` / `send_appointment_update_email` flow, so server-side recipient exclusion wiring for that path remains a follow-up once those direct actions are present.

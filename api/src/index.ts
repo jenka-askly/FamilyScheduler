@@ -21,12 +21,14 @@ import { ignitePhoto } from './functions/ignitePhoto.js';
 import { ignitePhotoGet } from './functions/ignitePhotoGet.js';
 import { igniteMeta } from './functions/igniteMeta.js';
 import { igniteSpinoff } from './functions/igniteSpinoff.js';
+import { userPreferencesGet } from './functions/userPreferencesGet.js';
+import { userPreferencesSet } from './functions/userPreferencesSet.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupMeta', 'groupRename', 'chat', 'direct', 'diagnoseOpenAi', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userPreferencesGet', 'userPreferencesSet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -97,6 +99,9 @@ registerHttp('ignitePhoto', 'ignite/photo', ['POST'], ignitePhoto);
 registerHttp('ignitePhotoGet', 'ignite/photo', ['GET'], ignitePhotoGet);
 registerHttp('igniteMeta', 'ignite/meta', ['GET', 'POST'], igniteMeta);
 registerHttp('igniteSpinoff', 'ignite/spinoff', ['POST'], igniteSpinoff);
+
+registerHttp('userPreferencesGet', 'user/preferences', ['GET'], userPreferencesGet);
+registerHttp('userPreferencesSet', 'user/preferences', ['POST'], userPreferencesSet);
 
 startupLog('registration-summary', {
   expectedFunctions,
