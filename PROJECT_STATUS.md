@@ -1,3 +1,10 @@
+## 2026-02-28 07:13 UTC update (Debug menu item in app burger for session/grace snapshot)
+
+- Added a **Debug** item in the in-app burger menu (PageHeader) that opens a mobile-friendly dialog.
+- Dialog shows a copyable, read-only snapshot built by `buildSessionDebugText` (hash, groupId, session/grace localStorage, computed helpers, login path).
+- Session IDs are masked in all displayed fields; no server calls and no automatic console logging were added.
+- Removed the separate AppShell debug icon/dialog so debug entry now lives in burger menu consistently.
+
 ## 2026-02-28 07:05 UTC update (Removed legacy local join session key)
 
 - Removed legacy local session key `familyscheduler.session`; access now relies solely on API session + join gate.

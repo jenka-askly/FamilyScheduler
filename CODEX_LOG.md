@@ -13606,3 +13606,36 @@ Make the Grace debug dialog reachable at all times from AppShell (including non-
   3) open dialog and confirm hash/storage/computed values populate
   4) copy and verify clipboard + copied feedback.
 
+
+## 2026-02-28 07:13 UTC (Add Debug menu item in burger with session/grace snapshot)
+
+### Objective
+Add a mobile-friendly Debug action in the app burger menu that opens a copyable session/grace snapshot dialog, works without grace banner visibility, masks IDs, and avoids server calls/auto-logs.
+
+### Approach
+- Added new pure helper `buildSessionDebugText` in `apps/web/src/lib/sessionDebug.ts` with safe localStorage reads, safe computed helper calls, and masking rule (`***` when length <= 12, otherwise `first6…last4`).
+- Added unit tests in `apps/web/src/lib/sessionDebug.test.ts` for required keys, masking/no raw ID leaks, and missing `groupId` + invalid expiry handling.
+- Updated `PageHeader` burger menu to include `Debug` menu item opening a dialog with read-only multiline text and Copy/Close actions + copied feedback.
+- Removed older standalone AppShell debug icon/dialog so entrypoint is now in burger menu.
+
+### Files changed
+- `apps/web/src/lib/sessionDebug.ts`
+- `apps/web/src/lib/sessionDebug.test.ts`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "MenuButton|MenuItem|Drawer|AppMenu|Burger|PageHeader.*Menu|showMenuButton" apps/web/src` ✅
+- `rg -n "navigator\.clipboard\.writeText|Copied" apps/web/src` ✅
+- `rg -n "getSessionId\(|getIgniteGraceSessionId\(|getAuthSessionId\(|isIgniteGraceGuestForGroup" apps/web/src` ✅
+- `rg -n "buildLoginPathWithNextFromHash" apps/web/src` ✅
+- `rg -n "MenuItem\>Debug|label=\"Debug\"|buildSessionDebugText" apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/sessionDebug.test.ts` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for manual/screenshot verification; stopped via SIGINT)
+- Playwright screenshot capture ✅ (`browser:/tmp/codex_browser_invocations/14c7c4690df5ad11/artifacts/artifacts/debug-menu-dialog-mobile.png`)
+
+### Follow-ups
+- Run full local manual flow with a real group and permissions matrix to validate copied payload values under real user sessions.
