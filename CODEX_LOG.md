@@ -14347,3 +14347,35 @@ Resolve the reported `apps/web/src/components/layout/PageHeader.tsx(563,1): erro
 ### Follow-ups
 
 - In CI/environment where API dependencies are installed, rerun `pnpm -r --if-present build` to reconfirm monorepo-wide success.
+
+## 2026-02-28 23:47 UTC (Profile editor modal: blocking actions + camera capture)
+
+### Objective
+Implement profile modal UX fixes: sign-out visibility only in blocking gate mode, add camera capture flow with confirm/retake, keep file chooser fallback, and reuse existing breakout camera-style utilities while keeping the same profile photo API endpoint.
+
+### Approach
+- Added a shared `cameraCapture` utility in web lib for environment camera stream requests and JPEG frame capture.
+- Refactored profile modal photo controls to offer `Take photo` and `Choose file` actions.
+- Added an in-modal capture dialog with live preview, capture, retake, and confirm upload.
+- Kept upload path on `PUT /api/user/profile-photo` and fallback upload behavior intact.
+- Updated profile modal action rendering and behavior by `isBlocking` mode.
+- Reused the new shared camera utility in breakout organizer capture flow to reduce duplication.
+
+### Files changed
+- `apps/web/src/components/ProfileEditorModal.tsx`
+- `apps/web/src/lib/userProfileApi.ts`
+- `apps/web/src/lib/cameraCapture.ts`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `npm test` ✅ (`no tests yet` script)
+- `npm run build --workspace @familyscheduler/web` ❌ (`No workspaces found` under npm in this repo)
+- `pnpm --filter @familyscheduler/web build` ✅
+- `npm run lint` ✅ (`no lint yet` script)
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped with SIGINT after capture)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/57ac4b42e1876d8b/artifacts/artifacts/profile-editor-camera-buttons.png`
+
+### Follow-ups
+- Manual authenticated smoke test recommended in staging/browser for camera permission denied flows across iOS Safari and Android Chrome.
