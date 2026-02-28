@@ -13770,3 +13770,18 @@ Implement breakout QR join auto-mode with no prompt:
 ### Follow-ups
 
 - Optional: if product decides DSID rotation should never occur from breakout join responses, remove DSID-branch rotation fallback from helper for stricter semantics.
+
+## 2026-02-28 09:56 UTC (Spec-only: authoritative breakout vs invite vs claim join/session contract)
+
+### Summary
+Added/updated join flow spec (breakout vs invite vs claim) with explicit CURRENT vs REQUIRED TARGET vs PLANNED sections and explicit invariants for DSID/GSID storage and upgrade behavior.
+
+### Files touched
+- `docs/specs/breakout-qr-join-dsid-gsid.md`
+- `CODEX_LOG.md`
+
+### Verification commands + outcomes
+- `git status --short` ✅ showed only spec/log docs modified for this task.
+- `git diff` ✅ confirmed spec-only + CODEX_LOG changes; no functional source edits.
+- `rg -n "Breakout QR|Invite Member by QR|claim|NO auto-upgrade|fs\.sessionId|fs\.igniteGrace" docs/specs/breakout-qr-join-dsid-gsid.md` ✅ required headings/terms present.
+- `rg -n "ignite/start|ignite/join|group/join|igniteGrace|Show QR \(Anyone can join\)" api/src apps/web/src -S` ✅ implementation cross-check used to align CURRENT vs TARGET labels.
