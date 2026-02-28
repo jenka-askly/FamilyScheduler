@@ -5242,3 +5242,13 @@ Verification note:
 - Option 1 complete: blob membership arrays removed from production paths; membership/auth gating is table-backed (`GroupMembers`/`UserGroups`).
 - Members UI now resolves roster exclusively from `/api/group/members` and no longer depends on `snapshot.people`.
 - `/api/chat` and `/api/direct` snapshots are now focused on appointments/rules (no roster payload).
+
+## 2026-02-28 22:58 UTC update (PageHeader build fix follow-up)
+
+- Hardened `PageHeader` prop consumption by destructuring through a local `props` object before menu render usage.
+- This keeps the optional notification preference controls (`emailUpdatesEnabled`, `prefsLoading`, `prefsSaving`, `prefsError`, `onToggleEmailUpdates`) reliably in component scope and resolves the reported TS2304 unresolved-name build errors.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅ passed.
+2. `pnpm -r build` ⚠️ blocked in API package by missing `@azure/data-tables` dependency/type resolution in this environment.
