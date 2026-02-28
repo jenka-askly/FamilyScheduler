@@ -1159,6 +1159,16 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
 
 
+  const addSampleData = async (): Promise<{ ok: boolean; message?: string }> => {
+    const result = await sendDirectAction({ type: 'seed_sample_data' });
+    if (result.ok) {
+      showNotice('success', 'Sample data added for this group');
+      return { ok: true, message: result.message ?? undefined };
+    }
+    showNotice('error', result.message || 'Failed to add sample data');
+    return { ok: false, message: result.message || 'Failed to add sample data' };
+  };
+
   const showNotice = (severity: 'error' | 'success' | 'info', message: string) => {
     setNotice({ severity, message });
     window.setTimeout(() => {
@@ -2561,6 +2571,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         sessionEmail={sessionEmail}
         sessionName={signedInPersonName}
         onDashboardClick={() => window.location.assign(`${window.location.origin}/`)}
+        onAddSampleData={addSampleData}
       />
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>

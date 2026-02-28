@@ -12,6 +12,7 @@ export type Person = {
   lastSeen?: string;
   timezone?: string;
   notes?: string;
+  seedTag?: string;
 };
 
 export type Member = {
@@ -160,8 +161,9 @@ const normalizePeopleCollection = (value: unknown): Person[] => {
     const lastSeen = typeof raw?.lastSeen === 'string' && raw.lastSeen.trim() ? raw.lastSeen.trim() : createdAt;
     const timezone = typeof raw?.timezone === 'string' && raw.timezone.trim() ? raw.timezone.trim() : DEFAULT_TZ;
     const notes = typeof raw?.notes === 'string' ? raw.notes.trim().slice(0, 500) : '';
+    const seedTag = typeof raw?.seedTag === 'string' && raw.seedTag.trim() ? raw.seedTag.trim().slice(0, 120) : undefined;
 
-    people.push({ personId, name, email, cellE164, cellDisplay, status, createdAt, lastSeen, timezone, notes });
+    people.push({ personId, name, email, cellE164, cellDisplay, status, createdAt, lastSeen, timezone, notes, ...(seedTag ? { seedTag } : {}) });
   }
   return people;
 };

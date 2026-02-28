@@ -62,6 +62,7 @@ type DirectAction =
   | { type: 'reschedule_appointment'; code: string; date: string; startTime?: string; durationMins?: number; timezone?: string; timeResolved?: ResolvedInterval; durationAcceptance?: 'auto' | 'user_confirmed' | 'user_edited' }
   | { type: 'resolve_appointment_time'; appointmentId?: string; whenText: string; timezone?: string }
   | { type: 'create_blank_person' }
+  | { type: 'seed_sample_data' }
   | { type: 'update_person'; personId: string; name?: string; email?: string }
   | { type: 'delete_person'; personId: string }
   | { type: 'reactivate_person'; personId: string }
@@ -96,6 +97,10 @@ const TITLE_MAX_LENGTH = 160;
 const CONSTRAINT_FIELDS = ['title', 'time', 'location', 'general'] as const;
 const CONSTRAINT_OPERATORS = ['equals', 'contains', 'not_contains', 'required'] as const;
 const SUGGESTION_FIELDS = ['title', 'time', 'location'] as const;
+
+const SEED_TAG = 'dogfood-seed-v1';
+const SEED_PERSON_IDS = ['P-SEED-ALICE', 'P-SEED-BOB', 'P-SEED-CARMEN', 'P-SEED-DIEGO', 'P-SEED-EVELYN', 'P-SEED-FATIMA', 'P-SEED-GABE', 'P-SEED-HARPER', 'P-SEED-IVAN', 'P-SEED-JULES'] as const;
+const SEED_APPOINTMENT_IDS = ['appt-seed-1', 'appt-seed-2', 'appt-seed-3', 'appt-seed-4', 'appt-seed-5', 'appt-seed-6', 'appt-seed-7', 'appt-seed-8', 'appt-seed-9', 'appt-seed-10', 'appt-seed-11', 'appt-seed-12'] as const;
 
 const isConstraintField = (value: string): value is typeof CONSTRAINT_FIELDS[number] => CONSTRAINT_FIELDS.includes(value as typeof CONSTRAINT_FIELDS[number]);
 const isConstraintOperator = (value: string): value is typeof CONSTRAINT_OPERATORS[number] => CONSTRAINT_OPERATORS.includes(value as typeof CONSTRAINT_OPERATORS[number]);
@@ -688,6 +693,175 @@ const persistCreatedAppointmentDocAndIndex = async (groupId: string, beforeState
   });
 };
 
+const addDaysIsoDate = (isoDate: string, days: number): string => {
+  const dt = new Date(`${isoDate}T00:00:00.000Z`);
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+};
+
+const toIsoRange = (date: string, startTime: string | undefined, durationMins: number | undefined, timezone: string): { start?: string; end?: string } => {
+  if (!startTime || !durationMins) return {};
+  const [h, m] = startTime.split(':').map((v) => Number(v));
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const approx = new Date(`${date}T${startTime}:00.000Z`);
+  let best = approx;
+  let min = Number.POSITIVE_INFINITY;
+  for (let offset = -16; offset <= 16; offset += 1) {
+    const cand = new Date(approx.getTime() + offset * 60 * 60 * 1000);
+    const parts = Object.fromEntries(dtf.formatToParts(cand).filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]));
+    const yy = Number(parts.year);
+    const mm = Number(parts.month);
+    const dd = Number(parts.day);
+    const hh = Number(parts.hour);
+    const mi = Number(parts.minute);
+    const score = Math.abs(Date.UTC(yy, mm - 1, dd) - Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)))) + Math.abs(hh - h) * 60 + Math.abs(mi - m);
+    if (score < min) { min = score; best = cand; }
+  }
+  const end = new Date(best.getTime() + durationMins * 60_000);
+  return { start: best.toISOString(), end: end.toISOString() };
+};
+
+const seedPeople = (nowIso: string): AppState['people'] => [
+  { personId: 'P-SEED-ALICE', name: 'Alice Kim', email: 'alice.seed@example.com', cellE164: '+12135550001', cellDisplay: '(213) 555-0001', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/New_York', notes: 'Prefers morning slots.', seedTag: SEED_TAG },
+  { personId: 'P-SEED-BOB', name: 'Bob Rivera', email: 'bob.seed@example.com', cellE164: '+12135550002', cellDisplay: '(213) 555-0002', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/New_York', notes: 'Works nights.\nBest after 11am.', seedTag: SEED_TAG },
+  { personId: 'P-SEED-CARMEN', name: 'Carmen Li', email: 'carmen.seed@example.com', cellE164: '+12135550003', cellDisplay: '(213) 555-0003', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/Los_Angeles', notes: '', seedTag: SEED_TAG },
+  { personId: 'P-SEED-DIEGO', name: 'Diego Patel', email: 'diego.seed@example.com', cellE164: '+12135550004', cellDisplay: '(213) 555-0004', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/Chicago', notes: 'Allergies: peanuts', seedTag: SEED_TAG },
+  { personId: 'P-SEED-EVELYN', name: 'Evelyn Park', email: 'evelyn.seed@example.com', cellE164: '+12135550005', cellDisplay: '(213) 555-0005', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/New_York', notes: 'Wheelchair accessible locations only.', seedTag: SEED_TAG },
+  { personId: 'P-SEED-FATIMA', name: 'Fatima Noor', email: 'fatima.seed@example.com', cellE164: '+12135550006', cellDisplay: '(213) 555-0006', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/New_York', notes: 'Vegetarian.', seedTag: SEED_TAG },
+  { personId: 'P-SEED-GABE', name: 'Gabriel Stone', email: 'gabe.seed@example.com', cellE164: '+12135550007', cellDisplay: '(213) 555-0007', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/Denver', notes: 'Can drive.', seedTag: SEED_TAG },
+  { personId: 'P-SEED-HARPER', name: 'Harper Ito', email: 'harper.seed@example.com', cellE164: '+12135550008', cellDisplay: '(213) 555-0008', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/New_York', notes: 'Needs reminder texts.', seedTag: SEED_TAG },
+  { personId: 'P-SEED-IVAN', name: 'Ivan Brooks', email: 'ivan.seed@example.com', cellE164: '+12135550009', cellDisplay: '(213) 555-0009', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'America/New_York', notes: '', seedTag: SEED_TAG },
+  { personId: 'P-SEED-JULES', name: 'Jules Morgan', email: 'jules.seed@example.com', cellE164: '+12135550010', cellDisplay: '(213) 555-0010', status: 'active', createdAt: nowIso, lastSeen: nowIso, timezone: 'Europe/London', notes: 'Traveling this month.', seedTag: SEED_TAG }
+];
+
+const buildSeedAppointments = (nowIso: string): AppState['appointments'] => {
+  const nowDate = nowIso.slice(0, 10);
+  const tz = 'America/New_York';
+  const defs: Array<{ id: string; code: string; title: string; dayOffset: number; startTime?: string; durationMins?: number; isAllDay?: boolean; assigned: string[]; notes: string; locationName?: string; locationAddress?: string; locationDirections?: string }> = [
+    { id: 'appt-seed-1', code: 'SEED-001', title: 'Pediatric Checkup', dayOffset: 3, startTime: '09:00', durationMins: 60, assigned: ['P-SEED-ALICE'], notes: 'Bring insurance card.\nBring previous records.', locationName: 'Downtown Pediatrics', locationAddress: '101 Main St, New York, NY 10001', locationDirections: 'Suite 4B, check in on tablet.' },
+    { id: 'appt-seed-2', code: 'SEED-002', title: 'Soccer Practice', dayOffset: 3, startTime: '09:30', durationMins: 90, assigned: ['P-SEED-BOB','P-SEED-CARMEN'], notes: 'Overlaps checkup on purpose.', locationName: 'Hudson Field', locationAddress: '50 River Rd, New York, NY 10011' },
+    { id: 'appt-seed-3', code: 'SEED-003', title: 'Parent-Teacher Conference', dayOffset: 5, startTime: '16:00', durationMins: 45, assigned: ['P-SEED-EVELYN'], notes: 'Ask about reading progress.', locationName: 'PS 20', locationAddress: '166 Essex St, New York, NY 10002', locationDirections: 'Use north entrance.' },
+    { id: 'appt-seed-4', code: 'SEED-004', title: 'Family Dinner', dayOffset: 7, startTime: '18:30', durationMins: 120, assigned: ['P-SEED-FATIMA','P-SEED-GABE'], notes: 'Reservation under Morgan.', locationName: 'Juniper Table', locationAddress: '23 Orchard St, New York, NY 10002' },
+    { id: 'appt-seed-5', code: 'SEED-005', title: 'Day Off / School Holiday', dayOffset: 9, isAllDay: true, assigned: [], notes: 'All-day sample.', locationName: '', locationAddress: '' },
+    { id: 'appt-seed-6', code: 'SEED-006', title: 'Dental Cleaning', dayOffset: -8, startTime: '11:00', durationMins: 30, assigned: ['P-SEED-HARPER'], notes: 'Past appointment sample.', locationName: 'Smile Dental', locationAddress: '80 Nassau St, New York, NY 10038' },
+    { id: 'appt-seed-7', code: 'SEED-007', title: 'Unassigned Follow-up Call', dayOffset: 2, startTime: '13:15', durationMins: 20, assigned: [], notes: 'Unassigned timed item.' },
+    { id: 'appt-seed-8', code: 'SEED-008', title: 'Museum Trip', dayOffset: 14, startTime: '10:00', durationMins: 180, assigned: ['P-SEED-IVAN','P-SEED-JULES'], notes: 'Bring student IDs.', locationName: 'City Museum', locationAddress: '200 Central Park W, New York, NY 10024', locationDirections: 'Meet at west gate.' },
+    { id: 'appt-seed-9', code: 'SEED-009', title: 'Medication Refill Window', dayOffset: -2, isAllDay: true, assigned: ['P-SEED-DIEGO'], notes: 'Past all-day sample.' },
+    { id: 'appt-seed-10', code: 'SEED-010', title: 'Therapy Session', dayOffset: 1, startTime: '15:00', durationMins: 50, assigned: ['P-SEED-ALICE'], notes: 'Virtual option available.', locationName: 'Midtown Wellness', locationAddress: '5 E 44th St, New York, NY 10017' },
+    { id: 'appt-seed-11', code: 'SEED-011', title: 'Carpool Planning', dayOffset: 4, startTime: '19:00', durationMins: 30, assigned: [], notes: 'Need volunteer drivers.' },
+    { id: 'appt-seed-12', code: 'SEED-012', title: 'Summer Camp Registration Opens', dayOffset: 21, isAllDay: true, assigned: ['P-SEED-BOB'], notes: 'Set alarm for 8 AM.' }
+  ];
+
+  return defs.map((def) => {
+    const date = addDaysIsoDate(nowDate, def.dayOffset);
+    const range = toIsoRange(date, def.startTime, def.durationMins, tz);
+    const locationDisplay = [def.locationName, def.locationAddress].filter(Boolean).join(' — ');
+    return {
+      id: def.id,
+      code: def.code,
+      title: def.title,
+      updatedAt: nowIso,
+      date,
+      startTime: def.startTime,
+      durationMins: def.durationMins,
+      timezone: tz,
+      isAllDay: Boolean(def.isAllDay),
+      assigned: [...def.assigned],
+      people: [...def.assigned],
+      location: locationDisplay,
+      locationRaw: locationDisplay,
+      locationDisplay,
+      locationMapQuery: def.locationAddress || locationDisplay,
+      locationName: def.locationName || '',
+      locationAddress: def.locationAddress || '',
+      locationDirections: def.locationDirections || '',
+      notes: def.notes,
+      isDeleted: false,
+      scanStatus: null,
+      scanImageKey: null,
+      scanImageMime: null,
+      scanCapturedAt: null,
+      ...(range.start ? { start: range.start } : {}),
+      ...(range.end ? { end: range.end } : {})
+    };
+  });
+};
+
+const seedSampleDataForGroup = async (groupId: string, loadedState: AppState, etag: string, storage: StorageAdapter): Promise<{ state: AppState }> => {
+  const nowIso = new Date().toISOString();
+  const seededPeople = seedPeople(nowIso);
+  const seededAppointments = buildSeedAppointments(nowIso);
+  const seedPersonSet = new Set(SEED_PERSON_IDS);
+  const seedAppointmentSet = new Set(SEED_APPOINTMENT_IDS);
+
+  const retainedPeople = loadedState.people.filter((person) => !seedPersonSet.has(person.personId as (typeof SEED_PERSON_IDS)[number]) && person.seedTag !== SEED_TAG);
+  const retainedAppointments = loadedState.appointments.filter((appointment) => !seedAppointmentSet.has(appointment.id as (typeof SEED_APPOINTMENT_IDS)[number]));
+  const nextState: AppState = {
+    ...loadedState,
+    updatedAt: nowIso,
+    people: [...retainedPeople, ...seededPeople],
+    appointments: [...retainedAppointments, ...seededAppointments]
+  };
+
+  for (const appointment of seededAppointments) {
+    const location = appointment.locationDisplay || appointment.location;
+    await putAppointmentJson(groupId, appointment.id, {
+      id: appointment.id,
+      code: appointment.code,
+      schemaVersion: 3,
+      title: appointment.title,
+      date: appointment.date,
+      startTime: appointment.startTime,
+      durationMins: appointment.durationMins,
+      timezone: appointment.timezone,
+      isAllDay: appointment.isAllDay,
+      start: appointment.start,
+      end: appointment.end,
+      people: appointment.assigned,
+      assigned: appointment.assigned,
+      location,
+      locationRaw: appointment.locationRaw,
+      locationDisplay: appointment.locationDisplay,
+      locationMapQuery: appointment.locationMapQuery,
+      locationName: appointment.locationName,
+      locationAddress: appointment.locationAddress,
+      locationDirections: appointment.locationDirections,
+      notes: appointment.notes,
+      scanStatus: null,
+      scanImageKey: null,
+      scanImageMime: null,
+      scanCapturedAt: null,
+      isDeleted: false,
+      updatedAt: nowIso,
+      seedTag: SEED_TAG
+    });
+
+    const indexIso = appointment.start ?? `${appointment.date}T00:00:00.000Z`;
+    await upsertAppointmentIndex({
+      partitionKey: groupId,
+      rowKey: rowKeyFromIso(indexIso, appointment.id),
+      appointmentId: appointment.id,
+      startTime: appointment.start,
+      status: 'active',
+      hasScan: false,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      isDeleted: false
+    });
+  }
+
+  const written = await storage.save(groupId, nextState, etag);
+  return { state: written.state };
+};
+
 const parseDirectAction = (value: unknown): DirectAction => {
   if (!isRecord(value)) throw new Error('action must be an object');
   const type = asString(value.type);
@@ -780,6 +954,7 @@ const parseDirectAction = (value: unknown): DirectAction => {
     return { type, appointmentId, whenText, timezone };
   }
   if (type === 'create_blank_person') return { type };
+  if (type === 'seed_sample_data') return { type };
   if (type === 'update_person') {
     const personId = asString(value.personId);
     if (!personId) throw new Error('personId is required');
@@ -979,6 +1154,11 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     directAction = parseDirectAction(body.action);
   } catch (error) {
     return withMeta(badRequest(error instanceof Error ? error.message : 'invalid action', traceId));
+  }
+
+  if (directAction.type === 'seed_sample_data' && process.env.DOGFOOD !== '1') {
+    context.warn?.(JSON.stringify({ event: 'direct_seed_sample_data_blocked', traceId, groupId }));
+    return withMeta({ status: 404, jsonBody: { ok: false, message: 'Not found', traceId } });
   }
 
   let storage: StorageAdapter;
@@ -1914,6 +2094,20 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       return withMeta({ status: 200, jsonBody: { ok: true, snapshot: writtenSnapshot, message: `Already active: ${directAction.appointmentId}` } });
     }
     return withMeta({ status: 200, jsonBody: { ok: true, snapshot: writtenSnapshot } });
+  }
+
+  if (directAction.type === 'seed_sample_data') {
+    try {
+      const seeded = await seedSampleDataForGroup(groupId, loaded.state, loaded.etag, storage);
+      return withMeta({ status: 200, jsonBody: { ok: true, snapshot: await buildDirectSnapshot(groupId, seeded.state, traceId), message: 'Sample data refreshed for this group.' } });
+    } catch (error) {
+      if (error instanceof MissingConfigError) {
+        logConfigMissing('direct', traceId, error.missing);
+        return withMeta(errorResponse(500, 'CONFIG_MISSING', error.message, traceId, { missing: error.missing }));
+      }
+      if (error instanceof ConflictError) return withMeta({ status: 409, jsonBody: { ok: false, message: 'State changed. Retry.', traceId } });
+      throw error;
+    }
   }
 
   const execution = await executeActions(loaded.state, [directAction as Action], { activePersonId: caller.memberId, timezoneName: process.env.TZ ?? 'America/Los_Angeles' });

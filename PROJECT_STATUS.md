@@ -1,3 +1,10 @@
+## 2026-02-28 22:10 UTC update (Dogfood seed-only sample data command)
+
+- Added a dogfood/dev-only Debug action **Add sample data (this group)** in the web header Debug submenu, gated by `import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'`.
+- Added `/api/direct` action `{ type: 'seed_sample_data' }` with server-side gate `DOGFOOD === '1'`; when unset, the action returns 404 and logs a blocked event.
+- Seed is idempotent and group-scoped: deterministic person IDs + appointment IDs are refreshed/overwritten for the current group only (no reset UI/API added).
+- Seed data includes representative coverage across timed/all-day, overlapping appointments, assigned/unassigned items, locations/directions, multiline notes, timezone (`America/New_York`), and past/future entries.
+
 ## 2026-02-28 21:05 UTC update (Debug menu + dogfood gating for web/api)
 
 - Web Debug menu is now build-time gated by `import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'`; when false, the Debug menu item, submenu, dialog, and debug snackbar are not rendered.
