@@ -41,9 +41,14 @@ type Props = {
   onDashboardClick?: () => void;
   showMenuButton?: boolean;
   onAddSampleData?: () => Promise<{ ok: boolean; message?: string }>;
+  emailUpdatesEnabled?: boolean | null;
+  prefsLoading?: boolean;
+  prefsSaving?: boolean;
+  prefsError?: string | null;
+  onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true, onAddSampleData }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true, onAddSampleData, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: Props) {
   const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);

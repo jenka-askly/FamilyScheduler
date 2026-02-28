@@ -5306,3 +5306,18 @@ Verification note:
 - Added backend endpoint `POST /api/group/restore` to reverse group soft-delete flags (`isDeleted`, `deletedAt`, `deletedByUserKey`, `purgeAfterAt`) and refresh `updatedAt`.
 - Dashboard undo now uses the new `/api/group/restore` route; deleting multiple groups quickly replaces the single undo target.
 - Removed dashboard delete confirmation copy (`This cannot be undone.`) to match new behavior.
+
+## 2026-02-28 21:51 UTC update (PageHeader email preference prop wiring fix)
+
+- Fixed `PageHeader` prop typing/destructuring to include dashboard notification preference controls used by the profile menu section:
+  - `emailUpdatesEnabled`
+  - `prefsLoading`
+  - `prefsSaving`
+  - `prefsError`
+  - `onToggleEmailUpdates`
+- This resolves web TypeScript build failures caused by unresolved identifiers inside `PageHeader` while preserving existing optional behavior and defaults.
+
+### Verification run
+
+1. `pnpm -r --if-present build` ⚠️ fails in API package in this environment due to missing `@azure/data-tables` module/type resolution.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.

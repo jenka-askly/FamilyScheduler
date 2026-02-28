@@ -14210,3 +14210,25 @@ Implement deterministic, idempotent dogfood sample-data seeding via `/api/direct
 
 ### Follow-ups
 - Manual dogfood smoke: click **Add sample data (this group)** twice and verify no duplicates, deterministic overwrite behavior, and immediate snapshot refresh.
+
+## 2026-02-28 21:51 UTC (Fix web build TS2304 in PageHeader email updates section)
+
+### Objective
+Fix the `pnpm -r --if-present build` web failure where `PageHeader.tsx` referenced notification preference variables that were not defined in component scope.
+
+### Approach
+- Located unresolved symbols in `PageHeader` menu JSX.
+- Added missing optional props to `PageHeader` `Props` type and component parameter destructuring with safe defaults, matching existing usage patterns in `MarketingLayout`/`App`.
+- Re-ran workspace build command and isolated web build verification.
+
+### Files changed
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm -r --if-present build` ⚠️ failed due to missing API dependency/types for `@azure/data-tables` in this environment.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+
+### Follow-ups
+- Restore API dependency availability (`@azure/data-tables`) in environment, then rerun full recursive build.
