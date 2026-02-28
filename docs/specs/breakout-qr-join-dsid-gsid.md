@@ -1,150 +1,241 @@
-# Breakout QR Join DSID/GSID Behavior Specification
+# Breakout Join DSID vs GSID + Invite Member by QR Contract
 
 Spec ID: `breakout-qr-join-dsid-gsid`
+Status: **Authoritative (contract + implementation snapshot)**
+Last reviewed against code: `0fc63b27cc968485bfa5f7e3578c91dfb97e60f4`
 
-## 1) Background
+This spec defines the session/storage/server contract for two QR flows:
 
-This document defines the intended authentication/session behavior for breakout and member-invite QR flows, with explicit DSID/GSID rules so future implementation and troubleshooting stay consistent.
+1. **Breakout QR** (`/#/s/:groupId/:sessionId`) — guest allowed.
+2. **Invite Member by QR** (member panel invite) — guest **not** allowed.
 
-Storage-key model:
+---
 
-- **DSID** (durable signed-in session):
+## 1) Terminology
+
+- **Durable session (DSID concept)**
   - `localStorage["fs.sessionId"]`
-  - display metadata keys: `localStorage["fs.sessionEmail"]`, `localStorage["fs.sessionName"]`
-- **GSID** (grace/guest scoped session):
+  - Optional profile/display metadata:
+    - `localStorage["fs.sessionEmail"]`
+    - `localStorage["fs.sessionName"]`
+
+- **Grace session (GSID concept)**
   - `localStorage["fs.igniteGraceSessionId"]`
   - `localStorage["fs.igniteGraceGroupId"]`
   - `localStorage["fs.igniteGraceExpiresAtUtc"]`
 
-Product scenario:
+- **Breakout/Invite `sessionId` token (scan token)**
+  - The route token in `/#/s/:groupId/:sessionId`.
+  - This token identifies an active ignite invite session.
+  - **Do not store this route token in localStorage as durable auth.**
 
-- An organizer, already signed in with DSID, starts a breakout and shares a QR.
-- Scanners/joiners may be either:
-  - already signed in on their device (DSID exists), or
-  - new/unsigned devices (no DSID), which must still be able to join breakout via temporary GSID with limited capability.
+---
 
-## 2) Definitions
+## 2) Invariants (explicit bug preventers)
 
-- **DSID**: durable authenticated session token used for normal app access.
-- **GSID**: temporary scoped "grace" token used for limited access (group-scoped + expiring).
-- **Breakout QR entrypoint #1**: the QR generated for quick join from organizer/burger breakout UX.
-- **Member invite QR entrypoint #2**: QR from member panel intended for adding as full member (DSID).
+These invariants are normative and prevent prior DSID/GSID regressions:
 
-## 3) Requirements
+1. **Scanning Breakout QR with no durable session MUST NOT create/store `fs.sessionId`.**
+2. **Grace MUST remain grace until explicit upgrade (magic link).**
+3. **`/api/group/join` MUST NOT auto-upgrade igniteGrace into durable during normal navigation/auth gating.**
+4. **Invite Member by QR MUST NOT allow guest/grace access; sign-in is required first.**
+5. **Invite QR becomes invalid immediately when organizer closes dialog (server-enforced).**
 
-- **R1**: Breakout QR join (entrypoint #1) must support both:
-  - If DSID exists on device: join as DSID (no grace labeling).
-  - If DSID does NOT exist: join as GSID (show grace labeling + limit features).
-- **R2**: Member invite QR (entrypoint #2) is DSID-only.
-- **R3**: GSID must be scoped to the target `groupId`; `groupId` is part of the guest identity boundary.
-- **R4**: Feature gating: GSID users must see "Guest access (limited)" and specific blocked actions.
-- **R5**: Upgrade path: signing in (magic link) transitions user to DSID; GSID keys cleared; full features unlocked.
+### Current implementation snapshot vs invariant intent
 
-## 4) Decision table (normative)
+- Current web breakout join code already keeps guest breakout joins on GSID (no `fs.sessionId` write on guest path).
+- Current server `POST /api/group/join` **does** issue a durable session when request auth kind is `igniteGrace` (auto-upgrade). This diverges from invariant #3 and is the historical bug source this spec locks down.
+- Current member-panel QR label is “Show QR (Anyone can join)” and uses ignite sessions. The intended Invite Member by QR contract in this spec is stricter (sign-in required) and should be treated as the required target behavior.
 
-Inputs:
+---
 
-- `hasDSID`
-- `hasGSID(valid+scoped)`
-- `route`: `breakoutJoin` vs `memberInviteJoin`
+## 3) Breakout QR flow (Organizer “scan to join meeting”)
 
-Outputs:
+### Preconditions
 
-- token used for `x-session-id`
-- keys written/cleared
-- whether "Guest access (limited)" is shown
-- whether to redirect to login/join
+- Route: `/#/s/:groupId/:sessionId`.
+- If DSID present (`fs.sessionId`): join as durable/member path.
+- If DSID absent: join as guest/grace path.
 
-| Route | hasDSID | hasGSID (valid+scoped) | `x-session-id` used | Keys written/cleared | Guest banner | Redirect expectation |
-|---|---:|---:|---|---|---|---|
-| breakoutJoin | yes | no/yes | **DSID** | MUST NOT write GSID; SHOULD clear GSID keys if present | No | No forced redirect |
-| breakoutJoin | no | no | GSID returned by breakout join response | MUST write GSID keys; MUST NOT write `fs.sessionId` | Yes | No forced redirect after successful join |
-| breakoutJoin | no | yes | GSID | Keep/refresh GSID keys per response/expiry policy | Yes | No forced redirect |
-| memberInviteJoin | yes | no/yes | **DSID** | MAY clear GSID keys to avoid mixed state | No | Continue member invite flow |
-| memberInviteJoin | no | no/yes | none (no DSID available) | MUST NOT treat GSID as sufficient for member invite | N/A for invite gate; if in app with GSID, banner remains | MUST redirect to login/join path |
+### Client/API sequence
 
-Normative precedence statement:
+1. Client hits `IgniteJoinPage` for `/#/s/:groupId/:sessionId`.
+2. Client calls `POST /api/ignite/join` with:
+   - `groupId`, `sessionId`, `traceId`, and when unauthed also `name`, `email` (optional `photoBase64`).
+3. On success, client applies session storage semantics:
+   - DSID-present path: keep DSID, clear stale GSID keys.
+   - DSID-absent path: set GSID keys from response (`sessionId`, `graceExpiresAtUtc`, `breakoutGroupId`).
+4. Client navigates to `/#/g/:breakoutGroupId/app`.
+5. Group gate calls `POST /api/group/join` for access validation/membership state.
 
-- **DSID ALWAYS takes precedence for API calls when present, except where flow explicitly forces GSID (only for breakout joiners with no DSID).**
+### Storage writes
 
-## 5) Storage rules (normative)
+- **DSID present before join:**
+  - Must not overwrite `fs.sessionId` from breakout join response.
+  - Clear GSID keys.
 
-- On breakout join success when DSID absent:
-  - MUST set GSID keys (`sessionId`, `expiresAtUtc`, `groupId`)
-  - MUST NOT set `fs.sessionId`
-- On breakout join when DSID present:
-  - MUST NOT set GSID keys
-  - SHOULD clear any existing GSID keys to avoid mixed state
-- On sign-in completion:
-  - MUST set `fs.sessionId`
-  - MUST clear GSID keys
-- On sign-out:
-  - MUST clear `fs.sessionId` + display keys
-  - MUST clear GSID keys
+- **DSID absent before join:**
+  - Set:
+    - `fs.igniteGraceSessionId` = response `sessionId`
+    - `fs.igniteGraceGroupId` = resolved target group
+    - `fs.igniteGraceExpiresAtUtc` = response `graceExpiresAtUtc`
+  - Must not set `fs.sessionId`.
 
-## 6) API contract expectations (normative, client/server boundary)
+### UX: “Guest access (limited)” banner
 
-Breakout join endpoint behavior:
+Banner is shown when:
 
-- When DSID absent:
-  - server returns session kind `igniteGrace` + `graceExpiresAtUtc` (or equivalent fields)
-  - server enforces GSID scope (`groupId`) and expiry
-- When DSID present:
-  - server treats join as member session
+- GSID exists for current group and
+- DSID is absent.
 
-Session status (optional future):
+### Error handling
 
-- Optional `GET /api/session/status` may return authoritative:
-  - `kind` (e.g., `durable`, `igniteGrace`)
-  - `scope` (e.g., `groupId`)
-  - `expiry` (`expiresAtUtc`)
-- If added, UI labeling should prefer this authoritative response over inferred local state.
+- `IGNITE_CLOSED` from `/api/ignite/join`:
+  - Show session closed/expired messaging.
+- `AUTH_IGNITE_GRACE_EXPIRED` from guarded API calls:
+  - Clear all GSID keys and require rejoin/re-auth.
+- Invite closed after QR capture/photo reuse:
+  - Join fails server-side; show expired/closed invite message.
 
-## 7) UX requirements
+---
 
-GSID users:
+## 4) Invite Member by QR flow (Member panel)
 
-- Banner location: under header in group app.
-- Copy: `Guest access (limited)… Sign in`.
-- Blocked features list (explicit intended restrictions):
-  - Invite members
-  - Manage group settings
-  - Create breakout
-  - Edit membership/roles
-  - Other privileged admin/member-management actions
+> This section is normative for the split contract: Invite Member by QR is membership-oriented and not a guest flow.
 
-DSID users:
+### Rules
 
-- No guest-access banner.
+- Guest/grace is **not allowed**.
+- Scan result must never grant GSID access.
+- This flow must not write any GSID keys.
 
-## 8) Debugging requirements (mobile)
+### Flow
 
-Debug burger menu must expose:
+1. User scans Invite Member QR.
+2. If user is not signed in (no DSID):
+   - Show sign-in email dialog.
+   - Send magic link.
+   - Do not join yet.
+3. After auth consume:
+   - Re-attempt invite join **only if invite is still active**.
+   - If organizer closed QR in the meantime: show “Invite expired — ask organizer to reopen QR”.
+4. If user is already signed in when scanning:
+   - Join immediately if invite is active.
 
-- Show debug snapshot including:
-  - current hash/route
-  - `groupId`
-  - DSID present/absent
-  - GSID present/absent
-  - GSID expiry
-  - computed auth IDs used for requests
-- Clear DSID
-- Clear GSID
-- Clear ALL
+### Non-goals in this flow
 
-Security/diagnostic hygiene:
+- No GSID issuance.
+- No guest banner semantics.
+- No auto-upgrade assumptions.
 
-- Session IDs MUST be masked in UI/debug output.
+---
 
-## 9) Acceptance criteria
+## 5) Server contract (authoritative)
 
-- **AC1**: New device (no DSID) scanning breakout QR results in GSID keys present and DSID absent.
-- **AC2**: Existing signed-in device scanning breakout QR stays DSID and does not store GSID.
-- **AC3**: GSID user sees banner + blocked features; DSID user does not.
-- **AC4**: Completing magic link removes banner and upgrades to DSID.
-- **AC5**: Sign-out clears all session keys.
+## 5.1 `POST /api/ignite/start`
 
-## 10) Non-goals
+Creates an active invite session for a group.
 
-- No change to server auth model beyond what is needed for the contract.
-- No reliance on user-entered email strings for session binding.
+- Auth: organizer must be authenticated and active member.
+- Input: `groupId`, `traceId`.
+- Side effects:
+  - Creates/overwrites `state.ignite` with `sessionId`, `status: OPEN`, `createdAt`, creator metadata.
+  - Initializes `joinedPersonIds` and photo metadata map.
+- Invite/session cap:
+  - `joinedPersonIds` is capped at 100 entries (implementation-enforced in join).
+- Close semantics:
+  - Invite is invalid once status is not OPEN or `sessionId` does not match (including explicit close).
+
+## 5.2 `POST /api/ignite/join`
+
+Input:
+- Body: `groupId`, `sessionId`, `traceId`, and optional `name`, `email`, `photoBase64`.
+- Header: optional `x-session-id` for authenticated callers.
+
+Response variants:
+
+- **Breakout join, unauthed**
+  - `200 { ok: true, breakoutGroupId, sessionId, graceExpiresAtUtc, requiresVerification: true }`
+  - `sessionId` in this variant is GSID token to store in `fs.igniteGraceSessionId`.
+
+- **Breakout join, authed**
+  - `200 { ok: true, breakoutGroupId }`
+  - No GSID issuance needed.
+
+- **Invite join, unauthed (required contract)**
+  - Should return auth-required shape (e.g., `401/403` with `requiresAuth: true`) and **must not issue GSID**.
+
+- **Invite join, authed**
+  - `200 { ok: true, ... }` with membership behavior consistent with invite policy.
+
+Common errors:
+- `403 IGNITE_CLOSED` when closed/mismatched session token.
+
+## 5.3 `POST /api/group/join`
+
+Role:
+- Validates/admits signed-in user into group and handles invited→active transition.
+
+Contract for DSID vs GSID:
+- DSID callers: membership check/update only.
+- igniteGrace callers: permit scoped temporary access checks, **but must not auto-upgrade to durable session during normal gate navigation**.
+- Must preserve invite/active membership counter integrity.
+
+---
+
+## 6) Storage + clearing rules
+
+### Debug clear actions (exact key sets)
+
+- **Clear DSID** removes:
+  - `fs.sessionId`
+  - `fs.sessionEmail`
+  - `fs.sessionName`
+
+- **Clear GSID** removes:
+  - `fs.igniteGraceSessionId`
+  - `fs.igniteGraceGroupId`
+  - `fs.igniteGraceExpiresAtUtc`
+
+- **Clear ALL** removes all DSID + GSID keys above.
+
+### Sign-out
+
+Sign-out must remove:
+
+- DSID keys (`fs.sessionId`, `fs.sessionEmail`, `fs.sessionName`)
+- GSID keys (`fs.igniteGraceSessionId`, `fs.igniteGraceGroupId`, `fs.igniteGraceExpiresAtUtc`)
+- Pending invite/auth markers (`sessionStorage["fs.pendingAuth"]` and any temporary invite marker used by the client flow).
+
+### Auth consume
+
+After magic link consume:
+
+- Set durable session (`fs.sessionId` + sanitized profile keys).
+- Clear GSID keys.
+- Resume pending return path/invite continuation logic.
+
+---
+
+## 7) Acceptance / test matrix (copy-paste checklist)
+
+- [ ] Fresh device -> Breakout scan -> GSID keys set, durable absent, guest banner visible.
+- [ ] Durable present -> Breakout scan -> durable kept, no GSID keys, no guest banner.
+- [ ] Invite scan (not signed in) -> sign-in required; if QR closed before completion, join fails with invite-expired UX.
+- [ ] Invite scan (signed in) -> join succeeds only while QR active.
+- [ ] QR photo/reuse after organizer closes dialog -> server rejects with closed/expired invite error.
+
+---
+
+## 8) Source-of-truth implementation references
+
+- Web join route and DSID/GSID write semantics:
+  - `apps/web/src/App.tsx`
+  - `apps/web/src/lib/igniteJoinSession.ts`
+  - `apps/web/src/lib/apiUrl.ts`
+- Invite modal/session controls:
+  - `apps/web/src/AppShell.tsx`
+- Server endpoints:
+  - `api/src/functions/igniteStart.ts`
+  - `api/src/functions/igniteJoin.ts`
+  - `api/src/functions/groupJoin.ts`
