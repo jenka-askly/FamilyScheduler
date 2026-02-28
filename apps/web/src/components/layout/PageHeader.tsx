@@ -306,7 +306,7 @@ export function PageHeader(props: Props) {
           </Stack>
         ) : null}
       </div>
-      {showGroupSummary ? (
+      {showGroupSummary && (
       <Paper>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
           <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -546,7 +546,7 @@ export function PageHeader(props: Props) {
           </Dialog>
         ) : null}
       </Paper>
-      ) : null}
+      )}
       {title ? <Typography variant="h6">{title}</Typography> : null}
       {description ? <Typography color="text.secondary">{description}</Typography> : null}
       {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only invited email addresses can access this group.'}</Typography> : null}
