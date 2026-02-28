@@ -14085,3 +14085,35 @@ Implement Option A delete UX for appointments (inline Undo notice using existing
 
 ### Follow-ups
 - Human-run local validation is still recommended for delete failure simulation and “Already active” restore race behavior across tabs.
+
+## 2026-02-28 21:00 UTC (Home dashboard group delete immediate + undo restore endpoint)
+
+### Objective
+Implement immediate dashboard group deletion (no confirm modal) with inline undo, backed by a real server-side restore endpoint.
+
+### Approach
+- Added new API function `groupRestore` for `POST /api/group/restore` with session auth, active-membership authz, deleted-group recovery behavior, and idempotent `Already active` response.
+- Added `restoreGroupById` helper to centralize soft-delete flag reversal logic in table entity helpers.
+- Registered restore route in `api/src/index.ts`.
+- Added focused API function tests for restore success, already-active idempotency, unauthorized session, and forbidden membership cases via dependency seams.
+- Updated web group API client with `restoreGroup(...)`.
+- Updated `DashboardHomePage` delete flow to execute immediately from kebab menu, show inline `Group deleted` alert with `Undo`, and clear undo state via an 8-second timer.
+- Removed dashboard delete confirmation dialog and legacy cannot-undo copy.
+- Updated PROJECT_STATUS with behavior/endpoint changes.
+
+### Files changed
+- `api/src/functions/groupRestore.ts`
+- `api/src/functions/groupRestore.test.ts`
+- `api/src/index.ts`
+- `api/src/lib/tables/entities.ts`
+- `apps/web/src/lib/groupApi.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api test -- groupRestore.test.ts` ⚠️ failed in this environment because `@azure/data-tables` type dependencies are unavailable during API build.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
+### Follow-ups
+- Manual browser validation for dashboard delete/undo timing and cross-tab already-active restore behavior.

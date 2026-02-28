@@ -4,12 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   Divider,
   IconButton,
   List,
@@ -22,9 +16,9 @@ import {
   Switch,
   Typography
 } from '@mui/material';
-import { type MouseEvent, useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/apiUrl';
-import { deleteGroup } from '../lib/groupApi';
+import { deleteGroup, restoreGroup } from '../lib/groupApi';
 
 type DashboardHomePageProps = {
   onCreateGroup: () => void;
@@ -67,8 +61,9 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   const [groupsError, setGroupsError] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [menuGroup, setMenuGroup] = useState<DashboardGroup | null>(null);
-  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<DashboardGroup | null>(null);
-  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [lastDeletedGroup, setLastDeletedGroup] = useState<{ groupId: string; name?: string } | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const undoTimerRef = useRef<number | null>(null);
   const [emailUpdatesEnabled, setEmailUpdatesEnabled] = useState(true);
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [prefsSaving, setPrefsSaving] = useState(false);
@@ -96,6 +91,10 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   useEffect(() => {
     void loadDashboard();
     void loadUserPreferences();
+  }, []);
+
+  useEffect(() => () => {
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
   }, []);
 
   const loadUserPreferences = async () => {
@@ -237,27 +236,48 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
     setMenuGroup(null);
   };
 
-  const handleDeleteClick = () => {
-    setConfirmDeleteGroup(menuGroup);
+  const handleDeleteClick = async () => {
+    if (!menuGroup) return;
+    const deletingGroup = menuGroup;
     handleMenuClose();
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!confirmDeleteGroup || isDeletingGroup) return;
-    setIsDeletingGroup(true);
     setGroupsError(null);
     try {
-      const response = await deleteGroup(confirmDeleteGroup.groupId);
+      const response = await deleteGroup(deletingGroup.groupId);
       if (!response.ok) {
         setGroupsError(response.message ?? 'Unable to delete group right now.');
         return;
       }
-      setConfirmDeleteGroup(null);
+      setLastDeletedGroup({ groupId: deletingGroup.groupId, name: deletingGroup.groupName });
+      if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = window.setTimeout(() => {
+        setLastDeletedGroup((prev) => (prev?.groupId === deletingGroup.groupId ? null : prev));
+      }, 8000);
       await loadDashboard();
     } catch {
       setGroupsError('Unable to delete group right now.');
+    }
+  };
+
+  const handleUndoDelete = async () => {
+    if (!lastDeletedGroup || undoBusy) return;
+    setUndoBusy(true);
+    setGroupsError(null);
+    try {
+      const response = await restoreGroup(lastDeletedGroup.groupId);
+      if (!response.ok) {
+        setGroupsError(response.message ?? 'Unable to restore group right now.');
+        return;
+      }
+      if (undoTimerRef.current !== null) {
+        window.clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = null;
+      }
+      setLastDeletedGroup(null);
+      await loadDashboard();
+    } catch {
+      setGroupsError('Unable to restore group right now.');
     } finally {
-      setIsDeletingGroup(false);
+      setUndoBusy(false);
     }
   };
 
@@ -315,6 +335,15 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         </Typography>
         {loadingGroups ? <Typography color="text.secondary">Loading…</Typography> : null}
         {groupsError ? <Typography color="error" variant="body2">{groupsError}</Typography> : null}
+        {lastDeletedGroup ? (
+          <Alert
+            severity="info"
+            action={<Button color="inherit" size="small" disabled={undoBusy} onClick={() => { void handleUndoDelete(); }}>Undo</Button>}
+            sx={{ mt: groupsError ? 1 : 0 }}
+          >
+            Group deleted
+          </Alert>
+        ) : null}
         {!loadingGroups && !groupsError && groups.length > 0 ? (
           <List disablePadding>
             {groups.map((group, index) => {
@@ -395,18 +424,7 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Delete</MenuItem>
       </Menu>
 
-      <Dialog open={Boolean(confirmDeleteGroup)} onClose={() => { if (!isDeletingGroup) setConfirmDeleteGroup(null); }}>
-        <DialogTitle>Delete “{confirmDeleteGroup?.groupName ?? ''}”?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>This cannot be undone.</DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmDeleteGroup(null)} disabled={isDeletingGroup}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={() => { void handleDeleteConfirm(); }} disabled={isDeletingGroup}>
-            {isDeletingGroup ? <CircularProgress size={16} color="inherit" /> : 'Delete'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+
     </Stack>
   );
 }
