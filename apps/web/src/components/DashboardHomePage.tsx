@@ -1,9 +1,15 @@
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
+import NotificationsOffOutlinedIcon from '@mui/icons-material/NotificationsOffOutlined';
+import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
 import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
+  Container,
   Divider,
   IconButton,
   List,
@@ -13,15 +19,23 @@ import {
   Menu,
   MenuItem,
   Stack,
-  Switch,
+  Tooltip,
   Typography
 } from '@mui/material';
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/apiUrl';
 import { deleteGroup, restoreGroup } from '../lib/groupApi';
+import { getUserPreferences, setUserPreferencesPatch } from '../lib/userPrefs';
 
 type DashboardHomePageProps = {
   onCreateGroup: () => void;
+  onPrefsStateChange?: (state: {
+    emailUpdatesEnabled: boolean | null;
+    prefsLoading: boolean;
+    prefsSaving: boolean;
+    prefsError: string | null;
+    onToggleEmailUpdates: (next: boolean) => void | Promise<void>;
+  }) => void;
 };
 
 type DashboardGroup = {
@@ -42,18 +56,11 @@ type DashboardPayload = {
   groups: DashboardGroup[];
 };
 
-type UserPreferencesPayload = {
-  ok?: boolean;
-  emailUpdatesEnabled?: boolean;
-  mutedGroupIds?: string[];
-  message?: string;
-};
-
 const navToGroup = (groupId: string): void => {
   window.location.hash = `/g/${groupId}/app`;
 };
 
-export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
+export function DashboardHomePage({ onCreateGroup, onPrefsStateChange }: DashboardHomePageProps) {
   const [isBreakingOut, setIsBreakingOut] = useState(false);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
@@ -64,7 +71,7 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   const [lastDeletedGroup, setLastDeletedGroup] = useState<{ groupId: string; name?: string } | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const undoTimerRef = useRef<number | null>(null);
-  const [emailUpdatesEnabled, setEmailUpdatesEnabled] = useState(true);
+  const [emailUpdatesEnabled, setEmailUpdatesEnabled] = useState<boolean | null>(null);
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [prefsError, setPrefsError] = useState<string | null>(null);
@@ -93,6 +100,17 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
     void loadUserPreferences();
   }, []);
 
+  useEffect(() => {
+    if (!onPrefsStateChange) return;
+    onPrefsStateChange({
+      emailUpdatesEnabled,
+      prefsLoading,
+      prefsSaving,
+      prefsError,
+      onToggleEmailUpdates: (next) => handleToggleEmailUpdates(next)
+    });
+  }, [emailUpdatesEnabled, onPrefsStateChange, prefsError, prefsLoading, prefsSaving]);
+
   useEffect(() => () => {
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
   }, []);
@@ -101,15 +119,13 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
     setPrefsLoading(true);
     setPrefsError(null);
     try {
-      const response = await apiFetch('/api/user/preferences');
-      const payload = await response.json() as UserPreferencesPayload;
-      if (!response.ok || !payload.ok || typeof payload.emailUpdatesEnabled !== 'boolean') {
-        setPrefsError(payload.message ?? 'Unable to load notification preferences.');
+      const result = await getUserPreferences();
+      if (!result.ok) {
+        setPrefsError(result.message);
         return;
       }
-      setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
-      if (Array.isArray(payload.mutedGroupIds)) setMutedGroupIds(payload.mutedGroupIds);
-      setMutedGroupIds(Array.isArray(payload.mutedGroupIds) ? payload.mutedGroupIds : []);
+      setEmailUpdatesEnabled(result.prefs.emailUpdatesEnabled);
+      setMutedGroupIds(result.prefs.mutedGroupIds);
     } catch {
       setPrefsError('Unable to load notification preferences.');
     } finally {
@@ -118,26 +134,20 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   };
 
   const handleToggleEmailUpdates = async (nextChecked: boolean) => {
-    if (prefsSaving) return;
+    if (prefsSaving || emailUpdatesEnabled === null) return;
     const previous = emailUpdatesEnabled;
     setEmailUpdatesEnabled(nextChecked);
     setPrefsSaving(true);
     setPrefsError(null);
     try {
-      const response = await apiFetch('/api/user/preferences', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ emailUpdatesEnabled: nextChecked })
-      });
-      const payload = await response.json() as UserPreferencesPayload;
-      if (!response.ok || !payload.ok || typeof payload.emailUpdatesEnabled !== 'boolean') {
+      const result = await setUserPreferencesPatch({ emailUpdatesEnabled: nextChecked });
+      if (!result.ok) {
         setEmailUpdatesEnabled(previous);
-        setPrefsError(payload.message ?? 'Unable to save notification preferences.');
+        setPrefsError(result.message);
         return;
       }
-      setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
-      if (Array.isArray(payload.mutedGroupIds)) setMutedGroupIds(payload.mutedGroupIds);
-      setMutedGroupIds(Array.isArray(payload.mutedGroupIds) ? payload.mutedGroupIds : []);
+      setEmailUpdatesEnabled(result.prefs.emailUpdatesEnabled);
+      setMutedGroupIds(result.prefs.mutedGroupIds);
     } catch {
       setEmailUpdatesEnabled(previous);
       setPrefsError('Unable to save notification preferences.');
@@ -157,19 +167,14 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
     setPrefsSaving(true);
     setPrefsError(null);
     try {
-      const response = await apiFetch('/api/user/preferences', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mutedGroupIds: next })
-      });
-      const payload = await response.json() as UserPreferencesPayload;
-      if (!response.ok || !payload.ok || !Array.isArray(payload.mutedGroupIds)) {
+      const result = await setUserPreferencesPatch({ mutedGroupIds: next });
+      if (!result.ok) {
         setMutedGroupIds(previous);
-        setPrefsError(payload.message ?? 'Unable to save notification preferences.');
+        setPrefsError(result.message);
         return;
       }
-      setMutedGroupIds(payload.mutedGroupIds);
-      if (typeof payload.emailUpdatesEnabled === 'boolean') setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+      setMutedGroupIds(result.prefs.mutedGroupIds);
+      setEmailUpdatesEnabled(result.prefs.emailUpdatesEnabled);
     } catch {
       setMutedGroupIds(previous);
       setPrefsError('Unable to save notification preferences.');
@@ -282,7 +287,8 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   };
 
   return (
-    <Stack spacing={{ xs: 3, md: 4 }}>
+    <Container maxWidth="lg" disableGutters>
+      <Stack spacing={2}>
       {breakoutError ? <Alert severity="error" onClose={() => setBreakoutError(null)}>{breakoutError}</Alert> : null}
 
       <Stack spacing={1.25}>
@@ -290,55 +296,24 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         <Button variant="outlined" fullWidth onClick={onCreateGroup} disabled={isBreakingOut}>+ Create Group</Button>
       </Stack>
 
-
-      <Box>
-        <Typography
-          variant="caption"
-          sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.78, fontWeight: 700, display: 'block', mb: 1.25 }}
-        >
-          NOTIFICATIONS
-        </Typography>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ py: 0.5 }}>
-          <Typography variant="body2">Receive appointment update emails</Typography>
-          <Switch
-            checked={emailUpdatesEnabled}
-            disabled={prefsLoading || prefsSaving}
-            onChange={(_event, checked) => { void handleToggleEmailUpdates(checked); }}
-          />
-        </Stack>
-        {prefsLoading ? <Typography variant="caption" color="text.secondary">Loading…</Typography> : null}
-        {prefsSaving ? <Typography variant="caption" color="text.secondary">Saving…</Typography> : null}
-        {prefsError ? <Typography variant="body2" color="error">{prefsError}</Typography> : null}
-        <Divider sx={{ my: 1 }} />
-        <Typography variant="caption" color="text.secondary">Muted groups</Typography>
-        <Stack spacing={0.25} sx={{ mt: 0.5 }}>
-          {groups.filter((group) => group.myStatus === 'active').map((group) => (
-            <Stack key={group.groupId} direction="row" alignItems="center" justifyContent="space-between">
-              <Typography variant="body2">{group.groupName}</Typography>
-              <Switch
-                checked={mutedGroupIds.includes(group.groupId)}
-                disabled={prefsLoading || prefsSaving}
-                onChange={(_event, checked) => { void handleToggleMutedGroup(group.groupId, checked); }}
-              />
-            </Stack>
-          ))}
-          {groups.filter((group) => group.myStatus === 'active').length === 0 ? <Typography variant="caption" color="text.secondary">Join a group to manage per-group mute settings.</Typography> : null}
-        </Stack>
-      </Box>
-
-      <Box>
-        <Typography
-          variant="caption"
-          sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.78, fontWeight: 700, display: 'block', mb: 1.25 }}
-        >
-          YOUR GROUPS
-        </Typography>
+      <Card variant="outlined">
+        <CardContent>
+        <Typography variant="h6" sx={{ mb: 1.25, fontWeight: 700 }}>Your groups</Typography>
         {loadingGroups ? <Typography color="text.secondary">Loading…</Typography> : null}
         {groupsError ? <Typography color="error" variant="body2">{groupsError}</Typography> : null}
+        {prefsError ? <Typography color="error" variant="body2" sx={{ mb: groupsError ? 0 : 1 }}>{prefsError}</Typography> : null}
         {lastDeletedGroup ? (
           <Alert
             severity="info"
-            action={<Button color="inherit" size="small" disabled={undoBusy} onClick={() => { void handleUndoDelete(); }}>Undo</Button>}
+            action={(
+              <Tooltip title="Undo">
+                <span>
+                  <IconButton size="small" color="inherit" aria-label="Undo" disabled={undoBusy} onClick={() => { void handleUndoDelete(); }}>
+                    <UndoOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
             sx={{ mt: groupsError ? 1 : 0 }}
           >
             Group deleted
@@ -366,6 +341,17 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
                       </>
                     ) : (
                       <>
+                        <IconButton
+                          size="small"
+                          aria-label={mutedGroupIds.includes(group.groupId) ? `Unmute ${group.groupName}` : `Mute ${group.groupName}`}
+                          disabled={prefsLoading || prefsSaving}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleToggleMutedGroup(group.groupId, !mutedGroupIds.includes(group.groupId));
+                          }}
+                        >
+                          {mutedGroupIds.includes(group.groupId) ? <NotificationsOffOutlinedIcon fontSize="small" /> : <NotificationsActiveOutlinedIcon fontSize="small" />}
+                        </IconButton>
                         <IconButton
                           size="small"
                           aria-label={`Open actions for ${group.groupName}`}
@@ -418,13 +404,15 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
           </List>
         ) : null}
         {!loadingGroups && !groupsError && groups.length === 0 ? <Typography color="text.secondary">No groups yet.</Typography> : null}
-      </Box>
+        </CardContent>
+      </Card>
 
       <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={handleMenuClose}>
         <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Delete</MenuItem>
       </Menu>
 
 
-    </Stack>
+      </Stack>
+    </Container>
   );
 }

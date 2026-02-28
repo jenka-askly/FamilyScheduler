@@ -444,6 +444,24 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               <Divider />
             </>
           ) : null}
+          {typeof onToggleEmailUpdates === 'function' ? (
+            <MenuItem>
+              <Stack direction="column" spacing={0.5} sx={{ width: '100%' }}>
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+                  <Typography>Receive appointment update emails</Typography>
+                  <Switch
+                    checked={Boolean(emailUpdatesEnabled)}
+                    disabled={prefsLoading || prefsSaving || emailUpdatesEnabled === null || emailUpdatesEnabled === undefined}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(_event, checked) => { void onToggleEmailUpdates(checked); }}
+                    inputProps={{ 'aria-label': 'Receive appointment update emails' }}
+                  />
+                </Stack>
+                {prefsError ? <Typography variant="caption" color="error">{prefsError}</Typography> : null}
+              </Stack>
+            </MenuItem>
+          ) : null}
+          {typeof onToggleEmailUpdates === 'function' ? <Divider /> : null}
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
               <Typography>Dark mode</Typography>

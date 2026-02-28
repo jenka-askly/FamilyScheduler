@@ -12,9 +12,14 @@ type MarketingLayoutProps = {
   sessionName?: string | null;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  emailUpdatesEnabled?: boolean | null;
+  prefsLoading?: boolean;
+  prefsSaving?: boolean;
+  prefsError?: string | null;
+  onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
 };
 
-export function MarketingLayout({ children, hasApiSession = false, sessionEmail, sessionName, onSignIn, onSignOut }: MarketingLayoutProps) {
+export function MarketingLayout({ children, hasApiSession = false, sessionEmail, sessionName, onSignIn, onSignOut, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: MarketingLayoutProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { mode, toggleMode } = useColorMode();
   const buildVersion = (typeof buildInfo.sha === 'string' ? buildInfo.sha.trim() : '').slice(0, 7) || 'dev';
@@ -80,6 +85,23 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
         {hasApiSession ? (
           <MenuItem disabled>
             <Typography>{sessionName ? `Signed in as ${sessionName}${sessionEmail ? ` (${sessionEmail})` : ''}` : sessionEmail ? `Signed in as ${sessionEmail}` : 'Signed in'}</Typography>
+          </MenuItem>
+        ) : null}
+        {hasApiSession && typeof onToggleEmailUpdates === 'function' ? (
+          <MenuItem>
+            <Stack direction="column" spacing={0.5} sx={{ width: '100%' }}>
+              <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+                <Typography>Receive appointment update emails</Typography>
+                <Switch
+                  checked={Boolean(emailUpdatesEnabled)}
+                  disabled={prefsLoading || prefsSaving || emailUpdatesEnabled === null}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(_event, checked) => { void onToggleEmailUpdates(checked); }}
+                  inputProps={{ 'aria-label': 'Receive appointment update emails' }}
+                />
+              </Stack>
+              {prefsError ? <Typography variant="caption" color="error">{prefsError}</Typography> : null}
+            </Stack>
           </MenuItem>
         ) : null}
         <MenuItem>
