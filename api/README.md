@@ -32,7 +32,7 @@ func start
 ```bash
 curl -s -X POST http://localhost:7071/api/chat \
   -H "content-type: application/json" \
-  -d '{"message":"hello","groupId":"demo","phone":"+12065550100"}'
+  -d '{"message":"hello","groupId":"demo"}'
 ```
 
 ## Production deploy artifact shape (Flex)
