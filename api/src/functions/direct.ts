@@ -74,8 +74,8 @@ type DirectAction =
   | { type: 'dismiss_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
   | { type: 'react_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; reaction: 'up' | 'down'; clientRequestId: string }
   | { type: 'apply_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
-  | { type: 'preview_appointment_update_email'; groupId: string; appointmentId: string; recipientPersonIds: string[]; userMessage?: string }
-  | { type: 'send_appointment_update_email'; groupId: string; appointmentId: string; recipientPersonIds: string[]; userMessage?: string; clientRequestId: string };
+  | { type: 'preview_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string }
+  | { type: 'send_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string; clientRequestId: string };
 
 type ResolvedNotificationRecipient = { personId?: string; display?: string; email: string };
 type ExcludedNotificationRecipient = { personId?: string; email?: string; reason: string };
@@ -705,26 +705,22 @@ const parseDirectAction = (value: unknown): DirectAction => {
     return { type, appointmentId, suggestionId, field, clientRequestId };
   }
   if (type === 'preview_appointment_update_email') {
-    const actionGroupId = asString(value.groupId);
     const appointmentId = asString(value.appointmentId);
-    if (!actionGroupId) throw new Error('groupId is required');
     if (!appointmentId) throw new Error('appointmentId is required');
     if (!Array.isArray(value.recipientPersonIds)) throw new Error('recipientPersonIds must be an array');
     const recipientPersonIds = normalizeRecipientPersonIds(value.recipientPersonIds);
     const userMessage = typeof value.userMessage === 'string' ? value.userMessage : undefined;
-    return { type, groupId: actionGroupId, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}) };
+    return { type, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}) };
   }
   if (type === 'send_appointment_update_email') {
-    const actionGroupId = asString(value.groupId);
     const appointmentId = asString(value.appointmentId);
     const clientRequestId = asString(value.clientRequestId);
-    if (!actionGroupId) throw new Error('groupId is required');
     if (!appointmentId) throw new Error('appointmentId is required');
     if (!Array.isArray(value.recipientPersonIds)) throw new Error('recipientPersonIds must be an array');
     if (!clientRequestId) throw new Error('clientRequestId is required');
     const recipientPersonIds = normalizeRecipientPersonIds(value.recipientPersonIds);
     const userMessage = typeof value.userMessage === 'string' ? value.userMessage : undefined;
-    return { type, groupId: actionGroupId, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}), clientRequestId };
+    return { type, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}), clientRequestId };
   }
 
   throw new Error(`unsupported action type: ${type}`);
@@ -831,7 +827,6 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
 
   if (directAction.type === 'preview_appointment_update_email') {
-    if (directAction.groupId !== groupId) return withMeta(errorResponse(400, 'invalid_group_id', 'groupId mismatch', traceId));
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
@@ -873,7 +868,6 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   }
 
   if (directAction.type === 'send_appointment_update_email') {
-    if (directAction.groupId !== groupId) return withMeta(errorResponse(400, 'invalid_group_id', 'groupId mismatch', traceId));
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 

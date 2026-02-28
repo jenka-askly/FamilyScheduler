@@ -13338,3 +13338,46 @@ Add temporary in-memory debug instrumentation for Email Update dialog preview/se
 - Verified UI renders in browser container and captured screenshot artifact.
 - Full in-app reproduction of `groupId is required` depends on authenticated/seeded runtime state not available in this container-only run.
 
+
+## 2026-02-28 01:05 UTC (Fix direct email-update groupId source + remove temporary debug bundle)
+
+### Objective
+- Fix `/api/direct` email-update actions to rely only on top-level `body.groupId` (remove `action.groupId` requirement).
+- Remove temporary Email Update debug bundle instrumentation from web UI.
+- Clear MUST_FIX debug-removal ledger items.
+
+### Approach
+- Updated `parseDirectAction` email-update action parsing to stop reading/validating `action.groupId`.
+- Removed email-update `groupId mismatch` checks that depended on action-level `groupId`.
+- Removed temporary Email Update debug ring buffer, capture helpers, clipboard debug actions, and debug-only UI buttons.
+- Simplified Email Update dialog error display to standard alerts only.
+- Replaced MUST_FIX checklist with concise resolved note.
+
+### Files changed
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `MUST_FIX.md`
+- `CODEX_LOG.md`
+
+### Verification commands run + outcomes
+- `git status --short --branch` ✅
+- `git rev-parse HEAD` ✅
+- `git log -n 20 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `sed -n '1,200p' MUST_FIX.md` ✅
+- `rg -n "preview_appointment_update_email|send_appointment_update_email" api/src/functions/direct.ts apps/web/src/AppShell.tsx -n` ✅
+- `rg -n "groupId is required" api/src/functions/direct.ts -n` ✅ (only top-level body.groupId guard remains)
+- `rg -n "Copy debug bundle|email_update_debug_bundle|debug bundle|ring buffer|emailUpdateDebug" apps/web/src/AppShell.tsx -n` ✅ (no matches)
+- `cat package.json` ✅
+- `pnpm -w -r typecheck` ✅ (root no-op typecheck script)
+- `pnpm -w -r build` ⚠️ failed in this environment due to pre-existing missing `@azure/data-tables` in `@familyscheduler/api`
+- `pnpm -r --if-present typecheck` ✅ (`apps/web` typecheck passed)
+- `pnpm -r --if-present build` ⚠️ failed in this environment due to pre-existing missing `@azure/data-tables` in `@familyscheduler/api`
+- `pnpm --filter @familyscheduler/web build` ✅
+- `rg -n "preview_appointment_update_email|send_appointment_update_email" api/src/functions/direct.ts apps/web/src/AppShell.tsx -n` ✅
+- `rg -n "groupId is required" api/src/functions/direct.ts -n` ✅ (`invalid_group_id` top-level guard present)
+- `rg -n "Copy debug bundle|email_update_debug_bundle|debug bundle|ring buffer|emailUpdateDebug|Copy last request body" apps/web/src/AppShell.tsx -n` ✅ (no matches)
+- `rg -n "groupId mismatch|directAction\.groupId|actionGroupId" api/src/functions/direct.ts -n` ✅ (no matches)
+
+### Follow-ups
+- Re-run full workspace build/test in an environment where `@azure/data-tables` is available to fully validate API package compilation.
