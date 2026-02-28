@@ -5125,3 +5125,11 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Manual verification note
 
 - Real physical phone validation still recommended (e.g., iPhone Safari / Android Chrome) to confirm table-only horizontal swipe and no full-page horizontal overflow.
+
+## 2026-02-28 02:28 UTC update (Direct/chat phone payload removal + auth docs alignment)
+
+- Web `/api/chat` and `/api/direct` payload construction in `AppShell` now omits `phone`; identity payload was simplified to session email only.
+- Email update preview/send direct calls were updated to stop mirroring phone from identity payload.
+- API request body typings for `direct`, `chat`, and scan handlers removed unused `phone?: unknown` fields with no auth behavior changes.
+- Documentation now aligns with current email magic-link + `x-session-id` session auth for direct/chat usage.
+- Person contact fields and action schema phone/cell concepts are unchanged and remain in scope for people records only.

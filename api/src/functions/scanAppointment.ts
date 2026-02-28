@@ -65,9 +65,9 @@ const mapScanCaptureError = (err: unknown): ScanCaptureError => {
 
 export async function scanAppointment(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const traceId = `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  let body: { groupId?: unknown; email?: unknown; phone?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
+  let body: { groupId?: unknown; email?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
   try {
-    body = await request.json() as { groupId?: unknown; email?: unknown; phone?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
+    body = await request.json() as { groupId?: unknown; email?: unknown; imageBase64?: unknown; imageMime?: unknown; timezone?: unknown };
   } catch {
     return errorResponse(400, 'invalid_json', 'Request body must be valid JSON', traceId);
   }

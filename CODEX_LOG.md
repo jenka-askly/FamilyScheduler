@@ -13184,3 +13184,57 @@ Prevent phone layouts from feeling tiny/zoomed out by removing forced desktop ta
 ### Follow-ups
 
 - If any specific page still appears tiny on real phones, verify that the affected table is wrapped in `.ui-tableScroll`; if not, wrap using existing patterns.
+
+## 2026-02-28 02:28 UTC (Remove phone from direct/chat request path; docs cleanup)
+
+### Objective
+
+Remove dead `phone` usage from `/api/direct` + `/api/chat` request path, remove unused API request typing `phone` fields, and align docs with current email-session auth.
+
+### Approach
+
+- Simplified web `identityPayload()` to stop mirroring `phone`.
+- Removed explicit `phone` fields from appointment email update preview/send direct calls.
+- Removed unused `phone?: unknown` request typing fields in direct/chat/scan function handlers without changing auth logic.
+- Updated README and API docs to remove outdated phone-auth language for direct/chat and to document `x-session-id`-based auth.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `api/src/functions/direct.ts`
+- `api/src/functions/chat.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `api/src/functions/appointmentScanDelete.ts`
+- `README.md`
+- `docs/api.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Summary
+
+- Web no longer sends phone in `/api/direct` or `/api/chat` payloads; `identityPayload` now only carries email.
+- API request typings for direct/chat/scan handlers no longer include unused `phone` fields.
+- README + `docs/api.md` now describe email magic-link + session (`x-session-id`) auth and examples without `phone` in direct/chat payloads.
+- Person contact fields and action schema (`cellE164`/`cellDisplay`, `add_person.cell`, `update_person.cell`) were intentionally unchanged.
+
+### Commands run + outcomes
+
+- `git status --short --branch` ✅
+- `git log -n 20 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `rg -n --hidden --glob '!.git' --glob '!node_modules' "\bphone\b" apps/web/src api/src docs README.md -S | head -n 200` ✅
+- `rg -n "body\.phone|phone\?" api/src/functions/direct.ts api/src/functions/chat.ts -n` ✅
+- `rg -n "requireSessionEmail\(" api/src/functions/direct.ts api/src/functions/chat.ts -n` ✅
+- `pwd; rg --files -g 'AGENTS.md'; find .. -name AGENTS.md -maxdepth 4` ✅ (no repo-scoped AGENTS.md found)
+- `cat package.json && cat apps/web/package.json api/package.json && pnpm -w -r typecheck && pnpm -w -r build && pnpm --filter @familyscheduler/web build` ⚠️ root recursive build command failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` at workspace root)
+- `pnpm -r --if-present build && pnpm --filter @familyscheduler/web build && pnpm --filter @familyscheduler/api build` ⚠️ API build failed in environment due missing `@azure/data-tables` type resolution
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `rg -n --hidden --glob '!.git' --glob '!node_modules' "\bphone\b" apps/web/src api/src/functions -S` ✅ (remaining hits are person/contact domain or test fixtures/help text)
+- `git clean -f apps/web/src apps/web/vite.config.js packages/shared/src/types.js` ✅ (removed generated JS artifacts)
+
+### Follow-ups
+
+- Run full API build/typecheck in an environment where `@azure/data-tables` dependencies are resolvable to validate end-to-end workspace build.
+- `git status --short --branch` ✅ post-change check: clean working tree on `work` after commit.

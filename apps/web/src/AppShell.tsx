@@ -577,7 +577,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const normalizeGroupName = (value: string) => value.trim().replace(/\s+/g, ' ');
-  const identityPayload = () => ({ email: sessionEmail, phone: sessionEmail });
+  const identityPayload = () => ({ email: sessionEmail });
 
   async function renameGroupName(nextName: string): Promise<void> {
     const normalized = normalizeGroupName(nextName);
@@ -1859,7 +1859,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           groupId,
-          phone: identity.phone,
           email: identity.email,
           action: {
             type: 'send_appointment_update_email',
@@ -1909,7 +1908,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             groupId,
-            phone: identity.phone,
             email: identity.email,
             action: {
               type: 'preview_appointment_update_email',
