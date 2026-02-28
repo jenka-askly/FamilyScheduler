@@ -14310,6 +14310,22 @@ Implement a dev/dogfood-only Dashboard Utilities flow to seed demo data across c
 - `apps/web/src/App.tsx`
 - `apps/web/src/components/DashboardHomePage.tsx`
 - `api/src/functions/direct.ts`
+## 2026-02-28 23:24 UTC (Fix web build parse error in PageHeader)
+
+### Objective
+
+Resolve the reported `apps/web/src/components/layout/PageHeader.tsx(563,1): error TS1005: '}' expected.` build failure with the smallest possible code change.
+
+### Approach
+
+- Reproduced the issue context by inspecting `PageHeader.tsx` around the closing JSX blocks.
+- Applied a minimal JSX conditional-shape change in the group summary wrapper from ternary-null form to short-circuit form:
+  - `showGroupSummary ? ( ... ) : null`
+  - → `showGroupSummary && ( ... )`
+- This preserves behavior while simplifying parser matching at the tail of the component tree.
+
+### Files changed
+
 - `apps/web/src/components/layout/PageHeader.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
@@ -14323,3 +14339,11 @@ Implement a dev/dogfood-only Dashboard Utilities flow to seed demo data across c
 
 ### Follow-ups
 - Run manual staging smoke with `DOGFOOD=1` to confirm multi-group creation/seed idempotency and blocked behavior when DOGFOOD is unset.
+
+- `pnpm -r --if-present build` ⚠️ failed in this environment due to missing API dependency `@azure/data-tables` (unrelated to web JSX parse fix).
+- `pnpm --filter @familyscheduler/web exec tsc -p tsconfig.json` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (`vite` bundle-size warning only).
+
+### Follow-ups
+
+- In CI/environment where API dependencies are installed, rerun `pnpm -r --if-present build` to reconfirm monorepo-wide success.

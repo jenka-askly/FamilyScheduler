@@ -1,3 +1,7 @@
+## 2026-02-28 23:24 UTC update (Web build unblock: PageHeader conditional render parse fix)
+
+- Fixed a JSX conditional in `PageHeader` by switching `showGroupSummary ? (...) : null` to `showGroupSummary && (...)` to resolve a TypeScript parser mismatch that reported `'}' expected` near end-of-file.
+- No behavior change intended; this is a syntax-shape stabilization for the same render condition.
 ## 2026-02-28 23:09 UTC update (Profile hard gate + blocking modal + create-group identity source)
 
 - Added API profile endpoints: `GET /api/user/profile` and `PUT /api/user/profile` for authenticated display-name read/update (`displayName` required, max 40 chars).
