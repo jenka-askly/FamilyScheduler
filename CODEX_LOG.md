@@ -14006,3 +14006,55 @@ Implement Phase 4B per-group mute (prefs + enforcement + UI) and Phase 4C schedu
 
 - Run API build/tests in an environment where `@azure/data-tables` is installed to validate end-to-end type/build checks.
 - Execute staging validation flow for reminder tick timing and muted/opt-out recipient enforcement.
+
+## 2026-02-28 11:25 UTC (Yapper manual email “Send update” dependency hygiene + no-reply Reply-To rollout)
+
+### Objective
+
+- Ensure ACS email SDK dependency is explicitly pinned for fresh-clone consistency.
+- Enforce code-level no-reply behavior by setting Reply-To on ACS email payload when configured.
+
+### Approach
+
+- Performed preflight state verification (branch/tree/log, existing ACS sender implementation, direct/reminder call sites, and historical notes in `CODEX_LOG.md`).
+- Confirmed repo already tracks `@azure/communication-email@1.1.0` in lockfile, then pinned `api/package.json` dependency specifier to exact `1.1.0`.
+- Extended local ACS type shim and `sendEmail` payload construction to support optional `replyTo` + optional `headers`.
+- Added env-driven behavior in `acsEmail.ts`:
+  - `EMAIL_REPLY_TO_ADDRESS`: if non-empty, sets `replyTo: [{ address }]`.
+  - `EMAIL_SUPPRESS_HEADERS=true`: applies conservative suppression headers.
+- Updated project status docs for the behavior/config change.
+
+### Files changed
+
+- `api/package.json`
+- `api/src/lib/email/acsEmail.ts`
+- `api/src/types/azure-communication-email.d.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short --branch && git rev-parse --abbrev-ref HEAD && git log -n 5 --oneline --decorate` ✅
+- `test -f api/src/lib/email/acsEmail.ts && echo True || echo False` ✅ (`True`)
+- `rg -n "@azure/communication-email|EmailClient|beginSend" api/src/lib/email/acsEmail.ts` ✅
+- `rg -n "sendEmail\(" api/src/functions/direct.ts api/src/functions/reminderTick.ts` ✅
+- `rg -n "communication-email|reply-to|replyTo|acsEmail|no-reply|EMAIL_SENDER_ADDRESS|EMAIL_REPLY" CODEX_LOG.md | head -n 50` ✅
+- `cat api/package.json; rg -n "@azure/communication-email" pnpm-lock.yaml` ✅ (lock already had `1.1.0` while package specifier was `^1.0.0`)
+- `pnpm --filter ./api add @azure/communication-email@1.1.0` ⚠️ failed in this environment (`ERR_PNPM_FETCH_403` from npm registry mirror/auth setup)
+- `pnpm --filter ./api list @azure/communication-email --depth 0` ⚠️ no package listed due install/fetch limitation
+- `pnpm --filter ./api exec node -e "console.log(require('@azure/communication-email/package.json').version)"` ⚠️ failed (`MODULE_NOT_FOUND`) because install could not complete
+- `test -e node_modules/.pnpm/@azure+communication-email@1.1.0/node_modules/@azure/communication-email/package.json && echo True || echo False` ⚠️ `False` (same fetch limitation)
+- `pnpm -r install` ⚠️ failed (`ERR_PNPM_FETCH_403` for `@azure/communication-email`)
+- `pnpm --filter ./api exec tsc -p tsconfig.json` ⚠️ failed on pre-existing missing `@azure/data-tables` resolution in this container
+- `pnpm --filter ./api test` ⚠️ failed because API build fails first on missing `@azure/data-tables` in this container
+- `pnpm --filter ./api exec node -e "const p=require.resolve('@azure/communication-email'); console.log(p);"` ⚠️ failed (`MODULE_NOT_FOUND`) due install limitation
+- `rg -n "replyTo|headers|EmailMessage|beginSend" api/src/types/azure-communication-email.d.ts api/src/lib/email/acsEmail.ts` ✅
+
+### Env var behavior added
+
+- `EMAIL_REPLY_TO_ADDRESS` (optional): when set and non-empty, outgoing ACS payload includes `replyTo: [{ address: EMAIL_REPLY_TO_ADDRESS }]`.
+- `EMAIL_SUPPRESS_HEADERS` (optional): when equal to `true` (case-insensitive), outgoing ACS payload includes conservative suppress/auto-generated headers.
+
+### Scope note
+
+- `MUST_FIX.md` handling is explicitly out of scope for this chat.
