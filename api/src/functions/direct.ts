@@ -63,6 +63,7 @@ type DirectAction =
   | { type: 'delete_person'; personId: string }
   | { type: 'reactivate_person'; personId: string }
   | { type: 'get_appointment_detail'; appointmentId: string; limit?: number; cursor?: EventCursor }
+  | { type: 'list_appointment_notifications'; appointmentId: string; limit?: number; cursor?: EventCursor }
   | { type: 'append_appointment_message'; appointmentId: string; text: string; clientRequestId: string }
   | { type: 'apply_appointment_proposal'; appointmentId: string; proposalId: string; field: 'title'; value: string; clientRequestId: string }
   | { type: 'pause_appointment_proposal'; appointmentId: string; proposalId: string; clientRequestId: string }
@@ -305,6 +306,64 @@ const mapLastNotification = (events: AppointmentEvent[]): Record<string, unknown
       })
       .filter((entry) => entry.email),
     subject: typeof payload.subject === 'string' ? payload.subject : '[Yapper] Update'
+  };
+};
+
+const mapNotificationHistoryItem = (event: AppointmentEvent): Record<string, unknown> | null => {
+  if (event.type !== 'NOTIFICATION_SENT') return null;
+  const payload = event.payload ?? {};
+  const sentBy = (payload.sentBy && typeof payload.sentBy === 'object') ? payload.sentBy as Record<string, unknown> : {};
+  const failed = Array.isArray(payload.failedRecipients) ? payload.failedRecipients : [];
+  const excluded = Array.isArray(payload.excludedRecipients) ? payload.excludedRecipients : [];
+
+  const failedRecipients = failed
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry) => {
+      const record = entry as Record<string, unknown>;
+      return {
+        email: typeof record.email === 'string' ? record.email : '',
+        ...(typeof record.display === 'string' && record.display ? { display: record.display } : {}),
+        ...(typeof record.errorMessage === 'string' && record.errorMessage ? { errorMessage: record.errorMessage } : {})
+      };
+    })
+    .filter((entry) => entry.email);
+
+  const excludedRecipients = excluded
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry) => {
+      const record = entry as Record<string, unknown>;
+      const reason = record.reason === 'opted_out'
+        ? 'opted_out'
+        : record.reason === 'no_email'
+          ? 'no_email'
+          : record.reason === 'self_excluded'
+            ? 'self'
+            : null;
+      if (!reason) return null;
+      return {
+        ...(typeof record.email === 'string' && record.email ? { email: record.email } : {}),
+        ...(typeof record.display === 'string' && record.display ? { display: record.display } : {}),
+        reason
+      };
+    })
+    .filter((entry): entry is { email?: string; display?: string; reason: 'opted_out' | 'no_email' | 'self' } => Boolean(entry));
+
+  return {
+    ...(typeof payload.notificationId === 'string' && payload.notificationId ? { notificationId: payload.notificationId } : {}),
+    sentAt: typeof payload.sentAt === 'string' ? payload.sentAt : event.tsUtc,
+    sentBy: {
+      email: typeof sentBy.email === 'string' ? sentBy.email : '',
+      ...(typeof sentBy.display === 'string' && sentBy.display ? { display: sentBy.display } : {})
+    },
+    ...(typeof payload.subject === 'string' ? { subject: payload.subject } : {}),
+    deliveryStatus: payload.deliveryStatus === 'partial' ? 'partial' : 'sent',
+    ...(typeof payload.recipientCountSelected === 'number' ? { recipientCountSelected: payload.recipientCountSelected } : {}),
+    ...(typeof payload.recipientCountSent === 'number' ? { recipientCountSent: payload.recipientCountSent } : {}),
+    ...(typeof payload.excludedCount === 'number' ? { excludedCount: payload.excludedCount } : {}),
+    ...(failedRecipients.length ? { failedRecipients } : {}),
+    ...(excludedRecipients.length ? { excludedRecipients } : {}),
+    ...(typeof payload.userMessage === 'string' && payload.userMessage.trim() ? { userMessage: payload.userMessage } : {}),
+    ...(payload.diffSummary !== undefined ? { diffSummary: payload.diffSummary } : {})
   };
 };
 
@@ -695,6 +754,17 @@ const parseDirectAction = (value: unknown): DirectAction => {
       : undefined;
     return { type, appointmentId, limit, cursor };
   }
+  if (type === 'list_appointment_notifications') {
+    const appointmentId = asString(value.appointmentId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    const rawLimit = typeof value.limit === 'number' && Number.isFinite(value.limit) ? Math.floor(value.limit) : 10;
+    const limit = Math.max(1, Math.min(50, rawLimit));
+    const rawCursor = value.cursor;
+    const cursor = isRecord(rawCursor) && typeof rawCursor.chunkId === 'number' && typeof rawCursor.index === 'number'
+      ? { chunkId: rawCursor.chunkId, index: rawCursor.index }
+      : undefined;
+    return { type, appointmentId, limit, ...(cursor ? { cursor } : {}) };
+  }
   if (type === 'append_appointment_message') {
     const appointmentId = asString(value.appointmentId);
     const text = asString(value.text);
@@ -902,6 +972,25 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     } catch (error) {
       context.log(JSON.stringify({ event: 'appointment_detail_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
       return withMeta(errorResponse(500, 'appointment_detail_failed', 'Failed to load appointment detail', traceId));
+    }
+  }
+
+  if (directAction.type === 'list_appointment_notifications') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
+
+    try {
+      const limit = Math.max(1, Math.min(50, directAction.limit ?? 10));
+      const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, Math.max(limit * 5, 50), directAction.cursor);
+      const items = recent.events
+        .filter((event) => event.type === 'NOTIFICATION_SENT')
+        .map((event) => mapNotificationHistoryItem(event))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .slice(0, limit);
+      return withMeta({ status: 200, jsonBody: { ok: true, items, nextCursor: recent.nextCursor } });
+    } catch (error) {
+      context.log(JSON.stringify({ event: 'list_appointment_notifications_failed', traceId, groupId, appointmentId: directAction.appointmentId, error: error instanceof Error ? error.message : String(error) }));
+      return withMeta(errorResponse(500, 'list_appointment_notifications_failed', 'Failed to load appointment notification history', traceId));
     }
   }
 
