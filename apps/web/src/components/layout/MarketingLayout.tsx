@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Box, Button, Container, IconButton, Link, Menu, MenuItem, Stack, Switch, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Link, Menu, MenuItem, Snackbar, Stack, Switch, TextField, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useColorMode } from '../../colorMode';
 import { buildInfo } from '../../lib/buildInfo';
@@ -17,12 +17,44 @@ type MarketingLayoutProps = {
   prefsSaving?: boolean;
   prefsError?: string | null;
   onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
+  onSeedDemoData?: (config: { groupCount: number; apptsPerGroup: number; membersPerAppt: number }) => Promise<{ ok: boolean; message: string }>;
 };
 
-export function MarketingLayout({ children, hasApiSession = false, sessionEmail, sessionName, onSignIn, onSignOut, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: MarketingLayoutProps) {
+const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+
+export function MarketingLayout({ children, hasApiSession = false, sessionEmail, sessionName, onSignIn, onSignOut, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates, onSeedDemoData }: MarketingLayoutProps) {
+  const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [seedDialogOpen, setSeedDialogOpen] = useState(false);
+  const [groupCount, setGroupCount] = useState(5);
+  const [apptsPerGroup, setApptsPerGroup] = useState(6);
+  const [membersPerAppt, setMembersPerAppt] = useState(4);
+  const [seedingDemoData, setSeedingDemoData] = useState(false);
+  const [seedNotice, setSeedNotice] = useState<{ severity: 'success' | 'error'; message: string } | null>(null);
   const { mode, toggleMode } = useColorMode();
   const buildVersion = (typeof buildInfo.sha === 'string' ? buildInfo.sha.trim() : '').slice(0, 7) || 'dev';
+
+  const submitSeedDemoData = async () => {
+    if (!onSeedDemoData || seedingDemoData) return;
+    setSeedingDemoData(true);
+    try {
+      const result = await onSeedDemoData({
+        groupCount: clamp(groupCount, 1, 8),
+        apptsPerGroup: clamp(apptsPerGroup, 1, 20),
+        membersPerAppt: clamp(membersPerAppt, 0, 8)
+      });
+      if (!result.ok) {
+        setSeedNotice({ severity: 'error', message: result.message });
+        return;
+      }
+      setSeedDialogOpen(false);
+      setSeedNotice({ severity: 'success', message: result.message });
+    } catch {
+      setSeedNotice({ severity: 'error', message: 'Unable to seed demo data right now.' });
+    } finally {
+      setSeedingDemoData(false);
+    }
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: { xs: '#f8fafc', md: '#f7f9fd' }, display: 'flex', flexDirection: 'column' }}>
@@ -104,6 +136,11 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
             </Stack>
           </MenuItem>
         ) : null}
+        {enableDebugMenu && hasApiSession && onSeedDemoData ? (
+          <MenuItem onClick={() => { setAnchorEl(null); setSeedDialogOpen(true); }}>
+            <Typography>Seed demo data…</Typography>
+          </MenuItem>
+        ) : null}
         <MenuItem>
           <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
             <Typography>Dark mode</Typography>
@@ -121,6 +158,50 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
           </MenuItem>
         ) : null}
       </Menu>
+
+      <Dialog open={seedDialogOpen} onClose={() => { if (!seedingDemoData) setSeedDialogOpen(false); }} fullWidth maxWidth="xs">
+        <DialogTitle>Seed demo data</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ pt: 1 }}>
+            <TextField
+              type="number"
+              label="Groups"
+              value={groupCount}
+              onChange={(event) => setGroupCount(clamp(Number(event.target.value), 1, 8))}
+              inputProps={{ min: 1, max: 8 }}
+              disabled={seedingDemoData}
+            />
+            <TextField
+              type="number"
+              label="Appts per group"
+              value={apptsPerGroup}
+              onChange={(event) => setApptsPerGroup(clamp(Number(event.target.value), 1, 20))}
+              inputProps={{ min: 1, max: 20 }}
+              disabled={seedingDemoData}
+            />
+            <TextField
+              type="number"
+              label="Members per appt"
+              value={membersPerAppt}
+              onChange={(event) => setMembersPerAppt(clamp(Number(event.target.value), 0, 8))}
+              inputProps={{ min: 0, max: 8 }}
+              disabled={seedingDemoData}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSeedDialogOpen(false)} disabled={seedingDemoData}>Cancel</Button>
+          <Button variant="contained" onClick={() => { void submitSeedDemoData(); }} disabled={seedingDemoData} startIcon={seedingDemoData ? <CircularProgress size={16} color="inherit" /> : undefined}>
+            {seedingDemoData ? 'Seeding…' : 'Create/Update demo data'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar open={Boolean(seedNotice)} autoHideDuration={3500} onClose={() => setSeedNotice(null)}>
+        <Alert severity={seedNotice?.severity ?? 'success'} onClose={() => setSeedNotice(null)} sx={{ width: '100%' }}>
+          {seedNotice?.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

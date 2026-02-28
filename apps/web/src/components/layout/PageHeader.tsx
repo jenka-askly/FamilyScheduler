@@ -49,7 +49,6 @@ type Props = {
   onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, onOpenProfile, showGroupSummary = true, onDashboardClick, showMenuButton = true, onAddSampleData, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: Props) {
 export function PageHeader(props: Props) {
   const {
     title,
@@ -70,6 +69,7 @@ export function PageHeader(props: Props) {
     sessionEmail,
     sessionName,
     onSignOut,
+    onOpenProfile,
     showGroupSummary = true,
     onDashboardClick,
     showMenuButton = true,

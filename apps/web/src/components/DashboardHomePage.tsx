@@ -29,6 +29,7 @@ import { getUserPreferences, setUserPreferencesPatch } from '../lib/userPrefs';
 
 type DashboardHomePageProps = {
   onCreateGroup: () => void;
+  refreshToken?: number;
   onPrefsStateChange?: (state: {
     emailUpdatesEnabled: boolean | null;
     prefsLoading: boolean;
@@ -60,7 +61,7 @@ const navToGroup = (groupId: string): void => {
   window.location.hash = `/g/${groupId}/app`;
 };
 
-export function DashboardHomePage({ onCreateGroup, onPrefsStateChange }: DashboardHomePageProps) {
+export function DashboardHomePage({ onCreateGroup, refreshToken = 0, onPrefsStateChange }: DashboardHomePageProps) {
   const [isBreakingOut, setIsBreakingOut] = useState(false);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
@@ -98,7 +99,7 @@ export function DashboardHomePage({ onCreateGroup, onPrefsStateChange }: Dashboa
   useEffect(() => {
     void loadDashboard();
     void loadUserPreferences();
-  }, []);
+  }, [refreshToken]);
 
   useEffect(() => {
     if (!onPrefsStateChange) return;

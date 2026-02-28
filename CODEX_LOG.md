@@ -14291,6 +14291,25 @@ Resolve web build failures in `PageHeader.tsx` where notification-toggle variabl
 ### Follow-ups
 - Once API Azure table dependencies are available in CI/runtime image, rerun full workspace build to clear the remaining warning.
 
+## 2026-02-28 23:32 UTC (Dashboard burger-menu demo seed modal + configurable multi-group seeding)
+
+### Objective
+Implement a dev/dogfood-only Dashboard Utilities flow to seed demo data across configurable group count, while keeping server dogfood gating, deterministic idempotent seed writes, and minimal UI.
+
+### Approach
+- Added `MarketingLayout` debug-gated menu item (`Seed demo data…`) and modal inputs for groups/appts/members with client-side clamping and busy/success/error feedback.
+- Added `App` orchestration function (`seedDemoData`) to fetch current dashboard groups, create missing groups via `/api/group/create`, then seed selected groups via `/api/direct` `seed_sample_data` config and refresh dashboard list.
+- Added dashboard refresh token wiring into `DashboardHomePage` to force reload after seeding.
+- Extended API `direct` action shape/parser for optional `seed_sample_data.config` and passed config into seed handler.
+- Reworked seed dataset builder to generate deterministic variable-sized person pool and appointments (`P-SEED-XX`, `appt-seed-XX`) with deterministic assignment density and preserved representative special cases.
+- Kept DOGFOOD block semantics unchanged (`direct_seed_sample_data_blocked` + 404 when disabled).
+- Fixed pre-existing duplicate `PageHeader` function signature issue encountered during web build to restore TypeScript compile.
+
+### Files changed
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/App.tsx`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `api/src/functions/direct.ts`
 ## 2026-02-28 23:24 UTC (Fix web build parse error in PageHeader)
 
 ### Objective
@@ -14312,6 +14331,14 @@ Resolve the reported `apps/web/src/components/layout/PageHeader.tsx(563,1): erro
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed due to missing `@azure/data-tables` module/types in this environment.
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by same API build dependency issue.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped via SIGINT).
+- Playwright screenshot capture ✅ (`seed-demo-modal.png`).
+
+### Follow-ups
+- Run manual staging smoke with `DOGFOOD=1` to confirm multi-group creation/seed idempotency and blocked behavior when DOGFOOD is unset.
 
 - `pnpm -r --if-present build` ⚠️ failed in this environment due to missing API dependency `@azure/data-tables` (unrelated to web JSX parse fix).
 - `pnpm --filter @familyscheduler/web exec tsc -p tsconfig.json` ✅ passed.
