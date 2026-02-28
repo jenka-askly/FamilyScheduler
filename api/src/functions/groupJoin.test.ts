@@ -113,6 +113,7 @@ test('groupJoin uses session identity email when x-session-id is present', async
   } as any, {} as any);
   assert.equal(response.status, 200);
   assert.equal((response.jsonBody as any).ok, true);
+  assert.equal((response.jsonBody as any).sessionId, undefined);
 });
 
 test('groupJoin returns unauthorized when x-session-id is present but invalid', async () => {

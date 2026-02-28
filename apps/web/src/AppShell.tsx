@@ -1466,7 +1466,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const response = await apiFetch('/api/ignite/start', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, traceId: createTraceId() })
+        body: JSON.stringify({ groupId, tokenKind: 'invite-member', traceId: createTraceId() })
       });
       const payload = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
       if (!response.ok || !payload.ok || !payload.sessionId) {
@@ -2746,7 +2746,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   </span>
                 </Tooltip>
                 <Menu anchorEl={inviteMenuAnchorEl} open={Boolean(inviteMenuAnchorEl)} onClose={closeInviteMenu}>
-                  <MenuItem onClick={() => { void openInviteQr(); }}>Show QR (Anyone can join)</MenuItem>
+                  <MenuItem onClick={() => { void openInviteQr(); }}>Invite Member by QR</MenuItem>
                   <MenuItem onClick={onInviteByEmailNYI}>Invite by email (NYI)</MenuItem>
                 </Menu>
               </Box>
@@ -2891,7 +2891,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              Scan this code to join the group. Anyone can join while the invite is open.
+              Scan this code to invite a member. Sign-in is required, and joins only work while this invite is open.
             </Typography>
             {inviteQrImageUrl ? (
               <div

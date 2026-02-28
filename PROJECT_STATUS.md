@@ -5232,3 +5232,15 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 3. `pnpm -w -r build` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` because workspace root lacks recursive `build` script target).
 4. `pnpm -r --if-present build` ⚠️ API build blocked in this container by missing local `@azure/data-tables` type resolution; web/shared build path executes.
 5. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+
+## 2026-02-28 Update — Breakout/Invite DSID+GSID contract implementation
+
+Implemented runtime behavior updates for QR join/auth semantics:
+- Breakout QR guest path remains GSID-only (no implicit DSID mint on `/api/group/join`).
+- Invite Member by QR now requires auth when unauthenticated (`INVITE_REQUIRES_AUTH`) and does not issue GSID in that branch.
+- Added explicit claim flow endpoint `/api/group/claim` that requires DSID + GSID and validates GSID group scope.
+- Debug menu/session tooling now clears pending auth markers on Clear ALL and shows DSID/GSID/mismatch-derived debug state.
+
+Verification note:
+- Web typecheck passes.
+- API test/build execution is currently blocked in this container by missing/unfetchable Azure table dependencies.

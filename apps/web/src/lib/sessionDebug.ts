@@ -50,11 +50,26 @@ export function clearGraceSessionKeys(): void {
 export function clearAllSessionKeys(): void {
   clearDurableSessionKeys();
   clearGraceSessionKeys();
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem('fs.pendingAuth');
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith('fs.authComplete.'))
+      .forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // no-op
+  }
 }
 
 export function buildSessionDebugText(args: { hash: string; groupId?: string }): string {
   const hash = args.hash || '';
   const groupId = args.groupId;
+
+  const durableSessionId = safeCall(() => getSessionId(), null);
+  const scopedGraceSessionId = safeCall(() => getIgniteGraceSessionId(groupId), null);
+  const graceGroupId = readLocalStorage('fs.igniteGraceGroupId');
+  const isGuestForGroup = Boolean(groupId ? safeCall(() => isIgniteGraceGuestForGroup(groupId), false) : false);
+  const isMismatch = Boolean(groupId && durableSessionId && scopedGraceSessionId && graceGroupId === groupId && !isGuestForGroup);
 
   const snapshot: Record<string, string> = {
     timestampUtc: new Date().toISOString(),
@@ -64,12 +79,15 @@ export function buildSessionDebugText(args: { hash: string; groupId?: string }):
     'localStorage.fs.sessionEmail': readLocalStorage('fs.sessionEmail'),
     'localStorage.fs.sessionName': readLocalStorage('fs.sessionName'),
     'localStorage.fs.igniteGraceSessionId': maskSessionId(readLocalStorage('fs.igniteGraceSessionId')),
-    'localStorage.fs.igniteGraceGroupId': readLocalStorage('fs.igniteGraceGroupId'),
+    'localStorage.fs.igniteGraceGroupId': graceGroupId,
     'localStorage.fs.igniteGraceExpiresAtUtc': readLocalStorage('fs.igniteGraceExpiresAtUtc'),
-    'computed.getSessionId()': maskSessionId(safeCall(() => getSessionId(), null)),
-    'computed.getIgniteGraceSessionId(groupId)': maskSessionId(safeCall(() => getIgniteGraceSessionId(groupId), null)),
+    'computed.getSessionId()': maskSessionId(durableSessionId),
+    'computed.getIgniteGraceSessionId(groupId)': maskSessionId(scopedGraceSessionId),
     'computed.getAuthSessionId(groupId)': maskSessionId(safeCall(() => getAuthSessionId(groupId), null)),
-    'computed.isIgniteGraceGuestForGroup(groupId)': String(groupId ? safeCall(() => isIgniteGraceGuestForGroup(groupId), false) : false),
+    'derived.dsidPresent': String(Boolean(durableSessionId)),
+    'derived.gsidPresentForGroup': String(Boolean(scopedGraceSessionId)),
+    'computed.isIgniteGraceGuestForGroup(groupId)': String(isGuestForGroup),
+    'derived.isMismatch': String(isMismatch),
     'computed.buildLoginPathWithNextFromHash(hash)': safeCall(() => buildLoginPathWithNextFromHash(hash), '/login?next=%2F')
   };
 

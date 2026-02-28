@@ -1,6 +1,11 @@
 import type { AppState } from './state.js';
 
 export const IGNITE_DEFAULT_GRACE_SECONDS = 60;
+export type IgniteTokenKind = 'breakout' | 'invite-member';
+
+export const normalizeIgniteTokenKind = (value: unknown): IgniteTokenKind => (
+  value === 'invite-member' ? 'invite-member' : 'breakout'
+);
 
 export const igniteIsJoinable = (ignite: NonNullable<AppState['ignite']>, nowMs = Date.now()): boolean => {
   if (ignite.status === 'OPEN') return true;
