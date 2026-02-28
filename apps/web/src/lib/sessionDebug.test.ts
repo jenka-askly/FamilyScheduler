@@ -27,6 +27,7 @@ beforeEach(() => {
     configurable: true,
     value: {
       localStorage: createStorage(),
+      sessionStorage: createStorage(),
       location: { hash: '#/g/group-1/app?from=test' }
     } as Partial<WindowWithStorage>
   });
@@ -47,6 +48,8 @@ describe('buildSessionDebugText', () => {
     assert.match(text, /localStorage\.fs\.igniteGraceSessionId:/);
     assert.match(text, /computed\.getSessionId\(\):/);
     assert.match(text, /computed\.buildLoginPathWithNextFromHash\(hash\): \/login\?next=/);
+    assert.match(text, /derived\.dsidPresent:/);
+    assert.match(text, /derived\.isMismatch:/);
   });
 
   it('masks session ids and never leaks raw values', () => {
@@ -97,6 +100,8 @@ describe('session key clear helpers', () => {
     window.localStorage.setItem('fs.igniteGraceSessionId', 'grace-1234567890');
     window.localStorage.setItem('fs.igniteGraceGroupId', 'group-1');
     window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', '2099-01-01T00:00:00.000Z');
+    window.sessionStorage.setItem('fs.pendingAuth', 'pending');
+    window.localStorage.setItem('fs.authComplete.1', 'done');
 
     clearGraceSessionKeys();
 
@@ -113,6 +118,8 @@ describe('session key clear helpers', () => {
     window.localStorage.setItem('fs.igniteGraceSessionId', 'grace-1234567890');
     window.localStorage.setItem('fs.igniteGraceGroupId', 'group-1');
     window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', '2099-01-01T00:00:00.000Z');
+    window.sessionStorage.setItem('fs.pendingAuth', 'pending');
+    window.localStorage.setItem('fs.authComplete.1', 'done');
 
     clearAllSessionKeys();
 
@@ -122,6 +129,8 @@ describe('session key clear helpers', () => {
     assert.equal(window.localStorage.getItem('fs.igniteGraceSessionId'), null);
     assert.equal(window.localStorage.getItem('fs.igniteGraceGroupId'), null);
     assert.equal(window.localStorage.getItem('fs.igniteGraceExpiresAtUtc'), null);
+    assert.equal(window.sessionStorage.getItem('fs.pendingAuth'), null);
+    assert.equal(window.localStorage.getItem('fs.authComplete.1'), null);
   });
 
   it('does not throw when localStorage is unavailable', () => {

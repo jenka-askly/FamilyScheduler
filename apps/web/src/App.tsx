@@ -822,7 +822,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
       return;
     }
     const traceId = createTraceId();
-    const response = await apiFetch('/api/ignite/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, traceId }) });
+    const response = await apiFetch('/api/ignite/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, email, tokenKind: 'breakout', traceId }) });
     const data = await response.json() as { ok?: boolean; sessionId?: string; message?: string };
     if (!response.ok || !data.ok || !data.sessionId) {
       setError(data.message ?? 'Unable to start session');
@@ -1399,10 +1399,15 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
         clearIgniteGraceStorageKeys(window.localStorage);
       }
       const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
-      const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string };
+      const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string; requiresAuth?: boolean; reason?: string; tokenKind?: 'breakout' | 'invite-member' };
+      if (data.requiresAuth || data.reason === 'INVITE_REQUIRES_AUTH') {
+        const next = encodeURIComponent(`/s/${groupId}/${sessionId}`);
+        nav(`/login?next=${next}&m=${encodeURIComponent('Sign in to accept this invite QR.')}`, { replace: true });
+        return;
+      }
       if (!response.ok || !data.ok) {
         if ((data.code ?? data.error) === 'IGNITE_CLOSED') {
-          setError('This session is closed.');
+          setError(data.tokenKind === 'invite-member' ? 'Invite expired/closed; ask organizer to reopen QR.' : 'This session is closed.');
           return;
         }
         setError(data.message ?? 'Unable to join session');
@@ -1411,7 +1416,7 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       const targetGroupId = data.breakoutGroupId || groupId;
       applyIgniteJoinSessionResult({
         storage: window.localStorage,
-        hasDsid,
+        hasDsid: hasDsid || data.tokenKind === 'invite-member',
         targetGroupId,
         responseSessionId: data.sessionId,
         graceExpiresAtUtc: data.graceExpiresAtUtc
@@ -1506,6 +1511,9 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
   const [authError, setAuthError] = useState<AuthError | undefined>();
   const [traceId] = useState(() => createTraceId());
   const [email, setEmail] = useState<string | null>(null);
+  const [showMismatch, setShowMismatch] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [mismatchError, setMismatchError] = useState<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -1547,6 +1555,15 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
         if (!response.ok || !data.ok) {
           if (canceled) return;
           const deniedError = responseError ?? 'join_failed';
+          const dsid = getSessionId();
+          const graceSessionId = getIgniteGraceSessionId(groupId);
+          const graceGroupId = getIgniteGraceGroupId();
+          if (deniedError === 'not_allowed' && dsid && graceSessionId && graceGroupId === groupId) {
+            setShowMismatch(true);
+            setAuthStatus('denied');
+            setAuthError(deniedError);
+            return;
+          }
           setAuthStatus('denied');
           setAuthError(deniedError);
           authLog({ stage: 'gate_redirect', to: `/g/${groupId}`, reason: 'not_allowed' });
@@ -1554,13 +1571,8 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
           return;
         }
         if (canceled) return;
-        if (typeof data.sessionId === 'string' && data.sessionId.trim()) {
-          window.localStorage.setItem('fs.sessionId', data.sessionId.trim());
-          window.localStorage.removeItem('fs.igniteGraceSessionId');
-          window.localStorage.removeItem('fs.igniteGraceGroupId');
-          window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
-          authDebug('gate_session_upgraded', { groupId, sessionIdPrefix: data.sessionId.slice(0, 8) });
-        }
+        setShowMismatch(false);
+        setMismatchError(null);
         setAuthStatus('allowed');
       })
       .catch(() => {
@@ -1577,12 +1589,51 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     };
   }, [groupId, traceId]);
 
+
+  const claimMembership = async () => {
+    const graceSessionId = getIgniteGraceSessionId(groupId);
+    if (!graceSessionId) {
+      setMismatchError('Guest session expired. Re-scan the QR code.');
+      return;
+    }
+    setClaiming(true);
+    setMismatchError(null);
+    try {
+      const response = await apiFetch('/api/group/claim', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, graceSessionId, traceId: createTraceId() })
+      });
+      const data = await response.json() as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) {
+        setMismatchError(data.message ?? 'Unable to claim membership.');
+        return;
+      }
+      clearIgniteGraceStorageKeys(window.localStorage);
+      setShowMismatch(false);
+      setAuthStatus('allowed');
+    } catch {
+      setMismatchError('Unable to claim membership.');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   // email is best-effort (UI); authorization is from server join check.
   if (authStatus !== 'allowed') {
     return (
       <Page variant="form">
         <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
-          {authStatus === 'checking' ? <CircularProgress size={32} /> : <Alert severity="warning">Redirecting to join ({authError ?? 'denied'})...</Alert>}
+          {authStatus === 'checking' ? <CircularProgress size={32} /> : showMismatch ? (
+            <Stack spacing={1} sx={{ maxWidth: 520 }}>
+              <Alert severity="warning">Your account is signed in, but it is not a member of this group. A guest session for this group is available.</Alert>
+              <Stack direction="row" spacing={1}>
+                <Button variant="contained" onClick={() => { void claimMembership(); }} disabled={claiming}>{claiming ? 'Joining…' : 'Join with my account'}</Button>
+                <Button variant="outlined" onClick={() => nav(`/g/${groupId}` , { replace: true })}>Continue as guest (limited)</Button>
+              </Stack>
+              {mismatchError ? <Alert severity="error">{mismatchError}</Alert> : null}
+            </Stack>
+          ) : <Alert severity="warning">Redirecting to join ({authError ?? 'denied'})...</Alert>}
           <Typography>{authStatus === 'checking' ? 'Checking access...' : 'Please wait while we route you to the join flow.'}</Typography>
         </Stack>
         <FooterHelp />

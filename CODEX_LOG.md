@@ -13842,3 +13842,54 @@ with server/client contracts, storage semantics, bug-preventer invariants, and e
 
 - Existing spec updated in place as the single authority.
 - CODEX_LOG appended with discovery, implementation, and verification details.
+
+## 2026-02-28 11:20 UTC (Implement breakout/invite DSID+GSID contracts + claim + debug updates)
+
+### Summary
+Implemented join/session contract changes across API + web for breakout vs invite-member QR, disabled igniteGrace auto-upgrade via `/api/group/join`, added explicit `/api/group/claim`, and updated debug tooling for DSID/GSID visibility and key clearing semantics.
+
+Key behavior changes:
+- `group/join` on `igniteGrace` no longer mints/returns durable `sessionId`; logs `GROUP_JOIN_NO_UPGRADE`.
+- `ignite/start` now persists token kind (`breakout` default, `invite-member` for member invite QR).
+- `ignite/join` now branches by token kind:
+  - `invite-member` + unauthenticated => `requiresAuth` response (`INVITE_REQUIRES_AUTH`), no grace issuance.
+  - authenticated join path returns `ok:true` without grace issuance.
+  - unauthenticated breakout still issues scoped igniteGrace session.
+- Added `POST /api/group/claim` requiring DSID header + GSID in body with scope validation; logs `CLAIM_START`, `CLAIM_FAIL_*`, `CLAIM_OK`.
+- Web `GroupAuthGate` no longer upgrades DSID from `group/join` response; added mismatch CTA flow to call `/api/group/claim` and clear GSID on success.
+- Web `IgniteJoinPage` handles `requiresAuth` by redirecting to login with `next` back to QR route; invite closed message updated.
+- Debug session utilities:
+  - `clearAllSessionKeys()` now also clears pending auth markers (`fs.pendingAuth`, `fs.authComplete.*`).
+  - debug text includes derived DSID/GSID presence and mismatch state.
+- Invite menu copy updated to “Invite Member by QR” with sign-in-required wording.
+
+### Files touched
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/groupClaim.ts`
+- `api/src/functions/groupClaim.test.ts`
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/igniteJoin.test.ts`
+- `api/src/functions/igniteStart.ts`
+- `api/src/functions/groupJoin.test.ts`
+- `api/src/index.ts`
+- `api/src/lib/ignite.ts`
+- `api/src/lib/state.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/lib/sessionDebug.ts`
+- `apps/web/src/lib/sessionDebug.test.ts`
+
+### Verification commands + outcomes
+- `git status --short` ✅ confirmed intended file set.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed in this container because `@azure/data-tables` type dependency is unavailable locally.
+- `pnpm install` ⚠️ blocked by registry/network auth (`ERR_PNPM_FETCH_403` for `@azure-rest/core-client`) so API deps could not be completed in this environment.
+- `rg -n "session\.kind === 'igniteGrace'|createSession\(|sessionId\s*:\s*data\.sessionId" api/src apps/web/src` ✅ confirmed no remaining `group/join` auto-upgrade write path in touched flow.
+
+### Manual verification checklist status
+- Not executed in this container (no interactive browser+mail auth environment).
+- Code paths implemented to support the requested manual checks for:
+  1) breakout QR guest GSID-only storage + no auto-upgrade,
+  2) DSID user breakout with DSID retained,
+  3) invite-member unauth requires auth and no GSID,
+  4) DSID+GSID mismatch claim flow clears GSID on success.

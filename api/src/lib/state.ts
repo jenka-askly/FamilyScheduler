@@ -88,6 +88,7 @@ export type AppState = {
   history: string[];
   ignite?: {
     sessionId: string;
+    tokenKind?: 'breakout' | 'invite-member';
     status: 'OPEN' | 'CLOSING' | 'CLOSED';
     createdAt: string;
     createdByPersonId: string;
@@ -321,13 +322,14 @@ export const normalizeAppState = (state: AppState): AppState => {
       const createdByPersonId = typeof raw.createdByPersonId === 'string' ? raw.createdByPersonId.trim() : '';
       if (!sessionId || !createdAt || !createdByPersonId) return undefined;
       const status = raw.status === 'CLOSING' || raw.status === 'CLOSED' ? raw.status : 'OPEN';
+      const tokenKind = raw.tokenKind === 'invite-member' ? 'invite-member' : 'breakout';
       const closeRequestedAt = typeof raw.closeRequestedAt === 'string' && raw.closeRequestedAt.trim() ? raw.closeRequestedAt.trim() : undefined;
       const graceSeconds = typeof raw.graceSeconds === 'number' && Number.isFinite(raw.graceSeconds) && raw.graceSeconds > 0 ? Math.floor(raw.graceSeconds) : undefined;
       const joinedPersonIds = Array.isArray(raw.joinedPersonIds) ? raw.joinedPersonIds.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
       const photoUpdatedAtByPersonId = raw.photoUpdatedAtByPersonId && typeof raw.photoUpdatedAtByPersonId === 'object'
         ? Object.fromEntries(Object.entries(raw.photoUpdatedAtByPersonId as Record<string, unknown>).filter(([, value]) => typeof value === 'string').map(([key, value]) => [key, value as string]))
         : undefined;
-      return { sessionId, status, createdAt, createdByPersonId, closeRequestedAt, graceSeconds, joinedPersonIds, photoUpdatedAtByPersonId };
+      return { sessionId, tokenKind, status, createdAt, createdByPersonId, closeRequestedAt, graceSeconds, joinedPersonIds, photoUpdatedAtByPersonId };
     })()
   };
 };

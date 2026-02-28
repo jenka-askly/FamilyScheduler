@@ -4,17 +4,18 @@ import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
-import { IGNITE_DEFAULT_GRACE_SECONDS } from '../lib/ignite.js';
+import { IGNITE_DEFAULT_GRACE_SECONDS, normalizeIgniteTokenKind } from '../lib/ignite.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 
-type IgniteStartBody = { groupId?: unknown; traceId?: unknown };
+type IgniteStartBody = { groupId?: unknown; tokenKind?: unknown; traceId?: unknown };
 
 export async function igniteStart(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
   const body = await request.json() as IgniteStartBody;
   const traceId = ensureTraceId(body.traceId);
   const groupId = typeof body.groupId === 'string' ? body.groupId.trim() : '';
   if (!groupId) return errorResponse(400, 'invalid_group_id', 'groupId is required', traceId);
+  const tokenKind = normalizeIgniteTokenKind(body.tokenKind);
   const session = await requireSessionEmail(request, traceId, { groupId });
   if (!session.ok) return session.response;
 
@@ -29,6 +30,7 @@ export async function igniteStart(request: HttpRequest, _context: InvocationCont
   const nowISO = new Date().toISOString();
   loaded.state.ignite = {
     sessionId: randomUUID(),
+    tokenKind,
     status: 'OPEN',
     createdAt: nowISO,
     createdByPersonId: personId,

@@ -1,7 +1,7 @@
 import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
-import { createSession, HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
+import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
@@ -53,12 +53,11 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
       await incrementDailyMetric('invitesAccepted', 1);
     }
 
-    const upgradedSession = await createSession(session.email);
+    console.log(JSON.stringify({ event: 'GROUP_JOIN_NO_UPGRADE', traceId, groupId, sessionKind: session.kind }));
     return {
       status: 200,
       jsonBody: {
         ok: true,
-        sessionId: upgradedSession.sessionId,
         traceId,
         groupId,
         groupName: group.groupName,
