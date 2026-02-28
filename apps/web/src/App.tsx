@@ -1688,6 +1688,14 @@ type DashboardPrefsState = {
   onToggleEmailUpdates: (next: boolean) => void | Promise<void>;
 };
 
+const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+
+type SeedDemoConfig = {
+  groupCount: number;
+  apptsPerGroup: number;
+  membersPerAppt: number;
+};
+
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getAuthSessionId()));
@@ -1695,6 +1703,7 @@ export function App() {
   const [profileDisplayName, setProfileDisplayName] = useState('');
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileModalBlocking, setProfileModalBlocking] = useState(false);
+  const [dashboardRefreshToken, setDashboardRefreshToken] = useState(0);
   const sessionEmail = useMemo(() => {
     const rawSessionEmail = window.localStorage.getItem(SESSION_EMAIL_KEY);
     const sanitizedSessionEmail = sanitizeSessionEmail(rawSessionEmail);
@@ -1817,6 +1826,76 @@ export function App() {
     };
   }, [hasApiSession]);
 
+  const seedDemoData = async ({ groupCount, apptsPerGroup, membersPerAppt }: SeedDemoConfig): Promise<{ ok: boolean; message: string }> => {
+    if (!getAuthSessionId()) return { ok: false, message: 'Please sign in again and retry.' };
+
+    const clampedGroupCount = clamp(groupCount, 1, 8);
+    const clampedApptsPerGroup = clamp(apptsPerGroup, 1, 20);
+    const clampedMembersPerAppt = clamp(membersPerAppt, 0, 8);
+
+    try {
+      const dashboardResponse = await apiFetch('/api/me/dashboard');
+      if (!dashboardResponse.ok) return { ok: false, message: 'Unable to load your groups.' };
+      const dashboardPayload = await dashboardResponse.json() as { groups?: Array<{ groupId: string }> };
+      const existingGroupIds = Array.isArray(dashboardPayload.groups)
+        ? dashboardPayload.groups.map((group) => group.groupId).filter((groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0)
+        : [];
+
+      const groupsToCreate = Math.max(0, clampedGroupCount - existingGroupIds.length);
+      const createdGroupIds: string[] = [];
+      const creatorEmail = sanitizeSessionEmail(window.localStorage.getItem(SESSION_EMAIL_KEY));
+      const creatorName = profileDisplayName.trim() || sessionName?.trim() || creatorEmail || '';
+      if (groupsToCreate > 0 && (!creatorEmail || !creatorName)) {
+        return { ok: false, message: 'Set your profile and sign in again before seeding groups.' };
+      }
+
+      for (let index = 0; index < groupsToCreate; index += 1) {
+        const timestampSuffix = Date.now().toString().slice(-6);
+        const createResponse = await apiFetch('/api/group/create', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            groupName: `Seed Group ${existingGroupIds.length + index + 1} ${timestampSuffix}`,
+            creatorEmail,
+            creatorName
+          })
+        });
+        const createPayload = await createResponse.json() as { groupId?: string; message?: string; traceId?: string };
+        if (!createResponse.ok || !createPayload.groupId) {
+          return { ok: false, message: `${createPayload.message ?? 'Unable to create seed groups.'}${createPayload.traceId ? ` (trace: ${createPayload.traceId})` : ''}` };
+        }
+        createdGroupIds.push(createPayload.groupId);
+      }
+
+      const selectedGroupIds = [...existingGroupIds, ...createdGroupIds].slice(0, clampedGroupCount);
+      for (const groupId of selectedGroupIds) {
+        const seedResponse = await apiFetch('/api/direct', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            groupId,
+            action: {
+              type: 'seed_sample_data',
+              config: {
+                apptsPerGroup: clampedApptsPerGroup,
+                membersPerAppt: clampedMembersPerAppt
+              }
+            }
+          })
+        });
+        const seedPayload = await seedResponse.json() as { ok?: boolean; message?: string; traceId?: string };
+        if (!seedResponse.ok || !seedPayload.ok) {
+          return { ok: false, message: `${seedPayload.message ?? 'Unable to seed demo data.'}${seedPayload.traceId ? ` (trace: ${seedPayload.traceId})` : ''}` };
+        }
+      }
+
+      setDashboardRefreshToken((prev) => prev + 1);
+      return { ok: true, message: `Seeded ${selectedGroupIds.length} groups.` };
+    } catch {
+      return { ok: false, message: 'Unable to seed demo data right now.' };
+    }
+  };
+
   let content: ReactNode;
   if ((route.type === 'app' || route.type === 'ignite') && !routeScopedHasApiSession) {
     authDebug('route_redirect_login', {
@@ -1844,9 +1923,11 @@ export function App() {
           prefsSaving={dashboardPrefsState?.prefsSaving ?? false}
           prefsError={dashboardPrefsState?.prefsError ?? null}
           onToggleEmailUpdates={dashboardPrefsState?.onToggleEmailUpdates}
+          onSeedDemoData={seedDemoData}
         >
           <DashboardHomePage
             onCreateGroup={() => nav('/create')}
+            refreshToken={dashboardRefreshToken}
             onPrefsStateChange={setDashboardPrefsState}
           />
         </MarketingLayout>

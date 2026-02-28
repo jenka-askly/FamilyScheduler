@@ -5252,3 +5252,24 @@ Verification note:
 
 1. `pnpm --filter @familyscheduler/web build` ✅ passed.
 2. `pnpm -r build` ⚠️ blocked in API package by missing `@azure/data-tables` dependency/type resolution in this environment.
+
+## 2026-02-28 23:32 UTC update (Dashboard Utilities demo seed modal + configurable multi-group seeding)
+
+- Added a dogfood/dev-only Utilities action in Dashboard `MarketingLayout`: **Seed demo data…** opens a small modal with numeric controls:
+  - Groups (default 5, UI clamp 1..8)
+  - Appts per group (default 6, UI clamp 1..20)
+  - Members per appt (default 4, UI clamp 0..8)
+- Added client orchestration in `App` to:
+  - Load current dashboard groups,
+  - Create missing groups via `/api/group/create`,
+  - Seed exactly N groups via `/api/direct` action `seed_sample_data` with config,
+  - Trigger dashboard refresh so new groups appear.
+- Extended `/api/direct` `seed_sample_data` action to accept optional config (`apptsPerGroup`, `membersPerAppt`) and enforce server-side clamping.
+- Preserved server DOGFOOD gate (`process.env.DOGFOOD === '1'`) and 404 blocked behavior with `direct_seed_sample_data_blocked` warning log event.
+- Seed generation remains idempotent and deterministic using `seedTag` + deterministic IDs (`P-SEED-XX`, `appt-seed-XX`) with variable appointment/member density.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅ passed.
+2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked in this environment by missing `@azure/data-tables` module/type resolution.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
