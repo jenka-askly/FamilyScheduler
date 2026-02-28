@@ -41,7 +41,7 @@ export type ResponseSnapshot = {
   historyCount?: number;
 };
 
-type DirectBody = { action?: unknown; groupId?: unknown; email?: unknown; phone?: unknown; traceId?: unknown };
+type DirectBody = { action?: unknown; groupId?: unknown; email?: unknown; traceId?: unknown };
 
 type DirectAction =
   | { type: 'create_blank_appointment' }

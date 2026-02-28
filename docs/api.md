@@ -1,30 +1,12 @@
-> **Legacy / stale doc:** This file describes `/api/auth/login` token flows that are not implemented in the current codebase.
-> See `docs/AUTH_MODEL.md` for the authoritative current/planned auth model.
-
 # API Contract Specification
 
 Base API style: JSON over HTTPS.
 
 ## 1. Authentication
 
-### POST `/api/auth/login`
-
-Request:
-
-```json
-{ "passkey": "123456" }
-```
-
-Response:
-
-```json
-{ "token": "<jwt-or-session-token>", "expiresAt": "<ISO-8601>" }
-```
-
-Notes:
-
-- Single family passkey model (`FAMILY_PASSKEY`).
-- Token required for subsequent protected endpoints.
+- Current auth is email magic-link + server session.
+- Protected endpoints are authenticated by the `x-session-id` request header.
+- Request bodies for `/api/chat` and `/api/direct` should not include `phone` for auth.
 
 ## 2. State retrieval
 
@@ -43,10 +25,15 @@ Response:
 
 ### POST `/api/chat`
 
+Auth:
+
+- Requires `x-session-id` header.
+- Session email membership is validated server-side for the provided `groupId`.
+
 Request:
 
 ```json
-{ "message": "add PT for mom tomorrow at 3pm" }
+{ "groupId": "<groupId>", "message": "add PT for mom tomorrow at 3pm" }
 ```
 
 Response (one-of union):
@@ -95,7 +82,30 @@ Response (one-of union):
 }
 ```
 
-## 4. Confirmation and cancellation
+## 4. Direct action endpoint
+
+### POST `/api/direct`
+
+Auth:
+
+- Requires `x-session-id` header.
+- Session email membership is validated server-side for the provided `groupId`.
+
+Request (minimal example):
+
+```json
+{
+  "groupId": "<groupId>",
+  "action": { "type": "get_appointment_detail", "appointmentId": "<appointmentId>" }
+}
+```
+
+Response:
+
+- Returns direct-action specific JSON payloads depending on `action.type`.
+- Error payloads include `traceId` for diagnostics.
+
+## 5. Confirmation and cancellation
 
 ### POST `/api/confirm`
 
@@ -133,7 +143,7 @@ Response:
 { "kind": "reply", "assistantText": "Canceled pending proposal." }
 ```
 
-## 5. Undo / backup / restore
+## 6. Undo / backup / restore
 
 ### POST `/api/undo`
 
@@ -174,7 +184,7 @@ Response:
 }
 ```
 
-## 6. ETag and conflict handling
+## 7. ETag and conflict handling
 
 Rules:
 
@@ -185,7 +195,7 @@ Rules:
   - latest snippet of relevant state
   - instruction to re-propose against latest state
 
-## 7. Time parsing policy
+## 8. Time parsing policy
 
 Timezone default: `America/Los_Angeles`.
 
@@ -196,7 +206,7 @@ Mutation input constraints:
 - Relative expressions (e.g., “tomorrow”, “next Friday”) may be interpreted **only in proposal stage**.
 - Confirmation text must include resolved absolute datetime with timezone context.
 
-## 8. Query vs mutation classification
+## 9. Query vs mutation classification
 
 Deterministic (no OpenAI) classification for:
 
@@ -214,7 +224,7 @@ Examples:
 - `who is available in march` => query (immediate reply)
 - `delete APR-12-PT-1` => mutation proposal (confirmation required)
 
-## 9. OpenAI integration boundary
+## 10. OpenAI integration boundary
 
 OpenAI is used only for free-form natural language command-to-action parsing.
 
@@ -223,4 +233,3 @@ OpenAI is used only for free-form natural language command-to-action parsing.
 - Invalid model output must be rejected and mapped to clarify/error.
 - TimeSpec preview (`/api/direct` `resolve_appointment_time`) may use OpenAI Responses API (`text.format` JSON schema) for natural-language time resolution, and falls back to deterministic parsing when the AI call/response fails.
 
-> Staging note: auth has moved to email+session (`x-session-id`) and membership checks are email-based. Phone-join payloads are deprecated on `develop`.

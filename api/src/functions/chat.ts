@@ -21,7 +21,7 @@ import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { recordOpenAiSuccess } from '../lib/usage/usageTables.js';
 import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
 
-type ChatRequest = { message?: unknown; groupId?: unknown; email?: unknown; phone?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
+type ChatRequest = { message?: unknown; groupId?: unknown; email?: unknown; traceId?: unknown; ruleMode?: unknown; personId?: unknown; replacePromptId?: unknown; replaceRuleCode?: unknown; rules?: unknown; promptId?: unknown; draftedIntervals?: unknown };
 type PendingProposal = { id: string; expectedEtag: string; actions: Action[] };
 type PendingQuestion = { message: string; options?: Array<{ label: string; value: string; style?: 'primary' | 'secondary' | 'danger' }>; allowFreeText: boolean };
 type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQuestion: PendingQuestion | null; activePersonId: string | null; chatHistory: ChatHistoryEntry[] };

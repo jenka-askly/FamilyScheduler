@@ -8,11 +8,11 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 
 ## v1 group access model
 
-- Anyone can create a group from `/#/` with `groupName`, `groupKey` (ceremony only), and creator phone.
+- Anyone can create a group from `/#/` with `groupName` and `groupKey` (ceremony only).
 - Server creates a random UUID `groupId` and returns share link `/#/g/<groupId>`.
-- Joining requires phone entry at `/#/g/<groupId>`.
-- Access is allowed only if the normalized phone exists in active People for that group.
-- No accounts, no tokens, no role model, no “my groups” index in v1.
+- Joining starts from the share link at `/#/g/<groupId>` and continues through email magic-link sign-in.
+- Access is allowed only when the signed-in email has active membership in that group.
+- Session auth is email-based (magic link + `x-session-id` header); no role model and no “my groups” index in v1.
 
 ## Storage model
 
@@ -28,7 +28,7 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 - `pnpm dev` to run API + web together.
 - Web routes:
   - `/#/` create group
-  - `/#/g/:groupId` join with phone
+  - `/#/g/:groupId` join flow (email magic link/session)
   - `/#/g/:groupId/app` main scheduler app
 
 
@@ -65,7 +65,7 @@ This generates a new commit SHA. Since the web build injects `VITE_BUILD_SHA`, t
 
 ## Notes
 
-- People pane “Add person” is the invite mechanism: add sibling phone, then sibling can join by link + phone.
+- People pane “Add person” stores contact fields (email/cell) for coordination; API auth remains email session based (`x-session-id`).
 - All admitted members can edit all data.
 
 
