@@ -5151,3 +5151,19 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Appointment drawer Email update preview/send direct calls now normalize `groupId` from the same top-level `groupId` source used by other working `/api/direct` calls.
 - Added UI-side hard guard in preview/send paths: when `groupId` is empty after trim, the request is skipped, a user-facing error is shown, and a context-rich warning is logged.
 - Email update direct payload shape is consistently `{ groupId, ...identityPayload(), action, traceId }` with `groupId` top-level and JSON-stringified body.
+
+## 2026-02-28 00:55 UTC update (Temporary Email Update dialog debug bundle)
+
+- Added temporary in-memory debug instrumentation scoped only to the Email Update dialog preview/send flows.
+- Added error-state actions in Email Update dialog:
+  - `Copy debug bundle`
+  - `Copy last request body`
+- Debug bundle captures sanitized request/response context (including exact request `bodySource`) to diagnose `groupId is required` reports from phone clients.
+- No persistence added; debug entries are memory-only and cleared when the Email Update dialog closes.
+- Removal tracked in top-level `MUST_FIX.md` and should be completed after staging verification.
+
+### Verification run
+
+1. `pnpm -w -r typecheck` ✅ (`no typecheck yet` in root workspace script).
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual smoke; stopped intentionally after screenshot capture.
