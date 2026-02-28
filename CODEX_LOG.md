@@ -13238,3 +13238,40 @@ Remove dead `phone` usage from `/api/direct` + `/api/chat` request path, remove 
 
 - Run full API build/typecheck in an environment where `@azure/data-tables` dependencies are resolvable to validate end-to-end workspace build.
 - `git status --short --branch` ✅ post-change check: clean working tree on `work` after commit.
+
+## 2026-02-28 03:05 UTC update (Fix Email Update dialog /api/direct groupId missing)
+
+### Objective
+
+Fix Email Update dialog preview/send calls so `/api/direct` always receives a non-empty top-level `groupId`, and prevent outbound calls when group context is missing.
+
+### Approach
+
+- Aligned Email update preview/send payload construction with the same `groupId` source used by known-good direct calls in `AppShell` (`loadAppointmentDetails` / `get_appointment_detail`).
+- Added hard guards in both preview and send flows:
+  - normalize `groupId` via trim
+  - if missing, set user-facing error, emit `console.warn` with `appointmentId` + current `groupId`, and return early without `apiFetch`
+- Normalized payload shape to `{ groupId, ...identityPayload(), action, traceId }` with JSON headers/body for both actions.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short --branch` ✅ initial state clean (`## work`).
+- `git log -n 15 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `rg -n "groupId is required|preview_appointment_update_email|send_appointment_update_email|Email update|resolve_appointment_time|get_appointment_detail" apps/web/src/AppShell.tsx` ✅
+- `cat package.json` ✅
+- `pnpm -w -r typecheck` ✅ passed (`no typecheck yet` workspace script).
+- `pnpm --filter web build` ✅ passed.
+
+### Manual staging verification status
+
+- Pending human run in staging:
+  - Open appointment drawer → Email update preview should not return `groupId is required`.
+  - Send emails should not return `groupId is required`.
+  - DevTools payload source should show non-empty top-level `groupId`.

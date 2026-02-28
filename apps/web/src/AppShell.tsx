@@ -1850,16 +1850,22 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   const sendEmailUpdate = async () => {
     if (!detailsAppointmentId || selectedRecipientPersonIds.length === 0) return;
+    const gid = typeof groupId === 'string' ? groupId.trim() : '';
+    if (!gid) {
+      const message = 'Missing group context. Close and reopen the appointment.';
+      setSendError(message);
+      console.warn('send_appointment_update_email missing groupId', { appointmentId: detailsAppointmentId, groupId });
+      return;
+    }
     setSendingEmailUpdate(true);
     setSendError(null);
     try {
-      const identity = identityPayload();
       const response = await apiFetch('/api/direct', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          groupId,
-          email: identity.email,
+          groupId: gid,
+          ...identityPayload(),
           action: {
             type: 'send_appointment_update_email',
             appointmentId: detailsAppointmentId,
@@ -1899,16 +1905,22 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         setEmailPreview(null);
         return;
       }
+      const gid = typeof groupId === 'string' ? groupId.trim() : '';
+      if (!gid) {
+        setEmailPreview(null);
+        setPreviewError('Missing group context. Close and reopen the appointment.');
+        console.warn('preview_appointment_update_email missing groupId', { appointmentId: detailsAppointmentId, groupId });
+        return;
+      }
       setPreviewLoading(true);
       setPreviewError(null);
       try {
-        const identity = identityPayload();
         const response = await apiFetch('/api/direct', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            groupId,
-            email: identity.email,
+            groupId: gid,
+            ...identityPayload(),
             action: {
               type: 'preview_appointment_update_email',
               appointmentId: detailsAppointmentId,
