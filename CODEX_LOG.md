@@ -13687,6 +13687,26 @@ Replace the single burger-menu Debug action with a Debug submenu that supports s
   3) Clear ALL and confirm all `fs.*` debug fields are empty
 
 
+## 2026-02-28 08:31 UTC (Spec-only: breakout QR join DSID/GSID behavior)
+
+### Objective
+
+Document the normative DSID/GSID behavior for breakout QR and member-invite QR entrypoints to remove ambiguity, with no application code changes.
+
+### Approach
+
+- Captured a single spec at `docs/specs/breakout-qr-join-dsid-gsid.md` with required sections:
+  - background/definitions,
+  - requirements and decision table,
+  - storage rules,
+  - API contract expectations,
+  - UX/debug requirements,
+  - acceptance criteria and non-goals.
+- Kept task docs-only per request (no TS/JS/tests/server edits).
+
+### Files changed
+
+- `docs/specs/breakout-qr-join-dsid-gsid.md`
 ## 2026-02-28 07:32 UTC (Breakout QR join auto-mode: DSID when present, GSID when absent)
 
 ### Objective
@@ -13726,6 +13746,14 @@ Implement breakout QR join auto-mode with no prompt:
 
 - `git status --short` ✅
 - `git log -1 --oneline` ✅
+- `rg -n "igniteGrace|fs\.igniteGrace|fs\.sessionId|breakout|IgniteJoinPage|#/s/" apps/web/src` ✅
+- `rg -n "Breakout|grace|igniteGrace|DSID|GSID" CODEX_LOG.md PROJECT_STATUS.md` ✅
+- `rg -n "breakout-qr-join-dsid-gsid" docs/specs/breakout-qr-join-dsid-gsid.md` ✅
+- `git status --short` ✅ (verified only spec doc + CODEX_LOG changes)
+
+### Follow-ups
+
+- If implementation changes are requested later, use this spec as the source of truth for DSID precedence, GSID scoping, and upgrade/clear semantics.
 - `rg -n "setItem\(['\"]fs\.sessionId|localStorage\.setItem\(['\"]fs\.sessionId|fs\.sessionId" apps/web/src` ✅
 - `rg -n "igniteGraceSessionId|igniteGraceGroupId|igniteGraceExpiresAtUtc" apps/web/src` ✅
 - `rg -n "#/s/|route\.type\s*=\s*'igniteJoin'|IgniteJoinPage|Breakout" apps/web/src` ✅
