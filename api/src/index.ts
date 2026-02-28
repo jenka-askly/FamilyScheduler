@@ -35,6 +35,7 @@ import { meGroups } from './functions/meGroups.js';
 import { meDashboard } from './functions/meDashboard.js';
 import { groupDeclineInvite } from './functions/groupDeclineInvite.js';
 import { health } from './functions/health.js';
+import { reminderTick } from './functions/reminderTick.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
@@ -132,4 +133,9 @@ startupLog('registration-summary', {
   expectedFunctions,
   expectedCount: expectedFunctions.length,
   registeredCount: registeredFunctionCount
+});
+
+app.timer('reminderTick', {
+  schedule: process.env.REMINDER_TICK_SCHEDULE ?? '0 * * * * *',
+  handler: reminderTick
 });

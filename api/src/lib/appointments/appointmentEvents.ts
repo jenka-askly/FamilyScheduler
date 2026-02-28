@@ -26,7 +26,10 @@ export type AppointmentEventType =
   // Canonical emission is SUGGESTION_REACTED; readers still tolerate legacy SUGGESTION_REACTION.
   | 'SUGGESTION_REACTED'
   | 'SUGGESTION_REACTION'
-  | 'NOTIFICATION_SENT';
+  | 'NOTIFICATION_SENT'
+  | 'REMINDER_SCHEDULED'
+  | 'REMINDER_CANCELED'
+  | 'REMINDER_SENT';
 
 export type AppointmentEvent = {
   id: string;

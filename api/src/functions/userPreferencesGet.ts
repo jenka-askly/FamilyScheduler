@@ -16,7 +16,8 @@ export async function userPreferencesGet(request: HttpRequest, _context: Invocat
       status: 200,
       jsonBody: {
         ok: true,
-        emailUpdatesEnabled: prefs.emailUpdatesEnabled
+        emailUpdatesEnabled: prefs.emailUpdatesEnabled,
+        mutedGroupIds: prefs.mutedGroupIds
       }
     };
   } catch (error) {

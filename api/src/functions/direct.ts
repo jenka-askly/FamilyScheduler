@@ -35,6 +35,7 @@ import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { sendEmail } from '../lib/email/acsEmail.js';
 import { getUserPrefs } from '../lib/prefs/userPrefs.js';
 import { buildAppointmentSnapshot, diffAppointmentSnapshots, type AppointmentDiffItem, type AppointmentSnapshot } from '../lib/appointments/appointmentSnapshot.js';
+import { addReminderIndexEntry, removeReminderIndexEntry } from '../lib/appointments/reminderIndex.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -78,7 +79,9 @@ type DirectAction =
   | { type: 'react_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; reaction: 'up' | 'down'; clientRequestId: string }
   | { type: 'apply_suggestion'; appointmentId: string; suggestionId: string; field: 'title' | 'time' | 'location'; clientRequestId: string }
   | { type: 'preview_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string }
-  | { type: 'send_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string; clientRequestId: string };
+  | { type: 'send_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string; clientRequestId: string }
+  | { type: 'create_appointment_reminder'; appointmentId: string; offsetMinutes: number; message?: string; clientRequestId: string }
+  | { type: 'cancel_appointment_reminder'; appointmentId: string; reminderId: string; clientRequestId: string };
 
 type ResolvedNotificationRecipient = { personId?: string; display?: string; email: string; isSelectable?: boolean; disabledReason?: string };
 type ExcludedNotificationRecipient = { personId?: string; email?: string; reason: string };
@@ -256,8 +259,9 @@ const resolveNotificationRecipients = (
 
 
 
-const excludeOptedOutRecipients = async (
+const excludeIneligibleRecipients = async (
   storage: StorageAdapter,
+  groupId: string,
   recipients: { resolvedRecipients: ResolvedNotificationRecipient[]; excludedRecipients: ExcludedNotificationRecipient[]; excludedSelf: boolean },
   traceId: string
 ): Promise<{ resolvedRecipients: ResolvedNotificationRecipient[]; excludedRecipients: ExcludedNotificationRecipient[]; excludedSelf: boolean }> => {
@@ -270,6 +274,10 @@ const excludeOptedOutRecipients = async (
       excluded.push({ personId: recipient.personId, email: recipient.email, reason: 'opted_out' });
       continue;
     }
+    if (prefs.mutedGroupIds.includes(groupId)) {
+      excluded.push({ personId: recipient.personId, email: recipient.email, reason: 'muted_group' });
+      continue;
+    }
     eligible.push(recipient);
   }
 
@@ -278,6 +286,43 @@ const excludeOptedOutRecipients = async (
     excludedRecipients: excluded,
     excludedSelf: recipients.excludedSelf
   };
+};
+
+const deriveReminderState = (events: AppointmentEvent[]): Array<{ reminderId: string; offsetMinutes: number; dueAtIso: string; createdAt: string; message?: string; status: 'scheduled' | 'sent' | 'failed' | 'canceled'; sentAt?: string; canceledAt?: string }> => {
+  const byId = new Map<string, { reminderId: string; offsetMinutes: number; dueAtIso: string; createdAt: string; message?: string; status: 'scheduled' | 'sent' | 'failed' | 'canceled'; sentAt?: string; canceledAt?: string }>();
+  const ordered = [...events].reverse();
+  for (const event of ordered) {
+    const payload = event.payload ?? {};
+    if (event.type === 'REMINDER_SCHEDULED') {
+      const reminderId = typeof payload.reminderId === 'string' ? payload.reminderId : '';
+      if (!reminderId) continue;
+      byId.set(reminderId, {
+        reminderId,
+        offsetMinutes: typeof payload.offsetMinutes === 'number' ? payload.offsetMinutes : 0,
+        dueAtIso: typeof payload.dueAtIso === 'string' ? payload.dueAtIso : '',
+        createdAt: typeof payload.createdAt === 'string' ? payload.createdAt : event.tsUtc,
+        ...(typeof payload.message === 'string' && payload.message.trim() ? { message: payload.message.trim() } : {}),
+        status: 'scheduled'
+      });
+      continue;
+    }
+    if (event.type === 'REMINDER_CANCELED') {
+      const reminderId = typeof payload.reminderId === 'string' ? payload.reminderId : '';
+      const entry = byId.get(reminderId);
+      if (!entry) continue;
+      entry.status = 'canceled';
+      entry.canceledAt = typeof payload.canceledAt === 'string' ? payload.canceledAt : event.tsUtc;
+      continue;
+    }
+    if (event.type === 'REMINDER_SENT') {
+      const reminderId = typeof payload.reminderId === 'string' ? payload.reminderId : '';
+      const entry = byId.get(reminderId);
+      if (!entry) continue;
+      entry.status = payload.deliveryStatus === 'failed' ? 'failed' : 'sent';
+      entry.sentAt = typeof payload.sentAt === 'string' ? payload.sentAt : event.tsUtc;
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.dueAtIso.localeCompare(b.dueAtIso));
 };
 
 const mapLastNotification = (events: AppointmentEvent[]): Record<string, unknown> | null => {
@@ -334,11 +379,13 @@ const mapNotificationHistoryItem = (event: AppointmentEvent): Record<string, unk
       const record = entry as Record<string, unknown>;
       const reason = record.reason === 'opted_out'
         ? 'opted_out'
-        : record.reason === 'no_email'
-          ? 'no_email'
-          : record.reason === 'self_excluded'
-            ? 'self'
-            : null;
+        : record.reason === 'muted_group'
+          ? 'muted_group'
+          : record.reason === 'no_email'
+            ? 'no_email'
+            : record.reason === 'self_excluded'
+              ? 'self'
+              : null;
       if (!reason) return null;
       return {
         ...(typeof record.email === 'string' && record.email ? { email: record.email } : {}),
@@ -346,7 +393,7 @@ const mapNotificationHistoryItem = (event: AppointmentEvent): Record<string, unk
         reason
       };
     })
-    .filter((entry): entry is { email?: string; display?: string; reason: 'opted_out' | 'no_email' | 'self' } => Boolean(entry));
+    .filter((entry): entry is { email?: string; display?: string; reason: 'opted_out' | 'muted_group' | 'no_email' | 'self' } => Boolean(entry));
 
   return {
     ...(typeof payload.notificationId === 'string' && payload.notificationId ? { notificationId: payload.notificationId } : {}),
@@ -872,6 +919,26 @@ const parseDirectAction = (value: unknown): DirectAction => {
     const userMessage = typeof value.userMessage === 'string' ? value.userMessage : undefined;
     return { type, appointmentId, recipientPersonIds, ...(userMessage !== undefined ? { userMessage } : {}), clientRequestId };
   }
+  if (type === 'create_appointment_reminder') {
+    const appointmentId = asString(value.appointmentId);
+    const clientRequestId = asString(value.clientRequestId);
+    const offsetMinutes = Number(value.offsetMinutes);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!Number.isInteger(offsetMinutes)) throw new Error('offsetMinutes must be an integer');
+    if (offsetMinutes < 5 || offsetMinutes > 10080) throw new Error('offsetMinutes must be between 5 and 10080');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    const message = typeof value.message === 'string' ? value.message : undefined;
+    return { type, appointmentId, offsetMinutes, ...(message !== undefined ? { message } : {}), clientRequestId };
+  }
+  if (type === 'cancel_appointment_reminder') {
+    const appointmentId = asString(value.appointmentId);
+    const reminderId = asString(value.reminderId);
+    const clientRequestId = asString(value.clientRequestId);
+    if (!appointmentId) throw new Error('appointmentId is required');
+    if (!reminderId) throw new Error('reminderId is required');
+    if (!clientRequestId) throw new Error('clientRequestId is required');
+    return { type, appointmentId, reminderId, clientRequestId };
+  }
 
   throw new Error(`unsupported action type: ${type}`);
 };
@@ -955,6 +1022,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       const changeEvents = recent.events.filter((event) => materialEventTypes.has(event.type));
       const pendingProposal = derivePendingProposal(recent.events);
       const lastNotification = mapLastNotification(recent.events);
+      const reminders = deriveReminderState(recent.events);
       return withMeta({
         status: 200,
         jsonBody: {
@@ -965,6 +1033,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           projections: { discussionEvents, changeEvents },
           pendingProposal,
           ...(lastNotification ? { lastNotification } : {}),
+          reminders,
           constraints: doc ? (doc.constraints as Record<string, unknown>) : { byMember: {} },
           suggestions: doc ? (doc.suggestions as Record<string, unknown>) : { byField: {} }
         }
@@ -1000,8 +1069,9 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
     const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
-    const recipients = await excludeOptedOutRecipients(
+    const recipients = await excludeIneligibleRecipients(
       storage,
+      groupId,
       resolveNotificationRecipients(
         loaded.state,
         normalizeEmail(session.email),
@@ -1010,7 +1080,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       traceId
     );
     if (recipients.resolvedRecipients.length === 0) {
-      return withMeta(errorResponse(400, 'no_eligible_recipients', 'No eligible recipients (all opted out or missing email).', traceId, {
+      return withMeta(errorResponse(400, 'no_eligible_recipients', 'No eligible recipients (all opted out, muted, or missing email).', traceId, {
         excludedRecipients: recipients.excludedRecipients,
         excludedSelf: recipients.excludedSelf
       }));
@@ -1036,17 +1106,24 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         .filter((recipient) => recipient.reason === 'opted_out' && recipient.personId)
         .map((recipient) => [recipient.personId as string, recipient])
     );
+    const mutedByPersonId = new Map(
+      recipients.excludedRecipients
+        .filter((recipient) => recipient.reason === 'muted_group' && recipient.personId)
+        .map((recipient) => [recipient.personId as string, recipient])
+    );
     const resolvedForUi = directAction.recipientPersonIds
       .map((personId) => loaded.state.people.find((entry) => entry.personId === personId))
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
       .map((person) => {
         const optedOut = optedOutByPersonId.get(person.personId);
+        const muted = mutedByPersonId.get(person.personId);
         return {
           personId: person.personId,
           display: person.name?.trim() || undefined,
           email: normalizeEmail(person.email ?? ''),
-          isSelectable: !optedOut,
-          ...(optedOut ? { disabledReason: 'Opted out of email' } : {})
+          isSelectable: !optedOut && !muted,
+          ...(muted ? { disabledReason: 'Muted this group' } : {}),
+          ...(!muted && optedOut ? { disabledReason: 'Opted out of email' } : {})
         };
       });
 
@@ -1065,13 +1142,81 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     });
   }
 
+
+  if (directAction.type === 'create_appointment_reminder') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
+
+    const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
+    const startIso = responseAppointment.time?.resolved?.startUtc;
+    if (!startIso) return withMeta(errorResponse(400, 'appointment_time_unresolved', 'Appointment must have a resolved start time before reminders can be added.', traceId));
+    const dueAtMs = new Date(startIso).getTime() - (directAction.offsetMinutes * 60_000);
+    if (!Number.isFinite(dueAtMs)) return withMeta(errorResponse(400, 'invalid_appointment_time', 'Appointment start time is invalid.', traceId));
+    const dueAtIso = new Date(dueAtMs).toISOString();
+    if (dueAtMs <= Date.now()) return withMeta(errorResponse(400, 'reminder_due_in_past', 'Reminder due time must be in the future.', traceId));
+
+    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 300);
+    const reminders = deriveReminderState(existing.events);
+    const activeCount = reminders.filter((entry) => entry.status === 'scheduled').length;
+    if (activeCount >= 10) return withMeta(errorResponse(400, 'reminder_limit_reached', 'Maximum of 10 scheduled reminders per appointment.', traceId));
+
+    const reminderId = randomUUID();
+    const createdAt = new Date().toISOString();
+    const eventPayload = {
+      reminderId,
+      createdAt,
+      createdBy: normalizeEmail(session.email),
+      offsetMinutes: directAction.offsetMinutes,
+      dueAtIso,
+      ...(directAction.message?.trim() ? { message: directAction.message.trim() } : {})
+    };
+    await appointmentEventStore.append(groupId, directAction.appointmentId, {
+      id: randomUUID(),
+      tsUtc: createdAt,
+      type: 'REMINDER_SCHEDULED',
+      actor: { kind: 'HUMAN', email: normalizeEmail(session.email) },
+      payload: eventPayload,
+      clientRequestId: directAction.clientRequestId
+    }, { idempotencyKey: directAction.clientRequestId });
+
+    await addReminderIndexEntry({ reminderId, groupId, appointmentId: directAction.appointmentId, dueAtIso });
+
+    return withMeta({ status: 200, jsonBody: { ok: true, reminder: { reminderId, offsetMinutes: directAction.offsetMinutes, dueAtIso, status: 'scheduled', createdAt, ...(directAction.message?.trim() ? { message: directAction.message.trim() } : {}) } } });
+  }
+
+  if (directAction.type === 'cancel_appointment_reminder') {
+    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
+    if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
+
+    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 500);
+    const reminders = deriveReminderState(existing.events);
+    const reminder = reminders.find((entry) => entry.reminderId === directAction.reminderId);
+    if (!reminder) return withMeta(errorResponse(404, 'reminder_not_found', 'Reminder not found', traceId));
+    if (reminder.status === 'canceled') return withMeta({ status: 200, jsonBody: { ok: true, reminderId: directAction.reminderId, status: 'canceled' } });
+
+    const canceledAt = new Date().toISOString();
+    await appointmentEventStore.append(groupId, directAction.appointmentId, {
+      id: randomUUID(),
+      tsUtc: canceledAt,
+      type: 'REMINDER_CANCELED',
+      actor: { kind: 'HUMAN', email: normalizeEmail(session.email) },
+      payload: { reminderId: directAction.reminderId, canceledAt, canceledBy: normalizeEmail(session.email) },
+      clientRequestId: directAction.clientRequestId
+    }, { idempotencyKey: directAction.clientRequestId });
+
+    await removeReminderIndexEntry({ reminderId: directAction.reminderId, groupId, appointmentId: directAction.appointmentId, dueAtIso: reminder.dueAtIso });
+
+    return withMeta({ status: 200, jsonBody: { ok: true, reminderId: directAction.reminderId, status: 'canceled', canceledAt } });
+  }
+
   if (directAction.type === 'send_appointment_update_email') {
     const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
     const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
-    const recipients = await excludeOptedOutRecipients(
+    const recipients = await excludeIneligibleRecipients(
       storage,
+      groupId,
       resolveNotificationRecipients(
         loaded.state,
         normalizeEmail(session.email),
@@ -1080,7 +1225,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       traceId
     );
     if (recipients.resolvedRecipients.length === 0) {
-      return withMeta(errorResponse(400, 'no_eligible_recipients', 'No eligible recipients (all opted out or missing email).', traceId, {
+      return withMeta(errorResponse(400, 'no_eligible_recipients', 'No eligible recipients (all opted out, muted, or missing email).', traceId, {
         excludedRecipients: recipients.excludedRecipients,
         excludedSelf: recipients.excludedSelf
       }));
