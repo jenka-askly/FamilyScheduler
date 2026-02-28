@@ -6,6 +6,7 @@ import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, isIgniteGraceGuestForGroup } from './lib/apiUrl';
+import { getGraceDebugText } from './lib/graceDebug';
 import { buildLoginPathWithNextFromHash } from './lib/returnTo';
 import { generateSuggestionCandidates, parseResolvedWhenFromTimeSpec, type SuggestionCandidate, type SuggestionDirectAction } from './lib/appointmentSuggestions';
 import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
@@ -655,6 +656,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [inviteMenuAnchorEl, setInviteMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ severity: 'error' | 'success' | 'info'; message: string } | null>(null);
+  const [graceDebugOpen, setGraceDebugOpen] = useState(false);
+  const [graceDebugText, setGraceDebugText] = useState('');
+  const [graceDebugCopied, setGraceDebugCopied] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteSessionId, setInviteSessionId] = useState<string | null>(null);
   const [inviteJoinUrl, setInviteJoinUrl] = useState<string>('');
@@ -673,6 +677,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
+  const debugGraceEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+    const hashQuery = window.location.hash.split('?')[1] ?? '';
+    const debugFromHash = new URLSearchParams(hashQuery).get('debugGrace') === '1';
+    return debugFromHash || import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
+  }, []);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const breakoutInFlightRef = useRef(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
@@ -2356,6 +2366,23 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     window.location.hash = buildLoginPathWithNextFromHash(window.location.hash || '');
   };
 
+  const openGraceDebug = () => {
+    const hash = typeof window === 'undefined' ? '' : (window.location.hash || '');
+    setGraceDebugText(getGraceDebugText({ groupId, hash }));
+    setGraceDebugCopied(false);
+    setGraceDebugOpen(true);
+  };
+
+  const copyGraceDebug = async () => {
+    try {
+      await navigator.clipboard.writeText(graceDebugText);
+      setGraceDebugCopied(true);
+      window.setTimeout(() => setGraceDebugCopied(false), 2000);
+    } catch {
+      setGraceDebugCopied(false);
+    }
+  };
+
 
   return (
     <Page variant="workspace">
@@ -2384,11 +2411,34 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <Alert
           severity="info"
           sx={{ maxWidth: 760, mb: 1.5 }}
-          action={<Button color="inherit" size="small" onClick={goToSignIn}>Sign in</Button>}
+          action={(
+            <Stack direction="row" spacing={1}>
+              {debugGraceEnabled ? <Button color="inherit" size="small" onClick={openGraceDebug}>Debug</Button> : null}
+              <Button color="inherit" size="small" onClick={goToSignIn}>Sign in</Button>
+            </Stack>
+          )}
         >
           <strong>Guest access (limited)</strong> You’re using a temporary invite session. Some features are disabled.
         </Alert>
       ) : null}
+      <Dialog open={graceDebugOpen} onClose={() => setGraceDebugOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Grace debug</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            minRows={10}
+            value={graceDebugText}
+            InputProps={{ readOnly: true }}
+            sx={{ mt: 1 }}
+          />
+          {graceDebugCopied ? <Alert severity="success" sx={{ mt: 1.5 }}>Copied to clipboard.</Alert> : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { void copyGraceDebug(); }}>Copy</Button>
+          <Button onClick={() => setGraceDebugOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
       {notice ? (
         <Alert severity={notice.severity} sx={{ maxWidth: 760, mb: 1.5 }}>
           {notice.message}

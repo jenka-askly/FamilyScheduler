@@ -1,3 +1,11 @@
+## 2026-02-28 05:49 UTC update (Ignite grace guest debug dialog + copy support)
+
+- Added a mobile-friendly **Grace debug** dialog for ignite guest banner troubleshooting in `AppShell`.
+- Debug entrypoint is gated by `debugGrace=1` hash query (e.g. `/#/g/<groupId>/app?debugGrace=1`) or `VITE_DEBUG_AUTH_LOGS === 'true'`.
+- Dialog includes one-tap **Copy** and mirrors existing clipboard success feedback pattern.
+- Added `getGraceDebugText` helper to produce a masked, local-only snapshot of grace/session/route state for on-device debugging.
+- Added unit tests for key coverage: required keys output, masking behavior, and invalid-expiry handling.
+
 ## 2026-02-28 00:20 UTC update (Docs cleanup: architecture/api/spec alignment to implemented code)
 
 - Updated architecture and API docs to reflect current hybrid model (structured UI + `/api/direct` actions + chat) rather than prompt-only/confirm-only legacy language.
