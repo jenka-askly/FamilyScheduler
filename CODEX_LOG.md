@@ -13480,3 +13480,50 @@ Implement Yapper manual email update Phase 2: add user-level email update opt-ou
 
 ### Follow-ups
 - Run manual staging validation for cross-user opt-out behavior in real group/member contexts (dashboard toggle persistence + direct send exclusion).
+
+
+## 2026-02-28 06:25 UTC (Phase 3: appointment diff since last email update)
+
+### Objective
+
+Implement manual email Phase 3 by storing compact appointment snapshots in `NOTIFICATION_SENT`, then diffing against latest snapshot during preview/send content generation.
+
+### Approach
+
+- Added `appointmentSnapshot` helper module to build compact snapshots (v1), hash notes with SHA-256 (12-char prefix), and compute deterministic diffs ordered as status/time/location/title/notes.
+- Updated `/api/direct` appointment email builder to inject a "Changes since last update" section into plain-text and HTML bodies.
+- Updated preview flow to load latest `NOTIFICATION_SENT` snapshot (if present), compute diff vs current appointment snapshot, and return `diffSummary` in response.
+- Updated send flow to compute the same diff for outgoing body and persist `appointmentSnapshot` into `NOTIFICATION_SENT` payload.
+
+### Files changed
+
+- `api/src/lib/appointments/appointmentSnapshot.ts` (new)
+- `api/src/lib/appointments/appointmentSnapshot.test.ts` (new)
+- `api/src/functions/direct.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short --branch` ✅
+- `git rev-parse HEAD` ✅
+- `git log -n 20 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `rg -n "NOTIFICATION_SENT" api/src/functions/direct.ts api/src/lib/appointments/appointmentEvents.ts -n` ✅
+- `sed -n '180,290p' api/src/functions/direct.ts; sed -n '900,1085p' api/src/functions/direct.ts` ✅
+- `rg -n "preview_appointment_update_email" api/src/functions/direct.ts -n` ✅
+- `sed -n '680,930p' api/src/functions/direct.ts` ✅
+- `rg -n "(title|start|end|location|notes|status|timezone|tz)" api/src/functions/direct.ts api/src/lib/appointments -S` ✅
+- `sed -n '1,260p' api/src/lib/appointments/notificationSnapshot.ts` ✅
+- `cat package.json` ✅
+- `pnpm -w -r typecheck` ✅ (workspace script currently echoes `no typecheck yet`)
+- `pnpm -w -r build` ❌ (no recursive root `build` script exists)
+- `pnpm -r --if-present build` ⚠️ (`@familyscheduler/api` build blocked by missing `@azure/data-tables` in this environment)
+- `pnpm --filter @familyscheduler/api exec node --test src/lib/appointments/appointmentSnapshot.test.ts` ⚠️ (tests import `.js` outputs; fails without prior TS build artifacts)
+
+### Follow-ups
+
+- Manual staging validation still required for send/preview flow and edge-cases:
+  - first update (no snapshot),
+  - no-op diff,
+  - notes-only update.

@@ -34,6 +34,7 @@ import { restoreAppointmentById, softDeleteAppointmentById } from '../lib/tables
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { sendEmail } from '../lib/email/acsEmail.js';
 import { getUserPrefs } from '../lib/prefs/userPrefs.js';
+import { buildAppointmentSnapshot, diffAppointmentSnapshots, type AppointmentDiffItem, type AppointmentSnapshot } from '../lib/appointments/appointmentSnapshot.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -129,7 +130,8 @@ const buildAppointmentEmailContent = (
   actorLabel: string,
   actorEmail: string,
   userMessage: string,
-  appLink: string
+  appLink: string,
+  diffSummary?: { prevSentAt?: string; hadPrevious: boolean; items: AppointmentDiffItem[] }
 ): { subject: string; plainText: string; html: string } => {
   const title = (appointment.desc || 'Appointment').trim();
   const localDate = appointment.date || 'Date TBD';
@@ -137,6 +139,47 @@ const buildAppointmentEmailContent = (
   const location = appointment.locationDisplay || appointment.location || 'No location provided';
   const senderLabel = actorLabel || actorEmail;
   const messageBlock = userMessage.trim();
+  const escHtml = (value: string): string => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const formatDiffValue = (value?: string): string => value || '—';
+  const formatPrevSentAt = (iso?: string): string | null => {
+    if (!iso) return null;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return null;
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+  };
+  const formatTimeSnapshot = (time?: { startIso?: string; endIso?: string; tz?: string }): string => {
+    const start = formatDiffValue(time?.startIso);
+    const end = formatDiffValue(time?.endIso);
+    const tz = time?.tz ? ` (${time.tz})` : '';
+    return `${start} → ${end}${tz}`;
+  };
+  const diffHeaderLabel = diffSummary?.prevSentAt ? `Changes since last update (${formatPrevSentAt(diffSummary.prevSentAt) ?? diffSummary.prevSentAt}):` : 'Changes since last update:';
+  const diffPlainLines = (() => {
+    if (!diffSummary) return [];
+    if (!diffSummary.hadPrevious) return [diffHeaderLabel, '- (first update)', ''];
+    if (diffSummary.items.length === 0) return [diffHeaderLabel, '- No appointment changes since last update.', ''];
+    const lines = diffSummary.items.map((item) => {
+      if (item.field === 'status') return `- Status: ${formatDiffValue(item.from)} → ${formatDiffValue(item.to)}`;
+      if (item.field === 'time') return `- Time: ${formatTimeSnapshot(item.from)} => ${formatTimeSnapshot(item.to)}`;
+      if (item.field === 'location') return `- Location: ${formatDiffValue(item.from)} → ${formatDiffValue(item.to)}`;
+      if (item.field === 'title') return `- Title: ${formatDiffValue(item.from)} → ${formatDiffValue(item.to)}`;
+      return '- Notes updated';
+    });
+    return [diffHeaderLabel, ...lines, ''];
+  })();
+  const diffHtmlBlock = (() => {
+    if (!diffSummary) return '';
+    if (!diffSummary.hadPrevious) return `<p style="margin:0 0 8px"><strong>${escHtml(diffHeaderLabel)}</strong></p><ul style="margin:0 0 16px 18px;padding:0"><li>(first update)</li></ul>`;
+    if (diffSummary.items.length === 0) return `<p style="margin:0 0 8px"><strong>${escHtml(diffHeaderLabel)}</strong></p><ul style="margin:0 0 16px 18px;padding:0"><li>No appointment changes since last update.</li></ul>`;
+    const items = diffSummary.items.map((item) => {
+      if (item.field === 'status') return `<li>Status: ${escHtml(formatDiffValue(item.from))} → ${escHtml(formatDiffValue(item.to))}</li>`;
+      if (item.field === 'time') return `<li>Time: ${escHtml(formatTimeSnapshot(item.from))} => ${escHtml(formatTimeSnapshot(item.to))}</li>`;
+      if (item.field === 'location') return `<li>Location: ${escHtml(formatDiffValue(item.from))} → ${escHtml(formatDiffValue(item.to))}</li>`;
+      if (item.field === 'title') return `<li>Title: ${escHtml(formatDiffValue(item.from))} → ${escHtml(formatDiffValue(item.to))}</li>`;
+      return '<li>Notes updated</li>';
+    }).join('');
+    return `<p style="margin:0 0 8px"><strong>${escHtml(diffHeaderLabel)}</strong></p><ul style="margin:0 0 16px 18px;padding:0">${items}</ul>`;
+  })();
   const subject = `[Yapper] Update: ${title} (${localDate})`;
   const plainText = [
     `Yapper appointment update`,
@@ -146,12 +189,22 @@ const buildAppointmentEmailContent = (
     `Time: ${localDate} ${time}`,
     `Location: ${location}`,
     '',
+    ...diffPlainLines,
     ...(messageBlock ? [`Message from sender:`, messageBlock, ''] : []),
     'Do not reply to this email.',
     `Open in Yapper: ${appLink}`
   ].join('\n');
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">Yapper appointment update</h2><p style="margin:0 0 8px"><strong>Title:</strong> ${title}</p><p style="margin:0 0 8px"><strong>Sent by:</strong> ${senderLabel}</p><p style="margin:0 0 8px"><strong>Time:</strong> ${localDate} ${time}</p><p style="margin:0 0 16px"><strong>Location:</strong> ${location}</p>${messageBlock ? `<p style="margin:0 0 8px"><strong>Message from sender:</strong></p><blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #ddd;color:#333">${messageBlock.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>` : ''}<p style="margin:0 0 16px"><a href="${appLink}" style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px;font-weight:600">Open in Yapper</a></p><p style="margin:0;font-size:12px;color:#666">Do not reply to this email. Use the link above to respond in Yapper.</p></div>`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">Yapper appointment update</h2><p style="margin:0 0 8px"><strong>Title:</strong> ${escHtml(title)}</p><p style="margin:0 0 8px"><strong>Sent by:</strong> ${escHtml(senderLabel)}</p><p style="margin:0 0 8px"><strong>Time:</strong> ${escHtml(localDate)} ${escHtml(time)}</p><p style="margin:0 0 16px"><strong>Location:</strong> ${escHtml(location)}</p>${diffHtmlBlock}${messageBlock ? `<p style="margin:0 0 8px"><strong>Message from sender:</strong></p><blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #ddd;color:#333">${escHtml(messageBlock)}</blockquote>` : ''}<p style="margin:0 0 16px"><a href="${appLink}" style="display:inline-block;background:#1f6feb;color:#fff;text-decoration:none;padding:10px 14px;border-radius:6px;font-weight:600">Open in Yapper</a></p><p style="margin:0;font-size:12px;color:#666">Do not reply to this email. Use the link above to respond in Yapper.</p></div>`;
   return { subject, plainText, html };
+};
+
+const latestNotificationSnapshot = (events: AppointmentEvent[]): { snapshot?: AppointmentSnapshot; sentAt?: string } => {
+  const latest = events.find((event) => event.type === 'NOTIFICATION_SENT');
+  if (!latest) return {};
+  const payload = (latest.payload && typeof latest.payload === 'object') ? latest.payload as Record<string, unknown> : {};
+  const snapshot = (payload.appointmentSnapshot && typeof payload.appointmentSnapshot === 'object') ? payload.appointmentSnapshot as AppointmentSnapshot : undefined;
+  const sentAt = typeof payload.sentAt === 'string' ? payload.sentAt : latest.tsUtc;
+  return { snapshot, sentAt };
 };
 
 const resolveNotificationRecipients = (
@@ -876,12 +929,17 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
     const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
     const actorLabel = formatNotificationActor({ name: senderPerson?.name, email: session.email }, session.email);
+    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 100);
+    const latestSnapshot = latestNotificationSnapshot(existing.events);
+    const currentSnapshot = buildAppointmentSnapshot(responseAppointment);
+    const diffItems = diffAppointmentSnapshots(latestSnapshot.snapshot, currentSnapshot);
     const content = buildAppointmentEmailContent(
       responseAppointment,
       actorLabel,
       session.email,
       directAction.userMessage ?? '',
-      buildAppointmentLink(groupId, directAction.appointmentId)
+      buildAppointmentLink(groupId, directAction.appointmentId),
+      { prevSentAt: latestSnapshot.sentAt, hadPrevious: Boolean(latestSnapshot.snapshot), items: diffItems }
     );
 
     const optedOutByPersonId = new Map(
@@ -910,6 +968,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         subject: content.subject,
         plainText: content.plainText,
         html: content.html,
+        diffSummary: { ...(latestSnapshot.sentAt ? { prevSentAt: latestSnapshot.sentAt } : {}), items: diffItems },
         resolvedRecipients: resolvedForUi,
         excludedRecipients: recipients.excludedRecipients,
         excludedSelf: recipients.excludedSelf
@@ -940,15 +999,19 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
 
     const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
     const actorLabel = formatNotificationActor({ name: senderPerson?.name, email: session.email }, session.email);
+    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 100);
+    const latestSnapshot = latestNotificationSnapshot(existing.events);
+    const currentSnapshot = buildAppointmentSnapshot(responseAppointment);
+    const diffItems = diffAppointmentSnapshots(latestSnapshot.snapshot, currentSnapshot);
     const content = buildAppointmentEmailContent(
       responseAppointment,
       actorLabel,
       session.email,
       directAction.userMessage ?? '',
-      buildAppointmentLink(groupId, directAction.appointmentId)
+      buildAppointmentLink(groupId, directAction.appointmentId),
+      { prevSentAt: latestSnapshot.sentAt, hadPrevious: Boolean(latestSnapshot.snapshot), items: diffItems }
     );
 
-    const existing = await appointmentEventStore.recent(groupId, directAction.appointmentId, 100);
     const duplicate = existing.events.find((event) => {
       if (event.type !== 'NOTIFICATION_SENT') return false;
       const payload = event.payload && typeof event.payload === 'object' ? event.payload as Record<string, unknown> : null;
@@ -1020,6 +1083,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       deliveryStatus,
       failedRecipients: failures.map((entry) => ({ email: entry.email, ...(entry.display ? { display: entry.display } : {}), ...(entry.personId ? { personId: entry.personId } : {}), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}) })),
       subject: content.subject,
+      appointmentSnapshot: currentSnapshot,
       ...(directAction.userMessage?.trim() ? { userMessage: directAction.userMessage.trim() } : {}),
       excludedRecipients: recipients.excludedRecipients,
       clientRequestId: directAction.clientRequestId
