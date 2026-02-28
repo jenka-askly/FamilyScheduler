@@ -14232,3 +14232,26 @@ Fix the `pnpm -r --if-present build` web failure where `PageHeader.tsx` referenc
 
 ### Follow-ups
 - Restore API dependency availability (`@azure/data-tables`) in environment, then rerun full recursive build.
+
+## 2026-02-28 22:58 UTC (Fix TS2304 PageHeader unresolved notification symbols)
+
+### Objective
+Resolve web build failures in `PageHeader.tsx` where notification-toggle variables were reported as undefined in menu JSX.
+
+### Approach
+- Confirmed failing symbols were all props-backed values used in the profile menu section.
+- Switched the component signature to accept a single `props: Props` parameter and perform explicit local destructuring at the top of the function, including notification preference props and defaults.
+- Rebuilt web package to verify TypeScript and Vite production build pass.
+- Updated continuity docs with this follow-up.
+
+### Files changed
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm -r build` ⚠️ failed in `api` due to missing `@azure/data-tables` dependency/types in this environment.
+
+### Follow-ups
+- Once API Azure table dependencies are available in CI/runtime image, rerun full workspace build to clear the remaining warning.
