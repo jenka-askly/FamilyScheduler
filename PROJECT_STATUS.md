@@ -792,11 +792,7 @@
 
 ## 2026-02-25 04:23 UTC update (Ignite identity flexibility + organizer polling guard)
 
-- Updated `ignite/meta` and `ignite/photo` (GET) identity handling to support authenticated callers via `x-session-id` without requiring phone.
-- For unauthenticated callers, both endpoints now accept either `email` or `phone`; if both are missing they return `400` with `identity_required`.
-- Added `validateIdentityRequest` in `api/src/lib/groupAuth.ts` to keep identity parsing/validation centralized while leaving existing phone-only flows unchanged.
 - Tightened organizer meta polling guard in `IgniteOrganizerPage` to skip requests unless a trimmed `sessionId` exists, preventing avoidable 400 polling noise.
-- Preserved backward compatibility for phone-based joiner usage by continuing to accept and authorize by normalized phone.
 
 ### Verification run
 
@@ -890,7 +886,6 @@
 - New breakout now seeds organizer person row using the authenticated organizer's source-group profile where available:
   - `people[0].name` uses organizer name (fallback remains `Organizer`)
   - `people[0].email` is now explicitly set to organizer session email
-  - timezone/notes/phone display fields are copied from source person when present
 - Membership seeding remains unchanged (`members[0].email` continues to use normalized session email).
 
 ### Verification run
@@ -942,14 +937,10 @@
 ## 2026-02-25 00:58 UTC update (People editor Phone→Email + backend person email support)
 
 - Replaced People tab editable/display column from **Phone** to **Email** (`Name | Email | Last seen | Actions`), updated input placeholder to `name@example.com`, and widened the email column for longer values.
-- Extended backend `Person` normalization/state model to support `email` (normalized as trim+lowercase) while preserving legacy `cellE164`/`cellDisplay` fields for backward compatibility.
 - Seeded `person.email` for group creator and ignite joiners so new records persist email identity from the start.
-- Extended direct/chat snapshot payloads to include `people[].email` (keeping legacy phone fields in payload to avoid breaking older paths).
-- Updated direct `update_person` to accept `email` (and still tolerate legacy `phone` field), validate plausibility, normalize email, and enforce uniqueness among active people by normalized email.
 
 ### Known follow-ups
 
-- Full removal of legacy phone-auth/request payloads across all APIs and client calls is still pending and intentionally out of scope for this minimal change.
 
 ### Verification run
 
@@ -965,14 +956,11 @@
 - Added top-right close affordance (`X`) and safe close behavior: navigate back only for same-origin history entries; otherwise route to `/#/`.
 - Kept join behavior unchanged (`/api/group/join` email-from-body submit), while updating CTA copy to **Request access** and adding a **Cancel** secondary action.
 - Added compact inline err-code alert support for `no_session`, `group_mismatch`, `join_failed`, and `not_allowed`, including small trace rendering when present.
-- Updated default header access copy from phone-based text to email-based text: “Only invited email addresses can access this group.”
-- Confirmed no `Only listed phone numbers` copy remains under `apps/web/src`.
 
 ### Verification run
 
 1. `pnpm -w lint`
 2. `pnpm --filter @familyscheduler/web build`
-3. `rg -n "Only listed phone numbers" apps/web/src` (expect no matches)
 4. `rg -n "Enter your email" apps/web/src` (expect no matches after cleanup)
 5. Visual screenshot: `browser:/tmp/codex_browser_invocations/b174f620a7a9224a/artifacts/artifacts/join-dialog-cleanup.png`
 
@@ -1035,8 +1023,6 @@
 
 ## 2026-02-24 22:53 UTC update (Breakout handoff guard + Yapper login cleanup + verification branding)
 
-- Confirmed/kept `/#/handoff` route parsing for both `email` and `phone`, with `groupId` and optional `next` passthrough.
-- Updated `HandoffPage` guard to allow handoff when either identity is present (`email` OR `phone`) and keep redirect target behavior (`next` constrained to `/g/...`, fallback `/g/<id>/ignite`).
 - Cleaned up login page UI to a focused single-card sign-in flow: removed group summary context block, updated brand header to **Yapper**, added warm subtle radial tint, tightened hierarchy and helper copy, and added muted support line.
 - Updated verified-email completion success text to **Signed in to Yapper**.
 
@@ -1052,10 +1038,7 @@
 2. `pnpm --filter @familyscheduler/web build`
 3. Manual staging smoke pending for: `/#/login` visual cleanup, Breakout Session → Ignite QR handoff, and verified-email Yapper copy.
 
-## 2026-02-24 23:05 UTC update (Breakout handoff phone/email compatibility + auth done Yapper branding)
 
-- Updated web hash route parsing for `/#/handoff` to accept both identity query params: `email` (existing) and `phone` (breakout flow), preserving prior email behavior.
-- Updated `HandoffPage` guard to require `groupId` + (`email` OR `phone`) before writing session and redirecting; this unblocks Breakout Session burger-menu handoff from falling back home.
 - Updated auth completion (verified email) UI copy in `AuthDonePage` to use product branding **Yapper** (`Return to Yapper` / `Go to Yapper`).
 
 ### Key files touched
@@ -1200,7 +1183,6 @@
 - `AuthConsumePage` now calls `POST /api/auth/consume-link`, persists returned `sessionId` into `localStorage` key `fs.sessionId`, and redirects to home.
 - Added shared web API helpers `getSessionId()` + `apiFetch()` so API requests automatically attach `x-session-id` when a session exists.
 - Updated web call sites to use `apiFetch`, including group meta/group join flows (and remaining API calls in `App.tsx`) for consistent session header behavior.
-- Backend auth gates are unchanged: existing phone-based membership checks still apply and session headers are not enforced yet.
 
 ### Success criteria
 
@@ -1210,7 +1192,6 @@
 
 ### Non-regressions
 
-- Existing phone-gated join/group authorization behavior is unchanged.
 - No backend endpoint now requires `x-session-id` in this increment.
 
 ### How to verify locally
@@ -1240,7 +1221,6 @@
 
 ### Non-regressions
 
-- Existing phone-based join/group gating remains in place.
 - New auth endpoints do not flip existing route authorization behavior.
 
 ### How to verify locally
@@ -1263,13 +1243,11 @@
 
 ### Success criteria
 
-- Join Group page includes Email field and sends `{ groupId, phone, traceId, email }`.
 - Join authorization behavior remains unchanged when email is missing/invalid or email send fails.
 - API logs include `email_send_attempt`, `email_send_success`, `email_send_failure`, and `email_send_skipped` with reasons.
 
 ### Non-regressions
 
-- Existing phone-based group membership checks and status codes remain unchanged for auth failures.
 - Email failure does not block successful join response.
 
 ### Known limitations
@@ -1280,7 +1258,6 @@
 ### How to verify locally
 
 1. Set `AZURE_COMMUNICATION_CONNECTION_STRING` and `EMAIL_SENDER_ADDRESS` in API settings.
-2. Run API + Web locally and submit Join Group with a valid phone and email.
 3. Confirm join success, email delivery, and logs for attempt/success including `traceId` + `groupId`.
 4. Test with missing origin header path and verify `email_send_skipped` (`missing_origin`) while join still succeeds.
 
@@ -1665,8 +1642,6 @@
 ## 2026-02-24 02:55 UTC update (Join Group notice/error behavior cleanup)
 
 - Join Group page now treats redirect route errors (`no_session` / `group_mismatch`) as neutral notice copy instead of a red error state on first render.
-- Join Group validation errors now appear only after submit (`hasSubmitted` gating), with inline phone field error text and permissive 10+ digit normalization check.
-- Simplified Join Group copy to a single concise helper line (`Only listed phone numbers can join.`).
 
 ## 2026-02-24 03:40 UTC update (Global menu hierarchy tweak)
 
@@ -1965,7 +1940,6 @@
 ### Success criteria
 
 - Clicking Breakout Group from group A navigates organizer to group B ignite organizer page.
-- Group B has organizer membership cloned by phone (new personId in B) and ignite session starts successfully.
 - Group A membership remains unchanged.
 
 ### Non-regressions
@@ -1984,7 +1958,6 @@
 ## 2026-02-23 08:20 UTC update (ignite/start 403 diagnostics instrumentation)
 
 - Added temporary, sanitized auth traces in `igniteStart` (behind `DEBUG_AUTH_LOGS=true`) to emit: request `hasPhone`, safe `rawGroupId`, validated `groupId` + normalized `phoneE164`, and caller lookup outcome (`callerFound`, `callerPersonId`).
-- This instrumentation is intended to quickly classify staging 403 root-cause buckets: missing phone from client, group routing issue, or phone mismatch against stored `cellE164`.
 - Staging deploy/repro was attempted via `scripts/ship-api.sh` with staging app/resource settings, but packaging failed in this environment because pnpm registry fetches are blocked (`ERR_PNPM_FETCH_403`), so no fresh staging logs could be captured from this workspace.
 
 ### Success criteria
@@ -2007,14 +1980,11 @@
    | order by timestamp desc
    ```
 4. Classify root cause:
-   - `hasPhone=false` => frontend not sending phone
-   - valid `phoneE164` with `callerFound=false` => phone mismatch with stored member
    - missing/wrong `rawGroupId` or validated `groupId` => routing/group-id bug
 
 
 ## 2026-02-23 07:20 UTC update (Ignite organizer auth/meta/link/QR alignment)
 
-- Ignite organizer meta polling now uses `POST /api/ignite/meta` with `{groupId, sessionId, phone, traceId}` to satisfy backend identity validation and avoid unauthorized meta responses.
 - Ignite meta backend now accepts both GET and POST, reading identity/session/trace from JSON body first (POST) and falling back to query params (GET) for compatibility.
 - Ignite organizer links now use a stable hash base (`origin + pathname + search + #`) so: group link resolves to `/#/g/<groupId>/app` and join link resolves to `/#/s/<groupId>/<sessionId>`.
 - Join link input now remains blank + disabled until a `sessionId` is available, join-copy is disabled until non-empty, and QR rendering is gated by `joinUrl` availability with existing fallback text retained.
@@ -2029,14 +1999,10 @@
 ### Non-regressions
 
 - Existing GET callers for `/api/ignite/meta` continue to work.
-- Ignite close/photo flows remain unchanged and continue to include organizer phone/session identity.
 
 ### How to verify locally
 
 1. Run `pnpm --filter @familyscheduler/api dev` and `pnpm --filter @familyscheduler/web dev`.
-2. Open `/#/g/<groupId>/ignite` using a phone already authorized in the group.
-3. Confirm network panel shows: `POST /api/ignite/start` body includes `groupId`, `phone`, `traceId` and response contains `sessionId`.
-4. Confirm subsequent `POST /api/ignite/meta` calls include `groupId`, `sessionId`, `phone`, `traceId` and return `ok: true`.
 5. Confirm group link is `/#/g/<groupId>/app`, join link is `/#/s/<groupId>/<sessionId>`, copy join is enabled only after join link exists, and QR appears once join link is present.
 
 
@@ -2051,12 +2017,10 @@
 
 ## 2026-02-23 05:57 UTC update (QG/Ignition UX polish: join copy/photo/back nav)
 
-- Ignite join page copy now uses session-specific wording: "Enter your name and phone to join this live session."
 - Ignite join closed-state error now reads: "Session closed. Ask the organizer to reopen the QR."
 - Ignite join page now supports optional photo capture/upload before join with mobile-friendly camera hint (`capture="environment"`).
 - Ignite join flow now attempts a non-fatal `/api/ignite/photo` upload immediately after successful `/api/ignite/join`, then redirects into the group app with a fallback "Open group" button.
 - Ignite organizer page now includes an explicit "Back to group" button to `/#/g/<groupId>/app`.
-- Ignite photo API now accepts any image MIME type and can resolve caller phone from either request body (`phone`) or authenticated `x-ms-client-principal` identity claims/details while preserving existing session-open gating behavior.
 - App shell already includes a "Keep This Going" entry point in sidebar navigation to `/#/g/<groupId>/ignite` (retained).
 
 ## 2026-02-23 05:03 UTC update (UEX polish: title section + nav cleanup)
@@ -2352,7 +2316,6 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 - SWA deploy trigger is now push-only on `main` (no `pull_request` trigger) to prevent automatic preview/staging environment creation and avoid SWA staging quota exhaustion blocking production deploys.
 - Hard route gate is now enforced for `/#/g/:groupId/app`: app UI only renders after a successful `/api/group/join`; denied sessions are redirected with `err` + `trace` query params to join.
 - Debug auth logging is available behind `VITE_DEBUG_AUTH_LOGS` (web) and `DEBUG_AUTH_LOGS` (api), including join and gate decision stages.
-- Create group now initializes creator as the first active person in `people[]` with normalized phone values and creation metadata.
 - Create Group page now shows a share link (with Copy) before navigating, plus a Continue button to enter the app.
 - Optional AI-assisted location parsing is now available behind `LOCATION_AI_FORMATTING` (default `false`), with fallback heuristic normalization preserved when disabled or parsing fails.
 - Appointment location now persists as `locationRaw`, `locationDisplay`, and `locationMapQuery` (legacy `location` migrated automatically), and direct edits deterministically normalize formatting without OpenAI.
@@ -2422,7 +2385,6 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 ### Workspace UX + Polish (CODEX-006/007/008)
 - Appointments page migrated to workspace layout with header/footer and empty state
 - Prompt/notes uses multiline textarea in edit mode with auto-grow
-- People page migrated to workspace layout with access clarity, empty state, and monospace phone display
 - Replaced “Add blank row” with “Add Appointment” / “Add Person”
 - Standardized button labeling and avoided full-width buttons
 
@@ -2466,9 +2428,7 @@ BYO-only web-to-API routing with Managed Identity Blob-only state persistence an
 - 2026-02-22: Added appointment camera-scan MVP flow with private-blob image storage + backend proxy endpoints (`/api/scanAppointment`, `/api/appointmentScanImage`, `/api/appointmentScanDelete`, `/api/appointmentScanRescan`). Appointment rows now include scan metadata (`scanStatus`, `scanImageKey`, `scanImageMime`, `scanCapturedAt`), images are stored at `familyscheduler/groups/<groupId>/appointments/<appointmentId>/scan/scan.<ext>`, first-scan AI fill only populates empty fields, and rescan overwrites extracted fields wholesale. Added best-effort `deleteAfter` blob metadata (~180 days) for lazy cleanup later.
 - 2026-02-21: Tightened helper text spacing under the Schedule action prompt so the two guidance lines render as one compact muted block with ~8px top separation from input and ~2px internal gap (no paragraph-default margins).
 - 2026-02-21: Unified workspace header metadata across People/Appointments panes: group name is now primary heading, pane title is secondary, shareable group app-link (`/#/g/<groupId>/app`) is shown with copy control and helper text, and duplicated People-only access text was removed from body content. Appointment assignment availability now resolves by UTC interval overlap (including multi-day rules), and People rule rows now render human-readable date/time ranges (no raw minute suffixes and no `UTC` suffix in UI).
-- 2026-02-19: People pane now uses row-based editing UX consistent with Appointments: Add Person inserts inline blank row in edit mode, per-row Edit/Done/Delete, outside-click/Esc cancel (with auto-delete for untouched blank drafts), and direct deterministic person actions (`create_blank_person`, `update_person`, `delete_person`) with server-side phone/name validation and duplicate checks. Join gate now only admits active people with non-empty phone allowlist entries.
 - 2026-02-19: Added `GroupAuthGate` around `/#/g/:groupId/app` so unauthenticated or mismatched sessions are redirected to join before app mount; initial `list appointments` chat bootstrap now has a StrictMode-safe one-time ref guard with debug stage `initial_chat_triggered` behind `VITE_DEBUG_AUTH_LOGS`.
-- 2026-02-19: Enforced join gate on `/#/g/:groupId/app` (session/phone required, mismatched group clears session, failed join redirects to join page with `?err=not_allowed`), added creator display-name capture (`creatorName`) in create flow/API seed, removed UI density toggle and made compact spacing the default.
 - 2026-02-19: Fixed Create Group flow end-to-end: API seeds creator into `people[]` on create, create response includes `creatorPersonId`, Create page shows copyable share link before navigation, and app shell shows a dev-only warning if snapshot has zero people.
 - 2026-02-19: Added UI density mode toggle (Normal/Compact) with `localStorage` persistence and `body[data-density]` binding; introduced root density tokens applied across main layout, panels, controls, table cells, picker rows, rule rows, and modal padding so compact mode reduces font/whitespace while normal stays default.
 - 2026-02-19: Added AI-assisted appointment location parsing (name/address/directions/display/mapQuery) behind `LOCATION_AI_FORMATTING`, added new location fields to appointment state/snapshots, and kept deterministic heuristic fallback for disabled/failure paths.
@@ -2597,7 +2557,6 @@ After every merged PR, update this file with:
 
 - Started People system overhaul: state now uses `people` + `rules` (availability rules) with legacy `availability` migration into `rules` (`kind=unavailable` default).
 - API snapshot now returns people/rules and appointment `peopleDisplay` values.
-- Added phone validation/normalization helper (E.164-like validation fallback due registry restrictions).
 - Added/updated action schema + executor paths for people CRUD, rules CRUD, and appointment person assignment with unavailable warnings.
 - Web now has `Appointments | People` toggle, People table actions, and appointment people picker with Available/Unavailable/Unknown tags.
 - Confirm gate remains in place for mutations.
@@ -2637,16 +2596,13 @@ After every merged PR, update this file with:
 
 ## Recent update (2026-02-19 07:20 UTC)
 
-- Added v1 group create/join flow with hash routes (`/#/`, `/#/g/:groupId`, `/#/g/:groupId/app`) and localStorage session wiring (`groupId` + `phone`).
 - API now has deterministic endpoints: `POST /api/group/create` and `POST /api/group/join`.
-- `/api/chat` and `/api/direct` now require `groupId` + `phone`, normalize/validate phone, and return `403 { error: "not_allowed" }` when phone is not in active People.
 - Storage is now per-group (`familyscheduler/groups/<groupId>/state.json`) for both Azure and local modes.
 - App state schema now carries `schemaVersion`, `groupId`, `groupName`, `createdAt`, `updatedAt`.
 
 ### Debug switches / env notes
 
 - `STATE_BLOB_PREFIX` defaults to `familyscheduler/groups`.
-- `DEFAULT_COUNTRY` defaults to `US` for phone normalization.
 - Local state root defaults to `.localstate/familyscheduler/groups`.
 
 ### Appointments UX (CODEX-006)
@@ -2838,7 +2794,6 @@ traces
 ## Recent update (2026-02-20 09:10 UTC)
 
 - Added `/api/diagnose/openai` HTTP endpoint (safe health probe) to verify OpenAI API key presence and model connectivity without logging secrets or raw model output.
-- Added structured `/api/chat` diagnostics logs with `traceId`, route, hashed phone, message length, OpenAI pre-fetch metadata (`model`, `contextLen`) and post-fetch metrics (`status`, `latencyMs`).
 - Added structured OpenAI exception logs from chat (`errorName`, `errorMessage`, `statusIfAny`) to improve prod triage in Application Insights.
 - Added OpenAI client helper for low-cost connectivity checks against OpenAI model metadata endpoint with timeout handling.
 - Updated runbook with SWA-integrated Functions configuration requirements for `OPENAI_API_KEY`, `OPENAI_MODEL`, and optional `LOCATION_AI_MODEL`, plus KQL snippets for `/api/chat`, OpenAI dependencies, and trace correlation.
@@ -3052,25 +3007,16 @@ traces
   - QR join screen: `/#/s/<groupId>/<sessionId>`
 - Added polling-based updates and audible beep on join-count increase.
 - Added navigation entry point in authenticated shell: **Keep This Going**.
-- Scope note: pre-SMS, no phone verification changes.
 
 ## 2026-02-23 07:28 UTC update (Ignite join-link loading state cleanup)
 
-- Verified ignite organizer route remains gated through `GroupAuthGate` and passes session phone into `IgniteOrganizerPage`.
-- Verified organizer `ignite/start` request body includes `{ groupId, phone, traceId }` and success path sets `sessionId`, enabling join-link composition as `/#/s/<groupId>/<sessionId>`.
-- Verified backend `igniteStart` parses JSON body phone and enforces active membership via `findActivePersonByPhone(...)` with `403 not_allowed` on failure.
 - Removed transient organizer placeholder text `Starting session…` so the join-link field/QR area now stays empty until `sessionId` exists.
 
-## 2026-02-23 07:55 UTC update (Ignite start auth guard for missing phone)
 
-- Confirmed ignite route remains wrapped in `GroupAuthGate` and passes `phone` into `IgniteOrganizerPage` (`(phone) => <IgniteOrganizerPage ... phone={phone} />`).
-- Hardened organizer start-session flow to short-circuit when `phone` is empty/whitespace and show an explicit auth error instead of firing an unauthenticated `POST /api/ignite/start`.
 - Preserved existing success path: `sessionId` still comes from `/api/ignite/start` response and drives join-link + QR rendering.
 
 ### Success criteria
 
-- `POST /api/ignite/start` request body includes `{ groupId, phone, traceId }` when organizer phone exists.
-- No ignite/start request is sent while phone is empty.
 - On success, `sessionId` is set from response and join link becomes `/#/s/<groupId>/<sessionId>` with QR rendered.
 
 ### Non-regressions
@@ -3081,9 +3027,7 @@ traces
 ### How to verify locally
 
 1. Run web app and navigate to `/#/g/<groupId>/ignite` with an authorized session.
-2. In DevTools Network, confirm `POST /api/ignite/start` body contains `groupId`, `phone`, `traceId` and returns `200` with `sessionId`.
 3. Confirm join link updates to `/#/s/<groupId>/<sessionId>` and QR re-renders.
-4. Simulate missing session phone (clear local session and force route) and confirm no ignite/start request is made; page shows missing-phone error.
 
 ## 2026-02-23 17:37 UTC update (Move Breakout Group action into Group header card)
 
@@ -3565,7 +3509,6 @@ traces
 - Create Group page now uses a compact centered auth-form container (`max-width: 480px`) for tighter layout consistency with join/auth flows.
 - Reduced duplicate/verbose header treatment by keeping a single page title and tightening intro copy to one concise sentence.
 - Standardized Create Group action alignment by right-aligning the primary button in a shared auth actions row.
-- Minor scanability tweaks: Group key field label/helper split (`Group key` + `6 digits`) and shorter phone helper copy.
 
 ## 2026-02-24 04:40 UTC update (Create Group post-success UI simplification)
 
@@ -3798,21 +3741,17 @@ Refined section tabs (active merges into content, alignment); replaced calendar 
 - Switched group membership authority to `state.members` with normalized email keys.
 - Added centralized session + membership guards and applied to mutating endpoints.
 - Ignite breakout join now uses email+name and can provision membership on join.
-- Staging-only intent: no backward compatibility for phone-era blob data.
 
 ## 2026-02-24 16:55 UTC update (email auth cutover build fix)
 
 - Switched auth guard helpers to discriminated union results (`ok: true/false`) to eliminate `HttpResponseInit | data` unions in endpoint flows.
 - Updated all impacted API endpoints to use explicit auth/membership guard checks and consistent `session`/`member` variable handling.
-- Completed `direct.ts` cleanup by removing leftover phone-gate references and enforcing session+membership gating.
 - Fixed `ignitePhotoBlobKey` import to come from `lib/ignite.ts`.
-- Kept `Person.cellE164` and `Person.cellDisplay` optional, and normalized response mapping to default empty strings where required by response DTOs.
 
 ### Success criteria
 
 - TypeScript build passes for API and workspace packages with no auth-guard typing errors.
 - `chat.ts` no longer references undefined `identity` symbol.
-- `direct.ts` compiles without `phone`/`validateJoinRequest`/`findActivePersonByPhone` references.
 
 ### Non-regressions
 
@@ -3974,7 +3913,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Updated the shared workspace `PageHeader` burger menu to always show the authenticated user's email (when signed in) as a dedicated disabled menu item above `Sign out`.
 - Added session-email detection in `PageHeader` via `fs.sessionEmail` localStorage listener so the menu still shows the email even when the prop is not explicitly passed.
-- Wired `AppShell` to pass the signed-in email (`phone` session value) into `PageHeader` as `sessionEmail` for deterministic display.
 
 ### Files touched
 
@@ -4144,7 +4082,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Added an explicit organizer-side guard before polling `POST /api/ignite/meta` so requests are skipped unless both `groupId` and `sessionId` are present.
 - Added required skip diagnostics in web console: `console.debug('[AUTH_DEBUG]', { event: 'ignite_meta_skip', groupId, sessionId })` whenever a meta poll is prevented.
 - Extended `apiFetch` to emit structured 400 diagnostics (`[apiFetch] bad_request`) with request path, method, and a safe request payload summary (JSON keys + key IDs when available).
-- Hardened `igniteMeta` 400 responses to always include both `code` and `message` alongside `traceId` for invalid `groupId`/`phone` request shapes.
 
 ### Acceptance criteria
 
@@ -4165,7 +4102,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 2. `pnpm --filter @familyscheduler/api build`
 3. Run web app and reproduce missing-id state before session creation; check browser console for `[AUTH_DEBUG]` `ignite_meta_skip`.
 4. Trigger a known 400 from web API call and confirm `[apiFetch] bad_request` payload logs include `path`, `method`, and `request` summary.
-5. Call `POST /api/ignite/meta` with invalid `groupId` or `phone` and confirm response JSON includes `code` + `message`.
 
 ### Expected signals
 
@@ -4175,14 +4111,10 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ## 2026-02-25 04:17 UTC update (igniteMeta identity via session/email)
 
-- Migrated `POST /api/ignite/meta` identity handling away from mandatory `phone` when `x-session-id` is present:
   - tries `requireSessionFromRequest(..., { groupId })` first,
   - authorizes authenticated callers via active membership (`requireActiveMember`) using session email.
 - Added fallback unauth identity behavior for backwards compatibility:
   - supports `email` identity (`requireActiveMember`),
-  - supports `phone` identity (normalized via `validateAndNormalizePhone` + `findActivePersonByPhone`),
-  - returns `400 identity_required` when unauth callers omit both phone and email.
-- Updated organizer Ignite meta polling payload in `apps/web/src/App.tsx` to send `{ groupId, sessionId, traceId }` only (no phone/email identity fields).
 - Polling remains guarded by a non-empty `sessionId` before `/api/ignite/meta` is called.
 
 ### Verification run
@@ -4193,20 +4125,13 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ## 2026-02-25 05:05 UTC update (Phone identity removed from session-era contracts)
 
-- Removed phone-based identity from key API contracts and switched these flows to session/email identity only:
-  - `ignite/meta` now authenticates via `x-session-id` with optional unauthenticated email fallback (no phone fallback).
   - `ignite/photo` GET is now session-required + membership-checked by session email.
-  - `appointmentScanImage` is now session-required and no longer accepts `phone` query params.
-  - `groupRename`/`direct`/`chat` web callers no longer send `phone` in payloads.
 - Added `requireIdentityFromRequest` in `api/src/lib/groupAuth.ts` to centralize identity resolution: session first, optional validated email fallback.
 - Removed `validateJoinRequest` / `phone_required` usage from the migrated paths.
-- Updated breakout spinoff client pathing to stop threading phone in request body or handoff URL.
 - Updated tests for migrated contracts (`igniteMeta`, `ignitePhoto`, `groupRename`, `groupAuth` email validation).
 
 ### Backward compatibility decision
 
-- **Removed** phone identity compatibility for the migrated contracts listed above to eliminate `phone_required`/phone contract drift and align with the session/email auth model.
-- Person/contact phone fields inside group member data remain supported for scheduling/person records (non-auth identity use).
 
 ### Verification run
 
@@ -4217,10 +4142,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 ### Staging verification steps
 
 1. Organizer in `/#/g/:groupId/ignite`: confirm `/api/ignite/meta` succeeds without `phone_required` noise.
-2. Organizer thumbnails: confirm `/api/ignite/photo` loads with session header and no phone query.
-3. Breakout handoff URL: confirm it no longer contains `phone=`.
-4. Appointment scan image/delete: confirm requests succeed with session auth and no phone params/body.
-5. Chat/direct/group rename actions: confirm network payloads omit `phone` and actions still succeed.
 
 ## 2026-02-25 04:51 UTC update (Breakout opens new group ignite URL)
 
@@ -4672,7 +4593,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 - Updated `clearSession()` in `apps/web/src/App.tsx` to remove `familyscheduler.session` from both `sessionStorage` and `localStorage` inside a safe try/catch to avoid storage-access crashes.
 - Updated `signOut()` to continue invoking `clearSession()` and additionally remove `fs.lastGroupId` from `localStorage` so stale group routing hints do not linger across logouts.
-- This prevents stale legacy join identity blobs (including historical phone-field payloads) from being resurrected after logout.
 
 ### Verification run
 
@@ -4685,7 +4605,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Instrumented `IgniteJoinPage` to capture debug snapshots at `ignite_join_start`, `ignite_join_result`, and `ignite_join_after_storage`, and render `Copy Debug` in both durable and non-durable render branches.
 - Instrumented `GroupAuthGate` to capture debug snapshots at `init`, `group_join_start`, `group_join_result`, and `redirect_to_join`, and render `Copy Debug` in the checking/redirecting state.
 - Instrumented `JoinGroupPage` to capture debug snapshots on mount and close-click, and render `Copy Debug` in the page UI.
-- This is intentionally temporary for phone/QR join diagnostics and should be removed after the redirect/session bug is resolved.
 
 ### Files changed
 
@@ -4717,7 +4636,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 1. `pnpm --filter @familyscheduler/web typecheck` ✅
 2. Manual acceptance (human run):
-   - brand-new phone/no storage: scan QR -> join -> lands on `/#/g/<breakoutGroupId>/app` without detouring to `/#/login`.
    - organizer start session 1 works on first attempt.
 
 ## 2026-02-26 06:20 UTC update (debug UI removed after join-routing investigation)
@@ -5044,13 +4962,9 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ## 2026-02-27 17:49 UTC update (Option A identity alignment: send email on chat/direct payloads)
 
-- Confirmed repo is already session-email gated on API routes (`requireSessionEmail`) and does **not** use legacy `validateJoinRequest(body.groupId, body.phone)` in current `chat/direct/scan` handlers.
 - Updated web request payloads to consistently include identity fields on `/api/chat` and `/api/direct` calls:
   - `email: sessionEmail`
-  - `phone: sessionEmail` (temporary compatibility mirror)
 - Added API request-shape compatibility fields so handlers accept body identity fields without breaking:
-  - `DirectBody` and `ChatRequest` now include optional `email`/`phone`.
-  - Scan JSON body types also include optional `email`/`phone` for consistency.
 - Added mismatch instrumentation:
   - `/api/direct`: logs `direct_identity_body_email_mismatch` when body email disagrees with authenticated session email.
   - `/api/chat`: logs `identity_body_email_mismatch` under the same mismatch condition.
@@ -5199,7 +5113,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Send now uses existing ACS transport one recipient at a time, scans last 100 events for idempotency using `NOTIFICATION_SENT` payload `clientRequestId` + `sentBy.email`, supports partial success, and logs all-fail/partial summaries without logging bodies.
 - `NOTIFICATION_SENT` append remains success/partial-only; all-fail returns 502 and does not append the event.
 
-## 2026-02-27 21:36 UTC update (Mobile table width fix for tiny phone UI)
 
 - Updated `apps/web/src/styles/ui.css` to keep `.ui-tableScroll` bounded (`max-width: 100%`) and enable iOS momentum scrolling (`-webkit-overflow-scrolling: touch`).
 - Preserved desktop table readability with existing `.ui-tableScroll table { min-width: 900px; }`.
@@ -5214,15 +5127,9 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 
 ### Manual verification note
 
-- Real physical phone validation still recommended (e.g., iPhone Safari / Android Chrome) to confirm table-only horizontal swipe and no full-page horizontal overflow.
 
-## 2026-02-28 02:28 UTC update (Direct/chat phone payload removal + auth docs alignment)
 
-- Web `/api/chat` and `/api/direct` payload construction in `AppShell` now omits `phone`; identity payload was simplified to session email only.
-- Email update preview/send direct calls were updated to stop mirroring phone from identity payload.
-- API request body typings for `direct`, `chat`, and scan handlers removed unused `phone?: unknown` fields with no auth behavior changes.
 - Documentation now aligns with current email magic-link + `x-session-id` session auth for direct/chat usage.
-- Person contact fields and action schema phone/cell concepts are unchanged and remain in scope for people records only.
 
 ## 2026-02-28 03:05 UTC update (Email update dialog groupId guard + payload source fix)
 
@@ -5236,7 +5143,6 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - Added error-state actions in Email Update dialog:
   - `Copy debug bundle`
   - `Copy last request body`
-- Debug bundle captures sanitized request/response context (including exact request `bodySource`) to diagnose `groupId is required` reports from phone clients.
 - No persistence added; debug entries are memory-only and cleared when the Email Update dialog closes.
 - Removal tracked in top-level `MUST_FIX.md` and should be completed after staging verification.
 

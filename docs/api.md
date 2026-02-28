@@ -7,7 +7,7 @@ Base style: JSON over HTTPS.
 - Session auth uses `x-session-id`.
 - Group-scoped endpoints validate active membership for `groupId`.
 - `/api/chat` and `/api/direct` requests are group-scoped (`groupId` required for most actions).
-- Email/session auth is authoritative; request-body phone auth is not supported.
+- Email/session auth is authoritative; request-body identity auth is not supported.
 
 ## 2. Core endpoints
 

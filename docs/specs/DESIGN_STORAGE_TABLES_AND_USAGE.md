@@ -166,7 +166,6 @@ Columns:
 - displayName
 - photoKey (blob path)
 - email (optional)
-- phone (optional)
 - timezone (optional)
 - createdAt
 - updatedAt
