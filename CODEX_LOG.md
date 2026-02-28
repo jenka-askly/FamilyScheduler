@@ -13304,3 +13304,37 @@ Fix Email Update dialog preview/send calls so `/api/direct` always receives a no
   - Open appointment drawer → Email update preview should not return `groupId is required`.
   - Send emails should not return `groupId is required`.
   - DevTools payload source should show non-empty top-level `groupId`.
+
+## 2026-02-28 00:55 UTC (Temp: Email Update debug bundle + MUST_FIX removal ledger)
+
+### Objective
+Add temporary in-memory debug instrumentation for Email Update dialog preview/send flows and provide a phone-friendly copyable debug bundle for diagnosing groupId issues.
+
+### Approach
+- Added `MUST_FIX.md` removal ledger specifically for temporary Email Update debug instrumentation.
+- Added an in-memory (ref-backed) ring buffer for Email Update dialog debug entries only (cap: last 50 entries).
+- Instrumented `preview_appointment_update_email` and `send_appointment_update_email` request/response/error capture (including exact request `bodySource` string and parse outcome).
+- Added sanitization/redaction helpers to mask emails, truncate large fields, and omit `x-session-id`.
+- Added error-surface actions in Email Update dialog: `Copy debug bundle` and `Copy last request body`.
+- Cleared debug buffer on Email Update dialog close.
+
+### Files changed
+- `MUST_FIX.md`
+- `apps/web/src/AppShell.tsx`
+- `CODEX_LOG.md`
+
+### Verification commands + outcomes
+- `git status --short --branch` ✅ (clean before starting)
+- `git log -n 15 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `rg -n "preview_appointment_update_email|send_appointment_update_email|Email update" apps/web/src/AppShell.tsx` ✅
+- `cat package.json` ✅
+- `pnpm -w -r typecheck` ✅ (`no typecheck yet` in root script)
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started; intentionally stopped with SIGINT after UI check/screenshot)
+- Playwright smoke/screenshot script against `http://127.0.0.1:4173` ✅ (artifact captured)
+
+### Manual smoke notes
+- Verified UI renders in browser container and captured screenshot artifact.
+- Full in-app reproduction of `groupId is required` depends on authenticated/seeded runtime state not available in this container-only run.
+
