@@ -17,12 +17,16 @@
 - API auth is session-based: `x-session-id` -> session blob -> `email`.
 - Email normalization: `trim().toLowerCase()`.
 - Derive `userKey = sha256(normalizedEmail)`.
+- Canonical member identity key for cross-table references is `memberKey`:
+  - `auth:{oidOrSub}` for authenticated identities.
+  - `guest:{gsid}` for ignite guest/grace identities.
 - Do not use raw email in keys; store email as an entity property where needed (e.g., GroupMembers).
 
-## Source-of-truth rules
+## Source of Truth
+- Membership and authorization truth: `GroupMembers` + `UserGroups` tables only.
+- Roster/display truth: table-driven (`GroupMembers` joined to `UserProfiles`, or equivalent cached display fields on `GroupMembers`).
+- `state.json` is not membership/roster truth. `people[]` / `members[]` in blob state may exist for compatibility but MUST NOT be used as authoritative membership.
 - Groups metadata truth: `Groups` table.
-- Membership truth for authorization: `GroupMembers` table.
-- Dashboard membership listing truth: `UserGroups` table.
 - Appointment full detail truth: appointment JSON blob.
 - Appointment listing/index truth: `AppointmentsIndex` table.
 - Usage/cost tracking truth: Tables (`UserDailyUsage*`, `DailyUsageByModel`).
@@ -78,7 +82,7 @@ Columns:
 ### 4) AppointmentsIndex (promoted fields)
 Table: `AppointmentsIndex`
 - PK: `groupId`
-- RK: `YYYYMMDDHHmmssZ#appointmentId` (time-ordered key)
+- RK: `YYYYMMDDHHmmssZ|appointmentId` (time-ordered key; current implementation uses `|` delimiter)
 Columns:
 - appointmentId
 - startTime (ISO)
@@ -143,6 +147,30 @@ Columns:
 - errors
 - updatedAt
 
+### 9) AppointmentParticipants
+Table: `AppointmentParticipants`
+- PK: `g:{groupId}|a:{apptId}`
+- RK: `m:{memberKey}`
+Columns:
+- status
+- role
+- assignedAt (ISO|null)
+- assignedBy (memberKey|string|null)
+- updatedAt
+
+### 10) UserProfiles
+Table: `UserProfiles`
+- PK: `memberKey`
+- RK: `profile`
+Columns:
+- displayName
+- photoKey (blob path)
+- email (optional)
+- phone (optional)
+- timezone (optional)
+- createdAt
+- updatedAt
+
 ## Auto-provisioning
 - Add env var: `AZURE_TABLES_CONNECTION_STRING` (same storage account as blobs; tables do not use containers).
 - On Function cold start / first use, create tables if not exist:
@@ -156,6 +184,23 @@ Columns:
   - Should filter out groups where `Groups.isDeleted=true`.
 - GET `/api/health`
   - Cheap: no deep dependency checks; returns `{ ok: true, time: ..., version: ... }`.
+
+## Endpoint conformance matrix (membership table-gating)
+
+These endpoints MUST authorize via `GroupMembers`/`UserGroups` table membership (not blob roster arrays):
+
+- `POST /api/chat`
+- `POST /api/direct`
+- `POST /api/ignite/start`
+- `POST /api/ignite/close`
+- `GET /api/ignite/photo`
+- `POST /api/ignite/photo`
+- `GET /api/ignite/meta`
+- `POST /api/ignite/meta`
+- `POST /api/ignite/join`
+- `POST /api/ignite/spinoff`
+
+Implementation note: current code still blob-gates a subset of these paths. Refactoring to strict table-gated membership is required.
 
 ## Invited tracking
 - Invites are represented as membership rows with `status=invited` and `invitedAt`.

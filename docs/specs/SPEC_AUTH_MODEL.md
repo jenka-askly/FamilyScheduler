@@ -4,7 +4,7 @@ This repository uses an **email-based, session-backed** authentication model.
 
 - The web client stores a durable session token in `localStorage` as **`fs.sessionId`**.
 - The client authenticates API requests via the **`x-session-id`** header.
-- The API validates sessions against blob-stored session records and authorizes access by **group membership for the session email**.
+- The API validates sessions against blob-stored session records and authorizes access by **table membership (`GroupMembers`/`UserGroups`) for the session identity**.
 
 **Telephony-based identity is not supported.** Any remaining telephony references are legacy and must be removed.
 
@@ -15,7 +15,7 @@ This repository uses an **email-based, session-backed** authentication model.
 ### Identity
 - **Email is the only identity key**.
 - Emails are normalized (trim + lowercase).
-- Group authorization is based on active membership for the session email.
+- Group authorization is based on active table membership (`GroupMembers`/`UserGroups`).
 
 ### Client session storage
 - Durable credential: `localStorage['fs.sessionId']`
@@ -67,7 +67,8 @@ These must remain true across client and server:
 ## Group authorization
 
 ### Membership rule
-- A request for a group is allowed only if the session email corresponds to an **active** group member.
+- A request for a group is allowed only if the session identity corresponds to an **active** table member (`GroupMembers`/`UserGroups`).
+- Blob arrays (`state.people[]`, `state.members[]`) are not authorization truth.
 
 ### `POST /api/group/join`
 Purpose: confirm that the current identity is allowed to access `groupId`.
