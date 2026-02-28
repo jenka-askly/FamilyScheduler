@@ -13527,3 +13527,45 @@ Implement manual email Phase 3 by storing compact appointment snapshots in `NOTI
   - first update (no snapshot),
   - no-op diff,
   - notes-only update.
+
+
+## 2026-02-28 06:54 UTC (Grace debug always-available in AppShell; remove debugGrace gating)
+
+### Objective
+
+Make the Grace debug dialog reachable at all times from AppShell (including non-grace state), removing `debugGrace=1` gating while preserving safe client-only debug behavior.
+
+### Approach
+
+- Removed `debugGraceEnabled` hash/env gating from `AppShell`.
+- Added an always-visible header-area debug entrypoint using a compact `IconButton` + tooltip/aria label (`Debug`) that opens the existing Grace debug dialog.
+- Kept existing dialog semantics unchanged: open-time snapshot generation (`getGraceDebugText({ groupId, hash })`), read-only multiline text, clipboard copy, and copied feedback alert.
+- Left `showGraceBanner` behavior intact for guest messaging and sign-in CTA only.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "Grace debug|debugGraceEnabled|debugGrace=1|getGraceDebugText|graceDebug" apps/web/src` ✅
+- `rg -n "Guest access \(limited\)|showGraceBanner|isIgniteGraceGuestForGroup" apps/web/src/AppShell.tsx` ✅
+- `sed -n '1,220p' CODEX_LOG.md` ✅
+- `git status --short` ✅ clean before edits.
+- `git log -1 --oneline` ✅ `12ac060 Merge pull request #455 from jenka-askly/codex/implement-appointment-update-snapshot-and-diff`.
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/graceDebug.test.ts` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual/manual verification and screenshot capture (stopped intentionally with SIGINT).
+- Playwright capture attempt (open + click Debug) ⚠️ timed out waiting for visible Debug button in this container route state.
+- Playwright page-state screenshot ✅ `browser:/tmp/codex_browser_invocations/a7d1e27010dd9f74/artifacts/artifacts/grace-debug-page-state.png`.
+
+### Follow-ups
+
+- Manual on-device validation in a fully connected app environment:
+  1) visit `/#/g/<groupId>/app`
+  2) verify header Debug icon is visible regardless of guest banner
+  3) open dialog and confirm hash/storage/computed values populate
+  4) copy and verify clipboard + copied feedback.
+

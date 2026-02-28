@@ -47,6 +47,7 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CloseIcon from '@mui/icons-material/Close';
 import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import BugReportOutlinedIcon from '@mui/icons-material/BugReportOutlined';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
@@ -677,12 +678,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
-  const debugGraceEnabled = useMemo(() => {
-    if (typeof window === 'undefined') return import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
-    const hashQuery = window.location.hash.split('?')[1] ?? '';
-    const debugFromHash = new URLSearchParams(hashQuery).get('debugGrace') === '1';
-    return debugFromHash || import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
-  }, []);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const breakoutInFlightRef = useRef(false);
   const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
@@ -2401,6 +2396,13 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         sessionName={signedInPersonName}
         onDashboardClick={() => window.location.assign(`${window.location.origin}/`)}
       />
+      <Box sx={{ maxWidth: 760, mb: 1, display: 'flex', justifyContent: 'flex-end' }}>
+        <Tooltip title="Debug">
+          <IconButton aria-label="Debug" onClick={openGraceDebug} size="small">
+            <BugReportOutlinedIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
       {breakoutError ? (
         <div className="ui-alert" style={{ maxWidth: 760, marginBottom: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Breakout Session</div>
@@ -2413,7 +2415,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           sx={{ maxWidth: 760, mb: 1.5 }}
           action={(
             <Stack direction="row" spacing={1}>
-              {debugGraceEnabled ? <Button color="inherit" size="small" onClick={openGraceDebug}>Debug</Button> : null}
               <Button color="inherit" size="small" onClick={goToSignIn}>Sign in</Button>
             </Stack>
           )}
