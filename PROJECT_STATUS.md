@@ -5133,3 +5133,9 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 - API request body typings for `direct`, `chat`, and scan handlers removed unused `phone?: unknown` fields with no auth behavior changes.
 - Documentation now aligns with current email magic-link + `x-session-id` session auth for direct/chat usage.
 - Person contact fields and action schema phone/cell concepts are unchanged and remain in scope for people records only.
+
+## 2026-02-28 03:05 UTC update (Email update dialog groupId guard + payload source fix)
+
+- Appointment drawer Email update preview/send direct calls now normalize `groupId` from the same top-level `groupId` source used by other working `/api/direct` calls.
+- Added UI-side hard guard in preview/send paths: when `groupId` is empty after trim, the request is skipped, a user-facing error is shown, and a context-rich warning is logged.
+- Email update direct payload shape is consistently `{ groupId, ...identityPayload(), action, traceId }` with `groupId` top-level and JSON-stringified body.
