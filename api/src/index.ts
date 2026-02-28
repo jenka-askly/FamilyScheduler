@@ -30,6 +30,8 @@ import { igniteMeta } from './functions/igniteMeta.js';
 import { igniteSpinoff } from './functions/igniteSpinoff.js';
 import { userProfilePhotoSet } from './functions/userProfilePhotoSet.js';
 import { userProfilePhotoGet } from './functions/userProfilePhotoGet.js';
+import { userProfileGet } from './functions/userProfileGet.js';
+import { userProfilePut } from './functions/userProfilePut.js';
 import { userPreferencesGet } from './functions/userPreferencesGet.js';
 import { userPreferencesSet } from './functions/userPreferencesSet.js';
 import { ensureTablesInitialized } from './lib/tables/tablesClient.js';
@@ -44,7 +46,7 @@ const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerC
 const enableDogfood = process.env.DOGFOOD === '1';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupClaim', 'groupDeclineInvite', 'groupMeta', 'groupMembers', 'groupRename', 'groupDelete', 'groupRestore', 'meGroups', 'meDashboard', 'chat', 'direct', ...(enableDogfood ? ['diagnoseOpenAi'] : []), 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoGet', 'userPreferencesGet', 'userPreferencesSet'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupClaim', 'groupDeclineInvite', 'groupMeta', 'groupMembers', 'groupRename', 'groupDelete', 'groupRestore', 'meGroups', 'meDashboard', 'chat', 'direct', ...(enableDogfood ? ['diagnoseOpenAi'] : []), 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfileGet', 'userProfilePut', 'userProfilePhotoSet', 'userProfilePhotoGet', 'userPreferencesGet', 'userPreferencesSet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -134,6 +136,8 @@ registerHttp('ignitePhoto', 'ignite/photo', ['POST'], ignitePhoto);
 registerHttp('ignitePhotoGet', 'ignite/photo', ['GET'], ignitePhotoGet);
 registerHttp('igniteMeta', 'ignite/meta', ['GET', 'POST'], igniteMeta);
 registerHttp('igniteSpinoff', 'ignite/spinoff', ['POST'], igniteSpinoff);
+registerHttp('userProfileGet', 'user/profile', ['GET'], userProfileGet);
+registerHttp('userProfilePut', 'user/profile', ['PUT'], userProfilePut);
 registerHttp('userProfilePhotoSet', 'user/profile-photo', ['PUT'], userProfilePhotoSet);
 registerHttp('userProfilePhotoGet', 'user/profile-photo', ['GET'], userProfilePhotoGet);
 registerHttp('userPreferencesGet', 'user/preferences', ['GET'], userPreferencesGet);

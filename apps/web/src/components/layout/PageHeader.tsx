@@ -37,6 +37,7 @@ type Props = {
   sessionEmail?: string | null;
   sessionName?: string | null;
   onSignOut?: () => void;
+  onOpenProfile?: () => void;
   showGroupSummary?: boolean;
   onDashboardClick?: () => void;
   showMenuButton?: boolean;
@@ -48,7 +49,7 @@ type Props = {
   onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true, onAddSampleData, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, onOpenProfile, showGroupSummary = true, onDashboardClick, showMenuButton = true, onAddSampleData, emailUpdatesEnabled = null, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: Props) {
   const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -394,6 +395,18 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </MenuItem>
           ) : null}
           {(hasApiSession ?? detectedApiSession) ? <Divider /> : null}
+          {(hasApiSession ?? detectedApiSession) && onOpenProfile ? (
+            <MenuItem
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setAnchorEl(null);
+                onOpenProfile();
+              }}
+            >
+              <ListItemText primary="Profile" />
+            </MenuItem>
+          ) : null}
           {(hasApiSession ?? detectedApiSession) ? (
             <MenuItem
               onClick={(event) => {

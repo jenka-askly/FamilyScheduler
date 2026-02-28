@@ -8,7 +8,7 @@ import { isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
-import { upsertGroup, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
+import { getUserProfileEntity, upsertGroup, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 
 type CreateGroupBody = { groupName?: unknown; creatorEmail?: unknown; creatorName?: unknown; traceId?: unknown };
@@ -33,21 +33,25 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
     if (!isPlausibleEmail(body.creatorEmail)) return badRequest('creatorEmail is invalid', traceId);
     creatorEmail = normalizeEmail(body.creatorEmail);
   }
-  const creatorName = typeof body.creatorName === 'string' ? body.creatorName.trim().replace(/\s+/g, ' ') : '';
-  if (!creatorName) return badRequest('creatorName is required', traceId);
-  if (creatorName.length > 40) return badRequest('creatorName must be 40 characters or less', traceId);
 
   const groupId = randomUUID();
   const now = new Date().toISOString();
   const creatorUserKey = userKeyFromEmail(creatorEmail);
   const creatorPersonId = newPersonId();
-  const state = createEmptyAppState(groupId, groupName);
-  state.createdAt = now;
-  state.updatedAt = now;
-  state.people = [{ personId: creatorPersonId, name: creatorName, email: creatorEmail, status: 'active', createdAt: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
 
   try {
     await ensureTablesReady();
+    const creatorProfile = await getUserProfileEntity(creatorUserKey);
+    const creatorName = typeof creatorProfile?.displayName === 'string' ? creatorProfile.displayName.trim().replace(/\s+/g, ' ') : '';
+    if (!creatorName) {
+      return { status: 400, jsonBody: { ok: false, error: 'PROFILE_INCOMPLETE', message: 'Display name required', traceId } };
+    }
+
+    const state = createEmptyAppState(groupId, groupName);
+    state.createdAt = now;
+    state.updatedAt = now;
+    state.people = [{ personId: creatorPersonId, name: creatorName, email: creatorEmail, status: 'active', createdAt: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
+
     await upsertGroup({
       partitionKey: 'group',
       rowKey: groupId,
@@ -63,11 +67,13 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
     });
     await upsertGroupMember({ partitionKey: groupId, rowKey: creatorUserKey, userKey: creatorUserKey, email: creatorEmail, status: 'active', joinedAt: now, updatedAt: now });
     await upsertUserGroup({ partitionKey: creatorUserKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, updatedAt: now });
-    await upsertUserProfile({ userKey: creatorUserKey, displayName: creatorName, email: creatorEmail, updatedAt: now, createdAt: now });
     await incrementDailyMetric('newGroups', 1);
 
     const storage = createStorageAdapter();
     await storage.initIfMissing(groupId, state);
+
+    context.debug('group_create_success', { traceId, groupId, peopleCount: state.people.length });
+    return { status: 200, jsonBody: { groupId, groupName, creatorPersonId, linkPath: `/#/g/${groupId}` } };
   } catch (error) {
     if (error instanceof MissingConfigError) {
       logConfigMissing('groupCreate', traceId, error.missing);
@@ -75,6 +81,4 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
     }
     throw error;
   }
-  context.debug('group_create_success', { traceId, groupId, peopleCount: state.people.length });
-  return { status: 200, jsonBody: { groupId, groupName, creatorPersonId, linkPath: `/#/g/${groupId}` } };
 }
