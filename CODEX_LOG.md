@@ -1,3 +1,40 @@
+## 2026-02-28 07:05 UTC (Remove legacy `familyscheduler.session` storage + call sites)
+
+### Objective
+
+Completely remove the legacy local session key `familyscheduler.session` and all associated helpers/call sites while preserving API-session-based auth and routing behavior.
+
+### Approach
+
+- Removed `Session`/`SESSION_KEY` legacy model and `readSession`/`writeSession`/`clearSession` helpers from `App.tsx`.
+- Replaced legacy continuity reads/writes with existing display keys (`fs.sessionEmail`/`fs.sessionName`) where required by UX.
+- Removed leftover dead legacy session surface in `AppShell.tsx` (`Session` type, `SESSION_KEY`, and unused `writeSession`).
+- Updated `PageHeader` sign-out cleanup to stop touching `familyscheduler.session` and keep auth/session cleanup on real keys.
+- Performed repo-wide grep validation to confirm zero `familyscheduler.session` references in `apps/web/src`.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg -n "familyscheduler\.session|SESSION_KEY\s*=\s*'familyscheduler\.session'|readSession\(|writeSession\(|clearSession\(" apps/web/src` ✅ (pre-flight showed references)
+- `rg -n "\bSession\b\s*=\s*\{|type Session" apps/web/src` ✅ (pre-flight showed legacy types)
+- `git status --short` ✅
+- `git log -1 --oneline` ✅
+- `git branch --show-current` ✅
+- `rg -n "familyscheduler\.session|SESSION_KEY|readSession\(|writeSession\(|clearSession\(" apps/web/src` ✅ (post-change empty / no matches)
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web test` ✅
+
+### Follow-ups
+
+- Manual smoke in browser environment: JoinGroup, IgniteJoin, and Handoff routes should still land in `/#/g/:groupId/app`; sign-out should clear durable + grace auth keys and return to root.
+
 ## 2026-02-28 05:49 UTC (Grace guest debug popup + copy support)
 
 ### Objective

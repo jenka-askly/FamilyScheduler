@@ -171,10 +171,7 @@ const buildProjections = (events: AppointmentDetailEvent[]) => ({
   changeEvents: events.filter((event) => event.type !== 'USER_MESSAGE')
 });
 
-type Session = { groupId: string; email: string; joinedAt: string };
-
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const SESSION_KEY = 'familyscheduler.session';
 const BODY_PX = 2;
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -316,10 +313,6 @@ const normalizeDiscussionItems = (events: AppointmentDetailEvent[], sessionEmail
     return { ...item, showHeader };
   });
 };
-const writeSession = (session: Session): void => {
-  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-};
-
 const QuestionDialog = ({
   question,
   value,

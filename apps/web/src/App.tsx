@@ -16,11 +16,9 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Switch, TextField, Typography } from '@mui/material';
 
-type Session = { groupId: string; email: string; joinedAt: string };
 type AuthStatus = 'checking' | 'allowed' | 'denied';
 type AuthError = 'no_session' | 'group_mismatch' | 'not_allowed' | 'group_not_found' | 'join_failed';
 
-const SESSION_KEY = 'familyscheduler.session';
 const ROOT_SIGN_IN_MESSAGE = 'Please sign in to continue.';
 const PENDING_AUTH_KEY = 'fs.pendingAuth';
 const AUTH_CHANNEL_NAME = 'fs-auth';
@@ -42,40 +40,6 @@ const setPhotoVersion = (value?: string): string => {
   return next;
 };
 
-const readSession = (): Session | null => {
-  if (typeof window === 'undefined') return null;
-  const sessionRaw = window.sessionStorage.getItem(SESSION_KEY);
-  if (sessionRaw) {
-    try {
-      return JSON.parse(sessionRaw) as Session;
-    } catch {
-      return null;
-    }
-  }
-  const raw = window.localStorage.getItem(SESSION_KEY);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Session;
-    window.sessionStorage.setItem(SESSION_KEY, raw);
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-
-const writeSession = (session: Session): void => {
-  window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-};
-
-const clearSession = (): void => {
-  try {
-    window.sessionStorage.removeItem(SESSION_KEY);
-    window.localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // ignore
-  }
-};
-
 const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
 const authLog = (payload: Record<string, unknown>): void => {
   if (!debugAuthLogsEnabled) return;
@@ -89,7 +53,6 @@ function authDebug(event: string, data?: unknown) {
       sessionId: window.localStorage.getItem('fs.sessionId'),
       igniteGraceSessionId: window.localStorage.getItem('fs.igniteGraceSessionId'),
       sessionEmail: window.localStorage.getItem('fs.sessionEmail'),
-      localSession: sessionStorage.getItem('familyscheduler.session'),
       ...(typeof data === 'object' && data !== null ? data : { data })
     });
   } catch {
@@ -308,12 +271,12 @@ function CreateGroupPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const session = readSession();
-    if (session?.email) setCreatorEmail(session.email);
+    const sessionEmail = sanitizeSessionEmail(window.localStorage.getItem(SESSION_EMAIL_KEY));
+    if (sessionEmail) setCreatorEmail(sessionEmail);
   }, []);
 
   const hasApiSession = Boolean(getAuthSessionId());
-  const hasSessionEmail = Boolean(readSession()?.email);
+  const hasSessionEmail = Boolean(sanitizeSessionEmail(window.localStorage.getItem(SESSION_EMAIL_KEY)));
   const hasSignedInSession = hasApiSession && hasSessionEmail;
   const trimmedGroupName = groupName.trim();
   const trimmedCreatorName = creatorName.trim();
@@ -360,7 +323,8 @@ function CreateGroupPage() {
       }
 
       const link = `${window.location.origin}/#/g/${data.groupId}`;
-      writeSession({ groupId: data.groupId, email: creatorEmail.trim(), joinedAt: new Date().toISOString() });
+      const sanitizedCreatorEmail = sanitizeSessionEmail(creatorEmail.trim());
+      if (sanitizedCreatorEmail) window.localStorage.setItem(SESSION_EMAIL_KEY, sanitizedCreatorEmail);
       if (trimmedCreatorName) window.localStorage.setItem(SESSION_NAME_KEY, trimmedCreatorName);
       setCreatedGroupId(data.groupId);
       setShareLink(link);
@@ -484,7 +448,8 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
       return;
     }
 
-    writeSession({ groupId, email, joinedAt: new Date().toISOString() });
+    const sanitizedEmail = sanitizeSessionEmail(email.trim());
+    if (sanitizedEmail) window.localStorage.setItem(SESSION_EMAIL_KEY, sanitizedEmail);
     nav(`/g/${groupId}/app`);
   };
 
@@ -1464,7 +1429,6 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
       if (joinedEmail) {
         window.localStorage.setItem('fs.sessionEmail', joinedEmail);
       }
-      writeSession({ groupId: targetGroupId, email: payload.email ?? email, joinedAt: new Date().toISOString() });
       nav(`/g/${targetGroupId}/app`);
     } catch {
       setError('Unable to join session');
@@ -1545,9 +1509,7 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     const apiSessionId = getAuthSessionId(groupId);
     authDebug('gate_decision_snapshot', {
       groupId,
-      apiSessionIdPrefix: apiSessionId?.slice(0, 8),
-      // localSession is joiner-only state; do not gate logged-in access on it.
-      session: readSession()
+      apiSessionIdPrefix: apiSessionId?.slice(0, 8)
     });
     authLog({ stage: 'gate_enter', groupId, hasApiSession: !!apiSessionId });
     if (!apiSessionId) {
@@ -1564,7 +1526,6 @@ function GroupAuthGate({ groupId, children }: { groupId: string; children: (emai
     }
 
     // Logged-in access is determined by the server membership check.
-    // Do NOT gate on local familyscheduler.session, which is joiner-only and may be stale/mismatched.
     const cachedEmail = window.localStorage.getItem('fs.sessionEmail');
     setEmail(cachedEmail ? sanitizeSessionEmail(cachedEmail) : null);
     authLog({ stage: 'gate_join_request', groupId });
@@ -1636,7 +1597,8 @@ function HandoffPage({ groupId, email, next }: { groupId: string; email?: string
       return;
     }
     const safeNext = typeof next === 'string' && next.startsWith('/g/') ? next : `/g/${groupId}/ignite`;
-    writeSession({ groupId, email: identity, joinedAt: new Date().toISOString() });
+    const sanitizedEmail = sanitizeSessionEmail(identity);
+    if (sanitizedEmail) window.localStorage.setItem(SESSION_EMAIL_KEY, sanitizedEmail);
     nav(safeNext, { replace: true });
   }, [groupId, email, next]);
 
@@ -1666,12 +1628,10 @@ export function App() {
   const sessionName = useMemo(() => window.localStorage.getItem(SESSION_NAME_KEY), [hash, hasApiSession]);
 
   const signOut = () => {
-    clearSession();
     window.localStorage.removeItem('fs.sessionId');
     window.localStorage.removeItem('fs.igniteGraceSessionId');
     window.localStorage.removeItem('fs.igniteGraceGroupId');
     window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
-    window.localStorage.removeItem(SESSION_KEY);
     window.localStorage.removeItem(SESSION_EMAIL_KEY);
     window.localStorage.removeItem(SESSION_NAME_KEY);
     window.localStorage.removeItem(LAST_GROUP_ID_KEY);
