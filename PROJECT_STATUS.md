@@ -1,3 +1,11 @@
+## 2026-02-28 21:05 UTC update (Debug menu + dogfood gating for web/api)
+
+- Web Debug menu is now build-time gated by `import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'`; when false, the Debug menu item, submenu, dialog, and debug snackbar are not rendered.
+- Ignite organizer `debugPhoto=1` diagnostics are now gated by the same debug flag (`enableDebugMenu`), so production builds ignore `debugPhoto=1` entirely (no debug logs/UI/alternate photo reload action).
+- Staging web workflow now injects `VITE_DOGFOOD="1"` in the build step; production workflows do not set `VITE_DOGFOOD`.
+- API `GET /api/diagnose/openai` is now dogfood-only: registration is skipped unless `DOGFOOD=1`, with handler-level defense-in-depth returning 404 and structured warning logs when blocked.
+- Deployment expectation documented: staging Function App must set `DOGFOOD=1`; production Function App must not set `DOGFOOD`.
+
 ## 2026-02-28 20:40 UTC update (Main dashboard UEX: inline appointment Undo + appt pane styling)
 
 - Dashboard: Added an inline appointment delete notice with an **Undo** action that restores via existing `/api/direct` `restore_appointment` flow.

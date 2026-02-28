@@ -1,3 +1,41 @@
+## 2026-02-28 21:05 UTC (Debug menu gating + dogfood-only diagnose endpoint)
+
+### Objective
+
+Implement deterministic debug gating so debug UI/behaviors are only available in dev/dogfood, inject staging dogfood build flag, and prevent `/api/diagnose/openai` from existing in production.
+
+### Approach
+
+- Added `enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'` in `PageHeader` and conditionally rendered Debug menu/submenu/dialog/snackbar only when enabled.
+- Added matching `enableDebugMenu` + `enableDebugPhoto` gating in `IgniteOrganizerPage` (`App.tsx`) so `debugPhoto=1` has zero production impact.
+- Added `VITE_DOGFOOD: "1"` to staging web build workflow env.
+- Added API server flag `enableDogfood = process.env.DOGFOOD === '1'` and skipped `diagnose/openai` route registration when disabled; added startup skip log.
+- Added defense-in-depth guard in `diagnoseOpenAi` handler to return 404 with structured warning log when `DOGFOOD` is not enabled.
+- Updated project status with staging/prod `DOGFOOD` expectation note.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/App.tsx`
+- `.github/workflows/swa-web-staging.yml`
+- `api/src/index.ts`
+- `api/src/functions/diagnoseOpenAi.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ (none found under repo path)
+- `rg -n "Debug|debugPhoto|diagnose/openai|VITE_DOGFOOD|DOGFOOD" apps/web api .github/workflows PROJECT_STATUS.md CODEX_LOG.md` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅ (prod-sim with `VITE_DOGFOOD` unset)
+- `VITE_DOGFOOD=1 pnpm --filter @familyscheduler/web build` ✅ (staging-sim)
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
+
+### Follow-ups
+
+- Set Azure staging Function App setting `DOGFOOD=1`; keep production Function App without `DOGFOOD` (or set to non-`1`).
+
 ## 2026-02-28 07:05 UTC (Remove legacy `familyscheduler.session` storage + call sites)
 
 ### Objective
@@ -3394,7 +3432,7 @@ Implement lightweight group creation/join with phone allowlist gating, move stor
 
 ### Commands run + outcomes
 
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 - `pnpm --filter @familyscheduler/api test` ⚠️ failed in this environment due pre-existing missing package/runtime test setup issues unrelated to these changes (new groupAuth tests passed in run output).
 - `pnpm --filter @familyscheduler/web build` ✅
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot; stopped with SIGINT)
@@ -3432,7 +3470,7 @@ Fix Create Group flow so creator is automatically added to People, share link is
 
 ### Commands run + outcomes
 
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 - `pnpm --filter @familyscheduler/api test` ⚠️ failed in this environment due pre-existing missing package/runtime test setup issues unrelated to these changes (new groupAuth tests passed in run output).
 - `pnpm --filter @familyscheduler/web build` ✅
 
@@ -6041,7 +6079,7 @@ Implement TimeSpec v2 behavior across API + UI in one pass, including unresolved
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 - `pnpm --filter @familyscheduler/web typecheck` ✅
 - `pnpm --filter @familyscheduler/api test` ⚠️ failed in this environment due pre-existing missing package/runtime test setup issues unrelated to these changes (new groupAuth tests passed in run output).
 - `pnpm --filter @familyscheduler/web build` ✅
@@ -9389,7 +9427,7 @@ Implement breakout QR join contract so authenticated users auto-join immediately
 - `rg "ignite/join|igniteJoin|IgniteJoin|authRequestLink|sessionId|AUTH_PROVISIONAL" -n api apps/web/src` ✅ located implementation touchpoints.
 - `pnpm -w lint` ✅
 - `pnpm --filter @familyscheduler/web build` ✅
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 
 ### Follow-ups
 
@@ -10564,7 +10602,7 @@ Fix Ignite organizer joined-folks photo rendering so authenticated photo GETs su
 - `rg -n "function IgniteHostPage|apiFetch\(|photoUpdatedAtByPersonId|sessionId\b" apps/web/src/App.tsx -S` ✅
 - `rg -n "class HttpError|instanceof HttpError|toResponse\(" api/src -S` ✅
 - `npm -C apps/web run build` ✅
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 
 ### Follow-ups
 - Human runtime check: upload organizer photo and verify joined card renders image without unauthenticated GET failures in network panel.
@@ -12389,7 +12427,7 @@ Implement locked scan-image flow behavior so pending/failed scan appointments re
 ### Commands run + outcomes
 
 - `pnpm --filter @familyscheduler/web typecheck` ✅
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 - `pnpm --filter @familyscheduler/web build` ✅
 
 ### Follow-ups
@@ -12883,7 +12921,7 @@ Ensure cancel/close of the appointment editor reliably deletes only auto-created
 - `rg -n "delete_appointment" api/src apps/web/src` ✅
 - `rg -n "buildSnapshotFromIndex|AppointmentsIndex|appointment.json|list appointments" api/src apps/web/src` ✅
 - `pnpm --filter @familyscheduler/web build` ✅
-- `pnpm --filter @familyscheduler/api build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (blocked in container: missing `@azure/data-tables` dependency for TypeScript compile)
 - `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ failed because this script runs full compiled API test suite and hits pre-existing unrelated failing tests.
 - `cd api && node --test dist/api/src/functions/direct.test.js` ⚠️ failed due pre-existing session/header assumptions in existing direct tests.
 

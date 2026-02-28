@@ -43,6 +43,7 @@ type Props = {
 };
 
 export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true }: Props) {
+  const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
@@ -392,41 +393,45 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </MenuItem>
           ) : null}
           {(hasApiSession ?? detectedApiSession) ? <Divider /> : null}
-          <MenuItem
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setDebugMenuAnchorEl(event.currentTarget);
-            }}
-          >
-            <ListItemText primary="Debug" secondary="Show or clear session ids" />
-          </MenuItem>
-          <Menu
-            anchorEl={debugMenuAnchorEl}
-            open={Boolean(debugMenuAnchorEl)}
-            onClose={closeDebugSubmenu}
-          >
-            <MenuItem
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                closeDebugSubmenu();
-                openDebug();
-              }}
-            >
-              <ListItemText primary="Show debug data" secondary="Masked local session snapshot" />
-            </MenuItem>
-            <MenuItem onClick={() => clearDebugKeys('durable')}>
-              <ListItemText primary="Clear DSID" secondary="Clear durable session keys" />
-            </MenuItem>
-            <MenuItem onClick={() => clearDebugKeys('grace')}>
-              <ListItemText primary="Clear GSID" secondary="Clear grace session keys" />
-            </MenuItem>
-            <MenuItem onClick={() => clearDebugKeys('all')}>
-              <ListItemText primary="Clear ALL" secondary="Clear both DSID and GSID" />
-            </MenuItem>
-          </Menu>
-          <Divider />
+          {enableDebugMenu ? (
+            <>
+              <MenuItem
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDebugMenuAnchorEl(event.currentTarget);
+                }}
+              >
+                <ListItemText primary="Debug" secondary="Show or clear session ids" />
+              </MenuItem>
+              <Menu
+                anchorEl={debugMenuAnchorEl}
+                open={Boolean(debugMenuAnchorEl)}
+                onClose={closeDebugSubmenu}
+              >
+                <MenuItem
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeDebugSubmenu();
+                    openDebug();
+                  }}
+                >
+                  <ListItemText primary="Show debug data" secondary="Masked local session snapshot" />
+                </MenuItem>
+                <MenuItem onClick={() => clearDebugKeys('durable')}>
+                  <ListItemText primary="Clear DSID" secondary="Clear durable session keys" />
+                </MenuItem>
+                <MenuItem onClick={() => clearDebugKeys('grace')}>
+                  <ListItemText primary="Clear GSID" secondary="Clear grace session keys" />
+                </MenuItem>
+                <MenuItem onClick={() => clearDebugKeys('all')}>
+                  <ListItemText primary="Clear ALL" secondary="Clear both DSID and GSID" />
+                </MenuItem>
+              </Menu>
+              <Divider />
+            </>
+          ) : null}
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
               <Typography>Dark mode</Typography>
@@ -439,27 +444,29 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
             </Stack>
           </MenuItem>
         </Menu>
-        <Dialog open={debugOpen} onClose={() => setDebugOpen(false)} fullWidth maxWidth="sm">
-          <DialogTitle>Debug</DialogTitle>
-          <DialogContent>
-            <TextField
-              multiline
-              fullWidth
-              minRows={10}
-              value={debugText}
-              InputProps={{ readOnly: true }}
-              sx={{ mt: 1 }}
-            />
-            {debugCopied ? <Alert severity="success" sx={{ mt: 1.5 }}>Copied</Alert> : null}
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Reload page to re-evaluate session.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => { void copyDebug(); }}>Copy</Button>
-            <Button onClick={() => setDebugOpen(false)}>Close</Button>
-          </DialogActions>
-        </Dialog>
+        {enableDebugMenu ? (
+          <Dialog open={debugOpen} onClose={() => setDebugOpen(false)} fullWidth maxWidth="sm">
+            <DialogTitle>Debug</DialogTitle>
+            <DialogContent>
+              <TextField
+                multiline
+                fullWidth
+                minRows={10}
+                value={debugText}
+                InputProps={{ readOnly: true }}
+                sx={{ mt: 1 }}
+              />
+              {debugCopied ? <Alert severity="success" sx={{ mt: 1.5 }}>Copied</Alert> : null}
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Reload page to re-evaluate session.
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => { void copyDebug(); }}>Copy</Button>
+              <Button onClick={() => setDebugOpen(false)}>Close</Button>
+            </DialogActions>
+          </Dialog>
+        ) : null}
       </Paper>
       ) : null}
       {title ? <Typography variant="h6">{title}</Typography> : null}
@@ -467,9 +474,11 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
       {groupId && showGroupAccessNote ? <Typography variant="body2" color="text.secondary">{groupAccessNote ?? 'Only invited email addresses can access this group.'}</Typography> : null}
       {copied ? <Alert severity="success">Copied</Alert> : null}
       {renameError ? <Alert severity="error">{renameError}</Alert> : null}
-      <Snackbar open={Boolean(debugNotice)} autoHideDuration={2500} onClose={() => setDebugNotice(null)}>
-        <Alert severity="success" onClose={() => setDebugNotice(null)} sx={{ width: '100%' }}>{debugNotice}</Alert>
-      </Snackbar>
+      {enableDebugMenu ? (
+        <Snackbar open={Boolean(debugNotice)} autoHideDuration={2500} onClose={() => setDebugNotice(null)}>
+          <Alert severity="success" onClose={() => setDebugNotice(null)} sx={{ width: '100%' }}>{debugNotice}</Alert>
+        </Snackbar>
+      ) : null}
     </Stack>
   );
 }
