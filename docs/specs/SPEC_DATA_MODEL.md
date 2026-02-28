@@ -1,8 +1,10 @@
 # Data Model Specification (Versioned)
 
-This document defines the canonical state contract for FamilyScheduler.
+This document defines the legacy structural state contract for FamilyScheduler.
 
-## 1. AppState
+> **Note:** This is a legacy/structural app-state model. Persistence source-of-truth is defined in `docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md` (table-first membership/authorization and roster semantics).
+
+## 1. AppState (structural compatibility model)
 
 ```ts
 interface AppState {
@@ -15,7 +17,7 @@ interface AppState {
 }
 ```
 
-Required semantics:
+Required semantics (for structural blob compatibility, not persistence authorization truth):
 
 - `version` increments whenever a mutation batch is applied.
 - `history` stores latest 20 applied batches (drop oldest beyond 20).

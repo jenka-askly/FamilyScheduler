@@ -7,7 +7,7 @@ FamilyScheduler currently runs as a web + API + storage system:
 1. **Web client (structured UI + chat-assisted flows)**
 2. **Azure Functions API**
 3. **Storage + index layer**
-   - Group snapshot blob (`state.json`) for broad app state
+   - Group snapshot blob (`state.json`) for broad app state (compatibility/non-auth state)
    - Appointment canonical docs (`appointment.json`) + appointment event chunks
    - Azure Tables indexes (`Groups`, `GroupMembers`, `UserGroups`, `AppointmentsIndex`, usage/metrics tables)
 
@@ -35,7 +35,9 @@ The app is no longer prompt-only.
 ### Group-level state
 
 - Group snapshot blob: `{STATE_BLOB_PREFIX}/{groupId}/state.json`
-- Used for broad group state and compatibility paths.
+- Used for broad group state and compatibility paths only.
+- Membership/authorization and roster truth are table-first (`GroupMembers`, `UserGroups`, plus profile joins) and not blob membership arrays.
+- Canonical storage/source-of-truth rules are defined in `docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md`.
 
 ### Appointment domain state
 
