@@ -14,7 +14,7 @@ import { createStorageAdapter, describeStorageTarget } from '../lib/storage/stor
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
+import { resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
@@ -30,7 +30,6 @@ type SessionRuntimeState = { pendingProposal: PendingProposal | null; pendingQue
 
 type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
-  people: Array<{ personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -59,7 +58,6 @@ const deriveDateTimeParts = (start?: string, end?: string): { date: string; star
 };
 
 const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
-  const nowIso = new Date().toISOString();
   return ({
   appointments: state.appointments.map((appointment) => {
     const derived = deriveDateTimeParts(appointment.start, appointment.end);
@@ -90,7 +88,6 @@ const toResponseSnapshot = (state: AppState): ResponseSnapshot => {
       scanCapturedAt: appointment.scanCapturedAt ?? null
     };
   }),
-  people: state.people.map((person) => ({ personId: person.personId, name: person.name, email: person.email ?? '', cellDisplay: person.cellDisplay ?? person.cellE164 ?? '', cellE164: person.cellE164 ?? '', status: person.status === 'active' ? 'active' : 'removed', lastSeen: person.lastSeen ?? person.createdAt ?? nowIso, timezone: person.timezone, notes: person.notes ?? '' })),
   rules: state.rules.map((rule) => ({ code: rule.code, schemaVersion: rule.schemaVersion, personId: rule.personId, kind: rule.kind, time: getTimeSpec(rule, rule.timezone ?? process.env.TZ ?? 'America/Los_Angeles'), date: rule.date, startTime: rule.startTime, durationMins: rule.durationMins, timezone: rule.timezone, desc: rule.desc, promptId: rule.promptId, originalPrompt: rule.originalPrompt, startUtc: rule.startUtc, endUtc: rule.endUtc })),
   historyCount: Array.isArray(state.history) ? state.history.length : undefined
   });
@@ -357,18 +354,17 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
       return membership.response;
     }
-    const member = findActiveMemberByEmail(state, sessionAuth.email);
-    logAuth({ traceId, stage: 'gate_allowed', userKey: membership.userKey, personId: member?.memberId ?? null });
-    session.activePersonId = member?.memberId ?? session.activePersonId;
-    if (!member) return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
+    const activePersonId = resolveActivePersonIdForEmail(state, sessionAuth.email);
+    logAuth({ traceId, stage: 'gate_allowed', userKey: membership.userKey, personId: activePersonId });
+    session.activePersonId = activePersonId ?? session.activePersonId;
 
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();
-    const currentPerson = state.people.find((person) => person.personId === member.memberId);
-    if (shouldPersistLastSeen(currentPerson?.lastSeen, nowMs)) {
+    const currentPerson = activePersonId ? state.people.find((person) => person.personId === activePersonId) : null;
+    if (activePersonId && shouldPersistLastSeen(currentPerson?.lastSeen, nowMs)) {
       const nextState: AppState = {
         ...state,
-        people: state.people.map((person) => person.personId === member.memberId ? {
+        people: state.people.map((person) => person.personId === activePersonId ? {
           ...person,
           lastSeen: nowIso,
           createdAt: person.createdAt ?? nowIso

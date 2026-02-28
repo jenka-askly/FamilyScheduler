@@ -8,7 +8,7 @@ import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { ignitePhotoBlobKey } from '../lib/ignite.js';
 import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
-import { isPlausibleEmail, normalizeEmail, findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
+import { isPlausibleEmail, normalizeEmail, findActivePersonByEmail } from '../lib/auth/requireMembership.js';
 import { createIgniteGraceSession, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { adjustGroupCounters, getGroupMemberEntity, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
@@ -85,10 +85,9 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
   }
   await upsertUserProfile({ userKey, displayName: name || undefined, email: normalizedEmail, updatedAt: nowISO, createdAt: nowISO });
 
-  const existingMember = findActiveMemberByEmail(loaded.state, normalizedEmail);
-  const personId = existingMember?.memberId ?? randomUUID();
-  if (!existingMember) {
-    loaded.state.members.push({ memberId: personId, email: normalizedEmail, status: 'active', joinedAt: nowISO });
+  const existingPerson = findActivePersonByEmail(loaded.state, normalizedEmail);
+  const personId = existingPerson?.personId ?? randomUUID();
+  if (!existingPerson) {
     loaded.state.people.push({ personId, name: name || (normalizedEmail.split('@')[0] || 'Guest'), email: normalizedEmail, status: 'active', createdAt: nowISO, lastSeen: nowISO, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '', cellE164: '', cellDisplay: '' });
   }
 

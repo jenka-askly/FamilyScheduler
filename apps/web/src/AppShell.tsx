@@ -50,14 +50,14 @@ import MailOutlineIcon from '@mui/icons-material/MailOutline';
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
-  people: Array<{ personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: TimeSpec; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
 
 
-type GroupMemberRosterEntry = { userKey: string; email: string; status: 'active' | 'invited' | 'removed'; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
+type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
 type GroupMembersResponse = { ok?: boolean; groupId?: string; members?: GroupMemberRosterEntry[]; traceId?: string; message?: string };
+type RosterPerson = { personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string };
 
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
@@ -395,7 +395,7 @@ const AppointmentDialogContext = ({
   </Box>
 );
 
-const initialSnapshot: Snapshot = { appointments: [], people: [], rules: [] };
+const initialSnapshot: Snapshot = { appointments: [], rules: [] };
 
 const debugAuthLogsEnabled = import.meta.env.VITE_DEBUG_AUTH_LOGS === 'true';
 const authLog = (payload: Record<string, unknown>): void => {
@@ -689,7 +689,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
-  const [rulePromptModal, setRulePromptModal] = useState<{ person: Snapshot['people'][0] } | null>(null);
+  const [rulePromptModal, setRulePromptModal] = useState<{ person: RosterPerson } | null>(null);
   const [rulePrompt, setRulePrompt] = useState('');
   const [ruleDraft, setRuleDraft] = useState<{ draftRules: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview: string[]; warnings: DraftWarning[]; assumptions: string[]; promptId: string } | null>(null);
   const [isDrafting, setIsDrafting] = useState(false);
@@ -1117,7 +1117,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setSelectedAppointment({
       ...appointment,
       people: [...selected],
-      peopleDisplay: [...selected].map((id) => snapshot.people.find((p) => p.personId === id)?.name ?? id)
+      peopleDisplay: [...selected].map((id) => activePeople.find((person) => person.personId === id)?.name ?? id)
     });
   };
 
@@ -1203,7 +1203,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }, 3500);
   };
 
-  const handleDeletePerson = async (person: Snapshot['people'][0]) => {
+  const handleDeletePerson = async (person: RosterPerson) => {
     const entry: UndoEntry = {
       key: `person:${person.personId}:${Date.now()}`,
       entityType: 'person',
@@ -1468,7 +1468,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     await closeWhenEditor();
   };
 
-  const startEditingPerson = (person: Snapshot['people'][0]) => {
+  const startEditingPerson = (person: RosterPerson) => {
     setEditingPersonId(person.personId);
     setPersonDraft({ name: person.name, email: person.email || '' });
     setPersonEditError(null);
@@ -1883,26 +1883,21 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     ? sortedAppointments.find((appointment) => appointment.id === scanCaptureModal.appointmentId) ?? null
     : null;
   const isScanCaptureReady = Boolean(scanCaptureVideoRef.current?.videoWidth && scanCaptureVideoRef.current?.videoHeight) || scanCaptureCameraReady;
-  const rosterBackedPeople = useMemo(() => {
-    const byEmail = new Map(snapshot.people.map((person) => [person.email.trim().toLowerCase(), person]));
-    return membersRoster
+  const rosterBackedPeople = useMemo(() => (
+    membersRoster
       .filter((member) => member.status === 'active' || member.status === 'invited')
-      .map((member) => {
-        const emailKey = member.email.trim().toLowerCase();
-        const matched = byEmail.get(emailKey);
-        return {
-          personId: matched?.personId ?? member.userKey,
-          name: matched?.name ?? member.email,
-          email: member.email,
-          cellDisplay: matched?.cellDisplay ?? '',
-          cellE164: matched?.cellE164 ?? '',
-          status: member.status === 'invited' ? 'removed' as const : 'active' as const,
-          lastSeen: matched?.lastSeen,
-          timezone: matched?.timezone,
-          notes: matched?.notes
-        };
-      });
-  }, [membersRoster, snapshot.people]);
+      .map((member) => ({
+        personId: member.userKey,
+        name: member.displayName?.trim() || member.email,
+        email: member.email,
+        cellDisplay: '',
+        cellE164: '',
+        status: member.status === 'invited' ? 'removed' as const : 'active' as const,
+        lastSeen: undefined,
+        timezone: undefined,
+        notes: undefined
+      }))
+  ), [membersRoster]);
   const activePeople = rosterBackedPeople.filter((person) => person.status === 'active');
   const peopleInView = activePeople;
   const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === sessionEmail.trim().toLowerCase())?.name?.trim() || null;
@@ -2250,7 +2245,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const weekLabel = `Week of ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(weekStart)}`;
   const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(dayCursor);
 
-  const openRulePromptModal = (person: Snapshot['people'][0]) => {
+  const openRulePromptModal = (person: RosterPerson) => {
     setRulePromptModal({ person });
     setRulePrompt('');
     setRuleDraft(null);
@@ -2396,12 +2391,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   useEffect(() => {
     if (!editingPersonId) return;
-    const exists = snapshot.people.some((person) => person.personId === editingPersonId && person.status === 'active');
+    const exists = activePeople.some((person) => person.personId === editingPersonId);
     if (!exists) {
       setEditingPersonId(null);
       setPersonEditError(null);
     }
-  }, [editingPersonId, snapshot.people]);
+  }, [activePeople, editingPersonId]);
 
   useEffect(() => {
     const name = (groupName ?? '').trim();

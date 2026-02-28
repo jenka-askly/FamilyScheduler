@@ -45,7 +45,6 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
   state.createdAt = now;
   state.updatedAt = now;
   state.people = [{ personId: creatorPersonId, name: creatorName, email: creatorEmail, status: 'active', createdAt: now, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '' }];
-  state.members = [{ memberId: creatorPersonId, email: creatorEmail, status: 'active', joinedAt: now }];
 
   try {
     await ensureTablesReady();
