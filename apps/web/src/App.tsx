@@ -651,15 +651,16 @@ type IgniteMetaResponse = { ok?: boolean; status?: 'OPEN' | 'CLOSING' | 'CLOSED'
 const IGNITE_SOUND_KEY = 'igniteSoundEnabled';
 
 function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: string }) {
-  const debugPhoto = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debugPhoto') === '1';
+  const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
+  const enableDebugPhoto = enableDebugMenu && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debugPhoto') === '1';
   const dlog = (...args: unknown[]) => {
-    if (debugPhoto) console.log('[photo]', ...args);
+    if (enableDebugPhoto) console.log('[photo]', ...args);
   };
   const dwarn = (...args: unknown[]) => {
-    if (debugPhoto) console.warn('[photo]', ...args);
+    if (enableDebugPhoto) console.warn('[photo]', ...args);
   };
   const derr = (...args: unknown[]) => {
-    if (debugPhoto) console.error('[photo]', ...args);
+    if (enableDebugPhoto) console.error('[photo]', ...args);
   };
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<'OPEN' | 'CLOSING' | 'CLOSED'>('OPEN');
@@ -1293,7 +1294,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                         src={personPhotoUrl}
                         alt={personName}
                         onLoad={(event) => {
-                          if (!debugPhoto) return;
+                          if (!enableDebugPhoto) return;
                           dlog('img onLoad', {
                             naturalWidth: event.currentTarget.naturalWidth,
                             naturalHeight: event.currentTarget.naturalHeight,
@@ -1301,7 +1302,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                           });
                         }}
                         onError={(event) => {
-                          if (debugPhoto) {
+                          if (enableDebugPhoto) {
                             dwarn('img onError', { currentSrc: event.currentTarget.currentSrc });
                           }
                           if (isOrganizer) setPhotoLoadError(true);
@@ -1314,7 +1315,7 @@ function IgniteOrganizerPage({ groupId, email }: { groupId: string; email: strin
                 );
               }) : null}
             </div>
-            {debugPhoto && photoLoadError ? (
+            {enableDebugPhoto && photoLoadError ? (
               <Button variant="text" size="small" onClick={() => { setProfilePhotoReloadTick((tick) => tick + 1); }}>
                 Reload photo
               </Button>

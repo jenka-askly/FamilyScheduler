@@ -41,9 +41,10 @@ import { reminderTick } from './functions/reminderTick.js';
 
 const startupId = `startup-${Date.now().toString(36)}`;
 const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerCase() === 'true';
+const enableDogfood = process.env.DOGFOOD === '1';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupClaim', 'groupDeclineInvite', 'groupMeta', 'groupMembers', 'groupRename', 'groupDelete', 'groupRestore', 'meGroups', 'meDashboard', 'chat', 'direct', 'diagnoseOpenAi', 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoGet', 'userPreferencesGet', 'userPreferencesSet'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupClaim', 'groupDeclineInvite', 'groupMeta', 'groupMembers', 'groupRename', 'groupDelete', 'groupRestore', 'meGroups', 'meDashboard', 'chat', 'direct', ...(enableDogfood ? ['diagnoseOpenAi'] : []), 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfilePhotoSet', 'userProfilePhotoGet', 'userPreferencesGet', 'userPreferencesSet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -74,6 +75,7 @@ startupLog('time-resolve-ai-config', {
   timeResolveModel: process.env.TIME_RESOLVE_MODEL ?? null,
   openAiModel: process.env.OPENAI_MODEL ?? null,
   azureEndpointConfigured: Boolean(process.env.AZURE_OPENAI_ENDPOINT?.trim()),
+  enableDogfood
 });
 
 if (startupDebugEnabled) {
@@ -107,7 +109,11 @@ registerHttp('chat', 'chat', ['POST'], chat);
 
 registerHttp('direct', 'direct', ['POST'], direct);
 
-registerHttp('diagnoseOpenAi', 'diagnose/openai', ['GET'], diagnoseOpenAi);
+if (enableDogfood) {
+  registerHttp('diagnoseOpenAi', 'diagnose/openai', ['GET'], diagnoseOpenAi);
+} else {
+  startupLog('skip-function-dogfood-disabled', { functionName: 'diagnoseOpenAi', route: 'diagnose/openai' });
+}
 registerHttp('health', 'health', ['GET'], health);
 
 registerHttp('usage', 'usage', ['GET'], usage);
