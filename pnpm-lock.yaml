@@ -15,7 +15,7 @@ importers:
   api:
     dependencies:
       '@azure/communication-email':
-        specifier: ^1.0.0
+        specifier: 1.1.0
         version: 1.1.0
       '@azure/core-rest-pipeline':
         specifier: ^1.22.2
