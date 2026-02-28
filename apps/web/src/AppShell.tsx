@@ -152,33 +152,6 @@ type EmailSendResult = {
   excludedSelf?: boolean;
 };
 
-type EmailUpdateDebugEntry = {
-  ts: string;
-  kind: 'dialog_open' | 'preview_request' | 'preview_response' | 'send_request' | 'send_response' | 'error' | 'context';
-  ctx: {
-    groupId?: unknown;
-    groupIdTrim?: string;
-    appointmentId?: string;
-    detailsOpen?: boolean;
-    detailsAppointmentId?: string;
-  };
-  req?: {
-    url: string;
-    method: string;
-    headers: Record<string, string>;
-    bodySource: string;
-    bodyParseOk: boolean;
-    bodyParseError?: string;
-    bodyParsed?: unknown;
-  };
-  res?: {
-    status?: number;
-    ok?: boolean;
-    textTrunc?: string;
-    json?: unknown;
-  };
-};
-
 type ActiveSuggestionCard = {
   sourceMessageId: string;
   candidates: SuggestionCandidate[];
@@ -201,35 +174,6 @@ const BODY_PX = 2;
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-};
-
-const truncateDebugText = (value: string, max = 4000): string => (value.length > max ? `${value.slice(0, max)}…[truncated]` : value);
-
-const maskEmail = (value: string): string => {
-  const trimmed = value.trim();
-  const atIndex = trimmed.indexOf('@');
-  if (atIndex <= 0) return trimmed;
-  const local = trimmed.slice(0, atIndex);
-  const domain = trimmed.slice(atIndex + 1);
-  const first = local.charAt(0) || '*';
-  return `${first}***@${domain}`;
-};
-
-const sanitizeDebugValue = (value: unknown): unknown => {
-  if (typeof value === 'string') {
-    const masked = value.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, (email) => maskEmail(email));
-    return truncateDebugText(masked, 2000);
-  }
-  if (Array.isArray(value)) return value.map((entry) => sanitizeDebugValue(entry));
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value)) {
-      if (key.toLowerCase() === 'x-session-id') continue;
-      out[key] = sanitizeDebugValue(entry);
-    }
-    return out;
-  }
-  return value;
 };
 
 const SYSTEM_DISCUSSION_EVENT_TYPES = new Set([
@@ -708,7 +652,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [inviteMenuAnchorEl, setInviteMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ severity: 'error' | 'success' | 'info'; message: string } | null>(null);
-  const emailUpdateDebug = useRef<EmailUpdateDebugEntry[]>([]);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteSessionId, setInviteSessionId] = useState<string | null>(null);
   const [inviteJoinUrl, setInviteJoinUrl] = useState<string>('');
@@ -1186,90 +1129,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
 
-  const getEmailDebugCtx = () => {
-    const gidTrim = typeof groupId === 'string' ? groupId.trim() : '';
-    return {
-      groupId,
-      groupIdTrim: gidTrim,
-      appointmentId: detailsAppointmentId ?? undefined,
-      detailsOpen,
-      detailsAppointmentId: detailsAppointmentId ?? undefined
-    };
-  };
 
-  const pushEmailDebug = (entry: EmailUpdateDebugEntry) => {
-    emailUpdateDebug.current = [...emailUpdateDebug.current, entry].slice(-50);
-  };
-
-  const captureEmailRequestDebug = (kind: 'preview_request' | 'send_request', bodyObj: Record<string, unknown>, bodySource: string) => {
-    let bodyParseOk = false;
-    let bodyParsed: unknown;
-    let bodyParseError: string | undefined;
-    try {
-      bodyParsed = JSON.parse(bodySource);
-      bodyParseOk = true;
-    } catch (error) {
-      bodyParseError = error instanceof Error ? error.message : String(error);
-    }
-    pushEmailDebug({
-      ts: new Date().toISOString(),
-      kind,
-      ctx: getEmailDebugCtx(),
-      req: {
-        url: '/api/direct',
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        bodySource: truncateDebugText(bodySource, 4000),
-        bodyParseOk,
-        bodyParseError,
-        bodyParsed: sanitizeDebugValue(bodyParsed ?? bodyObj)
-      }
-    });
-  };
-
-  const captureEmailResponseDebug = async (kind: 'preview_response' | 'send_response', response: Response) => {
-    const responseText = await response.clone().text();
-    let responseJson: unknown;
-    try {
-      responseJson = JSON.parse(responseText);
-    } catch {
-      responseJson = undefined;
-    }
-    pushEmailDebug({
-      ts: new Date().toISOString(),
-      kind,
-      ctx: getEmailDebugCtx(),
-      res: {
-        status: response.status,
-        ok: response.ok,
-        textTrunc: truncateDebugText(responseText, 4000),
-        json: sanitizeDebugValue(responseJson)
-      }
-    });
-  };
-
-  const copyEmailDebugBundle = async () => {
-    const bundle = {
-      feature: 'email_update_debug_bundle',
-      ts: new Date().toISOString(),
-      pageUrl: window.location.href,
-      userAgent: navigator.userAgent,
-      lastCtx: getEmailDebugCtx(),
-      entries: emailUpdateDebug.current
-    };
-    await navigator.clipboard.writeText(JSON.stringify(sanitizeDebugValue(bundle), null, 2));
-    showNotice('success', 'Copied debug bundle.');
-  };
-
-  const copyLastEmailRequestBody = async () => {
-    const lastRequest = [...emailUpdateDebug.current].reverse().find((entry) => entry.req?.bodySource);
-    if (!lastRequest?.req?.bodySource) {
-      showNotice('info', 'No request body captured yet.');
-      return;
-    }
-    await navigator.clipboard.writeText(lastRequest.req.bodySource);
-    showNotice('success', 'Copied last request body.');
-  };
 
   const showNotice = (severity: 'error' | 'success' | 'info', message: string) => {
     setNotice({ severity, message });
@@ -1280,7 +1140,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
   const closeEmailUpdateDialog = () => {
     setIsEmailUpdateOpen(false);
-    emailUpdateDebug.current = [];
   };
 
   const handleDeleteAppointment = async (appointment: Snapshot['appointments'][0]) => {
@@ -1993,11 +1852,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setSendError(null);
     setSendResult(null);
     setEmailPreview(null);
-    pushEmailDebug({
-      ts: new Date().toISOString(),
-      kind: 'dialog_open',
-      ctx: getEmailDebugCtx()
-    });
     setIsEmailUpdateOpen(true);
   };
 
@@ -2007,8 +1861,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (!gid) {
       const message = 'Missing group context. Close and reopen the appointment.';
       setSendError(message);
-      pushEmailDebug({ ts: new Date().toISOString(), kind: 'context', ctx: getEmailDebugCtx(), res: { textTrunc: message } });
-      console.warn('send_appointment_update_email missing groupId', { appointmentId: detailsAppointmentId, groupId });
       return;
     }
     setSendingEmailUpdate(true);
@@ -2027,13 +1879,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         traceId: createTraceId()
       };
       const bodySource = JSON.stringify(bodyObj);
-      captureEmailRequestDebug('send_request', bodyObj, bodySource);
       const response = await apiFetch('/api/direct', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: bodySource
       });
-      await captureEmailResponseDebug('send_response', response);
       const payload = await response.json() as DirectActionErrorPayload & EmailSendResult;
       if (!response.ok || !payload.ok) {
         setSendError(payload.message ?? 'Unable to send email update.');
@@ -2050,7 +1900,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       });
       await loadAppointmentDetails(detailsAppointmentId);
     } catch (error) {
-      pushEmailDebug({ ts: new Date().toISOString(), kind: 'error', ctx: getEmailDebugCtx(), res: { textTrunc: truncateDebugText(String(error), 2000) } });
       setSendError(error instanceof Error ? error.message : 'Unable to send email update.');
     } finally {
       setSendingEmailUpdate(false);
@@ -2069,8 +1918,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         setEmailPreview(null);
         const message = 'Missing group context. Close and reopen the appointment.';
         setPreviewError(message);
-        pushEmailDebug({ ts: new Date().toISOString(), kind: 'context', ctx: getEmailDebugCtx(), res: { textTrunc: message } });
-        console.warn('preview_appointment_update_email missing groupId', { appointmentId: detailsAppointmentId, groupId });
         return;
       }
       setPreviewLoading(true);
@@ -2088,13 +1935,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           traceId: createTraceId()
         };
         const bodySource = JSON.stringify(bodyObj);
-        captureEmailRequestDebug('preview_request', bodyObj, bodySource);
         const response = await apiFetch('/api/direct', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: bodySource
         });
-        await captureEmailResponseDebug('preview_response', response);
         const payload = await response.json() as DirectActionErrorPayload & EmailPreviewPayload;
         if (!response.ok || !payload.ok) {
           setPreviewError(payload.message ?? 'Unable to load email preview.');
@@ -2110,7 +1955,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           excludedSelf: payload.excludedSelf
         });
       } catch (error) {
-        pushEmailDebug({ ts: new Date().toISOString(), kind: 'error', ctx: getEmailDebugCtx(), res: { textTrunc: truncateDebugText(String(error), 2000) } });
         setPreviewError(error instanceof Error ? error.message : 'Unable to load email preview.');
         setEmailPreview(null);
       } finally {
@@ -3553,21 +3397,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>Replies are disabled. Use the link in the email.</Typography>
               </Paper>
             ) : null}
-            {sendError ? (
-              <Stack spacing={1}>
-                <Alert severity="error">{sendError}</Alert>
-                <Stack direction="row" spacing={1}>
-                  <Button type="button" size="small" variant="outlined" onClick={() => void copyEmailDebugBundle()}>Copy debug bundle</Button>
-                  <Button type="button" size="small" variant="text" onClick={() => void copyLastEmailRequestBody()}>Copy last request body</Button>
-                </Stack>
-              </Stack>
-            ) : null}
-            {previewError ? (
-              <Stack direction="row" spacing={1}>
-                <Button type="button" size="small" variant="outlined" onClick={() => void copyEmailDebugBundle()}>Copy debug bundle</Button>
-                <Button type="button" size="small" variant="text" onClick={() => void copyLastEmailRequestBody()}>Copy last request body</Button>
-              </Stack>
-            ) : null}
+            {sendError ? <Alert severity="error">{sendError}</Alert> : null}
             {sendResult ? (
               <Alert severity={sendResult.deliveryStatus === 'partial' ? 'warning' : 'success'}>
                 {sendResult.deliveryStatus === 'partial'
