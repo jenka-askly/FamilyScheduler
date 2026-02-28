@@ -4,7 +4,7 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 
 ## Design docs
 
-- Storage + analytics + usage design: [`docs/DESIGN_STORAGE_TABLES_AND_USAGE.md`](docs/DESIGN_STORAGE_TABLES_AND_USAGE.md)
+- Storage + analytics + usage design: [`docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md`](docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md)
 
 ## v1 group access model
 
@@ -47,9 +47,9 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 
 
 ## Specifications
-- **Auth model (current + planned):** [`docs/AUTH_MODEL.md`](docs/AUTH_MODEL.md)
+- **Auth model (current + planned):** [`docs/specs/SPEC_AUTH_MODEL.md`](docs/specs/SPEC_AUTH_MODEL.md)
 
-- [Time & Date Specification](docs/TIME_DATE_SPEC.md)
+- [Time & Date Specification](docs/specs/SPEC_TIME_DATE.md)
 
 ### Specification Governance
 
