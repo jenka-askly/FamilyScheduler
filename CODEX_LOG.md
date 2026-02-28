@@ -13381,3 +13381,55 @@ Add temporary in-memory debug instrumentation for Email Update dialog preview/se
 
 ### Follow-ups
 - Re-run full workspace build/test in an environment where `@azure/data-tables` is available to fully validate API package compilation.
+
+## 2026-02-28 01:10 UTC (Phase 2: email update opt-out preference)
+
+### Objective
+Implement Yapper manual email update Phase 2: add user-level email update opt-out preference, enforce opt-out server-side for preview/send, and disable opted-out recipients in the Email Update picker.
+
+### Approach
+- Reused existing blob-storage adapter pattern to persist per-user preferences by hashed `userKey(email)`.
+- Added dedicated user preference helper + HTTP endpoints (`GET/POST /api/user/preferences`) authenticated by session (email/session gated, no group requirement).
+- Updated `/api/direct` email preview/send flows to evaluate recipient preferences and exclude opted-out users server-side.
+- Preserved delivery semantics: `partial` remains provider-failure-only; opt-out exclusions are tracked separately and not counted as failures.
+- Updated web dashboard UI with a Notifications toggle and robust optimistic save/revert behavior.
+- Updated Email Update dialog recipient rendering to disable opted-out users with explicit reason text and report excluded-opted-out counts after send.
+
+### Files changed
+- `api/src/lib/prefs/userPrefs.ts`
+- `api/src/functions/userPreferencesGet.ts`
+- `api/src/functions/userPreferencesSet.ts`
+- `api/src/index.ts`
+- `api/src/functions/direct.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+1. `git status --short --branch` ✅
+2. `git rev-parse HEAD` ✅
+3. `git log -n 20 --oneline --decorate` ✅
+4. `sed -n '1,260p' CODEX_LOG.md` ✅
+5. `rg -n --hidden --glob '!.git' --glob '!node_modules' "preferences|prefs|settings|opt.?out|notification" api/src apps/web/src docs -S` ✅
+6. `rg -n --hidden --glob '!.git' --glob '!node_modules' "SESSION_BLOB_PREFIX|sessions/|prefs|users/|storageFactory|azureBlobStorage" api/src -S` ✅
+7. `sed -n '1,260p' api/src/lib/storage/storageFactory.ts` ✅
+8. `sed -n '1,260p' api/src/lib/storage/azureBlobStorage.ts` ✅
+9. `rg -n "preview_appointment_update_email|send_appointment_update_email" api/src/functions/direct.ts -n` ✅
+10. `sed -n '820,990p' api/src/functions/direct.ts` ✅
+11. `rg -n "Email update|preview_appointment_update_email|send_appointment_update_email|recipientPersonIds" apps/web/src/AppShell.tsx -n` ✅
+12. `sed -n '1760,1975p' apps/web/src/AppShell.tsx` ✅
+13. `cat package.json` ✅
+14. `cat api/package.json` ✅
+15. `cat apps/web/package.json` ✅
+16. `pnpm -w -r typecheck` ✅ (root placeholder script currently prints `no typecheck yet`).
+17. `pnpm -w -r build` ❌ (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` in this workspace).
+18. `pnpm -r --if-present typecheck` ✅ (`apps/web` passed).
+19. `pnpm -r --if-present build` ⚠️ API build blocked in container by missing `@azure/data-tables` type resolution.
+20. `pnpm --filter @familyscheduler/web typecheck` ✅
+21. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot; stopped intentionally).
+22. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/3e3bb9037f21cb99/artifacts/artifacts/email-optout-dashboard.png`.
+23. `git status --short --branch` ✅ (clean after commit).
+
+### Follow-ups
+- Run manual staging validation for cross-user opt-out behavior in real group/member contexts (dashboard toggle persistence + direct send exclusion).

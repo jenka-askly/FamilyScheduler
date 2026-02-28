@@ -133,12 +133,14 @@ type DirectActionErrorPayload = {
   error?: string | { code?: string; message?: string };
 };
 
+type ExcludedRecipient = { personId?: string; email?: string; reason: string };
+
 type EmailPreviewPayload = {
   subject: string;
   html: string;
   plainText: string;
-  resolvedRecipients: Array<{ personId?: string; display?: string; email: string }>;
-  excludedRecipients?: Array<{ personId?: string; email?: string; reason: string }>;
+  resolvedRecipients: Array<{ personId?: string; display?: string; email: string; isSelectable?: boolean; disabledReason?: string }>;
+  excludedRecipients?: ExcludedRecipient[];
   excludedSelf?: boolean;
 };
 
@@ -150,6 +152,7 @@ type EmailSendResult = {
   failedRecipients?: Array<{ email: string; display?: string; personId?: string; errorMessage?: string }>;
   subject: string;
   excludedSelf?: boolean;
+  excludedRecipients?: ExcludedRecipient[];
 };
 
 type ActiveSuggestionCard = {
@@ -1836,6 +1839,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const emailEligiblePeople = activePeople;
   const selectedAppointmentForEmail = detailsData?.appointment ?? null;
   const emailSelectedRecipients = emailEligiblePeople.filter((person) => selectedRecipientPersonIds.includes(person.personId));
+  const recipientEligibilityById = useMemo(() => {
+    const map = new Map<string, { isSelectable: boolean; disabledReason?: string }>();
+    for (const recipient of emailPreview?.resolvedRecipients ?? []) {
+      if (!recipient.personId) continue;
+      map.set(recipient.personId, { isSelectable: recipient.isSelectable !== false, disabledReason: recipient.disabledReason });
+    }
+    return map;
+  }, [emailPreview?.resolvedRecipients]);
+  const selectedSelectableRecipientCount = emailSelectedRecipients.filter((person) => recipientEligibilityById.get(person.personId)?.isSelectable !== false).length;
 
   const toggleEmailRecipient = (personId: string) => {
     setSelectedRecipientPersonIds((prev) => prev.includes(personId) ? prev.filter((id) => id !== personId) : [...prev, personId]);
@@ -1856,7 +1868,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
   const sendEmailUpdate = async () => {
-    if (!detailsAppointmentId || selectedRecipientPersonIds.length === 0) return;
+    if (!detailsAppointmentId || selectedSelectableRecipientCount === 0) return;
     const gid = typeof groupId === 'string' ? groupId.trim() : '';
     if (!gid) {
       const message = 'Missing group context. Close and reopen the appointment.';
@@ -1872,7 +1884,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         action: {
           type: 'send_appointment_update_email',
           appointmentId: detailsAppointmentId,
-          recipientPersonIds: selectedRecipientPersonIds,
+          recipientPersonIds: selectedRecipientPersonIds.filter((personId) => recipientEligibilityById.get(personId)?.isSelectable !== false),
           userMessage: emailUserMessage,
           clientRequestId: createTraceId()
         },
@@ -1896,7 +1908,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         recipientCountSelected: payload.recipientCountSelected,
         failedRecipients: payload.failedRecipients,
         subject: payload.subject,
-        excludedSelf: payload.excludedSelf
+        excludedSelf: payload.excludedSelf,
+        excludedRecipients: payload.excludedRecipients
       });
       await loadAppointmentDetails(detailsAppointmentId);
     } catch (error) {
@@ -1909,10 +1922,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   useEffect(() => {
     if (!isEmailUpdateOpen || !detailsAppointmentId) return;
     const timer = window.setTimeout(async () => {
-      if (selectedRecipientPersonIds.length === 0) {
-        setEmailPreview(null);
-        return;
-      }
       const gid = typeof groupId === 'string' ? groupId.trim() : '';
       if (!gid) {
         setEmailPreview(null);
@@ -1929,7 +1938,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           action: {
             type: 'preview_appointment_update_email',
             appointmentId: detailsAppointmentId,
-            recipientPersonIds: selectedRecipientPersonIds,
+            recipientPersonIds: emailEligiblePeople.map((person) => person.personId),
             userMessage: emailUserMessage
           },
           traceId: createTraceId()
@@ -1962,7 +1971,21 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       }
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [detailsAppointmentId, detailsOpen, emailUserMessage, groupId, isEmailUpdateOpen, selectedRecipientPersonIds]);
+  }, [detailsAppointmentId, detailsOpen, emailEligiblePeople, emailUserMessage, groupId, isEmailUpdateOpen]);
+
+  useEffect(() => {
+    if (!selectedRecipientPersonIds.length) return;
+    const selectable = new Set(
+      emailPreview?.resolvedRecipients
+        .filter((recipient) => recipient.personId && recipient.isSelectable !== false)
+        .map((recipient) => recipient.personId as string) ?? []
+    );
+    if (!selectable.size) return;
+    setSelectedRecipientPersonIds((prev) => {
+      const next = prev.filter((personId) => selectable.has(personId));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [emailPreview?.resolvedRecipients, selectedRecipientPersonIds.length]);
 
   useEffect(() => {
     if (!signedInPersonName) {
@@ -3366,12 +3389,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <FormGroup>
               {emailEligiblePeople.map((person) => {
                 const hasEmail = Boolean(person.email?.trim());
+                const eligibility = recipientEligibilityById.get(person.personId);
+                const disabledReason = !hasEmail ? 'No email on file' : (eligibility?.isSelectable === false ? (eligibility.disabledReason ?? 'Not selectable') : undefined);
                 const label = person.name?.trim() ? `${person.name} <${person.email || 'No email'}>` : (person.email || person.personId);
                 return (
                   <FormControlLabel
                     key={person.personId}
-                    control={<Checkbox checked={selectedRecipientPersonIds.includes(person.personId)} onChange={() => toggleEmailRecipient(person.personId)} disabled={!hasEmail || sendingEmailUpdate} />}
-                    label={hasEmail ? label : `${person.name || person.personId} — No email on file`}
+                    control={<Checkbox checked={selectedRecipientPersonIds.includes(person.personId)} onChange={() => toggleEmailRecipient(person.personId)} disabled={Boolean(disabledReason) || sendingEmailUpdate} />}
+                    label={disabledReason ? `${label} — ${disabledReason}` : label}
                   />
                 );
               })}
@@ -3404,13 +3429,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   ? `Partial send: delivered to ${sendResult.recipientCountSent} of ${sendResult.recipientCountSelected}.`
                   : `Sent to ${sendResult.recipientCountSent} recipient(s).`}
                 {sendResult.failedRecipients?.length ? ` Missed: ${sendResult.failedRecipients.map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).join(', ')}` : ''}
+                {sendResult.excludedRecipients?.filter((entry) => entry.reason === 'opted_out').length ? ` Excluded: ${sendResult.excludedRecipients.filter((entry) => entry.reason === 'opted_out').length} opted out.` : ''}
               </Alert>
             ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button type="button" onClick={closeEmailUpdateDialog} disabled={sendingEmailUpdate}>Close</Button>
-          <Button type="button" variant="contained" onClick={() => void sendEmailUpdate()} disabled={sendingEmailUpdate || selectedRecipientPersonIds.length === 0 || !selectedAppointmentForEmail}>
+          <Button type="button" variant="contained" onClick={() => void sendEmailUpdate()} disabled={sendingEmailUpdate || selectedSelectableRecipientCount === 0 || !selectedAppointmentForEmail}>
             {sendingEmailUpdate ? 'Sending…' : 'Send emails'}
           </Button>
         </DialogActions>
