@@ -7,6 +7,7 @@ import { MarketingLayout } from './components/layout/MarketingLayout';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
 import { apiFetch, apiUrl, getAuthSessionId, getIgniteGraceGroupId, getIgniteGraceSessionId, getSessionId } from './lib/apiUrl';
+import { applyIgniteJoinSessionResult, clearIgniteGraceStorageKeys } from './lib/igniteJoinSession';
 import { sessionLog } from './lib/sessionLog';
 import { sanitizeSessionEmail } from './lib/validate';
 import { isValidReturnTo, sanitizeReturnTo } from './lib/returnTo';
@@ -1389,12 +1390,14 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
   };
 
   const join = async (payload: { name?: string; email?: string; photoBase64?: string }) => {
+    const dsid = getSessionId();
+    const hasDsid = Boolean(dsid);
     setError(null);
     setJoining(true);
     try {
-      window.localStorage.removeItem('fs.igniteGraceSessionId');
-      window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
-      window.localStorage.removeItem('fs.igniteGraceGroupId');
+      if (hasDsid) {
+        clearIgniteGraceStorageKeys(window.localStorage);
+      }
       const response = await apiFetch('/api/ignite/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ groupId, sessionId, traceId: createTraceId(), ...payload }) });
       const data = await response.json() as { ok?: boolean; error?: string; code?: string; message?: string; sessionId?: string; breakoutGroupId?: string; graceExpiresAtUtc?: string };
       if (!response.ok || !data.ok) {
@@ -1406,14 +1409,14 @@ function IgniteJoinPage({ groupId, sessionId }: { groupId: string; sessionId: st
         return;
       }
       const targetGroupId = data.breakoutGroupId || groupId;
-      if (data.sessionId) {
-        window.localStorage.setItem('fs.igniteGraceSessionId', data.sessionId);
-        if (data.graceExpiresAtUtc) {
-          window.localStorage.setItem('fs.igniteGraceExpiresAtUtc', data.graceExpiresAtUtc);
-        }
-        if (data.breakoutGroupId) {
-          window.localStorage.setItem('fs.igniteGraceGroupId', data.breakoutGroupId);
-        }
+      applyIgniteJoinSessionResult({
+        storage: window.localStorage,
+        hasDsid,
+        targetGroupId,
+        responseSessionId: data.sessionId,
+        graceExpiresAtUtc: data.graceExpiresAtUtc
+      });
+      if (!hasDsid && data.sessionId) {
         sessionLog('GRACE_START', {
           breakoutGroupId: targetGroupId,
           sessionIdPrefix: data.sessionId.slice(0, 8),
