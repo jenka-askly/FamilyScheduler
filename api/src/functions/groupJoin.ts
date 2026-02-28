@@ -2,11 +2,11 @@ import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functio
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
-import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
+import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
-import { userKeyFromEmail } from '../lib/identity/userKey.js';
+import { normalizeIdentityEmail, userKeyFromEmail } from '../lib/identity/userKey.js';
 
 type JoinBody = { groupId?: unknown; traceId?: unknown };
 
@@ -38,35 +38,30 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
   const group = await getGroupEntity(groupId);
   if (!group || group.isDeleted) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
 
+  const normalizedEmail = normalizeIdentityEmail(session.email);
+
   if (session.kind === 'igniteGrace') {
-    const userKey = userKeyFromEmail(session.email);
+    const userKey = userKeyFromEmail(normalizedEmail);
     const now = new Date().toISOString();
-    const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active', 'invited'] });
+    const membership = await requireGroupMembership({ groupId, email: normalizedEmail, traceId, allowStatuses: ['active', 'invited'] });
     if (!membership.ok) {
-      await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: session.email, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
+      await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: normalizedEmail, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
       await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
       await adjustGroupCounters(groupId, { memberCountActive: 1 });
+      await upsertUserProfile({ userKey, email: normalizedEmail, updatedAt: now, createdAt: now });
     } else if (membership.member.status === 'invited') {
       await upsertGroupMember({ ...membership.member, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
       await upsertUserGroup({ partitionKey: membership.userKey, rowKey: groupId, groupId, status: 'active', invitedAt: membership.member.invitedAt, joinedAt: now, removedAt: undefined, updatedAt: now });
       await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
       await incrementDailyMetric('invitesAccepted', 1);
+      await upsertUserProfile({ userKey: membership.userKey, email: normalizedEmail, updatedAt: now, createdAt: now });
     }
 
     console.log(JSON.stringify({ event: 'GROUP_JOIN_NO_UPGRADE', traceId, groupId, sessionKind: session.kind }));
-    return {
-      status: 200,
-      jsonBody: {
-        ok: true,
-        traceId,
-        groupId,
-        groupName: group.groupName,
-        updatedAt: group.updatedAt
-      }
-    };
+    return { status: 200, jsonBody: { ok: true, traceId, groupId, groupName: group.groupName, updatedAt: group.updatedAt } };
   }
 
-  const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active', 'invited'] });
+  const membership = await requireGroupMembership({ groupId, email: normalizedEmail, traceId, allowStatuses: ['active', 'invited'] });
   if (!membership.ok) return membership.response;
 
   if (membership.member.status === 'invited') {
@@ -75,6 +70,7 @@ export async function groupJoin(request: HttpRequest, _context: InvocationContex
     await upsertUserGroup({ partitionKey: membership.userKey, rowKey: groupId, groupId, status: 'active', invitedAt: membership.member.invitedAt, joinedAt: now, removedAt: undefined, updatedAt: now });
     await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
     await incrementDailyMetric('invitesAccepted', 1);
+    await upsertUserProfile({ userKey: membership.userKey, email: normalizedEmail, updatedAt: now, createdAt: now });
   }
 
   return { status: 200, jsonBody: { ok: true, traceId, groupId, groupName: group.groupName, updatedAt: group.updatedAt } };

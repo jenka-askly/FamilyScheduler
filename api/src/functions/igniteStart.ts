@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember, resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
+import { resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { IGNITE_DEFAULT_GRACE_SECONDS, normalizeIgniteTokenKind } from '../lib/ignite.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
@@ -22,10 +23,9 @@ export async function igniteStart(request: HttpRequest, _context: InvocationCont
   const storage = createStorageAdapter();
   let loaded;
   try { loaded = await storage.load(groupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
+  const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!membership.ok) return membership.response;
-  const caller = membership.member;
-  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? caller.memberId;
+  const personId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? membership.userKey;
 
   const nowISO = new Date().toISOString();
   loaded.state.ignite = {

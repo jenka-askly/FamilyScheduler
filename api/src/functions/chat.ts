@@ -14,7 +14,9 @@ import { createStorageAdapter, describeStorageTarget } from '../lib/storage/stor
 import { normalizeUserText } from '../lib/text/normalize.js';
 import { normalizeAppointmentCode } from '../lib/text/normalizeCode.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
+import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import { recordUsageError, recordUsageSuccess } from '../lib/usageMeter.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
@@ -325,6 +327,7 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
     if (message.length === 0) return badRequest('message is required', traceId, opId);
     const normalized = normalizeUserText(message);
 
+    await ensureTablesReady();
     const session = getSessionState(getSessionId(request, groupId));
     const storage = createStorageAdapter();
     const debugStorageTargetEnabled = process.env.DEBUG_STORAGE_TARGET === '1';
@@ -349,14 +352,15 @@ export async function chat(request: HttpRequest, _context: InvocationContext): P
       throw error;
     }
     let state = loaded.state;
-    const membership = requireActiveMember(state, sessionAuth.email, traceId);
+    const membership = await requireGroupMembership({ groupId, email: sessionAuth.email, traceId, allowStatuses: ['active'] });
     if (!membership.ok) {
       logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
       return membership.response;
     }
-    const member = membership.member;
-    logAuth({ traceId, stage: 'gate_allowed', personId: member.memberId });
-    session.activePersonId = member.memberId;
+    const member = findActiveMemberByEmail(state, sessionAuth.email);
+    logAuth({ traceId, stage: 'gate_allowed', userKey: membership.userKey, personId: member?.memberId ?? null });
+    session.activePersonId = member?.memberId ?? session.activePersonId;
+    if (!member) return errorResponse(403, 'not_allowed', 'Not allowed', traceId);
 
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();

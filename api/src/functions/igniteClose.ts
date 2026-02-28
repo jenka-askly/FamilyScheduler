@@ -4,7 +4,7 @@ import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
 
 type IgniteCloseBody = { groupId?: unknown; sessionId?: unknown; traceId?: unknown };
 
@@ -19,7 +19,7 @@ export async function igniteClose(request: HttpRequest, _context: InvocationCont
   const storage = createStorageAdapter();
   let loaded;
   try { loaded = await storage.load(groupId); } catch (error) { if (error instanceof GroupNotFoundError) return errorResponse(404, 'group_not_found', 'Group not found', traceId); throw error; }
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
+  const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!membership.ok) return membership.response;
 
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';

@@ -6,7 +6,7 @@ import { ignitePhotoBlobKey } from '../lib/ignite.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
 import { requireSessionFromRequest } from '../lib/auth/sessions.js';
 
 export async function ignitePhotoGet(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
@@ -39,7 +39,7 @@ export async function ignitePhotoGet(request: HttpRequest, _context: InvocationC
     throw error;
   }
 
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
+  const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!membership.ok) return membership.response;
   if (!loaded.state.ignite || loaded.state.ignite.sessionId !== sessionId) return errorResponse(404, 'ignite_not_found', 'Ignite session not found', traceId);
 
