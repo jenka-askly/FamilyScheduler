@@ -5278,3 +5278,10 @@ Verification note:
 - ACS email send path now supports optional `EMAIL_REPLY_TO_ADDRESS` (or per-call `replyTo`) and injects `replyTo` in `EmailClient.beginSend(...)` only when configured.
 - Optional suppression headers are now supported behind `EMAIL_SUPPRESS_HEADERS=true` (or explicit per-call headers) without changing sender/from behavior.
 - Existing “Do not reply …” body copy and call sites remain unchanged.
+
+## 2026-02-28 21:00 UTC update (Home Dashboard group delete immediate + inline Undo restore)
+
+- Home Dashboard group delete is now immediate (no confirmation dialog) and undo-able via inline `Group deleted` + `Undo` notice (~8s window, single latest delete).
+- Added backend endpoint `POST /api/group/restore` to reverse group soft-delete flags (`isDeleted`, `deletedAt`, `deletedByUserKey`, `purgeAfterAt`) and refresh `updatedAt`.
+- Dashboard undo now uses the new `/api/group/restore` route; deleting multiple groups quickly replaces the single undo target.
+- Removed dashboard delete confirmation copy (`This cannot be undone.`) to match new behavior.

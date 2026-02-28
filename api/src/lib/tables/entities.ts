@@ -148,6 +148,17 @@ export const upsertGroup = async (entity: GroupEntity): Promise<void> => {
   await getTableClient(GROUPS_TABLE).upsertEntity(entity, 'Merge');
 };
 
+export const restoreGroupById = async (group: GroupEntity, restoredAt: string): Promise<void> => {
+  await upsertGroup({
+    ...group,
+    isDeleted: false,
+    deletedAt: undefined,
+    deletedByUserKey: undefined,
+    purgeAfterAt: undefined,
+    updatedAt: restoredAt
+  });
+};
+
 const withRetries = async (fn: () => Promise<void>): Promise<void> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
