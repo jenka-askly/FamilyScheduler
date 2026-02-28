@@ -13707,6 +13707,39 @@ Document the normative DSID/GSID behavior for breakout QR and member-invite QR e
 ### Files changed
 
 - `docs/specs/breakout-qr-join-dsid-gsid.md`
+## 2026-02-28 07:32 UTC (Breakout QR join auto-mode: DSID when present, GSID when absent)
+
+### Objective
+
+Implement breakout QR join auto-mode with no prompt:
+- DSID path for signed-in users (`fs.sessionId` present), no grace key writes.
+- GSID/grace path for guests (`fs.sessionId` absent), no durable session writes.
+
+### Approach
+
+- Performed mandatory preflight state checks (`CODEX_LOG.md`, `git status --short`, `git log -1 --oneline`, key-reference searches, route discovery).
+- Confirmed server contract in `api/src/functions/igniteJoin.ts`:
+  - Unauthed join returns `sessionId` + `graceExpiresAtUtc` (+ `breakoutGroupId`).
+  - Authed join returns success without grace session payload.
+- Added `apps/web/src/lib/igniteJoinSession.ts` helper to centralize breakout-join storage semantics:
+  - `clearIgniteGraceStorageKeys(...)`
+  - `applyIgniteJoinSessionResult(...)`
+- Updated `IgniteJoinPage.join(...)` in `apps/web/src/App.tsx`:
+  - Resolve `hasDsid` via `getSessionId()` at join time.
+  - Pre-clear grace keys only for DSID path.
+  - Apply post-join storage via helper:
+    - DSID: clear grace keys only (optional DSID rotation support retained if response includes sessionId).
+    - GSID: set grace session/group/expiry and never set `fs.sessionId`.
+- Added targeted unit tests in `apps/web/src/lib/igniteJoinSession.test.ts` for:
+  - DSID present => grace keys cleared and durable retained.
+  - DSID absent => grace keys set (`igniteGraceGroupId` equals target group), durable remains empty.
+
+### Files changed
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/lib/igniteJoinSession.ts`
+- `apps/web/src/lib/igniteJoinSession.test.ts`
+- `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
@@ -13721,3 +13754,19 @@ Document the normative DSID/GSID behavior for breakout QR and member-invite QR e
 ### Follow-ups
 
 - If implementation changes are requested later, use this spec as the source of truth for DSID precedence, GSID scoping, and upgrade/clear semantics.
+- `rg -n "setItem\(['\"]fs\.sessionId|localStorage\.setItem\(['\"]fs\.sessionId|fs\.sessionId" apps/web/src` ✅
+- `rg -n "igniteGraceSessionId|igniteGraceGroupId|igniteGraceExpiresAtUtc" apps/web/src` ✅
+- `rg -n "#/s/|route\.type\s*=\s*'igniteJoin'|IgniteJoinPage|Breakout" apps/web/src` ✅
+- `rg -n "ignite/join|IGNITE_CLOSED|graceExpiresAtUtc|breakoutGroupId" api/src apps/web/src -S` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web exec node --test src/lib/graceAccess.test.ts src/lib/igniteJoinSession.test.ts` ✅
+- `rg -n "igniteGraceGroupId.*targetGroupId|fs\.igniteGraceGroupId" apps/web/src` ✅
+- `rg -n "setItem\(['\"]fs\.sessionId" apps/web/src` ✅ (no breakout-join guest write path)
+
+### Manual scenarios verified
+
+- Not executed in this container (no interactive mobile scan flow). Ready for local verification of Scenario A/B with session debug popup.
+
+### Follow-ups
+
+- Optional: if product decides DSID rotation should never occur from breakout join responses, remove DSID-branch rotation fallback from helper for stricter semantics.

@@ -1,3 +1,11 @@
+## 2026-02-28 07:32 UTC update (Breakout QR join auto-mode: DSID vs GSID, no prompt)
+
+- Breakout QR join (`/#/s/:groupId/:sessionId`) now applies automatic session mode:
+  - If `fs.sessionId` exists, join proceeds as DSID/member and clears any stale `fs.igniteGrace*` keys.
+  - If no `fs.sessionId`, join proceeds as GSID guest and stores `fs.igniteGraceSessionId`, `fs.igniteGraceExpiresAtUtc`, and **always** `fs.igniteGraceGroupId` using the resolved target group.
+- Guest-path breakout join no longer writes `fs.sessionId`; this keeps guest gating active and allows immediate “Guest access (limited)” banner behavior in app shell.
+- Added focused web tests for breakout join storage semantics covering DSID-present vs DSID-absent paths.
+
 ## 2026-02-28 07:13 UTC update (Debug menu item in app burger for session/grace snapshot)
 
 - Added a **Debug** item in the in-app burger menu (PageHeader) that opens a mobile-friendly dialog.
