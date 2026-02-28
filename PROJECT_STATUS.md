@@ -1,3 +1,8 @@
+## 2026-02-28 23:24 UTC update (Web build unblock: PageHeader conditional render parse fix)
+
+- Fixed a JSX conditional in `PageHeader` by switching `showGroupSummary ? (...) : null` to `showGroupSummary && (...)` to resolve a TypeScript parser mismatch that reported `'}' expected` near end-of-file.
+- No behavior change intended; this is a syntax-shape stabilization for the same render condition.
+
 ## 2026-02-28 22:10 UTC update (Dashboard Home UEX + group restore undo)
 
 - DashboardHomePage: moved email update notification toggle into header burger menu.
