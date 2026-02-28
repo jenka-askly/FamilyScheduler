@@ -55,8 +55,11 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
 
   const signOut = () => {
     window.localStorage.removeItem('fs.sessionId');
+    window.localStorage.removeItem('fs.sessionEmail');
     window.localStorage.removeItem('fs.sessionName');
-    window.sessionStorage.removeItem('familyscheduler.session');
+    window.localStorage.removeItem('fs.igniteGraceSessionId');
+    window.localStorage.removeItem('fs.igniteGraceGroupId');
+    window.localStorage.removeItem('fs.igniteGraceExpiresAtUtc');
     window.sessionStorage.removeItem('fs.pendingAuth');
     Object.keys(window.localStorage)
       .filter((key) => key.startsWith('fs.authComplete.'))

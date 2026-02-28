@@ -1,3 +1,8 @@
+## 2026-02-28 07:05 UTC update (Removed legacy local join session key)
+
+- Removed legacy local session key `familyscheduler.session`; access now relies solely on API session + join gate.
+- Join/create/ignite/handoff continuity now uses existing display keys (`fs.sessionEmail`/`fs.sessionName`) where needed, with no local legacy session fallback.
+
 ## 2026-02-28 06:54 UTC update (Grace debug always-available entrypoint in AppShell)
 
 - Grace debug dialog is now always available in AppShell via a header-area **Debug** icon button (no `debugGrace=1` gating).
