@@ -1,3 +1,10 @@
+## 2026-02-28 22:10 UTC update (Dashboard Home UEX + group restore undo)
+
+- DashboardHomePage: moved email update notification toggle into header burger menu.
+- DashboardHomePage: per-group mute control inline; removed muted groups section.
+- DashboardHomePage: delete group is immediate and undo-able; confirmation dialog removed; undo uses icon button.
+- API: added POST `/api/group/restore` to reverse group soft-delete flags.
+
 ## 2026-02-28 21:05 UTC update (Debug menu + dogfood gating for web/api)
 
 - Web Debug menu is now build-time gated by `import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'`; when false, the Debug menu item, submenu, dialog, and debug snackbar are not rendered.

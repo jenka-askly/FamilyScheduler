@@ -40,9 +40,14 @@ type Props = {
   showGroupSummary?: boolean;
   onDashboardClick?: () => void;
   showMenuButton?: boolean;
+  emailUpdatesEnabled?: boolean | null;
+  prefsLoading?: boolean;
+  prefsSaving?: boolean;
+  prefsError?: string | null;
+  onToggleEmailUpdates?: (next: boolean) => void | Promise<void>;
 };
 
-export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true }: Props) {
+export function PageHeader({ title, description, groupName, groupId, memberNames, groupAccessNote, onMembersClick, showGroupAccessNote = true, onBreakoutClick, breakoutDisabled = false, onRenameGroupName, titleOverride, subtitleOverride, subtitlePulse = false, hasApiSession, sessionEmail, sessionName, onSignOut, showGroupSummary = true, onDashboardClick, showMenuButton = true, emailUpdatesEnabled, prefsLoading = false, prefsSaving = false, prefsError = null, onToggleEmailUpdates }: Props) {
   const enableDebugMenu = import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1';
   const [copied, setCopied] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -432,6 +437,24 @@ export function PageHeader({ title, description, groupName, groupId, memberNames
               <Divider />
             </>
           ) : null}
+          {typeof onToggleEmailUpdates === 'function' ? (
+            <MenuItem>
+              <Stack direction="column" spacing={0.5} sx={{ width: '100%' }}>
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+                  <Typography>Receive appointment update emails</Typography>
+                  <Switch
+                    checked={Boolean(emailUpdatesEnabled)}
+                    disabled={prefsLoading || prefsSaving || emailUpdatesEnabled === null || emailUpdatesEnabled === undefined}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(_event, checked) => { void onToggleEmailUpdates(checked); }}
+                    inputProps={{ 'aria-label': 'Receive appointment update emails' }}
+                  />
+                </Stack>
+                {prefsError ? <Typography variant="caption" color="error">{prefsError}</Typography> : null}
+              </Stack>
+            </MenuItem>
+          ) : null}
+          {typeof onToggleEmailUpdates === 'function' ? <Divider /> : null}
           <MenuItem>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
               <Typography>Dark mode</Typography>

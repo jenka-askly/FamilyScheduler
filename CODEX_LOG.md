@@ -14155,3 +14155,34 @@ Implement immediate dashboard group deletion (no confirm modal) with inline undo
 
 ### Follow-ups
 - Manual browser validation for dashboard delete/undo timing and cross-tab already-active restore behavior.
+
+
+## 2026-02-28 22:10 UTC (Dashboard Home UEX: notifications menu move, inline mute, delete undo icon, restore endpoint)
+
+### Objective
+Implement dashboard UX updates: remove on-page notifications block, add email update toggle to burger menu, inline per-group mute controls, immediate group delete with inline undo icon backed by restore endpoint.
+
+### Approach
+- Switched dashboard preferences calls to shared helper (`userPrefs`) for reuse by header/menu surfaces.
+- Updated dashboard list row actions to include inline mute icon and immediate delete + inline undo icon alert.
+- Added/updated menu-level notification toggle support in reusable menu headers.
+- Verified restore endpoint + tests for deleted/already-active/unauthorized/non-active-member behavior.
+- Updated project continuity docs.
+
+### Files changed
+- `apps/web/src/lib/userPrefs.ts`
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api test -- groupRestore.test.ts` ⚠️ failed in this environment because `@azure/data-tables` type dependencies are unavailable during API build.
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped after capture)
+- Playwright screenshot capture ✅ (dashboard home with inline mute + undo/menu wiring)
+
+### Follow-ups
+- Manual smoke in browser: verify burger-menu email toggle persistence and delete→undo restore across refresh.

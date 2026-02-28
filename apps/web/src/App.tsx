@@ -1668,9 +1668,18 @@ function HandoffPage({ groupId, email, next }: { groupId: string; email?: string
   );
 }
 
+type DashboardPrefsState = {
+  emailUpdatesEnabled: boolean | null;
+  prefsLoading: boolean;
+  prefsSaving: boolean;
+  prefsError: string | null;
+  onToggleEmailUpdates: (next: boolean) => void | Promise<void>;
+};
+
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [hasApiSession, setHasApiSession] = useState<boolean>(() => Boolean(getAuthSessionId()));
+  const [dashboardPrefsState, setDashboardPrefsState] = useState<DashboardPrefsState | null>(null);
   const sessionEmail = useMemo(() => {
     const rawSessionEmail = window.localStorage.getItem(SESSION_EMAIL_KEY);
     const sanitizedSessionEmail = sanitizeSessionEmail(rawSessionEmail);
@@ -1750,6 +1759,10 @@ export function App() {
     });
   }, [route, hasApiSession, routeScopedHasApiSession]);
 
+  useEffect(() => {
+    if (route.type !== 'home') setDashboardPrefsState(null);
+  }, [route.type]);
+
   if ((route.type === 'app' || route.type === 'ignite') && !routeScopedHasApiSession) {
     authDebug('route_redirect_login', {
       routeType: route.type,
@@ -1767,9 +1780,20 @@ export function App() {
       );
     }
     return (
-      <MarketingLayout hasApiSession sessionEmail={sessionEmail} sessionName={sessionName} onSignOut={signOut}>
+      <MarketingLayout
+        hasApiSession
+        sessionEmail={sessionEmail}
+        sessionName={sessionName}
+        onSignOut={signOut}
+        emailUpdatesEnabled={dashboardPrefsState?.emailUpdatesEnabled ?? null}
+        prefsLoading={dashboardPrefsState?.prefsLoading ?? true}
+        prefsSaving={dashboardPrefsState?.prefsSaving ?? false}
+        prefsError={dashboardPrefsState?.prefsError ?? null}
+        onToggleEmailUpdates={dashboardPrefsState?.onToggleEmailUpdates}
+      >
         <DashboardHomePage
           onCreateGroup={() => nav('/create')}
+          onPrefsStateChange={setDashboardPrefsState}
         />
       </MarketingLayout>
     );
