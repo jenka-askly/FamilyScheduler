@@ -7833,3 +7833,56 @@ Make Members/People panel visually match Schedule panel container and header ali
 ### Follow-ups
 
 - Install/restore `@mui/material` and `@mui/icons-material` packages locally, then perform visual side-by-side Schedule vs Members verification.
+
+## 2026-02-28 05:18 UTC (Phase 2: email update opt-out preference)
+
+### Objective
+
+Implement per-user appointment update email opt-out preference (default ON), expose GET/POST user preference API, and wire dashboard settings toggle.
+
+### Approach
+
+- Ran the requested pre-flight discovery commands first and corroborated repository state.
+- Discovery found this branch does **not** currently contain `preview_appointment_update_email` / `send_appointment_update_email` actions or Email Update dialog recipient-picker codepaths in `api/src/functions/direct.ts` / `apps/web/src/AppShell.tsx`.
+- Implemented reusable user preference storage helper using blob path `${USER_PREFS_BLOB_PREFIX|familyscheduler/users}/${userKey(email)}/prefs.json`.
+- Added `GET/POST /api/user/preferences` functions requiring `x-session-id` and authenticated principal email.
+- Registered new HTTP routes in API entrypoint.
+- Added Settings → Notifications toggle UI in `AppShell` with load/save states and optimistic revert-on-failure behavior.
+- Updated `PROJECT_STATUS.md` with behavior change + follow-up note about absent direct email action flow.
+
+### Files changed
+
+- `api/src/lib/identity/userKey.ts`
+- `api/src/lib/prefs/userPrefs.ts`
+- `api/src/functions/userPreferencesGet.ts`
+- `api/src/functions/userPreferencesSet.ts`
+- `api/src/index.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short --branch` ✅ clean branch pointer shown (`## work`).
+- `git rev-parse HEAD` ✅ captured base commit.
+- `git log -n 20 --oneline --decorate` ✅ reviewed recent history.
+- `sed -n '1,260p' CODEX_LOG.md` ✅ reviewed continuity log.
+- `rg -n --hidden --glob '!.git' --glob '!node_modules' "preferences|prefs|settings|opt.?out|notification" api/src apps/web/src docs -S` ✅ searched preference/notification surfaces.
+- `rg -n --hidden --glob '!.git' --glob '!node_modules' "SESSION_BLOB_PREFIX|sessions/|prefs|users/|storageFactory|azureBlobStorage" api/src -S` ✅ searched storage patterns.
+- `sed -n '1,260p' api/src/lib/storage/storageFactory.ts` ✅ reviewed storage factory.
+- `sed -n '1,260p' api/src/lib/storage/azureBlobStorage.ts` ✅ reviewed blob helper behavior.
+- `rg -n "preview_appointment_update_email|send_appointment_update_email" api/src/functions/direct.ts -n` ⚠️ no matches in current branch.
+- `sed -n '1,320p' api/src/functions/direct.ts` ✅ inspected direct handler implementation.
+- `rg -n "Email update|preview_appointment_update_email|send_appointment_update_email|recipientPersonIds" apps/web/src/AppShell.tsx -n` ⚠️ no matches in current branch.
+- `sed -n '1,220p' apps/web/src/AppShell.tsx` and `sed -n '1180,1325p' apps/web/src/AppShell.tsx` ✅ inspected current UI sections.
+- `cat package.json && cat api/package.json && cat apps/web/package.json` ✅ verified scripts.
+- `pnpm -w -r typecheck` ✅ succeeded (workspace root script prints `no typecheck yet`).
+- `pnpm -w -r build` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`, no workspace recursive build script).
+- `pnpm --filter @familyscheduler/api build` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started dev server; proxy warnings expected without API.
+- Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/9689fb0d524c1427/artifacts/artifacts/settings-toggle-attempt.png`.
+
+### Follow-ups
+
+- Once manual email direct actions (`preview_appointment_update_email`, `send_appointment_update_email`) are available in this branch, wire user preference exclusion enforcement and recipient disable metadata in that flow.

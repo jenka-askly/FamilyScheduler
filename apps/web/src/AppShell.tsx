@@ -65,12 +65,22 @@ type Session = { groupId: string; phone: string; joinedAt: string };
 
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SESSION_KEY = 'familyscheduler.session';
+const CLIENT_SESSION_ID_KEY = 'familyscheduler.clientSessionId';
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 };
 const writeSession = (session: Session): void => {
   window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+};
+
+
+const getClientSessionId = (): string => {
+  const existing = window.sessionStorage.getItem(CLIENT_SESSION_ID_KEY);
+  if (existing?.trim()) return existing;
+  const next = createTraceId();
+  window.sessionStorage.setItem(CLIENT_SESSION_ID_KEY, next);
+  return next;
 };
 
 const QuestionDialog = ({
@@ -404,6 +414,63 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
   const [advancedText, setAdvancedText] = useState('');
+  const [emailUpdatesEnabled, setEmailUpdatesEnabled] = useState(true);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsError, setPrefsError] = useState<string | null>(null);
+
+
+  const loadUserPreferences = async () => {
+    setPrefsLoading(true);
+    setPrefsError(null);
+    try {
+      const response = await fetch(apiUrl('/api/user/preferences'), {
+        method: 'GET',
+        headers: { 'x-session-id': getClientSessionId() }
+      });
+      const payload = await response.json() as { emailUpdatesEnabled?: boolean; message?: string };
+      if (!response.ok || typeof payload.emailUpdatesEnabled !== 'boolean') {
+        throw new Error(payload.message ?? 'Failed to load preferences.');
+      }
+      setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+    } catch (error) {
+      setPrefsError(error instanceof Error ? error.message : 'Failed to load preferences.');
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
+  const updateEmailPreference = async (nextEnabled: boolean) => {
+    const previous = emailUpdatesEnabled;
+    setEmailUpdatesEnabled(nextEnabled);
+    setPrefsSaving(true);
+    setPrefsError(null);
+    try {
+      const response = await fetch(apiUrl('/api/user/preferences'), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-session-id': getClientSessionId()
+        },
+        body: JSON.stringify({ emailUpdatesEnabled: nextEnabled })
+      });
+      const payload = await response.json() as { emailUpdatesEnabled?: boolean; message?: string };
+      if (!response.ok || typeof payload.emailUpdatesEnabled !== 'boolean') {
+        throw new Error(payload.message ?? 'Failed to save preference.');
+      }
+      setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+    } catch (error) {
+      setEmailUpdatesEnabled(previous);
+      setPrefsError(error instanceof Error ? error.message : 'Failed to save preference.');
+    } finally {
+      setPrefsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadUserPreferences();
+  }, []);
+
 
   function openAppointmentDetails(appt: Snapshot['appointments'][0], anchorEl: HTMLElement) {
     setDetailsAppointment(appt);
@@ -1259,7 +1326,28 @@ export function AppShell({ groupId, phone, groupName: initialGroupName }: { grou
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
-          {activeSection === 'settings' ? <section className="panel"><p>Settings view coming soon.</p></section> : null}
+          {activeSection === 'settings' ? (
+            <section className="panel">
+              <Stack spacing={2} sx={{ maxWidth: 520 }}>
+                <Typography variant="h6">Notifications</Typography>
+                <FormGroup>
+                  <FormControlLabel
+                    control={(
+                      <Checkbox
+                        checked={emailUpdatesEnabled}
+                        onChange={(event) => { void updateEmailPreference(event.target.checked); }}
+                        disabled={prefsLoading || prefsSaving}
+                      />
+                    )}
+                    label="Receive appointment update emails"
+                  />
+                </FormGroup>
+                {prefsLoading ? <Typography variant="body2" color="text.secondary">Loading preferences…</Typography> : null}
+                {prefsSaving ? <Typography variant="body2" color="text.secondary">Saving…</Typography> : null}
+                {prefsError ? <Alert severity="error">{prefsError}</Alert> : null}
+              </Stack>
+            </section>
+          ) : null}
 
           {activeSection === 'calendar' ? (
             <>
