@@ -1,3 +1,32 @@
+## 2026-02-28 00:20 UTC (Docs cleanup alignment to implemented architecture + auth/direct flows)
+
+### Objective
+Align core docs with current code behavior during cleanup phase, using current implementation and existing project log/status as source of truth.
+
+### Approach
+- Audited current runtime contracts in code (`/api/direct` action union, auth/session handling, appointment drawer workflows).
+- Updated architecture docs to reflect hybrid UI + chat model and appointment-doc/event/index storage layout.
+- Updated API contract doc to reflect active direct action families and current notification email actions.
+- Updated appointment pane spec with implementation-status note and current action naming deltas.
+- Updated README storage/auth summary to remove stale prompt-era/index statements.
+
+### Files changed
+- `README.md`
+- `docs/architecture.md`
+- `docs/api.md`
+- `docs/specs/APPOINTMENT_PANE_ENHANCEMENT.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "x-session-id|requireSessionFromRequest|getSessionWithStatus|/api/direct|parseDirectAction|get_appointment_detail|create_suggestion|add_constraint|send_notification|share|appointmentId|remove Share|suggest" api/src apps/web/src docs -S` ✅
+- `rg -n "type: '([a-z_]+)'|case '([a-z_]+)'" api/src/functions/direct.ts` ✅
+- `rg -n "prompt-only|send_notification|get_notification_snapshot|get_notification_ics|my groups index|single cohesive release|Displays Share button" docs README.md` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+- Optional next pass: split aspirational vs implemented sections across specs with an explicit front-matter status tag (`implemented`, `partial`, `planned`) for each major area.
+
 ## 2026-02-27 08:47 UTC (BREAKOUT profile photo 401 fix via apiFetch + blob URL)
 
 ### Objective

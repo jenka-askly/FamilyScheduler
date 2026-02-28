@@ -1,235 +1,125 @@
 # API Contract Specification
 
-Base API style: JSON over HTTPS.
+Base style: JSON over HTTPS.
 
-## 1. Authentication
+## 1. Authentication model
 
-- Current auth is email magic-link + server session.
-- Protected endpoints are authenticated by the `x-session-id` request header.
-- Request bodies for `/api/chat` and `/api/direct` should not include `phone` for auth.
+- Session auth uses `x-session-id`.
+- Group-scoped endpoints validate active membership for `groupId`.
+- `/api/chat` and `/api/direct` requests are group-scoped (`groupId` required for most actions).
+- Email/session auth is authoritative; request-body phone auth is not supported.
 
-## 2. State retrieval
+## 2. Core endpoints
 
-### GET `/api/state`
+## 2.1 `POST /api/group/create`
 
-Response:
+Creates a new group and seeds creator membership.
+
+Request (typical):
 
 ```json
 {
-  "state": { "version": 1, "people": [], "appointments": [], "availability": [], "history": [] },
-  "etag": "\"abc123\""
+  "groupName": "Family HQ",
+  "creatorName": "Alex",
+  "creatorEmail": "alex@example.com"
 }
 ```
 
-## 3. Chat endpoint
+Notes:
+- If a valid session is present, server may derive creator identity from session.
+- Returns `groupId` and `linkPath`.
 
-### POST `/api/chat`
+## 2.2 `POST /api/group/join`
 
-Auth:
+Validates/group-joins current identity into a group and returns session/group access metadata.
 
-- Requires `x-session-id` header.
-- Session email membership is validated server-side for the provided `groupId`.
+## 2.3 `POST /api/chat`
+
+Natural-language entrypoint.
 
 Request:
 
 ```json
-{ "groupId": "<groupId>", "message": "add PT for mom tomorrow at 3pm" }
+{ "groupId": "<groupId>", "message": "appointments" }
 ```
 
-Response (one-of union):
+Response:
+- Returns structured payloads and includes a snapshot for UI refresh paths.
+- Deterministic command routes are used for common commands.
 
-### A) Query/direct response
+## 2.4 `POST /api/direct`
 
-```json
-{
-  "kind": "reply",
-  "assistantText": "...",
-  "stateVersion": 3
-}
-```
+Deterministic action endpoint used by structured UI.
 
-### B) Mutation proposal response
-
-```json
-{
-  "kind": "proposal",
-  "proposalId": "prop_123",
-  "assistantText": "Please confirm you want to ... Reply `confirm` to proceed or `cancel`.",
-  "actions": [],
-  "statePreviewSummary": "...",
-  "etag": "\"abc123\"",
-  "expiresAt": "<ISO-8601>",
-  "needsConfirmation": true
-}
-```
-
-### C) Clarification response
-
-```json
-{
-  "kind": "clarify",
-  "question": "Which appointment code did you mean?",
-  "candidates": [{ "code": "APR-12-PT-1", "summary": "..." }]
-}
-```
-
-### D) Error response
-
-```json
-{
-  "kind": "error",
-  "message": "Unable to process request"
-}
-```
-
-## 4. Direct action endpoint
-
-### POST `/api/direct`
-
-Auth:
-
-- Requires `x-session-id` header.
-- Session email membership is validated server-side for the provided `groupId`.
-
-Request (minimal example):
+Request shape:
 
 ```json
 {
   "groupId": "<groupId>",
-  "action": { "type": "get_appointment_detail", "appointmentId": "<appointmentId>" }
+  "action": { "type": "get_appointment_detail", "appointmentId": "<appointmentId>" },
+  "traceId": "<optional-client-trace>"
 }
 ```
 
-Response:
+Error responses include `traceId` for diagnostics.
 
-- Returns direct-action specific JSON payloads depending on `action.type`.
-- Error payloads include `traceId` for diagnostics.
+## 3. `/api/direct` action families (current)
 
-## 5. Confirmation and cancellation
+### Schedule + people
 
-### POST `/api/confirm`
+- `create_blank_appointment`
+- `delete_appointment`
+- `restore_appointment`
+- `set_appointment_date`
+- `set_appointment_start_time`
+- `set_appointment_duration`
+- `set_appointment_location`
+- `set_appointment_notes`
+- `set_appointment_desc`
+- `reschedule_appointment`
+- `resolve_appointment_time`
+- `create_blank_person`
+- `update_person`
+- `delete_person`
+- `reactivate_person`
 
-Request:
+### Appointment Drawer
 
-```json
-{ "proposalId": "prop_123", "etag": "\"abc123\"" }
-```
+- `get_appointment_detail`
+- `append_appointment_message`
+- Proposal lifecycle:
+  - `apply_appointment_proposal`
+  - `pause_appointment_proposal`
+  - `resume_appointment_proposal`
+  - `edit_appointment_proposal`
+  - `dismiss_appointment_proposal`
+- Constraints:
+  - `add_constraint`
+  - `edit_constraint`
+  - `remove_constraint`
+- Suggestions:
+  - `create_suggestion`
+  - `dismiss_suggestion`
+  - `react_suggestion`
+  - `apply_suggestion`
 
-Response:
+### Appointment update email
 
-```json
-{
-  "kind": "applied",
-  "assistantText": "Done. ...",
-  "affectedCodes": ["APR-12-PT-1"],
-  "etag": "\"def456\"",
-  "snapshotText": "Upcoming appointments: ..."
-}
-```
+- `preview_appointment_update_email`
+- `send_appointment_update_email`
 
-Supports plain `confirm` and `confirm <proposalId>` semantics at chat layer.
+## 4. Time parsing / resolution
 
-### POST `/api/cancel`
+- `resolve_appointment_time` supports deterministic + AI-assisted parsing flows.
+- For unresolved time-only input, server returns deterministic `timeChoices` (`today`, `tomorrow`, `appointment`) with timezone-anchored ranges.
 
-Request:
+## 5. Diagnostic expectations
 
-```json
-{ "proposalId": "prop_123" }
-```
+- Client may send `traceId`; server returns/propagates `traceId` in errors.
+- Auth/session logs and direct-action logs include correlation metadata to support root-cause debugging.
 
-Response:
+## 6. Compatibility note
 
-```json
-{ "kind": "reply", "assistantText": "Canceled pending proposal." }
-```
-
-## 6. Undo / backup / restore
-
-### POST `/api/undo`
-
-Request:
-
-```json
-{ "etag": "\"def456\"" }
-```
-
-Behavior:
-
-- Returns proposal response (undo is a mutation).
-- Requires confirmation before applying.
-
-### POST `/api/backup`
-
-Behavior:
-
-- `backup now` maps here.
-- Returns proposal response; requires confirm.
-
-### POST `/api/restore`
-
-Behavior:
-
-- `restore from backup <name>` maps here.
-- Returns proposal response; requires confirm.
-
-### GET `/api/backups` (optional)
-
-Response:
-
-```json
-{
-  "items": [
-    { "name": "state-20250418-153045.json", "createdAt": "<ISO-8601>" }
-  ]
-}
-```
-
-## 7. ETag and conflict handling
-
-Rules:
-
-- All writes require `If-Match` semantics via etag in request.
-- If ETag mismatch: return `409` conflict.
-- Conflict payload must include:
-  - message that state changed
-  - latest snippet of relevant state
-  - instruction to re-propose against latest state
-
-## 8. Time parsing policy
-
-Timezone default: `America/Los_Angeles`.
-
-Mutation input constraints:
-
-- Mutation intents must resolve to explicit date+time.
-- Missing date/time requires `kind=clarify`.
-- Relative expressions (e.g., “tomorrow”, “next Friday”) may be interpreted **only in proposal stage**.
-- Confirmation text must include resolved absolute datetime with timezone context.
-
-## 9. Query vs mutation classification
-
-Deterministic (no OpenAI) classification for:
-
-- `help`, `?`
-- `confirm`, `cancel`
-- `list`
-- `show`
-- `export`
-- `undo`
-- `backup`
-- `restore`
-
-Examples:
-
-- `who is available in march` => query (immediate reply)
-- `delete APR-12-PT-1` => mutation proposal (confirmation required)
-
-## 10. OpenAI integration boundary
-
-OpenAI is used only for free-form natural language command-to-action parsing.
-
-- Structured Outputs JSON schema only (actions, no prose).
-- Deterministic command paths bypass OpenAI.
-- Invalid model output must be rejected and mapped to clarify/error.
-- TimeSpec preview (`/api/direct` `resolve_appointment_time`) may use OpenAI Responses API (`text.format` JSON schema) for natural-language time resolution, and falls back to deterministic parsing when the AI call/response fails.
-
+Older docs that describe confirm/cancel-only mutation flows are historical. The current app uses hybrid operation:
+- structured UI -> deterministic `/api/direct`
+- chat NLP -> `/api/chat` with deterministic execution boundaries.

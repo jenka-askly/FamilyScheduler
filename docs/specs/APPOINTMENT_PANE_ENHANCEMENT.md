@@ -1,5 +1,10 @@
 # 1. Overview
 
+## Implementation status note (cleanup phase)
+- This spec remains the product intent document.
+- During cleanup, **implemented behavior in code + `PROJECT_STATUS.md` takes precedence** where this spec and runtime differ.
+- Notable current deltas: Share button UI placement is de-scoped; notification actions are currently `preview_appointment_update_email` / `send_appointment_update_email` in `/api/direct`.
+
 ## Purpose
 The Appointment Pane Enhancement defines a unified, implementation-ready interaction model for viewing, discussing, reconciling, and notifying appointment decisions within a single pane experience.
 
@@ -15,7 +20,7 @@ The Appointment Pane Enhancement defines a unified, implementation-ready interac
 - Drawer behavior adapts by form factor while preserving one information architecture.
 
 ## Release Scope
-- This enhancement is delivered as a single cohesive release.
+- This enhancement began as a single cohesive release plan; implementation has proceeded in phased increments.
 - UX, data model, event stream, API actions, and notification snapshot behavior are part of the same release boundary.
 
 # 2. UX Architecture
@@ -46,7 +51,7 @@ The Appointment Pane Enhancement defines a unified, implementation-ready interac
 - Displays appointment location.
 - Displays reconciliation status (`Reconciled` or `Unreconciled`).
 - Displays suggestion badges.
-- Displays Share button.
+- Share/deep-link control is currently de-scoped from header UI during cleanup (deep-link inbound open remains supported).
 - Displays Notify section.
 - Displays badge in the format `X changes since last notification`.
 
@@ -212,9 +217,8 @@ The unified appointment event stream includes the following event types:
 | `apply_appointment_proposal` | Applies the active proposal decision path to canonical appointment state through deterministic update logic. |
 | `dismiss_suggestion` | Dismisses a suggestion when requested by the original proposer and records dismissal outcome. |
 | `react_suggestion` | Adds or updates a social reaction (👍/👎) for a suggestion without affecting reconciliation. |
-| `send_notification` | Finalizes notification send flow, persists immutable snapshot, and records notification event and summary metadata. |
-| `get_notification_snapshot` | Retrieves stored notification snapshot content for review and rendering. |
-| `get_notification_ics` | Retrieves authenticated ICS content generated from a stored notification snapshot. |
+| `preview_appointment_update_email` | Returns a preview payload (subject/body/recipient resolution) for appointment update email before send. |
+| `send_appointment_update_email` | Sends appointment update email to selected recipients and records notification event metadata. |
 
 # 11. Concurrency Model
 

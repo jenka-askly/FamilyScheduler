@@ -1,3 +1,15 @@
+## 2026-02-28 00:20 UTC update (Docs cleanup: architecture/api/spec alignment to implemented code)
+
+- Updated architecture and API docs to reflect current hybrid model (structured UI + `/api/direct` actions + chat) rather than prompt-only/confirm-only legacy language.
+- Updated README storage/auth summary to reflect appointment doc + event chunk + table index model.
+- Updated appointment pane spec with cleanup-phase implementation note and current notification action names (`preview_appointment_update_email`, `send_appointment_update_email`).
+- No runtime code behavior changed in this pass; this is documentation alignment only.
+
+### Verification run
+
+1. `rg -n "prompt-only|send_notification|get_notification_snapshot|get_notification_ics|my groups index|single cohesive release|Share button" docs README.md` ✅ confirms outdated references were removed or replaced in updated docs.
+2. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+
 ## 2026-02-27 19:53 UTC update (Chat snapshot source unification + cancel-delete consistency)
 
 - Eliminated mixed appointment sources in chat snapshots by routing chat snapshot appointment payloads through the index/doc-backed appointment snapshot builder.
