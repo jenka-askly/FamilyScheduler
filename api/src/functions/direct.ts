@@ -12,7 +12,9 @@ import { ConflictError, GroupNotFoundError } from '../lib/storage/storage.js';
 import { createStorageAdapter, describeStorageTarget } from '../lib/storage/storageFactory.js';
 import type { StorageAdapter } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { isPlausibleEmail, normalizeEmail, requireActiveMember } from '../lib/auth/requireMembership.js';
+import { isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
+import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { ensureTraceId, logAuth } from '../lib/logging/authLogs.js';
 import type { ResolvedInterval } from '../../../packages/shared/src/types.js';
 import { appendEvent, getRecentEvents, hasLatestChunkIdempotencyKey, type AppointmentEvent, type EventCursor } from '../lib/appointments/appointmentEvents.js';
@@ -989,6 +991,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     }
     throw error;
   }
+  await ensureTablesReady();
   let loaded;
   try {
     loaded = await storage.load(groupId);
@@ -1000,13 +1003,14 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (error instanceof GroupNotFoundError) return withMeta(errorResponse(404, 'group_not_found', 'Group not found', traceId));
     throw error;
   }
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
+  const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!membership.ok) {
     logAuth({ traceId, stage: 'gate_denied', reason: 'not_allowed' });
     return withMeta(membership.response);
   }
-  const caller = membership.member;
-  logAuth({ traceId, stage: 'gate_allowed', memberId: caller.memberId });
+  const caller = loaded.state.members.find((member) => normalizeEmail(member.email) === normalizeEmail(session.email));
+  if (!caller) return withMeta(errorResponse(403, 'not_allowed', 'Not allowed', traceId));
+  logAuth({ traceId, stage: 'gate_allowed', userKey: membership.userKey, memberId: caller.memberId });
   logAppointmentAction(context, traceId, groupId, directAction);
 
   if (directAction.type === 'get_appointment_detail') {

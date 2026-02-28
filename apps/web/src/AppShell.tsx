@@ -55,6 +55,10 @@ type Snapshot = {
   historyCount?: number;
 };
 
+
+type GroupMemberRosterEntry = { userKey: string; email: string; status: 'active' | 'invited' | 'removed'; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
+type GroupMembersResponse = { ok?: boolean; groupId?: string; members?: GroupMemberRosterEntry[]; traceId?: string; message?: string };
+
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
   | { kind: 'reply'; assistantText?: string; snapshot?: Snapshot; draftRules?: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview?: string[]; assumptions?: string[]; warnings?: DraftWarning[]; promptId?: string; draftError?: { message: string; hints?: string[]; code?: string; traceId?: string }; error?: string }
@@ -615,6 +619,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [todoDraft, setTodoDraft] = useState<{ text: string; dueDate: string; assignee: string; done: boolean }>({ text: '', dueDate: '', assignee: '', done: false });
   const [, setTranscript] = useState<TranscriptEntry[]>([{ role: 'assistant', text: "Type 'help' for examples." }]);
   const [snapshot, setSnapshot] = useState<Snapshot>(initialSnapshot);
+  const [membersRoster, setMembersRoster] = useState<GroupMemberRosterEntry[]>([]);
   const [proposalText, setProposalText] = useState<string | null>(null);
   const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const [questionInput, setQuestionInput] = useState('');
@@ -1547,6 +1552,18 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
 
 
+
+  const loadMembersRoster = async () => {
+    try {
+      const response = await apiFetch(`/api/group/members?groupId=${encodeURIComponent(groupId)}`);
+      if (!response.ok) return;
+      const json = await response.json() as GroupMembersResponse;
+      if (json.ok && Array.isArray(json.members)) setMembersRoster(json.members);
+    } catch {
+      // Ignore roster refresh errors.
+    }
+  };
+
   const refreshSnapshot = async () => {
     const response = await apiFetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'list appointments', groupId, ...identityPayload() }) });
     if (!response.ok) return;
@@ -1851,8 +1868,28 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     ? sortedAppointments.find((appointment) => appointment.id === scanCaptureModal.appointmentId) ?? null
     : null;
   const isScanCaptureReady = Boolean(scanCaptureVideoRef.current?.videoWidth && scanCaptureVideoRef.current?.videoHeight) || scanCaptureCameraReady;
-  const activePeople = snapshot.people.filter((person) => person.status === 'active');
-  const peopleInView = snapshot.people.filter((person) => person.status === 'active');
+  const rosterBackedPeople = useMemo(() => {
+    const byEmail = new Map(snapshot.people.map((person) => [person.email.trim().toLowerCase(), person]));
+    return membersRoster
+      .filter((member) => member.status === 'active' || member.status === 'invited')
+      .map((member) => {
+        const emailKey = member.email.trim().toLowerCase();
+        const matched = byEmail.get(emailKey);
+        return {
+          personId: matched?.personId ?? member.userKey,
+          name: matched?.name ?? member.email,
+          email: member.email,
+          cellDisplay: matched?.cellDisplay ?? '',
+          cellE164: matched?.cellE164 ?? '',
+          status: member.status === 'invited' ? 'removed' as const : 'active' as const,
+          lastSeen: matched?.lastSeen,
+          timezone: matched?.timezone,
+          notes: matched?.notes
+        };
+      });
+  }, [membersRoster, snapshot.people]);
+  const activePeople = rosterBackedPeople.filter((person) => person.status === 'active');
+  const peopleInView = activePeople;
   const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === sessionEmail.trim().toLowerCase())?.name?.trim() || null;
   const emailEligiblePeople = activePeople;
   const selectedAppointmentForEmail = detailsData?.appointment ?? null;
@@ -2312,7 +2349,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         const json = (await response.json()) as ChatResponse;
         if (json.snapshot) setSnapshot(json.snapshot);
       });
+    void loadMembersRoster();
   }, [groupId, sessionEmail]);
+
+
+  useEffect(() => {
+    if (activeSection !== 'members') return;
+    void loadMembersRoster();
+  }, [activeSection, groupId]);
 
   useEffect(() => {
     if (!whenEditorCode) return;
@@ -2540,7 +2584,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       <div className="ui-shell">
         <aside className="ui-sidebar" aria-hidden="true" />
         <section className="ui-main">
-          {import.meta.env.DEV && snapshot.people.length === 0 ? <p className="dev-warning">Loaded group with 0 people — create flow may be broken.</p> : null}
+          {import.meta.env.DEV && membersRoster.length === 0 ? <p className="dev-warning">Loaded group with 0 members — tables roster may be missing rows.</p> : null}
 
           <Box sx={{ backgroundColor: 'background.default', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
             <Tabs
@@ -2886,6 +2930,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
+                <Button size="small" onClick={() => { void loadMembersRoster(); }}>Refresh</Button>
                 <Tooltip title="Invite">
                   <span>
                     <IconButton color="primary" onClick={openInviteMenu} aria-label="Open invite menu" disabled={isInviteLoading}>

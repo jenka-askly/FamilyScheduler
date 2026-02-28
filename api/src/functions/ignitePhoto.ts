@@ -6,7 +6,8 @@ import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
 import { createStorageAdapter } from '../lib/storage/storageFactory.js';
 import { GroupNotFoundError } from '../lib/storage/storage.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { resolveActivePersonIdForEmail } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
 
 type IgnitePhotoBody = { groupId?: unknown; sessionId?: unknown; imageBase64?: unknown; imageMime?: unknown; traceId?: unknown };
 
@@ -31,15 +32,15 @@ export async function ignitePhoto(request: HttpRequest, _context: InvocationCont
   if (!loaded.state.ignite || loaded.state.ignite.sessionId !== sessionId) return errorResponse(410, 'ignite_closed', 'Session closed', traceId);
   if (!igniteIsJoinable(loaded.state.ignite)) return errorResponse(410, 'ignite_closed', 'Session closed', traceId);
 
-  const membership = requireActiveMember(loaded.state, session.email, traceId);
+  const membership = await requireGroupMembership({ groupId, email: session.email, traceId, allowStatuses: ['active'] });
   if (!membership.ok) return membership.response;
-  const caller = membership.member;
+  const callerPersonId = resolveActivePersonIdForEmail(loaded.state, session.email) ?? membership.userKey;
 
   const nowISO = new Date().toISOString();
-  await storage.putBinary(ignitePhotoBlobKey(groupId, sessionId, caller.memberId), decodeImageBase64(body.imageBase64), body.imageMime, { groupId, sessionId, personId: caller.memberId, kind: 'ignite-photo', uploadedAt: nowISO });
+  await storage.putBinary(ignitePhotoBlobKey(groupId, sessionId, callerPersonId), decodeImageBase64(body.imageBase64), body.imageMime, { groupId, sessionId, personId: callerPersonId, kind: 'ignite-photo', uploadedAt: nowISO });
   loaded.state.ignite.graceSeconds = loaded.state.ignite.graceSeconds ?? IGNITE_DEFAULT_GRACE_SECONDS;
   loaded.state.ignite.photoUpdatedAtByPersonId = loaded.state.ignite.photoUpdatedAtByPersonId ?? {};
-  loaded.state.ignite.photoUpdatedAtByPersonId[caller.memberId] = nowISO;
+  loaded.state.ignite.photoUpdatedAtByPersonId[callerPersonId] = nowISO;
   await storage.save(groupId, loaded.state, loaded.etag);
-  return { status: 200, jsonBody: { ok: true, personId: caller.memberId, updatedAt: nowISO, traceId } };
+  return { status: 200, jsonBody: { ok: true, personId: callerPersonId, updatedAt: nowISO, traceId } };
 }

@@ -10,6 +10,9 @@ import { ignitePhotoBlobKey } from '../lib/ignite.js';
 import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
 import { isPlausibleEmail, normalizeEmail, findActiveMemberByEmail } from '../lib/auth/requireMembership.js';
 import { createIgniteGraceSession, requireSessionFromRequest } from '../lib/auth/sessions.js';
+import { ensureTablesReady } from '../lib/tables/withTables.js';
+import { adjustGroupCounters, getGroupMemberEntity, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
+import { normalizeIdentityEmail, userKeyFromEmail } from '../lib/identity/userKey.js';
 
 type IgniteJoinBody = { groupId?: unknown; name?: unknown; email?: unknown; sessionId?: unknown; photoBase64?: unknown; traceId?: unknown };
 const normalizeName = (value: unknown): string => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
@@ -66,11 +69,27 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
   const email = authedEmail ?? normalizeEmail(emailRaw);
 
   const nowISO = new Date().toISOString();
-  const existingMember = findActiveMemberByEmail(loaded.state, email);
+  const normalizedEmail = normalizeIdentityEmail(email);
+  const userKey = userKeyFromEmail(normalizedEmail);
+
+  await ensureTablesReady();
+  const tableMember = await getGroupMemberEntity(groupId, userKey);
+  if (!tableMember) {
+    await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: normalizedEmail, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
+    await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
+    await adjustGroupCounters(groupId, { memberCountActive: 1 });
+  } else if (tableMember.status === 'invited') {
+    await upsertGroupMember({ ...tableMember, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
+    await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', invitedAt: tableMember.invitedAt, joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
+    await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
+  }
+  await upsertUserProfile({ userKey, displayName: name || undefined, email: normalizedEmail, updatedAt: nowISO, createdAt: nowISO });
+
+  const existingMember = findActiveMemberByEmail(loaded.state, normalizedEmail);
   const personId = existingMember?.memberId ?? randomUUID();
   if (!existingMember) {
-    loaded.state.members.push({ memberId: personId, email, status: 'active', joinedAt: nowISO });
-    loaded.state.people.push({ personId, name: name || (email.split('@')[0] || 'Guest'), email, status: 'active', createdAt: nowISO, lastSeen: nowISO, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '', cellE164: '', cellDisplay: '' });
+    loaded.state.members.push({ memberId: personId, email: normalizedEmail, status: 'active', joinedAt: nowISO });
+    loaded.state.people.push({ personId, name: name || (normalizedEmail.split('@')[0] || 'Guest'), email: normalizedEmail, status: 'active', createdAt: nowISO, lastSeen: nowISO, timezone: process.env.TZ ?? 'America/Los_Angeles', notes: '', cellE164: '', cellDisplay: '' });
   }
 
   if (!loaded.state.ignite.joinedPersonIds.includes(personId)) loaded.state.ignite.joinedPersonIds.push(personId);

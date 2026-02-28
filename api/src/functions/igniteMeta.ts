@@ -1,6 +1,6 @@
 import { HttpRequest, type HttpResponseInit, type InvocationContext } from '@azure/functions';
 import { requireIdentityFromRequest } from '../lib/groupAuth.js';
-import { requireActiveMember } from '../lib/auth/requireMembership.js';
+import { requireGroupMembership } from '../lib/tables/membership.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { igniteEffectiveStatus } from '../lib/ignite.js';
 import { ensureTraceId } from '../lib/logging/authLogs.js';
@@ -37,7 +37,7 @@ export async function igniteMeta(request: HttpRequest, _context: InvocationConte
     throw error;
   }
 
-  const membership = requireActiveMember(loaded.state, identity.email, traceId);
+  const membership = await requireGroupMembership({ groupId: identity.groupId, email: identity.email, traceId, allowStatuses: ['active'] });
   if (!membership.ok) return membership.response;
   if (!loaded.state.ignite || loaded.state.ignite.sessionId !== sessionId) return errorResponse(404, 'ignite_not_found', 'Ignite session not found', traceId);
 

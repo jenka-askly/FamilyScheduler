@@ -2,10 +2,10 @@ import { HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functio
 import { ensureTraceId } from '../lib/logging/authLogs.js';
 import { errorResponse } from '../lib/http/errorResponse.js';
 import { getSessionWithStatus, HttpError, requireSessionFromRequest } from '../lib/auth/sessions.js';
-import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
+import { adjustGroupCounters, getGroupEntity, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
-import { userKeyFromEmail } from '../lib/identity/userKey.js';
+import { normalizeIdentityEmail, userKeyFromEmail } from '../lib/identity/userKey.js';
 
 type ClaimBody = { groupId?: unknown; graceSessionId?: unknown; traceId?: unknown };
 
@@ -53,16 +53,19 @@ export async function groupClaim(request: HttpRequest, _context: InvocationConte
 
   const membership = await requireGroupMembership({ groupId, email: dsidSession.email, traceId, allowStatuses: ['active', 'invited'] });
   if (!membership.ok) {
-    const userKey = userKeyFromEmail(dsidSession.email);
+    const normalizedEmail = normalizeIdentityEmail(dsidSession.email);
+    const userKey = userKeyFromEmail(normalizedEmail);
     const now = new Date().toISOString();
-    await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: dsidSession.email, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
+    await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: normalizedEmail, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
     await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
     await adjustGroupCounters(groupId, { memberCountActive: 1 });
+    await upsertUserProfile({ userKey, email: normalizedEmail, updatedAt: now, createdAt: now });
   } else if (membership.member.status === 'invited') {
     const now = new Date().toISOString();
     await upsertGroupMember({ ...membership.member, status: 'active', joinedAt: now, removedAt: undefined, updatedAt: now });
     await upsertUserGroup({ partitionKey: membership.userKey, rowKey: groupId, groupId, status: 'active', invitedAt: membership.member.invitedAt, joinedAt: now, removedAt: undefined, updatedAt: now });
     await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
+    await upsertUserProfile({ userKey: membership.userKey, email: normalizeIdentityEmail(dsidSession.email), updatedAt: now, createdAt: now });
   }
 
   console.log(JSON.stringify({ event: 'CLAIM_OK', traceId, groupId, dsidPrefix: prefix(dsidSession.sessionId), gracePrefix: prefix(graceSessionId) }));

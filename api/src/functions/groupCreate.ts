@@ -8,7 +8,7 @@ import { isPlausibleEmail, normalizeEmail } from '../lib/auth/requireMembership.
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { incrementDailyMetric } from '../lib/tables/metrics.js';
-import { upsertGroup, upsertGroupMember, upsertUserGroup } from '../lib/tables/entities.js';
+import { upsertGroup, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 
 type CreateGroupBody = { groupName?: unknown; creatorEmail?: unknown; creatorName?: unknown; traceId?: unknown };
@@ -64,6 +64,7 @@ export async function groupCreate(request: HttpRequest, context: InvocationConte
     });
     await upsertGroupMember({ partitionKey: groupId, rowKey: creatorUserKey, userKey: creatorUserKey, email: creatorEmail, status: 'active', joinedAt: now, updatedAt: now });
     await upsertUserGroup({ partitionKey: creatorUserKey, rowKey: groupId, groupId, status: 'active', joinedAt: now, updatedAt: now });
+    await upsertUserProfile({ userKey: creatorUserKey, displayName: creatorName, email: creatorEmail, updatedAt: now, createdAt: now });
     await incrementDailyMetric('newGroups', 1);
 
     const storage = createStorageAdapter();

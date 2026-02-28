@@ -1,3 +1,11 @@
+## 2026-02-28 12:10 UTC update (Tables-first membership + members roster endpoint)
+
+- Membership source of truth is now tables-only (`Groups`/`GroupMembers`/`UserGroups`) for chat/direct and ignite authorization gates.
+- Added `GET /api/group/members` table-backed roster endpoint and switched web Members UI/header roster derivations to consume it.
+- Added required tables: `UserProfiles` and `AppointmentParticipants` during table initialization, plus table helpers for profile and appointment participant entities.
+- Ignite join and ignite spinoff now ensure table writes for `Groups`/`GroupMembers`/`UserGroups` before/alongside blob state writes.
+- Added minimal user profile write-through in group create/join/claim and ignite join/spinoff.
+
 ## 2026-02-28 07:32 UTC update (Breakout QR join auto-mode: DSID vs GSID, no prompt)
 
 - Breakout QR join (`/#/s/:groupId/:sessionId`) now applies automatic session mode:

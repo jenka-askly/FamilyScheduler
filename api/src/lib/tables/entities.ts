@@ -5,6 +5,14 @@ const listAppointmentIndexesForGroupForTests: { fn: ((groupId: string, max?: num
 const upsertAppointmentIndexForTests: { fn: ((entity: AppointmentsIndexEntity) => Promise<void>) | null } = { fn: null };
 const findAppointmentIndexByIdForTests: { fn: ((groupId: string, appointmentId: string) => Promise<AppointmentsIndexEntity | null>) | null } = { fn: null };
 
+
+export const GROUPS_TABLE = 'Groups';
+export const USER_GROUPS_TABLE = 'UserGroups';
+export const GROUP_MEMBERS_TABLE = 'GroupMembers';
+export const APPOINTMENTS_INDEX_TABLE = 'AppointmentsIndex';
+export const USER_PROFILES_TABLE = 'UserProfiles';
+export const APPOINTMENT_PARTICIPANTS_TABLE = 'AppointmentParticipants';
+
 export type MembershipStatus = 'active' | 'invited' | 'removed';
 
 export type GroupEntity = {
@@ -64,6 +72,33 @@ export type AppointmentsIndexEntity = {
   purgeAfterAt?: string;
 };
 
+
+export type UserProfileEntity = {
+  partitionKey: string;
+  rowKey: 'profile';
+  userKey: string;
+  email?: string;
+  displayName?: string;
+  photoKey?: string;
+  timezone?: string;
+  locale?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppointmentParticipantEntity = {
+  partitionKey: string;
+  rowKey: string;
+  groupId: string;
+  appointmentId: string;
+  userKey: string;
+  status: string;
+  role?: string;
+  assignedAt?: string;
+  assignedByUserKey?: string;
+  updatedAt: string;
+};
+
 const isNotFound = (error: unknown): boolean => {
   const status = typeof error === 'object' && error !== null && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : NaN;
   return status === 404;
@@ -76,7 +111,7 @@ export const rowKeyFromIso = (iso: string, id: string): string => `${iso.replace
 
 export const getGroupEntity = async (groupId: string): Promise<GroupEntity | null> => {
   try {
-    return await getTableClient('Groups').getEntity<GroupEntity>('group', groupId);
+    return await getTableClient(GROUPS_TABLE).getEntity<GroupEntity>('group', groupId);
   } catch (error) {
     if (isNotFound(error)) return null;
     throw error;
@@ -85,7 +120,7 @@ export const getGroupEntity = async (groupId: string): Promise<GroupEntity | nul
 
 export const getGroupMemberEntity = async (groupId: string, userKey: string): Promise<GroupMembersEntity | null> => {
   try {
-    return await getTableClient('GroupMembers').getEntity<GroupMembersEntity>(groupId, userKey);
+    return await getTableClient(GROUP_MEMBERS_TABLE).getEntity<GroupMembersEntity>(groupId, userKey);
   } catch (error) {
     if (isNotFound(error)) return null;
     throw error;
@@ -94,7 +129,7 @@ export const getGroupMemberEntity = async (groupId: string, userKey: string): Pr
 
 export const getUserGroupEntity = async (userKey: string, groupId: string): Promise<UserGroupsEntity | null> => {
   try {
-    return await getTableClient('UserGroups').getEntity<UserGroupsEntity>(userKey, groupId);
+    return await getTableClient(USER_GROUPS_TABLE).getEntity<UserGroupsEntity>(userKey, groupId);
   } catch (error) {
     if (isNotFound(error)) return null;
     throw error;
@@ -102,15 +137,15 @@ export const getUserGroupEntity = async (userKey: string, groupId: string): Prom
 };
 
 export const upsertGroupMember = async (entity: GroupMembersEntity): Promise<void> => {
-  await getTableClient('GroupMembers').upsertEntity(entity, 'Merge');
+  await getTableClient(GROUP_MEMBERS_TABLE).upsertEntity(entity, 'Merge');
 };
 
 export const upsertUserGroup = async (entity: UserGroupsEntity): Promise<void> => {
-  await getTableClient('UserGroups').upsertEntity(entity, 'Merge');
+  await getTableClient(USER_GROUPS_TABLE).upsertEntity(entity, 'Merge');
 };
 
 export const upsertGroup = async (entity: GroupEntity): Promise<void> => {
-  await getTableClient('Groups').upsertEntity(entity, 'Merge');
+  await getTableClient(GROUPS_TABLE).upsertEntity(entity, 'Merge');
 };
 
 const withRetries = async (fn: () => Promise<void>): Promise<void> => {
@@ -130,7 +165,7 @@ export const adjustGroupCounters = async (
   groupId: string,
   deltas: { memberCountActive?: number; memberCountInvited?: number; appointmentCountUpcoming?: number }
 ): Promise<void> => {
-  const client = getTableClient('Groups');
+  const client = getTableClient(GROUPS_TABLE);
   await withRetries(async () => {
     const current = await client.getEntity<GroupEntity>('group', groupId);
     const updatedAt = new Date().toISOString();
@@ -148,7 +183,7 @@ export const adjustGroupCounters = async (
 
 export const listActiveGroups = async (): Promise<GroupEntity[]> => {
   const result: GroupEntity[] = [];
-  const client = getTableClient('Groups');
+  const client = getTableClient(GROUPS_TABLE);
   const iter = client.listEntities<GroupEntity>({ queryOptions: { filter: `PartitionKey eq 'group' and isDeleted ne true` } });
   for await (const entity of iter) result.push(entity);
   return result;
@@ -156,7 +191,7 @@ export const listActiveGroups = async (): Promise<GroupEntity[]> => {
 
 export const getAppointmentIndexEntity = async (groupId: string, rowKey: string): Promise<AppointmentsIndexEntity | null> => {
   try {
-    return await getTableClient('AppointmentsIndex').getEntity<AppointmentsIndexEntity>(groupId, rowKey);
+    return await getTableClient(APPOINTMENTS_INDEX_TABLE).getEntity<AppointmentsIndexEntity>(groupId, rowKey);
   } catch (error) {
     if (isNotFound(error)) return null;
     throw error;
@@ -165,7 +200,7 @@ export const getAppointmentIndexEntity = async (groupId: string, rowKey: string)
 
 export const findAppointmentIndexById = async (groupId: string, appointmentId: string): Promise<AppointmentsIndexEntity | null> => {
   if (findAppointmentIndexByIdForTests.fn) return findAppointmentIndexByIdForTests.fn(groupId, appointmentId);
-  const client = getTableClient('AppointmentsIndex');
+  const client = getTableClient(APPOINTMENTS_INDEX_TABLE);
   const iter = client.listEntities<AppointmentsIndexEntity>({ queryOptions: { filter: `PartitionKey eq '${groupId}' and appointmentId eq '${appointmentId}'` } });
   for await (const entity of iter) return entity;
   return null;
@@ -175,7 +210,7 @@ export const listAppointmentIndexesForGroup = async (groupId: string, max = 500)
   if (listAppointmentIndexesForGroupForTests.fn) return listAppointmentIndexesForGroupForTests.fn(groupId, max);
   const escapedGroupId = groupId.replace(/'/g, "''");
   const entities: AppointmentsIndexEntity[] = [];
-  const client = getTableClient('AppointmentsIndex');
+  const client = getTableClient(APPOINTMENTS_INDEX_TABLE);
   const iter = client.listEntities<AppointmentsIndexEntity>({
     queryOptions: {
       filter: `PartitionKey eq '${escapedGroupId}' and isDeleted ne true`
@@ -209,7 +244,7 @@ export const upsertAppointmentIndex = async (entity: AppointmentsIndexEntity): P
         startTimeDt: new Date(parsed)
       }
     : rest;
-  await getTableClient('AppointmentsIndex').upsertEntity(entityToUpsert, 'Merge');
+  await getTableClient(APPOINTMENTS_INDEX_TABLE).upsertEntity(entityToUpsert, 'Merge');
 };
 
 
@@ -222,13 +257,98 @@ export const setFindAppointmentIndexByIdForTests = (fn: ((groupId: string, appoi
 };
 export const listUserGroups = async (userKey: string, max = 200): Promise<UserGroupsEntity[]> => {
   const result: UserGroupsEntity[] = [];
-  const client = getTableClient('UserGroups');
+  const client = getTableClient(USER_GROUPS_TABLE);
   const iter = client.listEntities<UserGroupsEntity>({ queryOptions: { filter: `PartitionKey eq '${userKey}'` } });
   for await (const entity of iter) {
     result.push(entity);
     if (result.length >= max) break;
   }
   return result;
+};
+
+
+export const getUserProfileEntity = async (userKey: string): Promise<UserProfileEntity | null> => {
+  try {
+    return await getTableClient(USER_PROFILES_TABLE).getEntity<UserProfileEntity>(userKey, 'profile');
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+};
+
+export const upsertUserProfile = async (params: {
+  userKey: string;
+  displayName?: string;
+  email?: string;
+  photoKey?: string;
+  timezone?: string;
+  locale?: string;
+  updatedAt: string;
+  createdAt?: string;
+}): Promise<void> => {
+  const existing = await getUserProfileEntity(params.userKey);
+  await getTableClient(USER_PROFILES_TABLE).upsertEntity({
+    partitionKey: params.userKey,
+    rowKey: 'profile',
+    userKey: params.userKey,
+    ...(params.displayName ? { displayName: params.displayName } : {}),
+    ...(params.email ? { email: params.email } : {}),
+    ...(params.photoKey ? { photoKey: params.photoKey } : {}),
+    ...(params.timezone ? { timezone: params.timezone } : {}),
+    ...(params.locale ? { locale: params.locale } : {}),
+    createdAt: existing?.createdAt ?? params.createdAt ?? params.updatedAt,
+    updatedAt: params.updatedAt
+  }, 'Merge');
+};
+
+export const listGroupMembers = async (groupId: string, allowStatuses: MembershipStatus[] = ['active', 'invited']): Promise<GroupMembersEntity[]> => {
+  const escapedGroupId = groupId.replace(/'/g, "''");
+  const members: GroupMembersEntity[] = [];
+  const client = getTableClient(GROUP_MEMBERS_TABLE);
+  const iter = client.listEntities<GroupMembersEntity>({ queryOptions: { filter: `PartitionKey eq '${escapedGroupId}'` } });
+  for await (const member of iter) {
+    if (allowStatuses.includes(member.status)) members.push(member);
+  }
+  members.sort((a, b) => (a.email ?? '').localeCompare(b.email ?? ''));
+  return members;
+};
+
+export const listAppointmentParticipants = async (groupId: string, appointmentId: string): Promise<AppointmentParticipantEntity[]> => {
+  const partitionKey = `g:${groupId}|a:${appointmentId}`.replace(/'/g, "''");
+  const entities: AppointmentParticipantEntity[] = [];
+  const client = getTableClient(APPOINTMENT_PARTICIPANTS_TABLE);
+  const iter = client.listEntities<AppointmentParticipantEntity>({ queryOptions: { filter: `PartitionKey eq '${partitionKey}'` } });
+  for await (const entity of iter) entities.push(entity);
+  entities.sort((a, b) => a.userKey.localeCompare(b.userKey));
+  return entities;
+};
+
+export const upsertAppointmentParticipant = async (params: {
+  groupId: string;
+  appointmentId: string;
+  userKey: string;
+  status: string;
+  role?: string;
+  assignedAt?: string;
+  assignedByUserKey?: string;
+  updatedAt: string;
+}): Promise<void> => {
+  await getTableClient(APPOINTMENT_PARTICIPANTS_TABLE).upsertEntity({
+    partitionKey: `g:${params.groupId}|a:${params.appointmentId}`,
+    rowKey: params.userKey,
+    groupId: params.groupId,
+    appointmentId: params.appointmentId,
+    userKey: params.userKey,
+    status: params.status,
+    ...(params.role ? { role: params.role } : {}),
+    ...(params.assignedAt ? { assignedAt: params.assignedAt } : {}),
+    ...(params.assignedByUserKey ? { assignedByUserKey: params.assignedByUserKey } : {}),
+    updatedAt: params.updatedAt
+  }, 'Merge');
+};
+
+export const deleteAppointmentParticipant = async (groupId: string, appointmentId: string, userKey: string): Promise<void> => {
+  await getTableClient(APPOINTMENT_PARTICIPANTS_TABLE).deleteEntity(`g:${groupId}|a:${appointmentId}`, userKey);
 };
 
 export const getNumeric = (entity: TableEntityResult<Record<string, unknown>> | Record<string, unknown>, key: string): number => {
