@@ -1,3 +1,9 @@
+## 2026-02-28 06:54 UTC update (Grace debug always-available entrypoint in AppShell)
+
+- Grace debug dialog is now always available in AppShell via a header-area **Debug** icon button (no `debugGrace=1` gating).
+- Debug popup remains client-only and safe: masked session IDs, no auto-logging, no server calls.
+- Guest banner behavior is unchanged except the debug trigger is no longer tied to banner visibility.
+
 ## 2026-02-28 06:25 UTC update (Yapper manual email Phase 3: diff since last send)
 
 - Added appointment snapshot + diff generation for manual update emails.
