@@ -1,3 +1,10 @@
+## 2026-02-28 06:25 UTC update (Yapper manual email Phase 3: diff since last send)
+
+- Added appointment snapshot + diff generation for manual update emails.
+- `send_appointment_update_email` now stores a compact `appointmentSnapshot` in `NOTIFICATION_SENT` payloads (notes stored as hash only).
+- `preview_appointment_update_email` now compares current appointment against last sent snapshot (when available) and includes a **Changes since last update** section in plain-text and HTML email preview.
+- Preview response now includes structured `diffSummary` for UI consumption (`prevSentAt` + `items`).
+
 ## 2026-02-28 05:49 UTC update (Ignite grace guest debug dialog + copy support)
 
 - Added a mobile-friendly **Grace debug** dialog for ignite guest banner troubleshooting in `AppShell`.
