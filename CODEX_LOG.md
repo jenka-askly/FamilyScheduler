@@ -14058,3 +14058,30 @@ Implement Phase 4B per-group mute (prefs + enforcement + UI) and Phase 4C schedu
 ### Scope note
 
 - `MUST_FIX.md` handling is explicitly out of scope for this chat.
+
+## 2026-02-28 20:40 UTC (Main dashboard UEX: inline appointment undo notice + appt pane styling)
+
+### Objective
+Implement Option A delete UX for appointments (inline Undo notice using existing `restore_appointment`) and improve appointment pane/list selection styling with minimal dashboard changes.
+
+### Approach
+- Updated `AppShell` undo flow to track a targeted inline appointment undo entry.
+- Kept session-local undo model and existing header undo menu; inline notice is additive.
+- Reused current `/api/direct` actions (`delete_appointment`, `restore_appointment`, `reactivate_person`) with no backend semantic changes.
+- Removed duplicate caller-side snapshot writes in delete/restore paths and kept centralized snapshot updates in `sendDirectAction`.
+- Tuned drawer styling in `ui.css` (tokenized border/background and content rhythm) and strengthened `.ui-appt-active` visual selection treatment in `styles.css`.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started successfully for screenshot capture; stopped intentionally via `SIGINT`.
+- Playwright screenshot capture ✅ artifact: `browser:/tmp/codex_browser_invocations/09391112bf0b54c8/artifacts/artifacts/dashboard-undo-pane.png`.
+
+### Follow-ups
+- Human-run local validation is still recommended for delete failure simulation and “Already active” restore race behavior across tabs.

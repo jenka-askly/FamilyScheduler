@@ -175,13 +175,14 @@ th {
   justify-content: space-between;
   gap: var(--ui-space-2);
   padding: var(--ui-space-3) var(--ui-space-4);
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--ui-surface) 94%, var(--ui-muted) 6%);
 }
 
 .ui-drawer-title {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .ui-drawer-titleSpacer {
@@ -194,7 +195,7 @@ th {
   padding: 0;
   border: 1px solid var(--ui-border-strong);
   border-radius: 999px;
-  background: #fff;
+  background: var(--ui-surface);
   color: var(--ui-text);
   cursor: pointer;
   font-size: 20px;
@@ -202,13 +203,16 @@ th {
 }
 
 .ui-drawer-closeButton:hover {
-  background: #f9fafb;
+  background: color-mix(in srgb, var(--ui-surface) 92%, var(--ui-muted) 8%);
 }
 
 .ui-drawer-content {
   padding: var(--ui-space-4);
   overflow-y: auto;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
 }
 
 .ui-cardList {
