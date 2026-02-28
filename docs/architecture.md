@@ -2,142 +2,66 @@
 
 ## 1. System overview
 
-FamilyScheduler follows a simple three-tier flow:
+FamilyScheduler currently runs as a web + API + storage system:
 
-1. **Web client (prompt-only UI)**
-2. **API service**
-3. **Storage adapter**
-   - Local JSON file adapter (default)
-   - Azure Blob adapter (SAS URL based)
+1. **Web client (structured UI + chat-assisted flows)**
+2. **Azure Functions API**
+3. **Storage + index layer**
+   - Group snapshot blob (`state.json`) for broad app state
+   - Appointment canonical docs (`appointment.json`) + appointment event chunks
+   - Azure Tables indexes (`Groups`, `GroupMembers`, `UserGroups`, `AppointmentsIndex`, usage/metrics tables)
 
-Logical path:
+Primary runtime path:
 
-`Web Prompt -> POST /api/chat -> API classifies/parses -> (query response | mutation proposal) -> confirmation -> storage write`
+`Web UI -> /api/* -> auth + membership gate -> deterministic action handlers -> blob/table writes`
 
-## 2. Prompt-only interaction model
+## 2. Interaction model (current)
 
-The client sends natural language to `POST /api/chat` and receives one of four response kinds:
+The app is no longer prompt-only.
 
-- `reply` (query answer, no state change)
-- `proposal` (pending mutation plan, requires confirm)
-- `clarify` (missing/ambiguous data)
-- `error` (safe failure)
+- The web app provides structured panes for Schedule, Members, and Appointment Drawer workflows.
+- `POST /api/direct` handles deterministic UI actions (create/update/delete/restore, appointment detail actions, constraints/suggestions/proposals, email update flows).
+- `POST /api/chat` still exists for natural-language interactions and returns snapshot-backed responses.
 
-There is no separate editing UI. All control occurs through prompt text.
+## 3. Auth and authorization
 
-## 3. Confirmation protocol
+- Durable client credential is `localStorage['fs.sessionId']`.
+- Protected routes send `x-session-id`.
+- API resolves session and enforces **active group membership** for group-scoped operations.
+- Identity is email-based; telephony is not an auth primitive.
 
-Mutation safety protocol is mandatory:
+## 4. Storage model (current)
 
-1. User asks for mutation.
-2. API returns a proposal with `needsConfirmation=true` and confirmation instructions.
-3. User sends `confirm` / `confirm <proposalId>`.
-4. API executes write using ETag guard.
+### Group-level state
 
-Cancellation path:
+- Group snapshot blob: `{STATE_BLOB_PREFIX}/{groupId}/state.json`
+- Used for broad group state and compatibility paths.
 
-- User sends `cancel` or calls `/api/cancel` with proposal id.
+### Appointment domain state
 
-Policy:
+- Canonical appointment document: `{STATE_BLOB_PREFIX}/{groupId}/appointments/{appointmentId}/appointment.json`
+- Event log chunks: `{STATE_BLOB_PREFIX}/{groupId}/appointments/{appointmentId}/events/{chunkId}.json`
+- Scan image assets: `{STATE_BLOB_PREFIX}/{groupId}/appointments/{appointmentId}/scan/*`
+- Appointment listing/index projection in `AppointmentsIndex` table.
 
-- No mutation may execute on first request.
-- Proposal TTL: 10 minutes.
-- One pending proposal per session; newest proposal replaces prior pending proposal.
+### Membership/domain indexes
 
-## 4. Query vs mutation behavior
+- `Groups`, `GroupMembers`, and `UserGroups` are source-of-truth for group/member listing and authorization checks.
 
-- **Queries**: respond immediately (no confirmation).
-- **Mutations**: always produce proposal first.
+## 5. Concurrency and idempotency
 
-Deterministic command classifier handles control commands directly (without OpenAI).
+- Blob writes use optimistic concurrency (ETag/conditional writes).
+- Appointment event stream is append-only with chunk rollover.
+- Direct appointment mutation endpoints use `clientRequestId` for idempotency on critical action families.
 
-## 5. Concurrency model
+## 6. Command routing boundary
 
-State persistence uses optimistic concurrency with ETag.
+- Deterministic handlers are authoritative for state mutation.
+- Chat/classification may use AI assistance, but writes are executed through validated deterministic action paths.
+- Time parsing for `resolve_appointment_time` may use AI-assisted parsing with deterministic fallback.
 
-- Read endpoints return current `etag`.
-- Write endpoints require `If-Match` behavior (request carries etag).
-- On mismatch (`409`), API returns state-changed message and latest summary snippet.
-- Client/session must re-propose mutation against newest state.
+## 7. Current UX status notes
 
-## 6. Undo / backup / restore (high-level)
-
-- Every applied mutation batch records inverse actions for undo.
-- Undo is itself a mutation and requires confirmation.
-- Backup creates timestamped state snapshot.
-- Restore selects named backup and requires confirmation before application.
-
-## 7. Identity binding for “me” references
-
-Session supports identity binding from prompts like `I am <name>`.
-
-- Session maps current user identity to `Person`.
-- Subsequent prompts resolving `me` use that mapping.
-- If identity is not set or ambiguous, API returns a clarify response.
-
-## 8. Snapshot echo after confirmed mutation
-
-After a confirmed mutation is applied, assistant response must include:
-
-1. `Done.`
-2. Affected codes list
-3. Upcoming appointments section (next 5), one line each:
-
-`CODE — YYYY-MM-DD hh:mm(am/pm) — Title — Assigned: ... — Status: ...`
-
-## 9. Storage implementation details (current)
-
-A storage abstraction (`StorageAdapter`) sits between chat flow and persistence:
-
-- `getState()` -> `{ state, etag }`
-- `putState(nextState, expectedEtag)`
-- `initIfMissing()`
-
-Current default implementation uses a local JSON file (`./.local/state.json`) and SHA256 file-content ETags.
-
-Write path is optimistic and atomic:
-
-1. Re-read current file and compute ETag.
-2. Compare with `expectedEtag`.
-3. On mismatch, throw conflict and return retry guidance.
-4. On match, write temp file then rename into place.
-
-This preserves prompt confirmation behavior while preventing accidental overwrite from stale proposals.
-
-## 8. Storage modes and adapters
-
-The API selects a storage adapter via `STORAGE_MODE`:
-
-- `local` (default): `LocalFileStorage` writes `LOCAL_STATE_PATH` with atomic rename and hash-based ETag checks.
-- `azure`: `AzureBlobStorage` reads/writes a `state.json` blob over HTTPS using SAS authorization.
-
-Azure URL handling:
-
-- Container SAS URL is supported; blob path is `STATE_BLOB_NAME` under that container.
-- Blob SAS URL is supported directly; `STATE_BLOB_NAME` is ignored.
-
-Concurrency behavior:
-
-- Proposal creation stores `expectedEtag`.
-- Confirm re-reads current state+etag; if proposal etag differs, API returns `State changed since proposal...` and skips apply.
-- Apply writes with `If-Match: <etag>`; Azure returns `412/409` on conflict, mapped to the same `ConflictError` behavior used by local mode.
-
-Init behavior:
-
-- Missing Azure blob is initialized using `If-None-Match: *` with the same empty seeded state shape used in local mode.
-
-
-## OpenAI parsing safety boundary
-
-Natural-language parsing is an optional layer behind `OPENAI_PARSER_ENABLED`:
-
-1. Chat request enters deterministic parser first (existing command grammar).
-2. If no deterministic match and flag enabled, API calls OpenAI parser with compact context.
-3. OpenAI must return strict JSON action payload.
-4. API validates JSON against a versioned strict action schema parser (unknown-field rejection).
-5. Execution path:
-   - `kind=query` → deterministic executor (read-only response)
-   - `kind=mutation` → pending proposal only (requires `confirm`)
-   - `kind=clarify` or validation failure → clarify question, no mutation
-
-The deterministic executor remains the only mutation authority.
+- Appointment Drawer supports discussion, changes, constraints, and suggestion/proposal workflows.
+- Deep-link inbound open via `appointmentId` is supported.
+- Some previously spec'd controls (for example legacy Share button placement) may be de-scoped or moved during cleanup; `PROJECT_STATUS.md` is the implementation ledger.

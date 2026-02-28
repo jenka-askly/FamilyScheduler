@@ -12,14 +12,18 @@ FamilyScheduler is a lightweight family coordination scheduler with a hash-route
 - Server creates a random UUID `groupId` and returns share link `/#/g/<groupId>`.
 - Joining starts from the share link at `/#/g/<groupId>` and continues through email magic-link sign-in.
 - Access is allowed only when the signed-in email has active membership in that group.
-- Session auth is email-based (magic link + `x-session-id` header); no role model and no “my groups” index in v1.
+- Session auth is email-based (magic link + `x-session-id` header); no role model in v1.
+- Dashboard/list-my-groups is backed by table indexes (`UserGroups`, `Groups`, `GroupMembers`).
 
 ## Storage model
 
-- State is scoped per group in one blob/file:
+- Group snapshot state blob:
   - `familyscheduler/groups/<groupId>/state.json`
-- Local mode mirrors this under:
-  - `.localstate/familyscheduler/groups/<groupId>/state.json`
+- Appointment canonical docs + event chunks:
+  - `familyscheduler/groups/<groupId>/appointments/<appointmentId>/appointment.json`
+  - `familyscheduler/groups/<groupId>/appointments/<appointmentId>/events/<chunkId>.json`
+- Appointment list/index projection is stored in Azure Tables (`AppointmentsIndex`).
+- Local mode mirrors blob paths under `.localstate/...`.
 - `STATE_BLOB_PREFIX` controls the root prefix (default: `familyscheduler/groups`).
 
 ## Local development
