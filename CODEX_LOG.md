@@ -1,3 +1,38 @@
+
+## 2026-02-28 23:09 UTC (Profile hard gate + blocking modal + create-group identity source)
+
+### Objective
+Implement hard-gated display-name profile policy with first-opportunity blocking profile modal, add profile read/update API, and remove editable creator name from create-group flow.
+
+### Approach
+- Added API endpoints for profile GET/PUT backed by session + table `UserProfiles`.
+- Updated group creation to ignore client `creatorName`, derive from profile, and reject missing name with `PROFILE_INCOMPLETE`.
+- Added reusable web `ProfileEditorModal` (supports display name + profile photo upload).
+- Wired app-level session gate: fetch profile on authenticated load; open blocking modal when display name missing.
+- Updated create-group UX to read-only signed-in identity and profile-edit entry point; server error `PROFILE_INCOMPLETE` re-opens blocking modal.
+- Added `Profile` menu item in app header to open profile modal in non-blocking mode.
+
+### Files changed
+- `api/src/functions/userProfileGet.ts`
+- `api/src/functions/userProfilePut.ts`
+- `api/src/functions/groupCreate.ts`
+- `api/src/index.ts`
+- `apps/web/src/lib/userProfileApi.ts`
+- `apps/web/src/components/ProfileEditorModal.tsx`
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api test -- groupCreate.test.ts` ⚠️ failed in environment because TypeScript build cannot resolve `@azure/data-tables` in this container.
+
+### Follow-ups
+- Add/expand API unit tests for `userProfileGet/userProfilePut` and `groupCreate PROFILE_INCOMPLETE` once API test env has `@azure/data-tables` dependency resolution available.
+- Optionally add profile entry point in `MarketingLayout` menu for signed-in dashboard users.
+
 ## 2026-02-28 21:05 UTC (Debug menu gating + dogfood-only diagnose endpoint)
 
 ### Objective
