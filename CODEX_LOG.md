@@ -13785,3 +13785,60 @@ Added/updated join flow spec (breakout vs invite vs claim) with explicit CURRENT
 - `git diff` ✅ confirmed spec-only + CODEX_LOG changes; no functional source edits.
 - `rg -n "Breakout QR|Invite Member by QR|claim|NO auto-upgrade|fs\.sessionId|fs\.igniteGrace" docs/specs/breakout-qr-join-dsid-gsid.md` ✅ required headings/terms present.
 - `rg -n "ignite/start|ignite/join|group/join|igniteGrace|Show QR \(Anyone can join\)" api/src apps/web/src -S` ✅ implementation cross-check used to align CURRENT vs TARGET labels.
+## 2026-02-28 09:05 UTC (Spec refresh: breakout join DSID vs GSID + invite-member QR contract)
+
+### Objective
+
+Update the existing authoritative spec for DSID/GSID QR join behavior so it explicitly covers both:
+- Breakout QR (guest allowed), and
+- Invite Member by QR (guest not allowed),
+with server/client contracts, storage semantics, bug-preventer invariants, and error handling.
+
+### Approach
+
+- Ran required pre-edit discovery commands (`git status`, current SHA, CODEX_LOG grep, repo-wide docs/search discovery).
+- Selected existing spec `docs/specs/breakout-qr-join-dsid-gsid.md` as the single authoritative target (no duplicate spec created).
+- Rewrote the spec structure to include all required sections:
+  1) terminology,
+  2) explicit invariants,
+  3) breakout QR flow,
+  4) invite-member-by-QR flow,
+  5) server contract by endpoint,
+  6) storage + clearing rules,
+  7) acceptance matrix.
+- Cross-checked against current code paths in:
+  - `apps/web/src/App.tsx`
+  - `apps/web/src/AppShell.tsx`
+  - `apps/web/src/lib/igniteJoinSession.ts`
+  - `apps/web/src/lib/apiUrl.ts`
+  - `api/src/functions/igniteStart.ts`
+  - `api/src/functions/igniteJoin.ts`
+  - `api/src/functions/groupJoin.ts`
+- Added an explicit implementation-snapshot subsection documenting current divergences from invariant intent (notably `group/join` igniteGrace auto-upgrade and current “Anyone can join” member-panel QR labeling/behavior).
+
+### Files changed
+
+- `docs/specs/breakout-qr-join-dsid-gsid.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `git status --short` ✅
+- `git rev-parse HEAD` ✅
+- `rg -n "DSID|GSID|igniteGrace|breakout|Invite Member by QR|invite qr|group/join|ignite/join|auto-upgrade" CODEX_LOG.md` ✅
+- `rg -n "igniteGrace|Breakout QR|Invite Member|invite qr|QR join|ignite/join|group/join|grace session|fs\.sessionId|fs\.igniteGrace" -S .` ✅
+- `ls docs || true` ✅
+- `find . -maxdepth 3 -type f -name "*.md" | sort` ✅
+- `sed -n '1,260p' docs/specs/breakout-qr-join-dsid-gsid.md` ✅
+- `sed -n '1,260p' apps/web/src/lib/igniteJoinSession.ts` ✅
+- `sed -n '1,260p' api/src/functions/igniteJoin.ts` ✅
+- `sed -n '1,220p' api/src/functions/groupJoin.ts` ✅
+- `sed -n '1338,1498p' apps/web/src/App.tsx` ✅
+- `sed -n '1420,1545p' apps/web/src/AppShell.tsx` ✅
+- `git diff -- docs/specs/breakout-qr-join-dsid-gsid.md` ✅
+- `rg -n "Breakout QR|Invite Member by QR|igniteGrace|fs\.sessionId|fs\.igniteGrace" docs/specs/breakout-qr-join-dsid-gsid.md` ✅
+
+### Outcome
+
+- Existing spec updated in place as the single authority.
+- CODEX_LOG appended with discovery, implementation, and verification details.
