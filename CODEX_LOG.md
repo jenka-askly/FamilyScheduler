@@ -13893,3 +13893,52 @@ Key behavior changes:
   2) DSID user breakout with DSID retained,
   3) invite-member unauth requires auth and no GSID,
   4) DSID+GSID mismatch claim flow clears GSID on success.
+
+## 2026-02-28 11:02 UTC (Phase 4A: Email update history UI)
+
+### Objective
+
+Add appointment notification history support for manual email updates by introducing a direct API action and a new History dialog in the appointment details pane.
+
+### Approach
+
+- Added a new direct action `list_appointment_notifications` in `api/src/functions/direct.ts`:
+  - Parses `appointmentId`, `limit` (default 10, clamped 1..50), and optional `cursor`.
+  - Reuses existing auth + group membership + appointment ownership checks.
+  - Reads recent appointment events via existing `appointmentEventStore.recent(...)` with overfetch (`max(limit*5, 50)`), filters `NOTIFICATION_SENT`, and returns a bounded list DTO.
+  - Returns cursor passthrough (`nextCursor`) for pagination readiness.
+- Added `mapNotificationHistoryItem(...)` mapper in direct function to safely shape history payloads (no HTML body leakage).
+- Updated `apps/web/src/AppShell.tsx`:
+  - Added `History` button next to “Last email update” in appointment pane.
+  - Added `Email update history` MUI Dialog with loading/error/empty states.
+  - Loads history from `/api/direct` with action `list_appointment_notifications` on open.
+  - Renders sent timestamp, sender, Sent/Partial chip, delivered counts, missed recipients (expandable), and opted-out excluded summary.
+  - Added retry and optional Load more behavior when `nextCursor` exists.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `apps/web/src/AppShell.tsx`
+- `CODEX_LOG.md`
+
+### Verification commands + outcomes
+
+- `git status --short --branch` ✅
+- `git rev-parse HEAD` ✅
+- `git log -n 20 --oneline --decorate` ✅
+- `sed -n '1,260p' CODEX_LOG.md` ✅
+- `rg -n "Last email update|Email update|NOTIFICATION_SENT" apps/web/src/AppShell.tsx -n` ✅
+- `rg -n "NOTIFICATION_SENT|getRecentEvents\(" api/src/functions/direct.ts api/src/lib/appointments/appointmentEvents.ts -n` ✅
+- `cat package.json` ✅
+- `pnpm -w -r typecheck` ✅ (root script is placeholder echo; no errors)
+- `pnpm -w -r build` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`: no workspace build script across selected packages)
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed in this container due missing `@azure/data-tables` type declarations
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI screenshot capture; terminated with SIGINT after capture
+
+### Manual verification checklist status
+
+- Appointment pane History button + dialog verified in rendered web app screenshot flow.
+- Full staging appointment-history data validation is pending human run in staging (requires real appointment events and auth context).
+- `git status --short --branch` ✅ post-commit clean (`## work`).

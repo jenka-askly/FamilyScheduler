@@ -155,6 +155,21 @@ type EmailSendResult = {
   excludedRecipients?: ExcludedRecipient[];
 };
 
+type NotificationHistoryItem = {
+  notificationId?: string;
+  sentAt: string;
+  sentBy: { email: string; display?: string };
+  subject?: string;
+  deliveryStatus: 'sent' | 'partial';
+  recipientCountSelected?: number;
+  recipientCountSent?: number;
+  excludedCount?: number;
+  failedRecipients?: Array<{ email: string; display?: string; errorMessage?: string }>;
+  excludedRecipients?: Array<{ email?: string; display?: string; reason: 'opted_out' | 'no_email' | 'self' }>;
+  userMessage?: string;
+  diffSummary?: unknown;
+};
+
 type ActiveSuggestionCard = {
   sourceMessageId: string;
   candidates: SuggestionCandidate[];
@@ -622,6 +637,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const [detailsMessageText, setDetailsMessageText] = useState('');
   const [isEmailUpdateOpen, setIsEmailUpdateOpen] = useState(false);
+  const [isEmailHistoryOpen, setIsEmailHistoryOpen] = useState(false);
+  const [emailHistoryItems, setEmailHistoryItems] = useState<NotificationHistoryItem[]>([]);
+  const [emailHistoryCursor, setEmailHistoryCursor] = useState<{ chunkId: number; index: number } | null>(null);
+  const [emailHistoryLoading, setEmailHistoryLoading] = useState(false);
+  const [emailHistoryError, setEmailHistoryError] = useState<string | null>(null);
   const [selectedRecipientPersonIds, setSelectedRecipientPersonIds] = useState<string[]>([]);
   const [emailUserMessage, setEmailUserMessage] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1858,6 +1878,60 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setSendResult(null);
     setEmailPreview(null);
     setIsEmailUpdateOpen(true);
+  };
+
+  const closeEmailHistoryDialog = () => {
+    setIsEmailHistoryOpen(false);
+  };
+
+  const loadEmailHistory = async (appointmentId: string, options?: { cursor?: { chunkId: number; index: number } | null; append?: boolean }) => {
+    setEmailHistoryLoading(true);
+    setEmailHistoryError(null);
+    try {
+      const response = await apiFetch('/api/direct', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          ...identityPayload(),
+          action: {
+            type: 'list_appointment_notifications',
+            appointmentId,
+            limit: 10,
+            ...(options?.cursor ? { cursor: options.cursor } : {})
+          },
+          traceId: createTraceId()
+        })
+      });
+      const payload = await response.json() as DirectActionErrorPayload & { items?: NotificationHistoryItem[]; nextCursor?: { chunkId: number; index: number } | null };
+      if (!response.ok || !payload.ok) {
+        setEmailHistoryError(payload.message ?? 'Unable to load email update history.');
+        if (!options?.append) {
+          setEmailHistoryItems([]);
+          setEmailHistoryCursor(null);
+        }
+        return;
+      }
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      setEmailHistoryItems((prev) => options?.append ? [...prev, ...items] : items);
+      setEmailHistoryCursor(payload.nextCursor ?? null);
+    } catch (error) {
+      setEmailHistoryError(error instanceof Error ? error.message : 'Unable to load email update history.');
+      if (!options?.append) {
+        setEmailHistoryItems([]);
+        setEmailHistoryCursor(null);
+      }
+    } finally {
+      setEmailHistoryLoading(false);
+    }
+  };
+
+  const openEmailHistoryDialog = () => {
+    if (!detailsAppointmentId) return;
+    setIsEmailHistoryOpen(true);
+    setEmailHistoryItems([]);
+    setEmailHistoryCursor(null);
+    void loadEmailHistory(detailsAppointmentId);
   };
 
   const sendEmailUpdate = async () => {
@@ -3204,6 +3278,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 >
                   Email update
                 </Button>
+                <Button size="small" onClick={openEmailHistoryDialog} disabled={!detailsAppointmentId}>
+                  History
+                </Button>
                 <Typography variant="caption" color="text.secondary">
                   {(() => {
                     const last = detailsData.lastNotification;
@@ -3434,6 +3511,73 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           <Button type="button" variant="contained" onClick={() => void sendEmailUpdate()} disabled={sendingEmailUpdate || selectedSelectableRecipientCount === 0 || !selectedAppointmentForEmail}>
             {sendingEmailUpdate ? 'Sending…' : 'Send emails'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+
+      <Dialog open={isEmailHistoryOpen} onClose={closeEmailHistoryDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Email update history</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.25}>
+            {emailHistoryLoading && emailHistoryItems.length === 0 ? <Typography variant="body2" color="text.secondary">Loading history…</Typography> : null}
+            {emailHistoryError ? (
+              <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => detailsAppointmentId ? void loadEmailHistory(detailsAppointmentId) : undefined}>Retry</Button>}>
+                {emailHistoryError}
+              </Alert>
+            ) : null}
+            {!emailHistoryLoading && !emailHistoryError && emailHistoryItems.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">No email updates yet.</Typography>
+            ) : null}
+            {emailHistoryItems.map((item, index) => {
+              const sentLabel = new Date(item.sentAt).toLocaleString();
+              const sender = item.sentBy.display ? `${item.sentBy.display} <${item.sentBy.email}>` : item.sentBy.email;
+              const sentCount = item.recipientCountSent ?? 0;
+              const selectedCount = item.recipientCountSelected;
+              const statusLabel = item.deliveryStatus === 'partial' ? 'Partial' : 'Sent';
+              const missed = item.failedRecipients ?? [];
+              const optedOutCount = (item.excludedRecipients ?? []).filter((entry) => entry.reason === 'opted_out').length;
+              return (
+                <Paper key={`${item.notificationId ?? item.sentAt}-${index}`} variant="outlined" sx={{ p: 1.25 }}>
+                  <Stack spacing={0.75}>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ flexWrap: 'wrap' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{sentLabel}</Typography>
+                      <Chip size="small" color={item.deliveryStatus === 'partial' ? 'warning' : 'success'} label={statusLabel} />
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">Sent by: {sender}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {item.deliveryStatus === 'partial' && typeof selectedCount === 'number'
+                        ? `Delivered to ${sentCount} of ${selectedCount}`
+                        : `Delivered to ${sentCount}`}
+                    </Typography>
+                    {missed.length ? (
+                      <details>
+                        <summary>Missed ({missed.length})</summary>
+                        <Stack spacing={0.5} sx={{ mt: 0.75 }}>
+                          {missed.map((entry, failedIndex) => (
+                            <Typography key={`${entry.email}-${failedIndex}`} variant="caption" color="text.secondary">
+                              {entry.display ? `${entry.display} <${entry.email}>` : entry.email}
+                              {entry.errorMessage ? ` — ${entry.errorMessage}` : ''}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </details>
+                    ) : null}
+                    {optedOutCount > 0 ? <Typography variant="caption" color="text.secondary">Excluded: {optedOutCount} opted out.</Typography> : null}
+                  </Stack>
+                </Paper>
+              );
+            })}
+            {emailHistoryCursor ? (
+              <Box>
+                <Button size="small" onClick={() => detailsAppointmentId ? void loadEmailHistory(detailsAppointmentId, { cursor: emailHistoryCursor, append: true }) : undefined} disabled={emailHistoryLoading}>
+                  {emailHistoryLoading ? 'Loading…' : 'Load more'}
+                </Button>
+              </Box>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={closeEmailHistoryDialog}>Close</Button>
         </DialogActions>
       </Dialog>
 
