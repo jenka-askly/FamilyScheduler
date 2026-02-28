@@ -1,3 +1,10 @@
+## 2026-02-28 20:40 UTC update (Main dashboard UEX: inline appointment Undo + appt pane styling)
+
+- Dashboard: Added an inline appointment delete notice with an **Undo** action that restores via existing `/api/direct` `restore_appointment` flow.
+- UI: Styled the existing appointment details Drawer to read more clearly as an Appt Pane (header token alignment, stronger title treatment, section rhythm/gap spacing in content).
+- UI: Added/updated selected-row styling for `.ui-appt-active` so the active list appointment is visually tied to the details pane.
+- Undo remains session-local (per-tab), and the existing header Undo menu remains intact for appointments and people.
+
 ## 2026-02-28 12:10 UTC update (Tables-first membership + members roster endpoint)
 
 - Membership source of truth is now tables-only (`Groups`/`GroupMembers`/`UserGroups`) for chat/direct and ignite authorization gates.

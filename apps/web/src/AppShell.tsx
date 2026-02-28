@@ -669,6 +669,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [constraintDraft, setConstraintDraft] = useState<{ field: 'title' | 'time' | 'location' | 'general'; operator: 'equals' | 'contains' | 'not_contains' | 'required'; value: string; editingId?: string }>({ field: 'title', operator: 'contains', value: '' });
   const [constraintError, setConstraintError] = useState<string | null>(null);
   const [undoList, setUndoList] = useState<UndoEntry[]>([]);
+  const [inlineUndoKey, setInlineUndoKey] = useState<string | null>(null);
+  const inlineUndoEntry = inlineUndoKey ? undoList.find((entry) => entry.key === inlineUndoKey) ?? null : null;
   const [undoMenuAnchorEl, setUndoMenuAnchorEl] = useState<null | HTMLElement>(null);
   const pushUndo = (entry: UndoEntry) => setUndoList((prev) => [entry, ...prev]);
   const removeUndoKey = (key: string) => setUndoList((prev) => prev.filter((entry) => entry.key !== key));
@@ -1151,7 +1153,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const json = await response.json() as { ok?: boolean; snapshot?: Snapshot; message?: string; personId?: string };
     if (json.snapshot) setSnapshot(json.snapshot);
     if (!response.ok || !json.ok) return { ok: false, message: json.message ?? 'Action failed' } as const;
-    return { ok: true, snapshot: json.snapshot ?? null, personId: json.personId } as const;
+    return { ok: true, snapshot: json.snapshot ?? null, personId: json.personId, message: json.message ?? null } as const;
   };
 
 
@@ -1181,10 +1183,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const result = await sendDirectAction({ type: 'delete_appointment', appointmentId: appointment.id });
     if (!result.ok) {
       removeUndoKey(entry.key);
+      setInlineUndoKey((prev) => (prev === entry.key ? null : prev));
       showNotice('error', result.message || 'Delete failed');
       return;
     }
-    if (result.snapshot) setSnapshot(result.snapshot);
+    setInlineUndoKey(entry.key);
+    window.setTimeout(() => {
+      setInlineUndoKey((prev) => (prev === entry.key ? null : prev));
+    }, 3500);
   };
 
   const handleDeletePerson = async (person: Snapshot['people'][0]) => {
@@ -1202,7 +1208,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       showNotice('error', result.message || 'Delete failed');
       return;
     }
-    if (result.snapshot) setSnapshot(result.snapshot);
     if (editingPersonId === person.personId) {
       setEditingPersonId(null);
       setPersonEditError(null);
@@ -1222,7 +1227,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           return false;
         }
         removeUndoKey(entry.key);
-        if (result.snapshot) setSnapshot(result.snapshot);
+        setInlineUndoKey((prev) => (prev === entry.key ? null : prev));
         showNotice('success', 'Restored');
         return true;
       }
@@ -1237,7 +1242,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         return false;
       }
       removeUndoKey(entry.key);
-      if (result.snapshot) setSnapshot(result.snapshot);
+      setInlineUndoKey((prev) => (prev === entry.key ? null : prev));
       showNotice('success', 'Restored');
       return true;
     } catch (error) {
@@ -2579,6 +2584,24 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       {notice ? (
         <Alert severity={notice.severity} sx={{ maxWidth: 760, mb: 1.5 }}>
           {notice.message}
+        </Alert>
+      ) : null}
+      {inlineUndoEntry && inlineUndoEntry.entityType === 'appointment' ? (
+        <Alert
+          severity="info"
+          sx={{ maxWidth: 760, mb: 1.5 }}
+          action={(
+            <Button
+              color="inherit"
+              size="small"
+              aria-label="Undo delete appointment"
+              onClick={() => { void restoreUndoEntry(inlineUndoEntry); }}
+            >
+              Undo
+            </Button>
+          )}
+        >
+          Appointment deleted: {inlineUndoEntry.label}
         </Alert>
       ) : null}
       <div className="ui-shell">
