@@ -19,6 +19,7 @@ import {
   Menu,
   MenuItem,
   Stack,
+  Switch,
   Typography
 } from '@mui/material';
 import { type MouseEvent, useEffect, useMemo, useState } from 'react';
@@ -47,6 +48,12 @@ type DashboardPayload = {
   groups: DashboardGroup[];
 };
 
+type UserPreferencesPayload = {
+  ok?: boolean;
+  emailUpdatesEnabled?: boolean;
+  message?: string;
+};
+
 const navToGroup = (groupId: string): void => {
   window.location.hash = `/g/${groupId}/app`;
 };
@@ -61,6 +68,10 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
   const [menuGroup, setMenuGroup] = useState<DashboardGroup | null>(null);
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<DashboardGroup | null>(null);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [emailUpdatesEnabled, setEmailUpdatesEnabled] = useState(true);
+  const [prefsLoading, setPrefsLoading] = useState(true);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [prefsError, setPrefsError] = useState<string | null>(null);
 
   const loadDashboard = async () => {
     setLoadingGroups(true);
@@ -82,7 +93,53 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
 
   useEffect(() => {
     void loadDashboard();
+    void loadUserPreferences();
   }, []);
+
+  const loadUserPreferences = async () => {
+    setPrefsLoading(true);
+    setPrefsError(null);
+    try {
+      const response = await apiFetch('/api/user/preferences');
+      const payload = await response.json() as UserPreferencesPayload;
+      if (!response.ok || !payload.ok || typeof payload.emailUpdatesEnabled !== 'boolean') {
+        setPrefsError(payload.message ?? 'Unable to load notification preferences.');
+        return;
+      }
+      setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+    } catch {
+      setPrefsError('Unable to load notification preferences.');
+    } finally {
+      setPrefsLoading(false);
+    }
+  };
+
+  const handleToggleEmailUpdates = async (nextChecked: boolean) => {
+    if (prefsSaving) return;
+    const previous = emailUpdatesEnabled;
+    setEmailUpdatesEnabled(nextChecked);
+    setPrefsSaving(true);
+    setPrefsError(null);
+    try {
+      const response = await apiFetch('/api/user/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ emailUpdatesEnabled: nextChecked })
+      });
+      const payload = await response.json() as UserPreferencesPayload;
+      if (!response.ok || !payload.ok || typeof payload.emailUpdatesEnabled !== 'boolean') {
+        setEmailUpdatesEnabled(previous);
+        setPrefsError(payload.message ?? 'Unable to save notification preferences.');
+        return;
+      }
+      setEmailUpdatesEnabled(payload.emailUpdatesEnabled);
+    } catch {
+      setEmailUpdatesEnabled(previous);
+      setPrefsError('Unable to save notification preferences.');
+    } finally {
+      setPrefsSaving(false);
+    }
+  };
 
   const createBreakoutGroup = async () => {
     if (isBreakingOut) return;
@@ -174,6 +231,27 @@ export function DashboardHomePage({ onCreateGroup }: DashboardHomePageProps) {
         <Button variant="contained" fullWidth onClick={() => { void createBreakoutGroup(); }} disabled={isBreakingOut}>{isBreakingOut ? 'Breaking Out…' : '⚡ Break Out'}</Button>
         <Button variant="outlined" fullWidth onClick={onCreateGroup} disabled={isBreakingOut}>+ Create Group</Button>
       </Stack>
+
+
+      <Box>
+        <Typography
+          variant="caption"
+          sx={{ textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.78, fontWeight: 700, display: 'block', mb: 1.25 }}
+        >
+          NOTIFICATIONS
+        </Typography>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ py: 0.5 }}>
+          <Typography variant="body2">Receive appointment update emails</Typography>
+          <Switch
+            checked={emailUpdatesEnabled}
+            disabled={prefsLoading || prefsSaving}
+            onChange={(_event, checked) => { void handleToggleEmailUpdates(checked); }}
+          />
+        </Stack>
+        {prefsLoading ? <Typography variant="caption" color="text.secondary">Loading…</Typography> : null}
+        {prefsSaving ? <Typography variant="caption" color="text.secondary">Saving…</Typography> : null}
+        {prefsError ? <Typography variant="body2" color="error">{prefsError}</Typography> : null}
+      </Box>
 
       <Box>
         <Typography

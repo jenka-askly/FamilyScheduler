@@ -33,6 +33,7 @@ import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointments
 import { restoreAppointmentById, softDeleteAppointmentById } from '../lib/tables/appointmentSoftDelete.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { sendEmail } from '../lib/email/acsEmail.js';
+import { getUserPrefs } from '../lib/prefs/userPrefs.js';
 
 export type ResponseSnapshot = {
   appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
@@ -77,7 +78,7 @@ type DirectAction =
   | { type: 'preview_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string }
   | { type: 'send_appointment_update_email'; appointmentId: string; recipientPersonIds: string[]; userMessage?: string; clientRequestId: string };
 
-type ResolvedNotificationRecipient = { personId?: string; display?: string; email: string };
+type ResolvedNotificationRecipient = { personId?: string; display?: string; email: string; isSelectable?: boolean; disabledReason?: string };
 type ExcludedNotificationRecipient = { personId?: string; email?: string; reason: string };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -197,6 +198,32 @@ const resolveNotificationRecipients = (
   }
 
   return { resolvedRecipients, excludedRecipients, excludedSelf };
+};
+
+
+
+const excludeOptedOutRecipients = async (
+  storage: StorageAdapter,
+  recipients: { resolvedRecipients: ResolvedNotificationRecipient[]; excludedRecipients: ExcludedNotificationRecipient[]; excludedSelf: boolean },
+  traceId: string
+): Promise<{ resolvedRecipients: ResolvedNotificationRecipient[]; excludedRecipients: ExcludedNotificationRecipient[]; excludedSelf: boolean }> => {
+  const eligible: ResolvedNotificationRecipient[] = [];
+  const excluded = [...recipients.excludedRecipients];
+
+  for (const recipient of recipients.resolvedRecipients) {
+    const prefs = await getUserPrefs(storage, recipient.email, traceId);
+    if (prefs.emailUpdatesEnabled === false) {
+      excluded.push({ personId: recipient.personId, email: recipient.email, reason: 'opted_out' });
+      continue;
+    }
+    eligible.push(recipient);
+  }
+
+  return {
+    resolvedRecipients: eligible,
+    excludedRecipients: excluded,
+    excludedSelf: recipients.excludedSelf
+  };
 };
 
 const mapLastNotification = (events: AppointmentEvent[]): Record<string, unknown> | null => {
@@ -831,13 +858,17 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
     const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
-    const recipients = resolveNotificationRecipients(
-      loaded.state,
-      normalizeEmail(session.email),
-      directAction.recipientPersonIds
+    const recipients = await excludeOptedOutRecipients(
+      storage,
+      resolveNotificationRecipients(
+        loaded.state,
+        normalizeEmail(session.email),
+        directAction.recipientPersonIds
+      ),
+      traceId
     );
     if (recipients.resolvedRecipients.length === 0) {
-      return withMeta(errorResponse(400, 'no_selectable_recipients', 'No selectable recipients', traceId, {
+      return withMeta(errorResponse(400, 'no_eligible_recipients', 'No eligible recipients (all opted out or missing email).', traceId, {
         excludedRecipients: recipients.excludedRecipients,
         excludedSelf: recipients.excludedSelf
       }));
@@ -853,6 +884,25 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       buildAppointmentLink(groupId, directAction.appointmentId)
     );
 
+    const optedOutByPersonId = new Map(
+      recipients.excludedRecipients
+        .filter((recipient) => recipient.reason === 'opted_out' && recipient.personId)
+        .map((recipient) => [recipient.personId as string, recipient])
+    );
+    const resolvedForUi = directAction.recipientPersonIds
+      .map((personId) => loaded.state.people.find((entry) => entry.personId === personId))
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .map((person) => {
+        const optedOut = optedOutByPersonId.get(person.personId);
+        return {
+          personId: person.personId,
+          display: person.name?.trim() || undefined,
+          email: normalizeEmail(person.email ?? ''),
+          isSelectable: !optedOut,
+          ...(optedOut ? { disabledReason: 'Opted out of email' } : {})
+        };
+      });
+
     return withMeta({
       status: 200,
       jsonBody: {
@@ -860,7 +910,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         subject: content.subject,
         plainText: content.plainText,
         html: content.html,
-        resolvedRecipients: recipients.resolvedRecipients,
+        resolvedRecipients: resolvedForUi,
         excludedRecipients: recipients.excludedRecipients,
         excludedSelf: recipients.excludedSelf
       }
@@ -872,13 +922,20 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
     if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
 
     const responseAppointment = toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0];
-    const recipients = resolveNotificationRecipients(
-      loaded.state,
-      normalizeEmail(session.email),
-      directAction.recipientPersonIds
+    const recipients = await excludeOptedOutRecipients(
+      storage,
+      resolveNotificationRecipients(
+        loaded.state,
+        normalizeEmail(session.email),
+        directAction.recipientPersonIds
+      ),
+      traceId
     );
     if (recipients.resolvedRecipients.length === 0) {
-      return withMeta(errorResponse(400, 'no_selectable_recipients', 'No selectable recipients', traceId));
+      return withMeta(errorResponse(400, 'no_eligible_recipients', 'No eligible recipients (all opted out or missing email).', traceId, {
+        excludedRecipients: recipients.excludedRecipients,
+        excludedSelf: recipients.excludedSelf
+      }));
     }
 
     const senderPerson = loaded.state.people.find((person) => normalizeEmail(person.email ?? '') === normalizeEmail(session.email));
@@ -913,6 +970,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
           recipientCountSelected: typeof payload.recipientCountSelected === 'number' ? payload.recipientCountSelected : 0,
           failedRecipients: Array.isArray(payload.failedRecipients) ? payload.failedRecipients : [],
           subject: typeof payload.subject === 'string' ? payload.subject : content.subject,
+          excludedRecipients: Array.isArray(payload.excludedRecipients) ? payload.excludedRecipients : recipients.excludedRecipients,
           excludedSelf: recipients.excludedSelf
         }
       });
@@ -935,7 +993,8 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       context.log(JSON.stringify({ event: 'appointment_update_email_all_failed', traceId, groupId, appointmentId: directAction.appointmentId, failureCount: failures.length, topErrorMessage }));
       return withMeta(errorResponse(502, 'notification_send_failed', 'Failed to send update email', traceId, {
         recipientCountSelected: recipients.resolvedRecipients.length,
-        failedRecipients: failures.map((entry) => ({ email: entry.email, display: entry.display, personId: entry.personId, errorMessage: entry.errorMessage }))
+        failedRecipients: failures.map((entry) => ({ email: entry.email, display: entry.display, personId: entry.personId, errorMessage: entry.errorMessage })),
+        excludedRecipients: recipients.excludedRecipients
       }));
     }
 
@@ -962,6 +1021,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
       failedRecipients: failures.map((entry) => ({ email: entry.email, ...(entry.display ? { display: entry.display } : {}), ...(entry.personId ? { personId: entry.personId } : {}), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}) })),
       subject: content.subject,
       ...(directAction.userMessage?.trim() ? { userMessage: directAction.userMessage.trim() } : {}),
+      excludedRecipients: recipients.excludedRecipients,
       clientRequestId: directAction.clientRequestId
     };
     await appointmentEventStore.append(groupId, directAction.appointmentId, {
@@ -983,6 +1043,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         recipientCountSelected: recipients.resolvedRecipients.length,
         failedRecipients: failures.map((entry) => ({ email: entry.email, ...(entry.display ? { display: entry.display } : {}), ...(entry.personId ? { personId: entry.personId } : {}), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {}) })),
         subject: content.subject,
+        excludedRecipients: recipients.excludedRecipients,
         excludedSelf: recipients.excludedSelf
       }
     });

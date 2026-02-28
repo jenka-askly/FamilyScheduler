@@ -5167,3 +5167,26 @@ Implemented unauthenticated landing behavior for `/#/` so staging no longer rend
 1. `pnpm -w -r typecheck` ✅ (`no typecheck yet` in root workspace script).
 2. `pnpm --filter @familyscheduler/web build` ✅ passed.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for visual smoke; stopped intentionally after screenshot capture.
+
+## 2026-02-28 01:10 UTC update (Yapper manual email update opt-out phase 2)
+
+- Added per-user notification preference for manual appointment update emails: `emailUpdatesEnabled` defaults to `true` when no prefs blob exists.
+- Added authenticated user preferences API endpoints:
+  - `GET /api/user/preferences`
+  - `POST /api/user/preferences` with `{ emailUpdatesEnabled: boolean }`
+- Enforced server-side email opt-out in `/api/direct` for both preview and send:
+  - opted-out recipients are excluded from delivery
+  - exclusions are not provider failures and do not trigger partial status by themselves
+  - no-recipient sends now return `400` with clear `No eligible recipients ...` message
+- Updated web UI:
+  - Dashboard now includes a Notifications toggle: “Receive appointment update emails” with load/save/error states.
+  - Email Update dialog disables opted-out recipients and labels them “Opted out of email”.
+  - Send result now includes “Excluded: N opted out” messaging when applicable.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm -w -r typecheck` ✅ passed (root script currently echoes placeholder in this repo).
+3. `pnpm -w -r build` ❌ failed (`ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` because workspace root lacks recursive `build` script target).
+4. `pnpm -r --if-present build` ⚠️ API build blocked in this container by missing local `@azure/data-tables` type resolution; web/shared build path executes.
+5. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
