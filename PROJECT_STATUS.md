@@ -1,3 +1,12 @@
+## 2026-03-01 07:59 UTC update (Multi-appointment scan-from-photo)
+
+- Updated scan-from-photo API flow to parse image first and create one appointment per valid extracted item instead of pre-creating a single placeholder appointment.
+- `/api/scanAppointment` now returns `appointmentIds[]`, `extractedCount`, and per-item `errors` for partial success while keeping `appointmentId` (first created ID) for compatibility.
+- Added no-results behavior: API returns a clear 422 `no_appointments_found` response and does not write placeholder appointments.
+- Updated image parsing to request/normalize `appointments[]`, including backward compatibility for legacy single-object AI output and fenced JSON cleanup.
+- Updated web scan handling to prefer `appointmentIds[]` and insert/refresh placeholders for multiple created appointments.
+- Added parser normalization and scan validation unit tests for multi-item and empty extraction cases.
+
 ## 2026-03-01 07:32 UTC update (Appointment details above-tabs UI cleanup)
 
 - Sticky takeover header now shows appointment title from `detailsData.appointment.desc` with safe fallbacks (`Untitled appointment` when loaded but blank, `Loading…` before details load).

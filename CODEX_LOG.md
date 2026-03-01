@@ -15452,6 +15452,30 @@ Fix `get_appointment_detail` so detail existence checks are based on table/blob 
 - `api/src/lib/appointments/buildAppointmentsSnapshot.ts`
 - `api/src/functions/direct.test.ts`
 - `docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md`
+## 2026-03-01 07:59 UTC (Scan image with 2 appointments only creates 1)
+
+### Objective
+
+Implement multi-appointment extraction + creation for scan-from-photo; remove placeholder creation on empty/noisy parses; support partial success contract.
+
+### Approach
+
+- Reworked AI parsing contract to normalize to an appointment array (`appointments[]`) while accepting legacy single-object responses.
+- Reworked `/api/scanAppointment` to: store scan image once, parse once, validate each extracted item, create/persist one appointment per valid item, and return per-item errors for invalid ones.
+- Preserved compatibility by returning `appointmentId` alongside new `appointmentIds`.
+- Updated rescan and shared scan helpers to consume new parser shape and added parsed-item validation helper.
+- Updated web client scan response handling to prefer `appointmentIds` and fan-out placeholders before refresh.
+- Added unit tests for parser normalization and parsed-item validation behavior.
+
+### Files changed
+
+- `api/src/lib/ai/parseAppointmentFromImage.ts`
+- `api/src/lib/ai/parseAppointmentFromImage.test.ts`
+- `api/src/lib/scan/appointmentScan.ts`
+- `api/src/lib/scan/appointmentScan.test.ts`
+- `api/src/functions/scanAppointment.ts`
+- `api/src/functions/appointmentScanRescan.ts`
+- `apps/web/src/AppShell.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -15464,3 +15488,9 @@ Fix `get_appointment_detail` so detail existence checks are based on table/blob 
 ### Follow-ups
 
 - Once dependencies/toolchain resolution is fixed in environment, rerun `pnpm --filter @familyscheduler/api test` to validate entire suite.
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed in environment because TypeScript cannot resolve `@azure/data-tables` in this container.
+
+### Follow-ups
+
+- Add API function-level tests for `scanAppointment` create/persist multi-item behavior once API TypeScript build environment resolves `@azure/data-tables`.

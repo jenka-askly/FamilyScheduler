@@ -191,17 +191,24 @@ export const applyParsedFields = (appointment: Appointment, parsed: ParsedAppoin
   finalizeAppointmentTitle(appointment, parsed);
 };
 
+export const validateParsedAppointment = (parsed: ParsedAppointmentFromImage): { ok: boolean; reason?: string } => {
+  if (!hasMeaningfulParsedContent(parsed)) return { ok: false, reason: 'no_meaningful_content' };
+  if (!parsed.date && !parsed.startTime && !parsed.notes && !parsed.location && !parsed.title) return { ok: false, reason: 'missing_required_fields' };
+  return { ok: true };
+};
+
 export type ParseAndApplyScanResult = { opId?: string; model?: string };
 
 export const parseAndApplyScan = async (storage: StorageAdapter, state: AppState, groupId: string, appointment: Appointment, imageBase64: string, imageMime: 'image/jpeg' | 'image/png' | 'image/webp', timezone: string | undefined, mode: 'initial' | 'rescan', traceId: string): Promise<ParseAndApplyScanResult> => {
   try {
     const parsed = await parseAppointmentFromImage({ imageBase64, imageMime, timezone, traceId });
-    if (!hasMeaningfulParsedContent(parsed.parsed)) {
+    const first = parsed.appointments.find((entry) => hasMeaningfulParsedContent(entry));
+    if (!first) {
       appointment.scanStatus = 'failed';
       appointment.title = 'Appointment';
       return { opId: parsed.opId, model: parsed.model };
     }
-    applyParsedFields(appointment, parsed.parsed, mode);
+    applyParsedFields(appointment, first, mode);
     appointment.scanStatus = 'parsed';
     return { opId: parsed.opId, model: parsed.model };
   } catch (error) {
