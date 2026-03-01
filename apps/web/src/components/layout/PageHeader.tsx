@@ -300,19 +300,20 @@ export function PageHeader(props: Props) {
                 </Stack>
               </ButtonBase>
             </Tooltip>
-          ) : null}
-          <Typography
-            className="ui-productTitle"
-            variant="h4"
-            sx={{
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              color: 'primary.main',
-              lineHeight: 1
-            }}
-          >
-            {PRODUCT.name}
-          </Typography>
+          ) : (
+            <Typography
+              className="ui-productTitle"
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                color: 'primary.main',
+                lineHeight: 1
+              }}
+            >
+              {PRODUCT.name}
+            </Typography>
+          )}
         </Stack>
         {showMenuButton ? (
           <Stack direction="row" spacing={0.75} alignItems="center">

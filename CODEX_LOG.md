@@ -15161,3 +15161,38 @@ Implement title editing in the Edit appointment modal and ensure appointment tit
 
 ### Follow-ups
 - Once API environment has `@azure/data-tables` available, re-run `pnpm --filter @familyscheduler/api build` and full API tests.
+
+## 2026-03-01 05:27 UTC (Remove duplicate Yapper in group PageHeader)
+
+### Objective
+
+Remove duplicate `Yapper` text in the group header by suppressing the legacy `PRODUCT.name` title when `onDashboardClick` lockup mode is active.
+
+### Approach
+
+- Updated only the left-side product cluster conditional in `PageHeader`.
+- Switched from rendering lockup + unconditional `PRODUCT.name` to rendering:
+  - lockup only when `onDashboardClick` exists
+  - existing `PRODUCT.name` typography only when `onDashboardClick` is absent
+- Kept fixed icon size constraints unchanged for the lockup path.
+
+### Files changed
+
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pwd && rg --files -g 'AGENTS.md'` ✅
+- `sed -n '1,240p' apps/web/src/components/layout/PageHeader.tsx` ✅
+- `rg -n "ui-productHeader|ui-productTitle|onDashboardClick" apps/web/src/components/layout/PageHeader.tsx` ✅
+- `sed -n '248,340p' apps/web/src/components/layout/PageHeader.tsx` ✅
+- `git diff -- apps/web/src/components/layout/PageHeader.tsx | sed -n '1,200p'` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped with SIGINT after capture)
+- Playwright screenshot capture ✅
+
+### Follow-ups
+
+- Manual UI validation in authenticated/local environment: verify `/g/<groupId>/app` shows one `Yapper` lockup label and non-dashboard header paths still show `PRODUCT.name`.
