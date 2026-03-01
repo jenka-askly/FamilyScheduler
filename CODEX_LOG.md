@@ -1,3 +1,32 @@
+## 2026-03-01 04:49 UTC (Members panel invite chip send/resend parity)
+
+### Objective
+Make invited-member status chips always offer an invite-email action for all statuses (`sent`, `failed`, `not_sent`) and keep invite action with status context under Email.
+
+### Approach
+- Replaced status rendering helper with a single `renderInviteChip(row)` path for invited rows.
+- Added `sendOrResendInvite(row)` wrapper that calls the existing invite-email API flow via `sendInviteByEmail(...)`.
+- Updated chip/action mapping:
+  - `sent` → `Invite sent` + `Resend`
+  - `failed` → `Send error` + `Resend`
+  - `not_sent`/missing → `Not sent` + `Send`
+- Kept failure tooltip details (provider message or friendly mapped reason).
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "inviteEmailStatus|MailOutlineIcon|invite-email|Invite sent|Send error|Not sent|Actions" apps/web/src/AppShell.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped after capture).
+- Playwright screenshot capture ✅ (members invite chips with inline Send/Resend action).
+
+### Follow-ups
+- Optional UX follow-up (not implemented): add a confirm step only for `sent` → `Resend`.
+
+
 
 ## 2026-03-01 00:55 UTC (Issue #2: remove Members/People rules UI)
 
