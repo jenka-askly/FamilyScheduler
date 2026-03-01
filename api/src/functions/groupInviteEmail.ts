@@ -185,6 +185,12 @@ export async function groupInviteEmail(request: HttpRequest, _context: Invocatio
   const messageNormalized = normalizePersonalMessage(body.personalMessage);
   if (!messageNormalized.ok) return errorResponse(400, 'invalid_personal_message', `personalMessage must be ${INVITE_EMAIL_PERSONAL_MESSAGE_MAX} characters or less`, traceId);
   const personalMessage = messageNormalized.message;
+  const received = {
+    groupId,
+    recipientEmail,
+    recipientNamePresent: typeof body.recipientName === 'string' && body.recipientName.trim().length > 0,
+    personalMessageLen: personalMessage?.length ?? 0
+  };
 
   let session;
   try {
@@ -202,6 +208,14 @@ export async function groupInviteEmail(request: HttpRequest, _context: Invocatio
   if (!group || group.isDeleted) return errorResponse(404, 'group_not_found', 'Group not found', traceId);
 
   const inviterEmail = normalizeEmail(session.email);
+  console.log(JSON.stringify({
+    event: 'group_invite_email_received',
+    traceId,
+    groupId,
+    inviterEmail,
+    recipientEmail
+  }));
+
   const inviterUserKey = userKeyFromEmail(inviterEmail);
   const inviterProfile = await getTableEntity<UserProfileEntity>('UserProfiles', inviterUserKey, 'profile');
   const inviterName = resolveInviterName(inviterProfile, inviterEmail);
@@ -219,7 +233,8 @@ export async function groupInviteEmail(request: HttpRequest, _context: Invocatio
         emailSent: false,
         inviteEmailStatus: existing.inviteEmailStatus ?? 'not_sent',
         reason: 'already_member',
-        traceId
+        traceId,
+        received
       }
     };
   }
@@ -308,7 +323,8 @@ export async function groupInviteEmail(request: HttpRequest, _context: Invocatio
         inviteEmailStatus: 'failed',
         inviteEmailFailedReason: 'config_missing',
         inviteUrl,
-        traceId
+        traceId,
+        received
       }
     };
   }
@@ -346,7 +362,8 @@ export async function groupInviteEmail(request: HttpRequest, _context: Invocatio
         emailSent: true,
         inviteEmailStatus: 'sent',
         inviteUrl,
-        traceId
+        traceId,
+        received
       }
     };
   } catch (error) {
@@ -380,7 +397,8 @@ export async function groupInviteEmail(request: HttpRequest, _context: Invocatio
         inviteEmailFailedReason: mapped.reason,
         inviteEmailFailedReasonLabel: inviteFailureReasonToLabel[mapped.reason] ?? inviteFailureReasonToLabel.unknown,
         inviteUrl,
-        traceId
+        traceId,
+        received
       }
     };
   }

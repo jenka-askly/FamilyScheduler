@@ -1,3 +1,10 @@
+## 2026-03-01 03:18 UTC update (Invite email endpoint connectivity trace echo)
+
+- Confirmed `POST /api/group/invite-email` is registered in the Azure Functions entrypoint and points to `groupInviteEmail`.
+- Updated `groupInviteEmail` responses to always include a normalized `received` echo payload (`groupId`, `recipientEmail`, `recipientNamePresent`, `personalMessageLen`) for request-receipt verification.
+- Added structured receipt logging (`group_invite_email_received`) with `traceId`, `groupId`, inviter email, and recipient email after auth + active-membership gate.
+- Kept strict auth + active-membership requirements unchanged (`x-session-id` session + `allowStatuses: ['active']`).
+
 ## 2026-03-01 00:55 UTC update (Members panel rules UI removal)
 
 - Removed the **Rules** action from each People row in the Members panel.
