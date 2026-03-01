@@ -1628,6 +1628,39 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }
   };
 
+  const renderInviteEmailStatus = (person: RosterPerson): ReactNode => {
+    const isInvited = person.status === 'invited';
+    if (!isInvited) return null;
+
+    const inviteEmailStatus = person.inviteEmailStatus ?? 'not_sent';
+    const canSend = inviteEmailStatus === 'failed' || inviteEmailStatus === 'not_sent';
+    const sendLabel = inviteEmailStatus === 'failed' ? 'Resend' : 'Send';
+    const isSending = inviteByEmailResendingUserKey === person.personId;
+
+    return (
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+        {inviteEmailStatus === 'sent' ? <Chip size="small" color="success" label="Invite sent" /> : null}
+        {inviteEmailStatus === 'failed' ? (
+          <Tooltip title={person.inviteEmailProviderMessage || inviteFailureReasonLabel(person.inviteEmailFailedReason)}>
+            <Chip size="small" color="warning" label="Send error" />
+          </Tooltip>
+        ) : null}
+        {inviteEmailStatus === 'not_sent' ? <Chip size="small" variant="outlined" label="Not sent" /> : null}
+        {canSend ? (
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => { void sendInviteByEmail({ recipientEmail: person.email, recipientName: person.name, userKeyForState: person.personId }); }}
+            disabled={isSending}
+            sx={{ minWidth: 'auto', px: 0.75, py: 0, textTransform: 'none' }}
+          >
+            {isSending ? 'Sending…' : sendLabel}
+          </Button>
+        ) : null}
+      </Stack>
+    );
+  };
+
   const sendInviteByEmail = async (args?: { recipientEmail?: string; recipientName?: string; personalMessage?: string; userKeyForState?: string }) => {
     const recipientEmail = (args?.recipientEmail ?? inviteByEmailRecipientEmail).trim();
     const recipientName = (args?.recipientName ?? inviteByEmailRecipientName).trim();
@@ -2153,10 +2186,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       // Ignore sessionStorage failures and rely on in-memory pulse tracking.
     }
 
-    const timeoutId = window.setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       setShouldPulseAdd(false);
-    }, 2000);
-    return () => window.clearTimeout(timeoutId);
+    }, 60000);
+    return () => window.clearTimeout(timeout);
   }, [groupId, isEmpty]);
 
   const editingAppointment = whenEditorCode
@@ -3168,15 +3201,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                                 ) : null}
                               </Stack>
                               {person.status === 'invited' ? (
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                  {person.inviteEmailStatus === 'sent' ? <Chip size="small" color="success" label="Invite sent" /> : null}
-                                  {person.inviteEmailStatus === 'failed' ? (
-                                    <Tooltip title={person.inviteEmailProviderMessage || inviteFailureReasonLabel(person.inviteEmailFailedReason)}>
-                                      <Chip size="small" color="warning" label="Delivery failed" />
-                                    </Tooltip>
-                                  ) : null}
-                                  {(person.inviteEmailStatus === 'not_sent' || !person.inviteEmailStatus) ? <Chip size="small" variant="outlined" label="Not sent" /> : null}
-                                </Stack>
+                                renderInviteEmailStatus(person)
                               ) : null}
                             </Stack>
                           </td>
@@ -3194,20 +3219,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                                   </IconButton>
                                 </span>
                               </Tooltip>
-                              {person.status === 'invited' ? (
-                                <Tooltip title="Resend invite email">
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      aria-label="Resend invite email"
-                                      onClick={() => { void sendInviteByEmail({ recipientEmail: person.email, recipientName: person.name, userKeyForState: person.personId }); }}
-                                      disabled={inviteByEmailResendingUserKey === person.personId}
-                                    >
-                                      <MailOutlineIcon fontSize="small" />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                              ) : null}
                               <Tooltip title="Delete person">
                                 <span>
                                   <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }}>

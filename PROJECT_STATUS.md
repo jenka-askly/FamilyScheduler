@@ -1,3 +1,10 @@
+## 2026-03-01 04:42 UTC update (Extend empty-state Add pulse to 60 seconds)
+
+- Updated calendar toolbar **Add (+)** pulse animation to a gentle infinite cycle (`2.5s ease-in-out`) with subtle scale-only movement (`1 -> 1.05 -> 1`).
+- Extended empty-state pulse lifecycle from ~2 seconds to **up to 60 seconds** in `AppShell`.
+- Preserved one-time-per-group-per-session behavior using existing in-memory + `sessionStorage` guards.
+- Pulse still stops immediately when the toolbar **Add (+)** button is pressed.
+
 ## 2026-03-01 03:53 UTC update (Remove Add or Update Events / AI scan UI)
 
 - Removed the calendar toolbar **AI scan** action icon from `AppShell` calendar actions.
@@ -5493,3 +5500,9 @@ Verification note:
 2. `pnpm --filter @familyscheduler/web build` ✅ passed.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture and stopped intentionally.
 4. Playwright screenshot capture ✅ `branding-yapper-create-group.png`.
+## 2026-03-01 04:39 UTC update (Members invite status row actions alignment)
+
+- Members invite status UI now renders invite send/resend actions inline in the Email/status chip area for invited rows.
+- `inviteEmailStatus=sent` now shows only `Invite sent` chip (no persistent mail action icon in Actions).
+- `inviteEmailStatus=failed` now shows `Send error` chip + inline `Resend` action; `not_sent` shows `Not sent` chip + inline `Send` action.
+- Existing Edit/Delete actions remain unchanged in the Actions column.
