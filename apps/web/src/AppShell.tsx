@@ -5,7 +5,7 @@ import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl, getSessionId, isIgniteGraceGuestForGroup } from './lib/apiUrl';
+import { ApiError, apiFetch, apiUrl, getSessionId, isIgniteGraceGuestForGroup, readResponseSafe } from './lib/apiUrl';
 import { buildLoginPathWithNextFromHash } from './lib/returnTo';
 import { buildInfo } from './lib/buildInfo';
 import type { InviteEmailDebugBundle, InviteEmailDebugClassification } from './types/inviteEmailDebug';
@@ -206,30 +206,39 @@ const inferInviteEmailEnvironment = (): string => {
   return 'prod';
 };
 
-const classifyInviteEmailFailure = (args: { status?: number; errorName?: string; isCrossSite: boolean }): InviteEmailDebugClassification => {
+const classifyInviteEmailFailure = (args: { status?: number; errorName?: string; errorMessage?: string; isCrossSite: boolean; bodyLen?: number; jsonParseError?: string }): InviteEmailDebugClassification => {
+  const fetchFailed = args.errorName === 'TypeError' || (args.errorMessage ?? '').includes('Failed to fetch');
+  if (fetchFailed) return 'network_error';
+  if ((!args.status || args.status === 0) && args.isCrossSite) return 'cors_blocked_suspected';
   if (args.status === 404) return 'route_not_found';
-  if (args.status === 400) return 'bad_request';
   if (args.status === 401 || args.status === 403) return 'unauthorized';
   if (typeof args.status === 'number' && args.status >= 500) return 'server_error';
-  if (!args.status && args.errorName === 'TypeError' && args.isCrossSite) return 'cors_blocked_suspected';
-  return 'network_error';
+  if (args.status === 400) return 'bad_request';
+  if (args.bodyLen === 0) return 'empty_response';
+  if (args.jsonParseError) return 'non_json_response';
+  return 'unknown';
 };
 
 const inviteEmailSuggestions = (classification: InviteEmailDebugClassification): string[] => {
   switch (classification) {
     case 'route_not_found':
-      return ['Verify the deployed API includes POST /api/group/invite-email.', 'Check API base URL and reverse-proxy route mapping for /api/group/invite-email.'];
+      return ['Verify API route is registered in functions entrypoint and deployed.', 'Check API base URL and reverse-proxy route mapping for /api/group/invite-email.'];
     case 'unauthorized':
-      return ['Sign out and sign in again to refresh session state.', 'Confirm caller has active membership for the selected group.'];
+      return ['Confirm x-session-id present and valid; confirm membership.', 'Sign out and sign in again to refresh session state.'];
     case 'bad_request':
       return ['Validate recipientEmail/groupId payload values.', 'Review API validation message in responseBodyText.'];
     case 'server_error':
       return ['Use traceId/clientRequestId to locate backend logs.', 'Check mail provider configuration and server exception logs.'];
     case 'cors_blocked_suspected':
-      return ['Confirm API CORS policy allows this web origin.', 'Check browser console for CORS preflight or blocked request details.'];
+      return ['Check function app CORS allowlist for static app origin.', 'Check browser console for CORS preflight or blocked request details.'];
+    case 'empty_response':
+    case 'non_json_response':
+      return ['Ensure API returns JSON (even for errors).', 'Check backend error handlers always serialize JSON payloads.'];
     case 'network_error':
-    default:
       return ['Verify network connectivity and API host reachability.', 'Confirm browser can access the configured API URL.'];
+    case 'unknown':
+    default:
+      return ['Inspect responseBodyText and response headers for clues.', 'Use traceId/clientRequestId to correlate backend logs.'];
   }
 };
 
@@ -1657,14 +1666,24 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     const buildBundle = (input: {
       status?: number;
       statusText?: string;
-      responseHeaders?: Headers;
+      responseHeaders?: Record<string, string>;
+      contentType?: string;
       responseBodyText?: string;
+      responseBodyLen?: number;
+      jsonParseError?: string;
       fetchErrorName?: string;
       fetchErrorMessage?: string;
     }): InviteEmailDebugBundle => {
       const endMs = Date.now();
       const isCrossSite = typeof window !== 'undefined' ? new URL(requestUrl, window.location.origin).origin !== window.location.origin : false;
-      const classification = classifyInviteEmailFailure({ status: input.status, errorName: input.fetchErrorName, isCrossSite });
+      const classification = classifyInviteEmailFailure({
+        status: input.status,
+        errorName: input.fetchErrorName,
+        errorMessage: input.fetchErrorMessage,
+        isCrossSite,
+        bodyLen: input.responseBodyLen,
+        jsonParseError: input.jsonParseError
+      });
       return {
         appContext: {
           appVersion: buildInfo.sha || 'dev',
@@ -1702,14 +1721,17 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           fetchErrorMessage: input.fetchErrorMessage,
           httpStatus: input.status,
           httpStatusText: input.statusText,
+          contentType: input.contentType,
           responseHeaders: {
-            contentType: input.responseHeaders?.get('content-type') ?? undefined,
-            server: input.responseHeaders?.get('server') ?? undefined,
-            xMsRequestId: input.responseHeaders?.get('x-ms-request-id') ?? undefined,
-            requestContext: input.responseHeaders?.get('request-context') ?? undefined,
-            date: input.responseHeaders?.get('date') ?? undefined
+            contentType: input.responseHeaders?.['content-type'] ?? undefined,
+            server: input.responseHeaders?.server ?? undefined,
+            xMsRequestId: input.responseHeaders?.['x-ms-request-id'] ?? undefined,
+            requestContext: input.responseHeaders?.['request-context'] ?? undefined,
+            date: input.responseHeaders?.date ?? undefined
           },
           responseBodyText: input.responseBodyText,
+          responseBodyLen: input.responseBodyLen,
+          jsonParseError: input.jsonParseError,
           timing: {
             startMs,
             endMs,
@@ -1727,27 +1749,46 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const response = await apiFetch('/api/group/invite-email', {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        throwOnHttpError: true,
+        clientRequestId
       });
-      const payload = await response.json() as { ok?: boolean; message?: string; inviteEmailStatus?: 'sent' | 'failed' | 'not_sent'; inviteEmailFailedReason?: string };
-      if (!response.ok || !payload.ok) {
-        const responseBodyText = truncateText(await response.clone().text(), 2048);
+      const safeResponse = await readResponseSafe(response);
+      const payload = (safeResponse.json && typeof safeResponse.json === 'object'
+        ? safeResponse.json
+        : null) as { ok?: boolean; message?: string; inviteEmailStatus?: 'sent' | 'failed' | 'not_sent'; inviteEmailFailedReason?: string } | null;
+      if (safeResponse.bodyLen > 0 && safeResponse.json == null) {
         const bundle = buildBundle({
-          status: response.status,
-          statusText: response.statusText,
-          responseHeaders: response.headers,
-          responseBodyText
+          status: safeResponse.status,
+          statusText: safeResponse.statusText,
+          responseHeaders: safeResponse.headers,
+          contentType: safeResponse.contentType,
+          responseBodyText: truncateText(safeResponse.bodyText, 2048),
+          responseBodyLen: safeResponse.bodyLen,
+          jsonParseError: safeResponse.jsonParseError
+        });
+        setLastInviteDebugBundle(bundle);
+      }
+      if (!response.ok || !payload?.ok) {
+        const bundle = buildBundle({
+          status: safeResponse.status,
+          statusText: safeResponse.statusText,
+          responseHeaders: safeResponse.headers,
+          contentType: safeResponse.contentType,
+          responseBodyText: truncateText(safeResponse.bodyText, 2048),
+          responseBodyLen: safeResponse.bodyLen,
+          jsonParseError: safeResponse.jsonParseError
         });
         setLastInviteDebugBundle(bundle);
         setNotice({ severity: 'error', message: 'Unable to send invite mail', actionLabel: 'Details', onAction: openInviteDebugDialog });
-        const message = payload.message ?? 'Unable to send invite email.';
+        const message = payload?.message ?? 'Unable to send invite email.';
         if (args?.userKeyForState) showNotice('error', message);
         else setInviteByEmailError(message);
         return;
       }
 
       await loadMembersRoster();
-      if (payload.inviteEmailStatus === 'failed') {
+      if (payload?.inviteEmailStatus === 'failed') {
         showNotice('info', `Invite created; email delivery failed: ${inviteFailureReasonLabel(payload.inviteEmailFailedReason)}`);
       } else {
         showNotice('success', args?.userKeyForState ? 'Invite resent.' : 'Invite sent.');
@@ -1757,10 +1798,19 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         setInviteByEmailOpen(false);
       }
     } catch (error) {
-      const bundle = buildBundle({
-        fetchErrorName: error instanceof Error ? error.name : 'UnknownError',
-        fetchErrorMessage: error instanceof Error ? error.message : String(error ?? 'Unknown error')
-      });
+      const bundle = error instanceof ApiError
+        ? buildBundle({
+            status: error.status,
+            statusText: error.statusText,
+            responseHeaders: error.headers,
+            contentType: error.contentType,
+            responseBodyText: truncateText(error.bodyText, 2048),
+            responseBodyLen: error.bodyLen
+          })
+        : buildBundle({
+            fetchErrorName: error instanceof Error ? error.name : 'UnknownError',
+            fetchErrorMessage: error instanceof Error ? error.message : String(error ?? 'Unknown error')
+          });
       setLastInviteDebugBundle(bundle);
       setNotice({ severity: 'error', message: 'Unable to send invite mail', actionLabel: 'Details', onAction: openInviteDebugDialog });
       if (args?.userKeyForState) showNotice('error', 'Unable to resend invite email.');
@@ -3229,7 +3279,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogContent>
           <Stack spacing={1.5} sx={{ mt: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
-              {lastInviteDebugBundle ? `Classification: ${lastInviteDebugBundle.diagnostics.classification}${lastInviteDebugBundle.networkOutcome.httpStatus ? ` • HTTP ${lastInviteDebugBundle.networkOutcome.httpStatus}` : ''}` : 'No debug bundle captured yet.'}
+              {lastInviteDebugBundle
+                ? `${lastInviteDebugBundle.diagnostics.classification} (${lastInviteDebugBundle.networkOutcome.httpStatus ?? 'no status'}) ${lastInviteDebugBundle.networkOutcome.httpStatusText ?? ''}`.trim()
+                : 'No debug bundle captured yet.'}
             </Typography>
             <TextField
               value={lastInviteDebugBundle ? JSON.stringify(lastInviteDebugBundle, null, 2) : ''}

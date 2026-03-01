@@ -14889,6 +14889,21 @@ Implement deterministic UX updates for the schedule toolbar: one-time empty-stat
 ### Follow-ups
 - Manual local verification for forced 404 and forced network failure paths to confirm expected classifications and captured response/error details in real environment routing conditions.
 
+## 2026-03-01 03:52 UTC — Invite flow safe response parsing + diagnostics classification correction
+
+### Objective
+- Eliminate invite-flow `response.json()` crashes on empty/non-JSON responses and ensure debug bundles always capture status/body/header diagnostics with correct failure classification.
+
+### Approach
+- Added shared `readResponseSafe(res)` helper to parse response text first, capture safe header subset, and attempt guarded JSON parse.
+- Added `ApiError` with structured HTTP diagnostics, plus `apiFetch` options (`throwOnHttpError`, `clientRequestId`) so invite-by-email can throw rich errors for non-2xx without `SyntaxError` paths.
+- Updated invite-by-email send flow to avoid `response.json()`, use `readResponseSafe`, populate expanded debug bundle fields (`contentType`, `responseBodyLen`, `jsonParseError`), and classify by HTTP status/body/parse-error/network context.
+- Updated invite debug suggestions and dialog top-line summary format per diagnostics goals.
+
+### Files changed
+- `apps/web/src/lib/apiUrl.ts`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/types/inviteEmailDebug.ts`
 ## 2026-03-01 03:53 UTC (Remove Add or Update Events / AI scan UI)
 
 ### Objective
@@ -14911,6 +14926,17 @@ Remove the web UI entry point and dialog for “Add or Update Events” (AI scan
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `rg -n "apiFetch|invite-email|response\.json\(|InviteEmailDebugBundle|classification" apps/web/src` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/cc538a21cddd2795/artifacts/artifacts/invite-debug-change-home.png`.
+
+### Follow-ups
+- Human-run manual checks for target diagnostics scenarios:
+  - force 404 route miss => `route_not_found` with `httpStatus=404`;
+  - clear/invalid session => `unauthorized` with `401/403`;
+  - network drop/CORS block => TypeError path classified as `network_error` (or `cors_blocked_suspected` when no status + cross-site).
 
 - `rg -n "isAdvancedOpen|advancedText|submitAdvanced|Add or Update Events|ui-aiAction|AutoAwesomeIcon|AI scan|Calendar actions" apps/web/src/AppShell.tsx apps/web/src` ✅
 - `rg -n "Add or Update Events|ui-aiAction|AI scan" apps/web/src` ✅ (no matches post-change)
