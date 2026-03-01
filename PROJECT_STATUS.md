@@ -1,3 +1,9 @@
+## 2026-03-01 07:32 UTC update (Appointment details above-tabs UI cleanup)
+
+- Sticky takeover header now shows appointment title from `detailsData.appointment.desc` with safe fallbacks (`Untitled appointment` when loaded but blank, `Loading…` before details load).
+- Refactored the details area above tabs into four clearer sections: Summary card, lighter Email actions + last update card, Reminders card, and optional active-suggestions chips row.
+- Improved responsive behavior using MUI responsive props for summary/meta/reminder composer layouts (xs vertical stacking, sm+ row alignment) without changing tab/panel logic or scroll-container behavior.
+
 ## 2026-03-01 06:59 UTC update (Appointment details History now anchored dropdown menu)
 
 - Replaced the Appointment Details header **History** action trigger with a History icon button that opens an anchored MUI `Menu` (`details-history-menu`) near the icon.

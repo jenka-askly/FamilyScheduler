@@ -1,3 +1,30 @@
+## 2026-03-01 07:32 UTC (Appointment UI cleanup above tabs in AppShell)
+
+### Objective
+
+Implement a layout-only UI cleanup for appointment details takeover content above Discussion/Changes/Constraints tabs, while preserving behaviors and tab/panel logic.
+
+### Approach
+
+- Updated sticky takeover header title fallback behavior to render appointment title from loaded details (`desc`) and avoid null access pre-load.
+- Restructured `appointmentDetailsContent` above-tabs into clear blocks: Summary, Email actions/last update, Reminders, and optional active suggestion chips.
+- Kept all existing handlers and state bindings intact for email update/history menu, reminders add/cancel, suggestion chips, and header collapse toggle.
+- Maintained existing tabs and tab panel content/logic unchanged.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+
+- Run manual browser smoke for appointment details takeover (desktop + mobile widths) to validate spacing, wrapping, and no horizontal overflow.
+
 ## 2026-03-01 04:49 UTC (Members panel invite chip send/resend parity)
 
 ### Objective
