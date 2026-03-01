@@ -4,6 +4,12 @@
 - Updated `groupInviteEmail` responses to always include a normalized `received` echo payload (`groupId`, `recipientEmail`, `recipientNamePresent`, `personalMessageLen`) for request-receipt verification.
 - Added structured receipt logging (`group_invite_email_received`) with `traceId`, `groupId`, inviter email, and recipient email after auth + active-membership gate.
 - Kept strict auth + active-membership requirements unchanged (`x-session-id` session + `allowStatuses: ['active']`).
+## 2026-03-01 03:18 UTC update (Schedule empty-state pulse + Add from Photo affordance)
+
+- Calendar toolbar **Add (+)** now uses a subtle one-time pulse animation in empty groups.
+- Pulse behavior is tracked once per `groupId` per tab session (`sessionStorage` with in-memory fallback), and stops immediately when `+` is pressed.
+- Empty-state pulse is only applied to the **top toolbar Add button** (not inline month/week/day add buttons).
+- Calendar photo action copy/icon updated from scan wording to **Add from Photo** with a document+camera badge icon; action behavior unchanged.
 
 ## 2026-03-01 00:55 UTC update (Members panel rules UI removal)
 

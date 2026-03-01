@@ -14793,6 +14793,22 @@ Ensure the invite-email API path has explicit request-receipt signals (trace + e
 ### Files changed
 
 - `api/src/functions/groupInviteEmail.ts`
+
+## 2026-03-01 03:18 UTC (Schedule panel empty-state pulse + Add from Photo rename/icon)
+
+### Objective
+Implement deterministic UX updates for the schedule toolbar: one-time empty-state add pulse per group/session and scan action relabel/icon update.
+
+### Approach
+- Added module-level pulse tracking primitives in `AppShell` (`PULSED_KEY_PREFIX` + in-memory `Set`) and local `shouldPulseAdd` state.
+- Derived `isEmpty` from `sortedAppointments.length === 0` and added `useEffect([groupId, isEmpty])` to run one-time pulse logic, with safe `sessionStorage` get/set inside try/catch and timeout cleanup.
+- Applied pulse class only to top toolbar Add `IconButton`; explicitly stopped pulse in the Add click handler before running existing add behavior.
+- Replaced `DocumentScannerIcon` with `DocumentCameraIcon` inline SVG and updated tooltip/aria text to `Add from Photo` while preserving click behavior.
+- Added CSS `@keyframes ui-addPulse` + `.ui-addPulse` for 3 gentle scale pulses over 1.8s (single run, not looping).
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -14806,3 +14822,10 @@ Ensure the invite-email API path has explicit request-receipt signals (trace + e
 
 - Deploy API to staging and validate in DevTools/curl that `POST /api/group/invite-email` returns 200 JSON with `traceId` and `received` payload.
 - If 404 persists in deployed env despite code registration, verify deployed artifact freshness / startup logs (`registered-function` events) for `groupInviteEmail`.
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web build` ✅ (bundle-size warning from Vite only)
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped via SIGINT)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/5b517125cbc8d55f/artifacts/artifacts/schedule-panel-toolbar.png`
+
+### Follow-ups
+- Manual behavior check with multiple empty/non-empty groups to confirm per-group one-time pulse semantics and Add-from-Photo copy in production-like auth/data states.
