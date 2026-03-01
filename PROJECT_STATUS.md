@@ -1,3 +1,11 @@
+## 2026-03-01 12:02 UTC update (Appointment details title card + restored meta rows)
+
+- Reworked the takeover details header area so the appointment title controls now render inside a single outlined, rounded Title Card (`Paper`) above tabs, visually aligned with the Reminders card.
+- Kept existing header behavior: Back action preserved, **Email update** always visible, and **History** visible only when expanded (`headerCollapsed === false`).
+- Restored appointment meta rows inside the Title Card: Date/Time is always shown from `formatAppointmentTime(detailsData.appointment)` and Location shows only when a trimmed location value exists.
+- Removed legacy above-tabs standalone Date/Time and Last email update renderings outside the card; moved Last email update text into the Title Card near email actions.
+- Added safe loading fallback title text (`Loading…`) and guarded meta rows so appointment fields are only accessed when details data is loaded.
+
 ## 2026-03-01 07:59 UTC update (Multi-appointment scan-from-photo)
 
 - Updated scan-from-photo API flow to parse image first and create one appointment per valid extracted item instead of pre-creating a single placeholder appointment.
