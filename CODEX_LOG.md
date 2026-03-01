@@ -15196,3 +15196,26 @@ Remove duplicate `Yapper` text in the group header by suppressing the legacy `PR
 ### Follow-ups
 
 - Manual UI validation in authenticated/local environment: verify `/g/<groupId>/app` shows one `Yapper` lockup label and non-dashboard header paths still show `PRODUCT.name`.
+
+## 2026-03-01 05:40 UTC update (Appointment Details container migrated to MUI Dialog)
+
+- Objective: Replace only the Appointment Details right-side `Drawer` container in `apps/web/src/AppShell.tsx` with a centered MUI `Dialog` while preserving all existing detail state/flows and scroll ref behavior.
+- Approach:
+  - Located details block (`<Drawer open={detailsOpen} ... contentRef={detailsScrollRef}>`).
+  - Replaced only the outer container with:
+    - `Dialog` (`open={detailsOpen}`, `fullWidth`, `maxWidth="md"`, `aria-labelledby="appointment-details-title"`)
+    - `DialogTitle` with explicit `Appointment` title + top-right close `IconButton`.
+    - `DialogContent` as the scroll container (`dividers`, `ref={detailsScrollRef}`, `overflowY: auto`, `maxHeight: calc(100vh - 140px)`).
+  - Kept inner appointment details JSX unchanged.
+  - Preserved close source-of-truth by routing dialog close and X button to `closeAppointmentDetails`.
+- Files changed:
+  - `apps/web/src/AppShell.tsx`
+  - `PROJECT_STATUS.md`
+  - `CODEX_LOG.md`
+- Commands run + outcomes:
+  - `rg -n "<Drawer|detailsOpen|openAppointmentDetails|closeAppointmentDetails|detailsScrollRef|components/Drawer" apps/web/src/AppShell.tsx` ✅
+  - `sed -n '3560,4025p' apps/web/src/AppShell.tsx` ✅
+  - `nl -ba apps/web/src/AppShell.tsx | sed -n '3568,3865p'` ✅
+  - `apply_patch` on `apps/web/src/AppShell.tsx` ✅
+- Follow-ups:
+  - Run app-level checks and capture a screenshot of the new centered details dialog.

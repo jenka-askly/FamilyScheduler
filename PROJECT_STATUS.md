@@ -5534,3 +5534,11 @@ Verification note:
 - In dashboard-click mode (group page header), the clickable brand lockup (icon + `Yapper`) remains the sole rendered product label.
 - Kept brand icon fixed sizing unchanged (`28x28`, `flex: '0 0 28px'`, `display: 'block'`).
 - Right-side menu behavior unchanged.
+
+## 2026-03-01 05:40 UTC update (Appointment details: drawer → centered dialog)
+
+- Replaced the **Appointment Details** right-side drawer container in `AppShell` with a centered MUI `Dialog` (`fullWidth`, `maxWidth="md"`).
+- Kept existing appointment details inner content/state model unchanged (`detailsOpen`, `detailsAppointmentId`, `detailsData`, `detailsTab`, `detailsMessageText`, `detailsScrollRef`, proposal/reminder/email subflows).
+- Wired all close paths (dialog dismiss, backdrop/ESC, and top-right close icon) through `closeAppointmentDetails`.
+- Preserved scroll semantics by attaching `detailsScrollRef` directly to the scrollable `DialogContent` and constraining content height with `maxHeight: calc(100vh - 140px)`.
+- Left todo drawer and other drawer/dialog usages unchanged.
