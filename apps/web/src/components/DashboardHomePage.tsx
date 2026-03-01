@@ -1,5 +1,4 @@
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import NotificationsOffOutlinedIcon from '@mui/icons-material/NotificationsOffOutlined';
 import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
@@ -16,13 +15,11 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  Menu,
-  MenuItem,
   Stack,
   Tooltip,
   Typography
 } from '@mui/material';
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../lib/apiUrl';
 import { deleteGroup, restoreGroup } from '../lib/groupApi';
 import { getUserPreferences, setUserPreferencesPatch } from '../lib/userPrefs';
@@ -67,8 +64,6 @@ export function DashboardHomePage({ onCreateGroup, refreshToken = 0, onPrefsStat
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupsError, setGroupsError] = useState<string | null>(null);
-  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const [menuGroup, setMenuGroup] = useState<DashboardGroup | null>(null);
   const [lastDeletedGroup, setLastDeletedGroup] = useState<{ groupId: string; name?: string } | null>(null);
   const [undoBusy, setUndoBusy] = useState(false);
   const undoTimerRef = useRef<number | null>(null);
@@ -229,23 +224,7 @@ export function DashboardHomePage({ onCreateGroup, refreshToken = 0, onPrefsStat
     await loadDashboard();
   };
 
-  const handleMenuOpen = (event: MouseEvent<HTMLElement>, group: DashboardGroup) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setGroupsError(null);
-    setMenuAnchorEl(event.currentTarget);
-    setMenuGroup(group);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null);
-    setMenuGroup(null);
-  };
-
-  const handleDeleteClick = async () => {
-    if (!menuGroup) return;
-    const deletingGroup = menuGroup;
-    handleMenuClose();
+  const handleDeleteClick = async (deletingGroup: DashboardGroup) => {
     setGroupsError(null);
     try {
       const response = await deleteGroup(deletingGroup.groupId);
@@ -347,20 +326,26 @@ export function DashboardHomePage({ onCreateGroup, refreshToken = 0, onPrefsStat
                           aria-label={mutedGroupIds.includes(group.groupId) ? `Unmute ${group.groupName}` : `Mute ${group.groupName}`}
                           disabled={prefsLoading || prefsSaving}
                           onClick={(event) => {
+                            event.preventDefault();
                             event.stopPropagation();
                             void handleToggleMutedGroup(group.groupId, !mutedGroupIds.includes(group.groupId));
                           }}
                         >
                           {mutedGroupIds.includes(group.groupId) ? <NotificationsOffOutlinedIcon fontSize="small" /> : <NotificationsActiveOutlinedIcon fontSize="small" />}
                         </IconButton>
-                        <IconButton
-                          size="small"
-                          aria-label={`Open actions for ${group.groupName}`}
-                          onClick={(event) => handleMenuOpen(event, group)}
-                        >
-                          <MoreVertIcon fontSize="small" />
-                        </IconButton>
-                        <ChevronRightIcon color="action" fontSize="small" />
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            aria-label="Delete group"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handleDeleteClick(group);
+                            }}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </>
                     )}
                   </Stack>
@@ -407,10 +392,6 @@ export function DashboardHomePage({ onCreateGroup, refreshToken = 0, onPrefsStat
         {!loadingGroups && !groupsError && groups.length === 0 ? <Typography color="text.secondary">No groups yet.</Typography> : null}
         </CardContent>
       </Card>
-
-      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={handleMenuClose}>
-        <MenuItem onClick={handleDeleteClick} sx={{ color: 'error.main' }}>Delete</MenuItem>
-      </Menu>
 
 
       </Stack>
