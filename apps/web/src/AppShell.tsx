@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, MouseEvent as ReactMouseEvent, ReactNode, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, MouseEvent as ReactMouseEvent, ReactNode, SyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { AppointmentEditorForm } from './components/AppointmentEditorForm';
 import { AppointmentCardList } from './components/AppointmentCardList';
 import { Drawer } from './components/Drawer';
@@ -458,35 +458,6 @@ const getUtcBoundsForAppt = (appt: Snapshot['appointments'][0]) => {
   return { startMs, endMs: startMs + (durationMins * 60_000) };
 };
 
-const isAllDayRule = (rule: Snapshot['rules'][0]) => (
-  (rule as Snapshot['rules'][0] & { isAllDay?: boolean }).isAllDay === true || !rule.startTime || rule.durationMins === 1440
-);
-
-const formatRuleRangeForList = (rule: Snapshot['rules'][0], personTz?: string) => {
-  const timezone = personTz;
-  const dayFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', timeZone: timezone });
-  const dateTimeFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
-  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone });
-
-  const interval = getUtcBoundsForRule(rule);
-  if (!interval) return rule.date;
-
-  const start = new Date(interval.startMs);
-  const end = new Date(interval.endMs);
-  const allDay = isAllDayRule(rule);
-
-  if (allDay) {
-    const inclusiveEnd = new Date(interval.endMs - 86400000);
-    const sameDay = start.toDateString() === inclusiveEnd.toDateString();
-    if (sameDay) return `${dayFormatter.format(start)} (all day)`;
-    return `${dayFormatter.format(start)}–${dayFormatter.format(inclusiveEnd)} (all day)`;
-  }
-
-  const sameDay = start.toDateString() === end.toDateString();
-  if (sameDay) return `${dateTimeFormatter.format(start)}–${timeFormatter.format(end)}`;
-  return `${dateTimeFormatter.format(start)}–${dateTimeFormatter.format(end)}`;
-};
-
 const computePersonStatusForInterval = (personId: string, appointment: Snapshot['appointments'][0], rules: Snapshot['rules']) => {
   const appointmentRange = getUtcBoundsForAppt(appointment);
   if (appointment.time?.intent?.status !== 'resolved') return { status: 'unreconcilable' as const };
@@ -500,17 +471,6 @@ const computePersonStatusForInterval = (personId: string, appointment: Snapshot[
 
   if (overlappingRules.some((rule) => rule.kind === 'unavailable')) return { status: 'conflict' as const };
   return { status: 'no_conflict' as const };
-};
-
-const formatDraftRuleRange = (startUtc: string, endUtc: string) => {
-  const start = new Date(startUtc);
-  const end = new Date(endUtc);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return `${startUtc} → ${endUtc}`;
-  const sameDay = start.toISOString().slice(0, 10) === end.toISOString().slice(0, 10);
-  const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
-  if (sameDay) return `${dateFormatter.format(start)} ${timeFormatter.format(start)} → ${timeFormatter.format(end)} UTC`;
-  return `${dateFormatter.format(start)} ${timeFormatter.format(start)} → ${dateFormatter.format(end)} ${timeFormatter.format(end)} UTC`;
 };
 
 const formatAppointmentTime = (appointment: Snapshot['appointments'][0]) => {
@@ -549,27 +509,6 @@ const formatMissingSummary = (missing?: string[]) => {
   if (!missing?.length) return null;
   return `Missing: ${missing.join(', ')}`;
 };
-
-const isAllDayDraftRule = (startUtc: string, endUtc: string) => {
-  const start = new Date(startUtc);
-  const end = new Date(endUtc);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-  return start.getUTCHours() === 0
-    && start.getUTCMinutes() === 0
-    && start.getUTCSeconds() === 0
-    && end.getUTCHours() === 0
-    && end.getUTCMinutes() === 0
-    && end.getUTCSeconds() === 0
-    && (end.getTime() - start.getTime()) % 86400000 === 0;
-};
-
-const sortRules = (rules: Snapshot['rules']) => [...rules].sort((a, b) => {
-  const byDate = a.date.localeCompare(b.date);
-  if (byDate !== 0) return byDate;
-  if (!a.startTime && b.startTime) return -1;
-  if (a.startTime && !b.startTime) return 1;
-  return (a.startTime ?? '').localeCompare(b.startTime ?? '');
-});
 
 export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }: { groupId: string; sessionEmail: string; groupName?: string }) {
   const [message, setMessage] = useState('');
@@ -688,24 +627,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [isInviteClosing, setIsInviteClosing] = useState(false);
   const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
   const personNameInputRef = useRef<HTMLInputElement | null>(null);
-  const [ruleToDelete, setRuleToDelete] = useState<Snapshot['rules'][0] | null>(null);
-  const [rulePromptModal, setRulePromptModal] = useState<{ person: RosterPerson } | null>(null);
-  const [rulePrompt, setRulePrompt] = useState('');
-  const [ruleDraft, setRuleDraft] = useState<{ draftRules: Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>; preview: string[]; warnings: DraftWarning[]; assumptions: string[]; promptId: string } | null>(null);
-  const [isDrafting, setIsDrafting] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [ruleDraftError, setRuleDraftError] = useState<string | null>(null);
-  const [ruleDraftErrorMeta, setRuleDraftErrorMeta] = useState<{ code?: string; traceId?: string } | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
   const breakoutInFlightRef = useRef(false);
-  const [ruleDraftTraceId, setRuleDraftTraceId] = useState<string | null>(null);
-  const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
-  const [legacyReplaceRuleCode, setLegacyReplaceRuleCode] = useState<string | null>(null);
   const didInitialLoad = useRef(false);
-  const rulePromptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const hasProposedRules = Boolean(ruleDraft?.draftRules?.length);
   const fileScanInputRef = useRef<HTMLInputElement | null>(null);
   const scanCaptureVideoRef = useRef<HTMLVideoElement | null>(null);
   const scanCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1100,16 +1026,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (payload.appointment) setSnapshot((prev) => ({ ...prev, appointments: prev.appointments.map((appt) => appt.id === payload.appointment!.id ? payload.appointment! : appt) }));
   };
 
-  const closeRulePromptModal = () => {
-    setRulePromptModal(null);
-    setRulePrompt('');
-    setRuleDraft(null);
-    setRuleDraftError(null);
-    setRuleDraftErrorMeta(null);
-    setRuleDraftTraceId(null);
-    setEditingPromptId(null);
-    setLegacyReplaceRuleCode(null);
-  };
+
 
   const toggleAppointmentPerson = (appointment: Snapshot['appointments'][0], personId: string) => {
     const selected = new Set(appointment.people);
@@ -2247,108 +2164,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const weekLabel = `Week of ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(weekStart)}`;
   const dayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(dayCursor);
 
-  const openRulePromptModal = (person: RosterPerson) => {
-    setRulePromptModal({ person });
-    setRulePrompt('');
-    setRuleDraft(null);
-    setEditingPromptId(null);
-    setLegacyReplaceRuleCode(null);
-    setRuleDraftError(null);
-    setRuleDraftErrorMeta(null);
-    setRuleDraftTraceId(null);
-  };
 
-  const draftRulePrompt = async (inputText?: string, forcedTraceId?: string) => {
-    if (!rulePromptModal) return;
-    const outgoing = (inputText ?? rulePrompt).trim();
-    if (!outgoing) return;
-    setIsDrafting(true);
-    setRuleDraft(null);
-    setRuleDraftError(null);
-    const traceId = forcedTraceId ?? ruleDraftTraceId ?? `rules-draft-${Date.now()}`;
-    setRuleDraftTraceId(traceId);
-    try {
-      const response = await apiFetch('/api/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: outgoing, groupId, ...identityPayload(), ruleMode: 'draft', personId: rulePromptModal.person.personId, traceId, replacePromptId: editingPromptId ?? undefined, replaceRuleCode: legacyReplaceRuleCode ?? undefined })
-      });
-      const json = (await response.json()) as Record<string, unknown> & { snapshot?: Snapshot; kind?: string; message?: string };
-      if (json.snapshot) setSnapshot(json.snapshot);
-      if (!response.ok) {
-        setRuleDraft(null);
-        setRuleDraftError(json.message ?? 'Unable to draft rule.');
-        setRuleDraftErrorMeta({ traceId });
-        return;
-      }
-      setRuleDraftTraceId(null);
-      const preview = Array.isArray(json.preview) ? json.preview.map((item) => String(item)) : null;
-      const draftRules = Array.isArray(json.draftRules) ? (json.draftRules as Array<{ personId: string; status: 'available' | 'unavailable'; startUtc: string; endUtc: string }>) : null;
-      const promptId = typeof json.promptId === 'string' ? json.promptId : null;
-      const draftErrorPayload = (typeof json.draftError === 'object' && json.draftError) ? (json.draftError as { message?: unknown; code?: unknown; traceId?: unknown }) : null;
-      const draftError = (draftErrorPayload && typeof draftErrorPayload.message === 'string') ? draftErrorPayload.message : null;
-      const draftErrorCode = (draftErrorPayload && typeof draftErrorPayload.code === 'string') ? draftErrorPayload.code : undefined;
-      const draftErrorTraceId = (draftErrorPayload && typeof draftErrorPayload.traceId === 'string') ? draftErrorPayload.traceId : undefined;
-      if (json.kind === 'question') {
-        setRuleDraft(null);
-        setRuleDraftError('Draft needs clarification. Please edit the prompt and click Draft again.');
-        setRuleDraftErrorMeta({ code: draftErrorCode, traceId: draftErrorTraceId ?? traceId });
-        return;
-      }
-      if (draftError || !preview || !promptId || !draftRules || draftRules.length === 0) {
-        setRuleDraft(null);
-        setRuleDraftError(draftError ?? 'Draft failed. Please rephrase.');
-        setRuleDraftErrorMeta({ code: draftErrorCode, traceId: draftErrorTraceId ?? traceId });
-        return;
-      }
-      const warnings = Array.isArray(json.warnings) ? json.warnings as DraftWarning[] : [];
-      const assumptions = Array.isArray(json.assumptions) ? json.assumptions.map((item) => String(item)) : [];
-      setRuleDraftError(null);
-      setRuleDraftErrorMeta(null);
-      setRuleDraft({ draftRules, preview, warnings, assumptions, promptId });
-    } finally {
-      setIsDrafting(false);
-    }
-  };
 
-  const confirmRulePrompt = async () => {
-    const promptId = ruleDraft?.promptId;
-    if (!rulePromptModal || !rulePrompt.trim() || !hasProposedRules || !promptId) return;
-    setIsConfirming(true);
-    const traceId = `rules-confirm-${Date.now()}`;
-    try {
-      const response = await apiFetch('/api/chat', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          message: rulePrompt.trim(),
-          groupId,
-          ruleMode: 'confirm',
-          personId: rulePromptModal.person.personId,
-          promptId,
-          traceId,
-          draftedIntervals: ruleDraft?.draftRules ?? []
-        })
-      });
-      const json = (await response.json()) as { snapshot?: Snapshot; message?: string };
-      if (!response.ok) {
-        setRuleDraftError(json.message ?? 'Unable to confirm rule.');
-        setRuleDraftErrorMeta(null);
-        return;
-      }
-      if (json.snapshot) setSnapshot(json.snapshot);
-      setRulePromptModal(null);
-      setRulePrompt('');
-      setRuleDraft(null);
-      setRuleDraftError(null);
-      setRuleDraftErrorMeta(null);
-      setRuleDraftTraceId(null);
-      setEditingPromptId(null);
-      setLegacyReplaceRuleCode(null);
-    } finally {
-      setIsConfirming(false);
-    }
-  };
+
+
 
 
   useEffect(() => {
@@ -2986,11 +2805,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       <thead><tr><th>Name</th><th className="email-col">Email</th><th>Last seen</th><th>Actions</th></tr></thead>
                       <tbody>
                 {peopleInView.map((person) => {
-                  const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                   const isEditingPerson = editingPersonId === person.personId;
                   const isGuestMember = person.memberKind === 'guest';
                   return (
-                    <Fragment key={person.personId}>
                       <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                           <td>
                             {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : (
@@ -3020,11 +2837,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
                           <td className="actions-cell">
                             <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                              <Tooltip title="Rules">
-                                <IconButton size="small" aria-label="Rules" onClick={() => openRulePromptModal(person)}>
-                                  <Clock3 />
-                                </IconButton>
-                              </Tooltip>
                               <Tooltip title={isGuestMember ? 'Not available for guest members.' : (isEditingPerson ? 'Save person' : 'Edit person')}>
                                 <span>
                                   <IconButton
@@ -3047,63 +2859,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             </Stack>
                           </td>
                         </tr>
-                      {personRules.length > 0 ? (
-                        <tr key={`${person.personId}-rules`} className="rules-row">
-                            <td colSpan={4} className="rules-cell">
-                              <div className="rules-indent">
-                                <ul className="rules-list">
-                                  {personRules.map((rule) => (
-                                    <li key={rule.code} className="rule-item">
-                                      <div className="rule-row" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 760, width: '100%' }}>
-                                          <span className="rule-range" style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                                            {formatRuleRangeForList(rule, person.timezone)}
-                                          </span>
-                                          <span className="rule-desc" style={{ fontSize: 12, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rule.desc ?? ''}>
-                                            {rule.desc || '—'}
-                                          </span>
-                                          <span className={`status-tag ${rule.kind}`} style={{ whiteSpace: 'nowrap' }}>
-                                            {rule.kind === 'available' ? 'Available' : 'Unavailable'}
-                                          </span>
-                                          <span className="rule-actions">
-                                            <Stack direction="row" spacing={0.5} alignItems="center">
-                                              <Tooltip title="Edit rule">
-                                                <IconButton
-                                                  size="small"
-                                                  aria-label="Edit rule"
-                                                  onClick={() => {
-                                                    setRulePromptModal({ person });
-                                                    setRulePrompt(rule.originalPrompt ?? '');
-                                                    setRuleDraft(null);
-                                                    if (rule.promptId && rule.originalPrompt) {
-                                                      setEditingPromptId(rule.promptId);
-                                                      setLegacyReplaceRuleCode(null);
-                                                    } else {
-                                                      setEditingPromptId(null);
-                                                      setLegacyReplaceRuleCode(rule.code);
-                                                    }
-                                                  }}
-                                                >
-                                                  <Pencil />
-                                                </IconButton>
-                                              </Tooltip>
-                                              <Tooltip title="Delete rule">
-                                                <IconButton size="small" aria-label="Delete rule" onClick={() => setRuleToDelete(rule)}>
-                                                  <Trash2 />
-                                                </IconButton>
-                                              </Tooltip>
-                                            </Stack>
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
                   );
                 })}
                       </tbody>
@@ -3304,76 +3059,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogActions>
           <Button type="button" variant="outlined" onClick={closeScanCaptureModal} disabled={scanCaptureBusy}>Cancel</Button>
           <Button type="button" variant="contained" onClick={() => { void captureScanFrame(); }} disabled={!isScanCaptureReady || scanCaptureBusy}>{scanCaptureBusy ? 'Scanning…' : 'Capture'}</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={Boolean(ruleToDelete)} onClose={() => setRuleToDelete(null)} fullWidth maxWidth="sm">
-        <DialogTitle>{ruleToDelete ? `Delete rule ${ruleToDelete.code}?` : 'Delete rule?'}</DialogTitle>
-        <DialogContent>
-          <Typography>This removes the rule from this person.</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button type="button" variant="outlined" onClick={() => setRuleToDelete(null)}>Cancel</Button>
-          <Button
-            type="button"
-            variant="contained"
-            color="error"
-            onClick={() => {
-              if (!ruleToDelete) return;
-              void sendMessage(`Delete rule ${ruleToDelete.code}`);
-              setRuleToDelete(null);
-            }}
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={Boolean(rulePromptModal)} onClose={closeRulePromptModal} fullWidth maxWidth="md">
-        <DialogTitle>Rules</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2}>
-            <TextField
-              inputRef={rulePromptTextareaRef}
-              label="Availability rule"
-              multiline
-              minRows={4}
-              value={rulePrompt}
-              onChange={(event) => setRulePrompt(event.target.value)}
-              placeholder={'Examples:\nWeekdays after 6pm I am available.\nI’m unavailable next Tuesday from 1-3pm.'}
-            />
-            <Stack direction="row" justifyContent="flex-end">
-              <Button type="button" onClick={() => void draftRulePrompt()} disabled={!rulePrompt.trim() || isDrafting || isConfirming}>{isDrafting ? 'Drafting…' : 'Draft Rule'}</Button>
-            </Stack>
-            {ruleDraftError ? (
-              <Alert severity="error">
-                {ruleDraftError}
-                {ruleDraftErrorMeta?.code || ruleDraftErrorMeta?.traceId ? <><br /><small>{ruleDraftErrorMeta?.code ? `code=${ruleDraftErrorMeta.code} ` : ''}{ruleDraftErrorMeta?.traceId ? `traceId=${ruleDraftErrorMeta.traceId}` : ''}</small></> : null}
-              </Alert>
-            ) : null}
-            <Box>
-              <Typography variant="subtitle2">Preview</Typography>
-              {hasProposedRules ? (
-                <ul className="rule-preview-list">
-                  {ruleDraft?.draftRules.map((rule, i) => (
-                    <li key={`${rule.status}-${rule.startUtc}-${rule.endUtc}-${i}`} className="rule-preview-item">
-                      <span className={`status-tag ${rule.status}`}>{rule.status === 'unavailable' ? 'UNAVAILABLE' : 'AVAILABLE'}</span>
-                      <code>{formatDraftRuleRange(rule.startUtc, rule.endUtc)}</code>
-                      {isAllDayDraftRule(rule.startUtc, rule.endUtc) ? <span className="rule-preview-all-day">All day</span> : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <Typography className="muted-empty">No proposed changes yet. Click Draft to preview.</Typography>
-              )}
-              {ruleDraft?.assumptions.length ? <><Typography variant="subtitle2" sx={{ mt: 1 }}>Assumptions</Typography><ul>{ruleDraft.assumptions.map((assumption, i) => <li key={`${assumption}-${i}`}>{assumption}</li>)}</ul></> : null}
-              {ruleDraft?.warnings.length ? <><Typography variant="subtitle2" sx={{ mt: 1 }}>Warnings</Typography><ul>{ruleDraft.warnings.map((warning, i) => <li key={`${warning.code}-${i}`}>{warning.message}</li>)}</ul></> : null}
-            </Box>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button type="button" variant="outlined" onClick={closeRulePromptModal}>Cancel</Button>
-          <Button type="button" variant="contained" onClick={() => void confirmRulePrompt()} disabled={!hasProposedRules || isConfirming}>{isConfirming ? 'Confirming…' : 'Add Rule'}</Button>
         </DialogActions>
       </Dialog>
 
