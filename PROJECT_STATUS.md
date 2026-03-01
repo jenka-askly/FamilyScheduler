@@ -5300,3 +5300,21 @@ Verification note:
 - `GET /api/group/members` now returns `memberKind` per member and defaults missing storage values to `'full'` for backward compatibility.
 - Members roster UI now renders a **Guest** badge in the Name column and disables Edit/Delete actions only on guest rows (with tooltip: “Not available for guest members.”).
 - Durable session behavior, Refresh, and Invite controls remain unchanged by guest rows.
+
+## 2026-03-01 00:39 UTC update (Utilities menu order + divider + right-aligned toggles)
+
+- Updated Dashboard `MarketingLayout` Utilities (burger) menu ordering for authenticated users to:
+  1. `Signed in as ...`
+  2. `Receive appointment update emails` (toggle)
+  3. `Dark mode` (toggle)
+  4. `Sign out`
+  5. divider
+  6. `Seed demo data…`
+- Added a subtle menu divider (`<Divider sx={{ my: 0.5 }} />`) between `Sign out` and `Seed demo data…` when the dogfood/dev seed action is present.
+- Right-aligned both toggles using `sx={{ ml: 'auto' }}` on each `Switch` to keep labels left and switches flush-right/aligned.
+- No handler/behavior changes for sign-out, dark mode toggling, email update preference toggling, or seed dialog opening.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅ passed.
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
