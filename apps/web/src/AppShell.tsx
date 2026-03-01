@@ -2845,18 +2845,13 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const goToSignIn = () => {
     window.location.hash = buildLoginPathWithNextFromHash(window.location.hash || '');
   };
+  const isCollapsed = headerCollapsed;
   const detailsAppointmentTitle = detailsData
     ? (detailsData.appointment.desc?.trim() || 'Untitled appointment')
     : 'Loading…';
-  const detailsAppointmentLocation = detailsData
-    ? (detailsData.appointment.locationDisplay || detailsData.appointment.location || '').trim()
-    : '';
-  const detailsAppointmentTime = detailsData
-    ? formatAppointmentTime(detailsData.appointment)
-    : '';
-  const detailsCollapsedMeta = detailsData
-    ? (detailsAppointmentLocation ? `${detailsAppointmentTime} · ${detailsAppointmentLocation}` : detailsAppointmentTime)
-    : '';
+  const timeText = detailsData ? formatAppointmentTime(detailsData.appointment) : '';
+  const locationText = detailsData ? (detailsData.appointment.locationDisplay || detailsData.appointment.location || '').trim() : '';
+  const collapsedMeta = locationText ? `${timeText} · ${locationText}` : timeText;
   const detailsLastEmailUpdate = detailsData ? (() => {
     const last = detailsData.lastNotification;
     if (!last) return 'Last email update: Never';
@@ -3152,8 +3147,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           {detailsOpen ? (
             <div className="ui-details-takeover">
               <div className="ui-details-takeover-header">
-                <Paper variant="outlined" sx={{ borderRadius: 2, p: headerCollapsed ? 1 : 2, width: '100%', boxSizing: 'border-box' }}>
-                  <Stack spacing={headerCollapsed ? 0.5 : 1.25}>
+                <Paper variant="outlined" sx={{ borderRadius: 2, p: isCollapsed ? 1 : 2, width: '100%', boxSizing: 'border-box' }}>
+                  <Stack spacing={isCollapsed ? 0.5 : 1.25}>
                     <Box
                       sx={{
                         display: 'flex',
@@ -3171,11 +3166,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       <Box sx={{ flex: 1, minWidth: 0, pt: 0.5 }}>
                         <Typography
                           variant="subtitle1"
-                          noWrap={headerCollapsed}
+                          noWrap={isCollapsed}
                           sx={{
                             fontWeight: 600,
                             minWidth: 0,
-                            ...(headerCollapsed
+                            ...(isCollapsed
                               ? {}
                               : {
                                 display: '-webkit-box',
@@ -3196,7 +3191,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           flexShrink: 0,
                           width: { xs: '100%', sm: 'auto' },
                           justifyContent: { xs: 'flex-end', sm: 'flex-end' },
-                          alignSelf: headerCollapsed ? 'center' : 'flex-start'
+                          alignSelf: isCollapsed ? 'center' : 'flex-start'
                         }}
                       >
                         <Box
@@ -3218,7 +3213,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             >
                               Email update
                             </Button>
-                            {!headerCollapsed ? (
+                            {!isCollapsed ? (
                               <Tooltip title="History">
                                 <span>
                                   <IconButton
@@ -3236,27 +3231,35 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                               </Tooltip>
                             ) : null}
                           </Box>
-                          {!headerCollapsed ? (
+                          {!isCollapsed ? (
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, textAlign: 'right' }}>
                               {detailsLastEmailUpdate ?? 'Last email update: Never'}
                             </Typography>
                           ) : null}
                         </Box>
-                        <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
-                          {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                        <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={isCollapsed ? 'Expand header' : 'Collapse header'}>
+                          {isCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
                         </IconButton>
                       </Box>
                     </Box>
                     {detailsData ? (
-                      headerCollapsed ? (
-                        <Typography variant="body2" sx={{ mt: 0.25, color: 'text.secondary', lineHeight: 1.2 }}>
-                          {detailsCollapsedMeta}
+                      // META_BLOCK
+                      isCollapsed ? (
+                        // Collapsed: single-line text meta (no icons) to reduce vertical space
+                        <Typography
+                          variant="body2"
+                          sx={{ mt: 0.25, color: 'text.secondary', lineHeight: 1.2 }}
+                        >
+                          {collapsedMeta}
                         </Typography>
                       ) : (
-                        <Stack spacing={0.75}>
-                          <Typography variant="body2" color="text.secondary">🕒 {detailsAppointmentTime}</Typography>
-                          {detailsAppointmentLocation ? <Typography variant="body2" color="text.secondary">📍 {detailsAppointmentLocation}</Typography> : null}
-                        </Stack>
+                        // Expanded: full meta rows with icons
+                        <>
+                          <Stack spacing={0.75}>
+                            <Typography variant="body2" color="text.secondary">🕒 {timeText}</Typography>
+                            {locationText ? <Typography variant="body2" color="text.secondary">📍 {locationText}</Typography> : null}
+                          </Stack>
+                        </>
                       )
                     ) : null}
                   </Stack>
