@@ -15100,3 +15100,33 @@ Keep the calendar toolbar Add (+) attention pulse visible longer for empty group
   2) click + and confirm pulse stops instantly,
   3) switch to a different empty group and confirm one-time pulse,
   4) return to first group and confirm no re-pulse in same session.
+
+## 2026-03-01 04:55 UTC (Marketing header logo fixed-size lockup)
+
+### Objective
+
+Lock the "Y" marketing header logo next to "Yapper" at a fixed 28x28px size and prevent flex shrink/compression while preserving header layout.
+
+### Approach
+
+- Edited `MarketingLayout` header brand lockup row to use `inline-flex` + `gap` spacing.
+- Removed em-based icon sizing/margin/vertical-align styles.
+- Applied fixed pixel icon size and flex-basis lock: `width: 28`, `height: 28`, `flex: '0 0 28px'`, `display: 'block'`.
+- Preserved `transform: 'translateY(1px)'` for optical baseline alignment.
+
+### Files changed
+
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '1,240p' apps/web/src/components/layout/MarketingLayout.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for UI verification/screenshot (stopped after capture)
+- Playwright screenshot + computed-style verification ✅
+
+### Follow-ups
+
+- Manual browser check at very narrow widths to confirm no wrap/crowding regression in real device viewport combinations.

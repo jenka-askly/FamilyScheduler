@@ -1,3 +1,9 @@
+## 2026-03-01 04:55 UTC update (Lock marketing header logo to fixed 28px)
+
+- Updated the marketing header lockup in `MarketingLayout` to use an inline-flex row with explicit `gap: '6px'` for icon/text spacing.
+- Replaced em-based icon sizing with fixed pixel sizing (`width: 28`, `height: 28`) and locked flex behavior (`flex: '0 0 28px'`) so the logo cannot shrink under constrained header width.
+- Kept existing optical alignment transform and did not change global typography/theme sizing.
+
 ## 2026-03-01 04:49 UTC update (Members invite chips always include send/resend action)
 
 - Members table invite status chips now always include an inline action for invited rows: **Send** (`not_sent`) or **Resend** (`sent`/`failed`).

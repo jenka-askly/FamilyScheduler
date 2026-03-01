@@ -61,12 +61,12 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
       <Container maxWidth="lg" sx={{ pt: { xs: 3, md: 5 }, pb: { xs: 7, md: 10 }, flexGrow: 1 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: { xs: 4, md: 7 } }}>
           <Box>
-            <Stack direction="row" spacing={0} alignItems="center">
+            <Stack direction="row" alignItems="center" sx={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <Box
                 component="img"
                 src={yapperIcon}
                 alt="Yapper"
-                sx={{ width: 'auto', height: '1em', mr: '0.3em', verticalAlign: 'middle', transform: 'translateY(1px)' }}
+                sx={{ width: 28, height: 28, flex: '0 0 28px', display: 'block', transform: 'translateY(1px)' }}
               />
               <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.02em', color: 'primary.main', lineHeight: 1 }}>
                 Yapper
