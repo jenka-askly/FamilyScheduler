@@ -15258,3 +15258,38 @@ Implement a minimal layout-only change so Members and Schedule use the same tool
 ### Follow-ups
 
 - Manual browser smoke on desktop + narrow width to confirm right action baseline/divider parity between Schedule and Members on target runtime.
+
+## 2026-03-01 06:42 UTC (Appointment Details takeover pane replaces modal)
+
+### Objective
+
+Implement a single Appointment Details takeover pane in `ui-main` that replaces Schedule/Members while open, with a left-side close button, sticky header, and single-scroll body.
+
+### Approach
+
+- Removed the `Dialog` wrapper previously used for appointment details.
+- Hoisted the existing appointment-details inner JSX into a reusable in-component constant (`appointmentDetailsContent`) without changing inner controls/logic.
+- Added a `detailsOpen ? ... : ...` conditional in `ui-main` so details takeover fully replaces existing Schedule/Members section UI while open.
+- Attached `detailsScrollRef` to the new takeover body (`.ui-details-takeover-body`) so scroll tracking/pin logic keeps using the actual scroll element.
+- Added dedicated takeover CSS classes for full-height flex column layout, sticky header, and single scroll body.
+- Removed now-unused `ArrowBackIcon` import that was only needed by the old dialog title close behavior.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -maxdepth 4` ✅ (none found)
+- `sed -n '3520,3920p' apps/web/src/AppShell.tsx` ✅ (located existing details dialog block)
+- `pnpm --filter @familyscheduler/web typecheck` ❌ (initial syntax errors from migration)
+- `pnpm --filter @familyscheduler/web typecheck` ✅ (after JSX structure fixes)
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture)
+- Playwright screenshot capture ✅ (`browser:/tmp/codex_browser_invocations/a6713ebc5fd5e570/artifacts/artifacts/details-takeover.png`)
+
+### Follow-ups
+
+- Manual interactive smoke in local browser session with appointment data: open/close details, verify Schedule/Members hide while open, and validate reminders/discussion/changes/constraints interactions still function.
