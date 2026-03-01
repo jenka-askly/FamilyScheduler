@@ -14975,3 +14975,33 @@ Remove the web UI entry point and dialog for “Add or Update Events” (AI scan
 ### Follow-ups
 - Deploy to staging, cold-restart Functions app, and confirm `GroupInviteTokens` auto-appears in table list.
 - Re-test `POST /api/group/invite-email`; expect no `TableNotFound`.
+
+## 2026-03-01 04:42 UTC (Extend + pulse visibility to 60s with immediate interaction stop)
+
+### Objective
+Keep the calendar toolbar Add (+) attention pulse visible longer for empty groups by extending pulse runtime to 60 seconds while preserving once-per-group-per-session behavior.
+
+### Approach
+- Updated `.ui-addPulse` to a gentle infinite animation loop and simplified keyframes to subtle scale-only motion.
+- Updated the empty-group pulse effect timeout in `AppShell` from `2000ms` to `60000ms`, retaining cleanup.
+- Confirmed existing Add (+) click handler already stops pulse immediately via `setShouldPulseAdd(false)`.
+- Kept existing session/in-memory guard logic untouched (`sessionStorage` + `pulsedInMemory`).
+
+### Files changed
+- `apps/web/src/styles.css`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ✅
+- `sed -n '1,240p' apps/web/src/styles.css && sed -n '1,320p' apps/web/src/AppShell.tsx` ✅
+- `rg -n "shouldPulseAdd|addPulse|pulsedInMemory|sessionStorage|setShouldPulseAdd|onClick" apps/web/src/AppShell.tsx` ✅
+- `rg -n "ui-addPulse|@keyframes ui-addPulse" apps/web/src/styles.css && sed -n '1808,1836p' apps/web/src/styles.css && sed -n '2128,2165p' apps/web/src/AppShell.tsx` ✅
+
+### Follow-ups
+- Manual UI verification in browser session:
+  1) open an empty group and observe toolbar + pulsing up to ~60s,
+  2) click + and confirm pulse stops instantly,
+  3) switch to a different empty group and confirm one-time pulse,
+  4) return to first group and confirm no re-pulse in same session.
