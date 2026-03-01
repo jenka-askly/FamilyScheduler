@@ -5406,3 +5406,13 @@ Verification note:
 - Fixed a TypeScript generic mismatch in `upsertTableEntity` by typing the helper input as `TableEntity<T>` instead of unconstrained `T`, matching Azure Tables `upsertEntity` requirements.
 - Behavior is unchanged at runtime; this is a compile-time typing fix to satisfy `partitionKey`/`rowKey` entity shape expectations.
 - Build verification in this container is currently blocked by missing private package registry access (`ERR_PNPM_FETCH_403`), so full API build could not be completed locally after the change.
+## 2026-03-01 02:58 UTC update (Tabs visual simplification: Schedule/Members)
+
+- Simplified the Schedule/Members section tabs in `AppShell` to use standard MUI underline indicator behavior.
+- Removed tab-strip framing/seam hacks used for a sheet-style selected tab (hidden indicator, selected background fill, negative margin, z-index, and wrapper bottom border).
+- Kept tab value/onChange semantics unchanged (`calendar`/`members`) so existing section switching and members-loading behavior are preserved.
+- Removed the content seam hack on the section container (`Paper` no longer disables top border), while keeping the existing overall layout/radius behavior.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ⚠️ blocked by package manager bootstrap/network restriction in this environment (corepack fetch to npm registry failed via proxy 403).
