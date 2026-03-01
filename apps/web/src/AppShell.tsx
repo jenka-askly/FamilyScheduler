@@ -2186,10 +2186,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       // Ignore sessionStorage failures and rely on in-memory pulse tracking.
     }
 
-    const timeoutId = window.setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       setShouldPulseAdd(false);
-    }, 2000);
-    return () => window.clearTimeout(timeoutId);
+    }, 60000);
+    return () => window.clearTimeout(timeout);
   }, [groupId, isEmpty]);
 
   const editingAppointment = whenEditorCode

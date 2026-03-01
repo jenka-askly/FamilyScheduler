@@ -1810,18 +1810,16 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
 }
 
 .ui-addPulse {
-  animation: ui-addPulse 1.8s ease-in-out 1;
+  animation: ui-addPulse 2.5s ease-in-out infinite;
   transform-origin: center;
 }
 
 @keyframes ui-addPulse {
-  0%, 11.111%, 22.222%, 33.333%, 44.444%, 55.555%, 66.666%, 77.777%, 100% {
+  0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--ui-primary, #2563eb) 0%, transparent);
   }
-  5.555%, 27.777%, 50% {
-    transform: scale(1.06);
-    box-shadow: 0 0 0 6px color-mix(in srgb, var(--ui-primary, #2563eb) 14%, transparent);
+  50% {
+    transform: scale(1.05);
   }
 }
 
