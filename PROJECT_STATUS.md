@@ -1,3 +1,10 @@
+## 2026-03-01 04:49 UTC update (Members invite chips always include send/resend action)
+
+- Members table invite status chips now always include an inline action for invited rows: **Send** (`not_sent`) or **Resend** (`sent`/`failed`).
+- Invite-status display is centralized via a single `renderInviteChip(row)` helper in `AppShell`.
+- Removed dependence on any persistent invite-mail action in the Members Actions column; invite mail action now lives with the status chip under Email.
+- Failed invite chips continue to show friendly failure details via tooltip reason mapping/provider message.
+
 ## 2026-03-01 04:42 UTC update (Extend empty-state Add pulse to 60 seconds)
 
 - Updated calendar toolbar **Add (+)** pulse animation to a gentle infinite cycle (`2.5s ease-in-out`) with subtle scale-only movement (`1 -> 1.05 -> 1`).
