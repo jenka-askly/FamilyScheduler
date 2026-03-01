@@ -1,3 +1,10 @@
+## 2026-03-01 00:55 UTC update (Members panel rules UI removal)
+
+- Removed the **Rules** action from each People row in the Members panel.
+- Removed inline expanded rules detail rows under People table entries.
+- Kept underlying rules data/API behavior intact for other app surfaces.
+- Cleaned now-unused AppShell members-rules UI state/helpers and removed unused Members-rules CSS classes.
+
 ## 2026-03-01 00:07 UTC update (Dashboard Utilities demo seed modal + configurable seeded density)
 
 - Dashboard Utilities menu now includes a **dogfood/dev-only** `Seed demo data…` action (`import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'`) that opens a compact modal for seed parameters.

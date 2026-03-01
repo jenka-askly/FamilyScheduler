@@ -1,4 +1,29 @@
 
+## 2026-03-01 00:55 UTC (Issue #2: remove Members/People rules UI)
+
+### Objective
+Remove the Rules action and inline rules rows from Members/People panel UI without changing rules data/API behavior.
+
+### Approach
+- Removed People table row-level Rules icon/action from `AppShell`.
+- Removed inline rules expansion row rendering beneath People rows.
+- Removed now-unused rules-modal/delete flow state and helper functions that were only used by Members panel rules UI.
+- Removed unused CSS classes tied to removed Members rules rows/preview blocks.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "Rules|rules-row|personRules|openRulePromptModal|rule-item|rule-actions" apps/web/src/AppShell.tsx apps/web/src/styles.css` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+
+### Follow-ups
+- Manual UI smoke in Members panel: verify only Edit/Delete actions remain and table row layout is unchanged.
+
+
 ## 2026-02-28 23:09 UTC (Profile hard gate + blocking modal + create-group identity source)
 
 ### Objective
