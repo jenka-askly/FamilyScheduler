@@ -43,6 +43,7 @@ export type UserGroupsEntity = {
   removedAt?: string;
   updatedAt: string;
   memberKind?: MemberKind;
+  emailVerified?: boolean;
 };
 
 export type GroupMembersEntity = {
@@ -56,6 +57,7 @@ export type GroupMembersEntity = {
   removedAt?: string;
   updatedAt: string;
   memberKind?: MemberKind;
+  emailVerified?: boolean;
 };
 
 export type AppointmentsIndexEntity = {
