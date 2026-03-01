@@ -2782,50 +2782,78 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const goToSignIn = () => {
     window.location.hash = buildLoginPathWithNextFromHash(window.location.hash || '');
   };
+  const detailsAppointmentTitle = detailsData
+    ? (detailsData.appointment.desc?.trim() || 'Untitled appointment')
+    : 'Appointment';
+  const detailsLocation = detailsData?.appointment.locationDisplay?.trim() || detailsData?.appointment.location?.trim() || '';
+
   const appointmentDetailsContent = (
     <>
       {detailsData ? (
-            <Stack spacing={1.5}>
-            <Box>
-              <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
-                <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
-                  {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
-                </IconButton>
-              </Stack>
-              {!headerCollapsed ? (
-                <Stack spacing={0.5}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsData.appointment.desc || 'Appointment'}</Typography>
-                  <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
-                  <Typography variant="body2" color="text.secondary">📍 {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
+        <Stack spacing={2}>
+          <Box>
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+              <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
+                {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+              </IconButton>
+            </Stack>
+            <Stack spacing={headerCollapsed ? 1.25 : 2}>
+              <Paper variant="outlined" sx={{ p: headerCollapsed ? 1.25 : 1.5, borderRadius: 2 }}>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" color="text.secondary">Summary</Typography>
+                  <Stack
+                    direction={{ xs: 'column', sm: detailsLocation ? 'row' : 'column' }}
+                    spacing={{ xs: 0.75, sm: 2 }}
+                    sx={{ alignItems: { xs: 'flex-start', sm: detailsLocation ? 'center' : 'flex-start' } }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, minWidth: 0 }}>🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
+                    {detailsLocation ? <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 0 }}>📍 {detailsLocation}</Typography> : null}
+                  </Stack>
                 </Stack>
-              ) : (
-                <Typography variant="body2" color="text.secondary">{detailsData.appointment.desc || 'Appointment'} · {formatAppointmentTime(detailsData.appointment)} · {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
-              )}
-              <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<MailOutlineIcon fontSize="small" />}
-                  onClick={openEmailUpdateDialog}
-                  disabled={!detailsAppointmentId || !detailsData}
-                >
-                  Email update
-                </Button>
-                <Tooltip title="History">
-                  <span>
-                    <IconButton
-                      size="small"
-                      onClick={openEmailHistoryMenu}
-                      disabled={!detailsAppointmentId}
-                      aria-label="History"
-                      aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
-                      aria-haspopup="menu"
-                      aria-expanded={historyMenuOpen ? 'true' : undefined}
-                    >
-                      <ReceiptLongOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
+              </Paper>
+
+              <Stack spacing={0.75}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<MailOutlineIcon fontSize="small" />}
+                    onClick={openEmailUpdateDialog}
+                    disabled={!detailsAppointmentId || !detailsData}
+                  >
+                    Email update
+                  </Button>
+                  <Tooltip title="History">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={openEmailHistoryMenu}
+                        disabled={!detailsAppointmentId}
+                        aria-label="History"
+                        aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
+                        aria-haspopup="menu"
+                        aria-expanded={historyMenuOpen ? 'true' : undefined}
+                      >
+                        <ReceiptLongOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal' }}>
+                  {(() => {
+                    const last = detailsData.lastNotification;
+                    if (!last) return 'Last email update: Never';
+                    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
+                    if (last.deliveryStatus === 'partial') {
+                      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
+                      const short = missed.slice(0, 2).join(', ');
+                      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
+                      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
+                      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
+                    }
+                    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
+                  })()}
+                </Typography>
                 <Menu
                   id="details-history-menu"
                   open={historyMenuOpen}
@@ -2868,70 +2896,65 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                     );
                   })}
                 </Menu>
-                <Typography variant="caption" color="text.secondary">
-                  {(() => {
-                    const last = detailsData.lastNotification;
-                    if (!last) return 'Last email update: Never';
-                    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
-                    if (last.deliveryStatus === 'partial') {
-                      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
-                      const short = missed.slice(0, 2).join(', ');
-                      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
-                      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
-                      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
-                    }
-                    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
-                  })()}
-                </Typography>
+              </Stack>
 
-              <Stack spacing={0.75} sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">Reminders</Typography>
-                {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
-                {(detailsData.reminders ?? []).map((reminder) => (
-                  <Stack key={reminder.reminderId} direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                    <Typography variant="body2">
-                      {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
-                    </Typography>
-                    {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reminders</Typography>
+                  {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
+                  {(detailsData.reminders ?? []).map((reminder) => (
+                    <Stack
+                      key={reminder.reminderId}
+                      direction={{ xs: 'column', sm: 'row' }}
+                      alignItems={{ xs: 'flex-start', sm: 'center' }}
+                      justifyContent="space-between"
+                      spacing={1}
+                    >
+                      <Typography variant="body2">
+                        {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
+                      </Typography>
+                      {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
+                    </Stack>
+                  ))}
+                  {(detailsData.reminders ?? []).length > 0 ? <Divider /> : null}
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                    <TextField
+                      size="small"
+                      select
+                      label="Offset"
+                      value={reminderOffsetMinutes}
+                      onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
+                      sx={{ width: { xs: '100%', sm: 170 } }}
+                    >
+                      <MenuItem value={15}>15 minutes</MenuItem>
+                      <MenuItem value={30}>30 minutes</MenuItem>
+                      <MenuItem value={60}>1 hour</MenuItem>
+                      <MenuItem value={1440}>1 day</MenuItem>
+                    </TextField>
+                    <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} sx={{ flex: 1 }} />
+                    <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId} sx={{ width: { xs: '100%', sm: 'auto' } }}>Add reminder</Button>
                   </Stack>
-                ))}
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  <TextField
-                    size="small"
-                    select
-                    label="Offset"
-                    value={reminderOffsetMinutes}
-                    onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
-                    sx={{ minWidth: 140 }}
-                  >
-                    <MenuItem value={15}>15 minutes</MenuItem>
-                    <MenuItem value={30}>30 minutes</MenuItem>
-                    <MenuItem value={60}>1 hour</MenuItem>
-                    <MenuItem value={1440}>1 day</MenuItem>
-                  </TextField>
-                  <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} />
-                  <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId}>Add reminder</Button>
                 </Stack>
-                {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
-              </Stack>
+              </Paper>
 
-              </Stack>
-            </Box>
-            <Stack spacing={1}>
-              <Stack direction="row" spacing={1} flexWrap="wrap">
-                {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
-                  const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
-                  if (!active.length) return null;
-                  const conflicted = active.some((entry) => entry.conflicted);
-                  return <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />;
-                })}
-              </Stack>
+              {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
+              {Object.entries(detailsData.suggestions?.byField ?? {}).some(([, list]) => (list ?? []).some((entry) => entry.active && entry.status === 'active')) ? (
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
+                    const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
+                    if (!active.length) return null;
+                    const conflicted = active.some((entry) => entry.conflicted);
+                    return <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />;
+                  })}
+                </Stack>
+              ) : null}
             </Stack>
-            <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
-              <Tab value="discussion" label="Discussion" />
-              <Tab value="changes" label="Changes" />
-              <Tab value="constraints" label="Constraints" />
-            </Tabs>
+          </Box>
+          <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
+            <Tab value="discussion" label="Discussion" />
+            <Tab value="changes" label="Changes" />
+            <Tab value="constraints" label="Constraints" />
+          </Tabs>
             {detailsTab === 'discussion' ? (
               <Stack spacing={1}>
                 {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
@@ -3150,7 +3173,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 <IconButton className="ui-details-close" aria-label="Close" onClick={closeAppointmentDetails}>
                   <CloseIcon />
                 </IconButton>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Appointment</Typography>
+                <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600, flex: 1, minWidth: 0 }}>{detailsAppointmentTitle}</Typography>
               </div>
               <div className="ui-details-takeover-body" ref={detailsScrollRef}>
                 {appointmentDetailsContent}

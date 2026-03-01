@@ -5567,3 +5567,20 @@ Verification note:
 - Left todo drawer and other drawer/dialog usages unchanged.
 
 - Appointment details: mobile full-screen/back behavior implemented in web AppShell; desktop inline third-panel layout still pending.
+
+## 2026-03-01 07:27 UTC update (Appointment details above-tabs UI cleanup)
+
+- Updated appointment takeover sticky header label to use appointment title (`detailsData.appointment.desc`) with safe fallback (`Untitled appointment`) and ellipsis truncation.
+- Refactored only the area **above Discussion/Changes/Constraints tabs** into:
+  - Summary card (time + optional location, responsive stack/row behavior)
+  - Lighter email action row (Email update, History menu, last update text)
+  - Reminders card (existing reminder list/actions, touch-friendly responsive composer)
+  - Optional suggestion chips row (renders only when active suggestions exist)
+- Preserved existing handlers/behavior for email update, history menu, reminders add/cancel, suggestion chip actions, and header collapse toggle.
+- Left tabs and all tab panel contents/logic unchanged; `detailsScrollRef` usage and takeover body scroll behavior unchanged.
+
+### Verification run
+
+1. `npm --prefix apps/web run typecheck` ✅ passed.
+2. `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started for screenshot capture and stopped intentionally.
+3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/b127057f968cff77/artifacts/artifacts/appointment-ui-cleanup.png`.
