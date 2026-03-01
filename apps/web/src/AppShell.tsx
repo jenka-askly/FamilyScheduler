@@ -55,9 +55,9 @@ type Snapshot = {
 };
 
 
-type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; emailVerified: boolean; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string; lastSeenAtUtc?: string | null };
+type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; emailVerified: boolean; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string; lastSeenAtUtc?: string | null; inviteEmailStatus?: 'sent' | 'failed' | 'not_sent'; inviteEmailLastAttemptAtUtc?: string; inviteEmailFailedReason?: string; inviteEmailProviderMessage?: string };
 type GroupMembersResponse = { ok?: boolean; groupId?: string; members?: GroupMemberRosterEntry[]; traceId?: string; message?: string };
-type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; emailVerified: boolean; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string | null; timezone?: string; notes?: string };
+type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; emailVerified: boolean; cellDisplay: string; cellE164: string; status: 'active' | 'invited' | 'removed'; lastSeen?: string | null; timezone?: string; notes?: string; inviteEmailStatus?: 'sent' | 'failed' | 'not_sent'; inviteEmailFailedReason?: string; inviteEmailProviderMessage?: string; inviteEmailLastAttemptAtUtc?: string };
 
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
@@ -634,6 +634,13 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [inviteQrImageUrl, setInviteQrImageUrl] = useState<string>('');
   const [isInviteLoading, setIsInviteLoading] = useState(false);
   const [isInviteClosing, setIsInviteClosing] = useState(false);
+  const [inviteByEmailOpen, setInviteByEmailOpen] = useState(false);
+  const [inviteByEmailRecipientEmail, setInviteByEmailRecipientEmail] = useState('');
+  const [inviteByEmailRecipientName, setInviteByEmailRecipientName] = useState('');
+  const [inviteByEmailPersonalMessage, setInviteByEmailPersonalMessage] = useState('');
+  const [inviteByEmailError, setInviteByEmailError] = useState<string | null>(null);
+  const [inviteByEmailSending, setInviteByEmailSending] = useState(false);
+  const [inviteByEmailResendingUserKey, setInviteByEmailResendingUserKey] = useState<string | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
@@ -1507,12 +1514,93 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }
   };
 
-  const onInviteByEmailNYI = () => {
-    closeInviteMenu();
-    showInviteNotice('Invite by email is not yet implemented.');
+  const inviteFailureReasonLabel = (reason?: string): string => {
+    if (reason === 'invalid_address') return 'Invalid recipient address';
+    if (reason === 'suppressed') return 'Recipient address is suppressed';
+    if (reason === 'provider_rejected') return 'Provider rejected the email';
+    if (reason === 'rate_limited') return 'Rate limited; try again later';
+    if (reason === 'config_missing') return 'Email configuration is missing';
+    if (reason === 'transient') return 'Temporary provider error';
+    if (!reason) return 'Unknown delivery failure';
+    return `Delivery failed (${reason})`;
   };
 
+  const openInviteByEmailModal = () => {
+    closeInviteMenu();
+    setInviteByEmailError(null);
+    setInviteByEmailRecipientEmail('');
+    setInviteByEmailRecipientName('');
+    setInviteByEmailPersonalMessage('');
+    setInviteByEmailOpen(true);
+  };
 
+  const closeInviteByEmailModal = () => {
+    if (inviteByEmailSending) return;
+    setInviteByEmailOpen(false);
+    setInviteByEmailError(null);
+  };
+
+  const sendInviteByEmail = async (args?: { recipientEmail?: string; recipientName?: string; personalMessage?: string; userKeyForState?: string }) => {
+    const recipientEmail = (args?.recipientEmail ?? inviteByEmailRecipientEmail).trim();
+    const recipientName = (args?.recipientName ?? inviteByEmailRecipientName).trim();
+    const personalMessage = (args?.personalMessage ?? inviteByEmailPersonalMessage).trim();
+    if (!recipientEmail || !recipientEmail.includes('@')) {
+      setInviteByEmailError('Recipient email is required.');
+      return;
+    }
+    if (personalMessage.length > 500) {
+      setInviteByEmailError('Personal message must be 500 characters or less.');
+      return;
+    }
+
+    if (args?.userKeyForState) {
+      setInviteByEmailResendingUserKey(args.userKeyForState);
+    } else {
+      setInviteByEmailSending(true);
+    }
+    setInviteByEmailError(null);
+
+    try {
+      const response = await apiFetch('/api/group/invite-email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          recipientEmail,
+          recipientName: recipientName || undefined,
+          personalMessage: personalMessage || undefined,
+          traceId: createTraceId()
+        })
+      });
+      const payload = await response.json() as { ok?: boolean; message?: string; inviteEmailStatus?: 'sent' | 'failed' | 'not_sent'; inviteEmailFailedReason?: string };
+      if (!response.ok || !payload.ok) {
+        const message = payload.message ?? 'Unable to send invite email.';
+        if (args?.userKeyForState) showNotice('error', message);
+        else setInviteByEmailError(message);
+        return;
+      }
+
+      await loadMembersRoster();
+      if (payload.inviteEmailStatus === 'failed') {
+        showNotice('info', `Invite created; email delivery failed: ${inviteFailureReasonLabel(payload.inviteEmailFailedReason)}`);
+      } else {
+        showNotice('success', args?.userKeyForState ? 'Invite resent.' : 'Invite sent.');
+      }
+
+      if (!args?.userKeyForState) {
+        setInviteByEmailOpen(false);
+      }
+    } catch {
+      if (args?.userKeyForState) showNotice('error', 'Unable to resend invite email.');
+      else setInviteByEmailError('Unable to send invite email.');
+    } finally {
+      if (args?.userKeyForState) {
+        setInviteByEmailResendingUserKey(null);
+      } else {
+        setInviteByEmailSending(false);
+      }
+    }
+  };
 
   const loadMembersRoster = async () => {
     try {
@@ -1840,14 +1928,18 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         emailVerified: member.emailVerified,
         cellDisplay: '',
         cellE164: '',
-        status: member.status === 'invited' ? 'removed' as const : 'active' as const,
+        status: member.status === 'invited' ? 'invited' as const : 'active' as const,
         lastSeen: member.lastSeenAtUtc ?? null,
+        inviteEmailStatus: member.inviteEmailStatus ?? 'not_sent',
+        inviteEmailFailedReason: member.inviteEmailFailedReason,
+        inviteEmailProviderMessage: member.inviteEmailProviderMessage,
+        inviteEmailLastAttemptAtUtc: member.inviteEmailLastAttemptAtUtc,
         timezone: undefined,
         notes: undefined
       }))
   ), [membersRoster]);
   const activePeople = rosterBackedPeople.filter((person) => person.status === 'active');
-  const peopleInView = activePeople;
+  const peopleInView = rosterBackedPeople;
   const signedInPersonName = activePeople.find((person) => person.email.trim().toLowerCase() === sessionEmail.trim().toLowerCase())?.name?.trim() || null;
   const emailEligiblePeople = activePeople;
   const selectedAppointmentForEmail = detailsData?.appointment ?? null;
@@ -2794,7 +2886,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 </Tooltip>
                 <Menu anchorEl={inviteMenuAnchorEl} open={Boolean(inviteMenuAnchorEl)} onClose={closeInviteMenu}>
                   <MenuItem onClick={() => { void openInviteQr(); }}>Invite Member by QR</MenuItem>
-                  <MenuItem onClick={onInviteByEmailNYI}>Invite by email (NYI)</MenuItem>
+                  <MenuItem onClick={openInviteByEmailModal}>Invite by email…</MenuItem>
                 </Menu>
               </Box>
               {inviteNotice ? <Alert severity="info" sx={{ mb: 2 }}>{inviteNotice}</Alert> : null}
@@ -2821,12 +2913,25 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             </Stack>
                           </td>
                           <td className="email-col">
-                            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-                              <span className="line-clamp" title={person.email}>{person.email || '—'}</span>
-                              {person.emailVerified === false ? (
-                                <Tooltip title="Email not verified.">
-                                  <Chip size="small" label="Unverified" variant="outlined" />
-                                </Tooltip>
+                            <Stack direction="column" spacing={0.5} sx={{ minWidth: 0 }}>
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                                <span className="line-clamp" title={person.email}>{person.email || '—'}</span>
+                                {person.emailVerified === false ? (
+                                  <Tooltip title="Email not verified.">
+                                    <Chip size="small" label="Unverified" variant="outlined" />
+                                  </Tooltip>
+                                ) : null}
+                              </Stack>
+                              {person.status === 'invited' ? (
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  {person.inviteEmailStatus === 'sent' ? <Chip size="small" color="success" label="Invite sent" /> : null}
+                                  {person.inviteEmailStatus === 'failed' ? (
+                                    <Tooltip title={person.inviteEmailProviderMessage || inviteFailureReasonLabel(person.inviteEmailFailedReason)}>
+                                      <Chip size="small" color="warning" label="Delivery failed" />
+                                    </Tooltip>
+                                  ) : null}
+                                  {(person.inviteEmailStatus === 'not_sent' || !person.inviteEmailStatus) ? <Chip size="small" variant="outlined" label="Not sent" /> : null}
+                                </Stack>
                               ) : null}
                             </Stack>
                           </td>
@@ -2844,6 +2949,20 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                                   </IconButton>
                                 </span>
                               </Tooltip>
+                              {person.status === 'invited' ? (
+                                <Tooltip title="Resend invite email">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      aria-label="Resend invite email"
+                                      onClick={() => { void sendInviteByEmail({ recipientEmail: person.email, recipientName: person.name, userKeyForState: person.personId }); }}
+                                      disabled={inviteByEmailResendingUserKey === person.personId}
+                                    >
+                                      <MailOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              ) : null}
                               <Tooltip title="Delete person">
                                 <span>
                                   <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }}>
@@ -2864,6 +2983,46 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           </Paper>
         </section>
       </div>
+
+      <Dialog open={inviteByEmailOpen} onClose={closeInviteByEmailModal} fullWidth maxWidth="sm">
+        <DialogTitle>Invite by email</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 0.5 }}>
+            <TextField
+              label="Recipient email"
+              required
+              value={inviteByEmailRecipientEmail}
+              onChange={(event) => setInviteByEmailRecipientEmail(event.target.value)}
+              autoComplete="email"
+              type="email"
+              fullWidth
+            />
+            <TextField
+              label="Recipient name (optional)"
+              value={inviteByEmailRecipientName}
+              onChange={(event) => setInviteByEmailRecipientName(event.target.value)}
+              autoComplete="name"
+              fullWidth
+            />
+            <TextField
+              label="Personal message (optional)"
+              value={inviteByEmailPersonalMessage}
+              onChange={(event) => setInviteByEmailPersonalMessage(event.target.value.slice(0, 500))}
+              multiline
+              minRows={3}
+              fullWidth
+              helperText={`${inviteByEmailPersonalMessage.length}/500`}
+            />
+            {inviteByEmailError ? <Alert severity="error">{inviteByEmailError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={closeInviteByEmailModal} disabled={inviteByEmailSending}>Cancel</Button>
+          <Button type="button" variant="contained" onClick={() => { void sendInviteByEmail(); }} disabled={inviteByEmailSending}>
+            {inviteByEmailSending ? 'Sending…' : 'Send invite'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Quick add</DialogTitle>

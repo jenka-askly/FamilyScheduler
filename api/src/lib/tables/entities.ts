@@ -45,6 +45,10 @@ export type UserGroupsEntity = {
   memberKind?: MemberKind;
   emailVerified?: boolean;
   lastSeenAtUtc?: string;
+  inviteEmailStatus?: 'sent' | 'failed' | 'not_sent';
+  inviteEmailLastAttemptAtUtc?: string;
+  inviteEmailFailedReason?: string;
+  inviteEmailProviderMessage?: string;
 };
 
 export type GroupMembersEntity = {
@@ -60,6 +64,10 @@ export type GroupMembersEntity = {
   memberKind?: MemberKind;
   emailVerified?: boolean;
   lastSeenAtUtc?: string;
+  inviteEmailStatus?: 'sent' | 'failed' | 'not_sent';
+  inviteEmailLastAttemptAtUtc?: string;
+  inviteEmailFailedReason?: string;
+  inviteEmailProviderMessage?: string;
 };
 
 export type AppointmentsIndexEntity = {
@@ -367,6 +375,20 @@ export const upsertAppointmentParticipant = async (params: {
 
 export const deleteAppointmentParticipant = async (groupId: string, appointmentId: string, userKey: string): Promise<void> => {
   await getTableClient(APPOINTMENT_PARTICIPANTS_TABLE).deleteEntity(`g:${groupId}|a:${appointmentId}`, userKey);
+};
+
+
+export const getTableEntity = async <T extends Record<string, unknown>>(tableName: string, partitionKey: string, rowKey: string): Promise<T | null> => {
+  try {
+    return await getTableClient(tableName).getEntity<T>(partitionKey, rowKey);
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+};
+
+export const upsertTableEntity = async <T extends Record<string, unknown>>(tableName: string, entity: T): Promise<void> => {
+  await getTableClient(tableName).upsertEntity(entity, 'Merge');
 };
 
 export const getNumeric = (entity: TableEntityResult<Record<string, unknown>> | Record<string, unknown>, key: string): number => {

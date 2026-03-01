@@ -5385,3 +5385,18 @@ Verification note:
 2. `pnpm --filter @familyscheduler/api test` ⚠️ blocked by missing `@azure/data-tables` type/module resolution in this environment.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/86b92be776b38016/artifacts/artifacts/issue3-members-ui.png`.
+
+## 2026-03-01 02:05 UTC update (Issue #5: Invite-by-email modal + delivery status + resend)
+
+- Implemented `POST /api/group/invite-email` to create/update invited memberships and attempt invite email delivery (with inviter reply-to, optional recipient name, optional plain-text personal message, and join link token).
+- Added invite email delivery fields on membership entities (`inviteEmailStatus`, `inviteEmailLastAttemptAtUtc`, `inviteEmailFailedReason`, `inviteEmailProviderMessage`) and included them in `GET /api/group/members` responses.
+- Members panel now includes `Invite by email…` modal (required email, optional name/message, 500-char message cap, no CC/send-copy option).
+- Invited rows now render delivery status chips (`Invite sent`, `Delivery failed`, `Not sent`) plus failure tooltip details.
+- Added resend invite action for invited rows; resend reuses the same endpoint and then programmatically reloads roster (no Refresh button introduced).
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+2. `pnpm --filter @familyscheduler/api test -- groupInviteEmail.test.ts groupMembers.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/725343b9499f5acf/artifacts/artifacts/issue5-invite-by-email-ui.png`.
