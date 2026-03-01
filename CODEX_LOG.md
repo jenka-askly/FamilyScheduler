@@ -15420,6 +15420,38 @@ Fix scan viewer failures for scan-created appointments where direct `<img src="/
 
 - Manual local flow check with real scan data: open doc viewer for scan-created appointment and verify the image renders, retry behavior works for forced auth failures, and no revoked-URL console errors appear in normal usage.
 
+## 2026-03-01 09:02 UTC (Fix appointment detail 404 caused by state snapshot drift)
+
+### Objective
+
+Fix `get_appointment_detail` so detail existence checks are based on table/blob truth (`AppointmentsIndex` + `appointment.json`) and no longer fail when `state.json.appointments` is stale.
+
+### Approach
+
+- In direct handler, replaced `state.appointments.find(...)` gate for `get_appointment_detail` with:
+  1) `findAppointmentIndexById(groupId, appointmentId)`
+  2) reject if missing or `isDeleted === true`
+  3) `getAppointmentJson(groupId, appointmentId)`
+  4) reject if blob missing
+- Added WARN diagnostics for each not-found reason:
+  - `index_missing`
+  - `index_deleted`
+  - `blob_missing`
+- Kept membership enforcement untouched.
+- Reused index/doc snapshot mapping logic by extracting a shared mapper in `buildAppointmentsSnapshot` and using new exported helper for single-doc detail mapping.
+- Added tests to cover:
+  - stale `state.json` but valid index+blob => 200
+  - missing index => 404
+  - deleted index => 404
+  - missing blob with existing index => 404 + warn signal
+- Updated storage design doc to explicitly state detail existence check is index/doc-based, not `state.json`.
+
+### Files changed
+
+- `api/src/functions/direct.ts`
+- `api/src/lib/appointments/buildAppointmentsSnapshot.ts`
+- `api/src/functions/direct.test.ts`
+- `docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md`
 ## 2026-03-01 07:59 UTC (Scan image with 2 appointments only creates 1)
 
 ### Objective
@@ -15449,6 +15481,13 @@ Implement multi-appointment extraction + creation for scan-from-photo; remove pl
 
 ### Commands run + outcomes
 
+- `find .. -name AGENTS.md -print` ✅ (none found)
+- `rg -n "get_appointment_detail|appointment_not_found|buildAppointmentsSnapshot|AppointmentsIndex|getAppointmentJson" ...` ✅ (located handler + helpers + docs)
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed due environment dependency/type-resolution issue: `Cannot find module '@azure/data-tables'` in table modules
+
+### Follow-ups
+
+- Once dependencies/toolchain resolution is fixed in environment, rerun `pnpm --filter @familyscheduler/api test` to validate entire suite.
 - `pnpm --filter @familyscheduler/web typecheck` ✅
 - `pnpm --filter @familyscheduler/api build` ⚠️ failed in environment because TypeScript cannot resolve `@azure/data-tables` in this container.
 

@@ -34,6 +34,71 @@ export type AppointmentSnapshotItem = {
 
 type ResponseAppointment = AppointmentSnapshotItem;
 
+const mapAppointmentJsonToSnapshot = (
+  doc: Record<string, unknown>,
+  appointmentId: string,
+  timezone: string,
+  peopleById: Map<string, string>
+): ResponseAppointment => {
+  const id = typeof doc.id === 'string' && doc.id.trim() ? doc.id.trim() : appointmentId;
+  const code = typeof doc.code === 'string' && doc.code.trim() ? doc.code.trim() : `APPT-${appointmentId.slice(-6).toUpperCase()}`;
+  const start = typeof doc.start === 'string' ? doc.start : undefined;
+  const end = typeof doc.end === 'string' ? doc.end : undefined;
+  const derived = deriveDateTimeParts(start, end);
+  const peopleIds = Array.isArray(doc.people) ? doc.people.filter((item): item is string => typeof item === 'string') : [];
+  const scanStatus = doc.scanStatus === 'pending' || doc.scanStatus === 'parsed' || doc.scanStatus === 'failed' || doc.scanStatus === 'deleted'
+    ? doc.scanStatus
+    : null;
+
+  const legacyInput: Parameters<typeof getTimeSpec>[0] = {
+    schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
+    date: typeof doc.date === 'string' ? doc.date : undefined,
+    startTime: typeof doc.startTime === 'string' ? doc.startTime : undefined,
+    durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : undefined,
+    timezone: typeof doc.timezone === 'string' ? doc.timezone : timezone,
+    isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : undefined,
+    time: (doc.time && typeof doc.time === 'object' ? doc.time as TimeSpec : undefined),
+    start,
+    end
+  };
+  const appt = getTimeSpec(legacyInput, typeof doc.timezone === 'string' ? doc.timezone : timezone);
+
+  return {
+    id,
+    code,
+    title: typeof doc.title === 'string' ? doc.title : '',
+    desc: typeof doc.title === 'string' ? doc.title : '',
+    schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
+    updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : undefined,
+    time: appt,
+    date: typeof doc.date === 'string' ? doc.date : derived.date,
+    startTime: typeof doc.startTime === 'string' ? doc.startTime : derived.startTime,
+    durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : derived.durationMins,
+    isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : derived.isAllDay,
+    people: peopleIds,
+    peopleDisplay: peopleIds.map((personId) => peopleById.get(personId) ?? personId),
+    location: typeof doc.locationDisplay === 'string' ? doc.locationDisplay : (typeof doc.location === 'string' ? doc.location : ''),
+    locationRaw: typeof doc.locationRaw === 'string' ? doc.locationRaw : '',
+    locationDisplay: typeof doc.locationDisplay === 'string' ? doc.locationDisplay : (typeof doc.location === 'string' ? doc.location : ''),
+    locationMapQuery: typeof doc.locationMapQuery === 'string' ? doc.locationMapQuery : (typeof doc.locationAddress === 'string' ? doc.locationAddress : (typeof doc.locationDisplay === 'string' ? doc.locationDisplay : (typeof doc.location === 'string' ? doc.location : ''))),
+    locationName: typeof doc.locationName === 'string' ? doc.locationName : '',
+    locationAddress: typeof doc.locationAddress === 'string' ? doc.locationAddress : '',
+    locationDirections: typeof doc.locationDirections === 'string' ? doc.locationDirections : '',
+    notes: typeof doc.notes === 'string' ? doc.notes : '',
+    scanStatus,
+    scanImageKey: typeof doc.scanImageKey === 'string' ? doc.scanImageKey : null,
+    scanImageMime: typeof doc.scanImageMime === 'string' ? doc.scanImageMime : null,
+    scanCapturedAt: typeof doc.scanCapturedAt === 'string' ? doc.scanCapturedAt : null
+  };
+};
+
+export const buildAppointmentSnapshotFromJson = (
+  appointmentId: string,
+  doc: Record<string, unknown>,
+  timezone: string,
+  people: Person[]
+): ResponseAppointment => mapAppointmentJsonToSnapshot(doc, appointmentId, timezone, new Map(people.map((person) => [person.personId, person.name])));
+
 const deriveDateTimeParts = (start?: string, end?: string): { date: string; startTime?: string; durationMins?: number; isAllDay: boolean } => {
   if (!start || !end) return { date: start?.slice(0, 10) ?? '', isAllDay: true };
   const startDate = new Date(start);
@@ -60,58 +125,7 @@ export const buildAppointmentsSnapshot = async (
       continue;
     }
 
-    const id = typeof doc.id === 'string' && doc.id.trim() ? doc.id.trim() : index.appointmentId;
-    const code = typeof doc.code === 'string' && doc.code.trim() ? doc.code.trim() : `APPT-${index.appointmentId.slice(-6).toUpperCase()}`;
-    const start = typeof doc.start === 'string' ? doc.start : undefined;
-    const end = typeof doc.end === 'string' ? doc.end : undefined;
-    const derived = deriveDateTimeParts(start, end);
-    const peopleIds = Array.isArray(doc.people) ? doc.people.filter((item): item is string => typeof item === 'string') : [];
-    const scanStatus = doc.scanStatus === 'pending' || doc.scanStatus === 'parsed' || doc.scanStatus === 'failed' || doc.scanStatus === 'deleted'
-      ? doc.scanStatus
-      : null;
-
-    const legacyInput: Parameters<typeof getTimeSpec>[0] = {
-      schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
-      date: typeof doc.date === 'string' ? doc.date : undefined,
-      startTime: typeof doc.startTime === 'string' ? doc.startTime : undefined,
-      durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : undefined,
-      timezone: typeof doc.timezone === 'string' ? doc.timezone : timezone,
-      isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : undefined,
-      time: (doc.time && typeof doc.time === 'object' ? doc.time as TimeSpec : undefined),
-      start,
-      end
-    };
-    const appt = getTimeSpec(legacyInput, typeof doc.timezone === 'string' ? doc.timezone : timezone);
-
-    const snapshotAppt: ResponseAppointment = {
-      id,
-      code,
-      title: typeof doc.title === 'string' ? doc.title : '',
-      desc: typeof doc.title === 'string' ? doc.title : '',
-      schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
-      updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : undefined,
-      time: appt,
-      date: typeof doc.date === 'string' ? doc.date : derived.date,
-      startTime: typeof doc.startTime === 'string' ? doc.startTime : derived.startTime,
-      durationMins: typeof doc.durationMins === 'number' ? doc.durationMins : derived.durationMins,
-      isAllDay: typeof doc.isAllDay === 'boolean' ? doc.isAllDay : derived.isAllDay,
-      people: peopleIds,
-      peopleDisplay: peopleIds.map((personId) => peopleById.get(personId) ?? personId),
-      location: typeof doc.locationDisplay === 'string' ? doc.locationDisplay : (typeof doc.location === 'string' ? doc.location : ''),
-      locationRaw: typeof doc.locationRaw === 'string' ? doc.locationRaw : '',
-      locationDisplay: typeof doc.locationDisplay === 'string' ? doc.locationDisplay : (typeof doc.location === 'string' ? doc.location : ''),
-      locationMapQuery: typeof doc.locationMapQuery === 'string' ? doc.locationMapQuery : (typeof doc.locationAddress === 'string' ? doc.locationAddress : (typeof doc.locationDisplay === 'string' ? doc.locationDisplay : (typeof doc.location === 'string' ? doc.location : ''))),
-      locationName: typeof doc.locationName === 'string' ? doc.locationName : '',
-      locationAddress: typeof doc.locationAddress === 'string' ? doc.locationAddress : '',
-      locationDirections: typeof doc.locationDirections === 'string' ? doc.locationDirections : '',
-      notes: typeof doc.notes === 'string' ? doc.notes : '',
-      scanStatus,
-      scanImageKey: typeof doc.scanImageKey === 'string' ? doc.scanImageKey : null,
-      scanImageMime: typeof doc.scanImageMime === 'string' ? doc.scanImageMime : null,
-      scanCapturedAt: typeof doc.scanCapturedAt === 'string' ? doc.scanCapturedAt : null
-    };
-
-    appointments.push(snapshotAppt);
+    appointments.push(mapAppointmentJsonToSnapshot(doc, index.appointmentId, timezone, peopleById));
   }
 
   return appointments;

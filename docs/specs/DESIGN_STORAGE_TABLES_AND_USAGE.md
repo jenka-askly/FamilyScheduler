@@ -29,6 +29,7 @@
 - Groups metadata truth: `Groups` table.
 - Appointment full detail truth: appointment JSON blob.
 - Appointment listing/index truth: `AppointmentsIndex` table.
+- Appointment detail existence check: `AppointmentsIndex` row (`isDeleted != true`) + `appointment.json` blob; `state.json.appointments` is not authoritative.
 - Usage/cost tracking truth: Tables (`UserDailyUsage*`, `DailyUsageByModel`).
 - Blob remains for media/binaries (profile photos, scan images, appointment JSON docs).
 

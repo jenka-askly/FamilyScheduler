@@ -29,9 +29,9 @@ import {
   removeConstraintForMember,
   upsertConstraintForMember
 } from '../lib/appointments/appointmentDomain.js';
-import { appointmentJsonBlobPath, getAppointmentJsonWithEtag, putAppointmentJson, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
-import { rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js';
-import { buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
+import { appointmentJsonBlobPath, getAppointmentJson, getAppointmentJsonWithEtag, putAppointmentJson, putAppointmentJsonWithEtag } from '../lib/tables/appointments.js';
+import { findAppointmentIndexById, rowKeyFromIso, upsertAppointmentIndex } from '../lib/tables/entities.js';
+import { buildAppointmentSnapshotFromJson, buildAppointmentsSnapshot } from '../lib/appointments/buildAppointmentsSnapshot.js';
 import { restoreAppointmentById, softDeleteAppointmentById } from '../lib/tables/appointmentSoftDelete.js';
 import { userKeyFromEmail } from '../lib/identity/userKey.js';
 import { sendEmail } from '../lib/email/acsEmail.js';
@@ -1239,8 +1239,22 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
   logAppointmentAction(context, traceId, groupId, directAction);
 
   if (directAction.type === 'get_appointment_detail') {
-    const appointment = loaded.state.appointments.find((entry) => entry.id === directAction.appointmentId);
-    if (!appointment) return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId));
+    const appointmentIndex = await findAppointmentIndexById(groupId, directAction.appointmentId);
+    if (!appointmentIndex) {
+      context.warn?.(JSON.stringify({ level: 'warn', event: 'appointment_detail_not_found', traceId, groupId, appointmentId: directAction.appointmentId, reason: 'index_missing' }));
+      return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId, { appointmentId: directAction.appointmentId }));
+    }
+    if (appointmentIndex.isDeleted === true) {
+      context.warn?.(JSON.stringify({ level: 'warn', event: 'appointment_detail_not_found', traceId, groupId, appointmentId: directAction.appointmentId, reason: 'index_deleted' }));
+      return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId, { appointmentId: directAction.appointmentId }));
+    }
+    const appointmentJson = await getAppointmentJson(groupId, directAction.appointmentId);
+    if (!appointmentJson) {
+      context.warn?.(JSON.stringify({ level: 'warn', event: 'appointment_detail_not_found', traceId, groupId, appointmentId: directAction.appointmentId, reason: 'blob_missing' }));
+      return withMeta(errorResponse(404, 'appointment_not_found', 'Appointment not found', traceId, { appointmentId: directAction.appointmentId }));
+    }
+    const appointmentTimezone = loaded.state.people.find((person) => typeof person.timezone === 'string' && person.timezone.trim())?.timezone ?? 'America/Los_Angeles';
+    const appointment = buildAppointmentSnapshotFromJson(directAction.appointmentId, appointmentJson, appointmentTimezone, loaded.state.people);
 
     try {
       const recent = await appointmentEventStore.recent(groupId, directAction.appointmentId, directAction.cursor ? (directAction.limit ?? 20) : Math.max(directAction.limit ?? 20, 50), directAction.cursor);
@@ -1256,7 +1270,7 @@ export async function direct(request: HttpRequest, context: InvocationContext): 
         status: 200,
         jsonBody: {
           ok: true,
-          appointment: toResponseSnapshot({ ...loaded.state, appointments: [appointment] }).appointments[0],
+          appointment,
           eventsPage: recent.events,
           nextCursor: recent.nextCursor,
           projections: { discussionEvents, changeEvents },
