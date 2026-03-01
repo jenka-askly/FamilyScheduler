@@ -718,6 +718,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const scanCaptureStreamRef = useRef<MediaStream | null>(null);
   const [scanTargetAppointmentId, setScanTargetAppointmentId] = useState<string | null>(null);
   const [scanViewerAppointment, setScanViewerAppointment] = useState<Snapshot['appointments'][0] | null>(null);
+  const [scanViewerImageUrl, setScanViewerImageUrl] = useState<string | null>(null);
+  const [scanViewerImageLoading, setScanViewerImageLoading] = useState(false);
+  const [scanViewerImageError, setScanViewerImageError] = useState<string | null>(null);
+  const [scanViewerImageRetryToken, setScanViewerImageRetryToken] = useState(0);
   const [scanCaptureModal, setScanCaptureModal] = useState<{ appointmentId: string | null; useCameraPreview: boolean }>({ appointmentId: null, useCameraPreview: false });
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanRowActionStateById, setScanRowActionStateById] = useState<Record<string, { busy: boolean; error: string | null }>>({});
@@ -731,6 +735,63 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const detailsPollingInFlightRef = useRef(false);
   const shouldPinDiscussionToBottomRef = useRef(true);
+
+  useEffect(() => {
+    let isDisposed = false;
+    const abortController = new AbortController();
+    let objectUrlToRevoke: string | null = null;
+    if (!scanViewerAppointment) {
+      setScanViewerImageLoading(false);
+      setScanViewerImageError(null);
+      setScanViewerImageUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return () => {
+        abortController.abort();
+      };
+    }
+    const appointmentId = scanViewerAppointment.id;
+    setScanViewerImageLoading(true);
+    setScanViewerImageError(null);
+    setScanViewerImageUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    void (async () => {
+      const path = `/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&appointmentId=${encodeURIComponent(appointmentId)}`;
+      try {
+        const response = await apiFetch(path, { method: 'GET', signal: abortController.signal });
+        if (!response.ok) {
+          setScanViewerImageError(`Unable to load scan image (HTTP ${response.status}).`);
+          console.warn('[scanViewer] failed to load appointment scan image', { groupId, appointmentId, status: response.status });
+          return;
+        }
+        const blob = await response.blob();
+        if (isDisposed) return;
+        objectUrlToRevoke = URL.createObjectURL(blob);
+        setScanViewerImageUrl(objectUrlToRevoke);
+        setScanViewerImageError(null);
+        console.debug('[scanViewer] loaded appointment scan image', { groupId, appointmentId, status: response.status });
+      } catch (error) {
+        if ((error as { name?: string } | null)?.name === 'AbortError') return;
+        console.warn('[scanViewer] failed to load appointment scan image', {
+          groupId,
+          appointmentId,
+          status: null,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        if (!isDisposed) setScanViewerImageError('Unable to load scan image. Please try again.');
+      } finally {
+        if (!isDisposed) setScanViewerImageLoading(false);
+      }
+    })();
+    return () => {
+      isDisposed = true;
+      abortController.abort();
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+    };
+  }, [groupId, scanViewerAppointment?.id, scanViewerImageRetryToken]);
 
   useEffect(() => {
     if (!pendingProposal || pendingProposal.paused) return;
@@ -3829,11 +3890,23 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogTitle>Scan</DialogTitle>
         <DialogContent>
           {scanViewerAppointment ? <AppointmentDialogContext {...getAppointmentContext(scanViewerAppointment)} /> : null}
-          {scanViewerAppointment ? (
+          {scanViewerImageLoading ? (
+            <Alert severity="info" sx={{ mt: 2 }}>Loading image…</Alert>
+          ) : null}
+          {!scanViewerImageLoading && scanViewerImageError ? (
+            <Alert
+              severity="error"
+              sx={{ mt: 2 }}
+              action={<Button type="button" color="inherit" size="small" onClick={() => setScanViewerImageRetryToken((prev) => prev + 1)}>Retry</Button>}
+            >
+              {scanViewerImageError}
+            </Alert>
+          ) : null}
+          {!scanViewerImageLoading && !scanViewerImageError && scanViewerImageUrl ? (
             <Box
               component="img"
               sx={{ width: '100%', height: 'auto', maxHeight: '70vh', objectFit: 'contain', borderRadius: 1 }}
-              src={apiUrl(`/api/appointmentScanImage?groupId=${encodeURIComponent(groupId)}&appointmentId=${encodeURIComponent(scanViewerAppointment.id)}`)}
+              src={scanViewerImageUrl}
             />
           ) : null}
         </DialogContent>

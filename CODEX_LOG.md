@@ -15356,3 +15356,39 @@ Implement an appointment details UI/layout cleanup in `apps/web/src/AppShell.tsx
 ### Follow-ups
 
 - Manual interactive browser validation: header collapse/expand states plus reminders/history interactions at mobile breakpoints.
+
+## 2026-03-01 08:05 UTC (Fix scan-created appointment image rendering in doc view)
+
+### Objective
+
+Fix scan viewer failures for scan-created appointments where direct `<img src="/api/appointmentScanImage...">` calls miss `x-session-id` and can return 401/403, causing broken image placeholders.
+
+### Approach
+
+- Replaced direct image URL rendering with an authenticated image load flow in `AppShell`:
+  - fetch scan image through existing `apiFetch` (which attaches `x-session-id`);
+  - convert response to `Blob`;
+  - render via `URL.createObjectURL(blob)`.
+- Added dedicated viewer image state for loading, error, and retry behavior.
+- Added `AbortController` and object URL revocation cleanup to avoid memory leaks and stale in-flight requests.
+- Added scan viewer diagnostics:
+  - `console.warn` on failures with appointment/group identifiers and status;
+  - `console.debug` on success.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅ (no AGENTS.md files discovered in visible tree)
+- `rg -n "appointmentScanImage|scanViewer" apps/web/src/AppShell.tsx apps/web/src/lib/apiUrl.ts` ✅ (located existing direct image rendering + fetch helper)
+- `npm --prefix apps/web run typecheck` ✅
+- `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped intentionally)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/4f836faa76e9ad24/artifacts/artifacts/scan-viewer-fix.png`
+
+### Follow-ups
+
+- Manual local flow check with real scan data: open doc viewer for scan-created appointment and verify the image renders, retry behavior works for forced auth failures, and no revoked-URL console errors appear in normal usage.

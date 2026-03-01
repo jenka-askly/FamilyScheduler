@@ -5584,3 +5584,23 @@ Verification note:
 1. `npm --prefix apps/web run typecheck` ✅ passed.
 2. `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started for screenshot capture and stopped intentionally.
 3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/b127057f968cff77/artifacts/artifacts/appointment-ui-cleanup.png`.
+
+## 2026-03-01 08:05 UTC update (Scan viewer image fetch uses authenticated apiFetch + Blob URL)
+
+- Fixed scan viewer image rendering in appointment doc dialog by replacing direct `<img src="/api/appointmentScanImage...">` usage with authenticated `apiFetch` request + `Blob` + `URL.createObjectURL(...)`.
+- Added scan-viewer-local image state for loading/error/retry handling (`scanViewerImageUrl`, `scanViewerImageLoading`, `scanViewerImageError`, retry token).
+- Added friendly viewer states:
+  - Loading alert while image fetch is in progress.
+  - Error alert with `Retry` action when the endpoint returns non-2xx or network failure.
+- Added diagnostics:
+  - `console.warn` on failed load with `groupId`, `appointmentId`, and status (when available).
+  - `console.debug` on successful image load.
+- Added cleanup for memory safety:
+  - revoke previous object URLs on appointment change / dialog close / effect cleanup.
+  - abort in-flight fetch on cleanup via `AbortController`.
+
+### Verification run
+
+1. `npm --prefix apps/web run typecheck` ✅ passed.
+2. `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally.
+3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/4f836faa76e9ad24/artifacts/artifacts/scan-viewer-fix.png`.
