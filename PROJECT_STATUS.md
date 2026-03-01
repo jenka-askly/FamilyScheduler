@@ -5356,6 +5356,21 @@ Verification note:
 - `PageHeader` menu now uses right-edge anchor/transform origins with a small top offset (`mt: 1`) for stable spacing across viewport sizes.
 - Anchor element remains the burger `IconButton` (`event.currentTarget`), avoiding header/container-based drift.
 
+## 2026-03-01 01:26 UTC update (Issue #4: Members edit moved to modal + UserProfiles update)
+
+- Implemented new backend endpoint `PUT /api/group/member-profile` for editing another roster member's `displayName` in `UserProfiles` (no email edits).
+- Endpoint authorization uses active group membership for requester; target must exist in `GroupMembers` with `active|invited` status.
+- Members panel no longer uses inline row `<input>` editing or `/api/direct` `update_person` for roster edits.
+- Edit action now opens a standard MUI `Dialog` with editable Name, read-only Email, explicit Cancel/Save, and non-empty trimmed name validation.
+- On successful save, members roster is reloaded from `GET /api/group/members` so enriched `displayName` is reflected immediately.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+3. `pnpm --filter @familyscheduler/api test -- groupMemberProfilePut.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment (plus initial type export fix handled in code).
+4. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+5. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/9c924e3b5509fe30/artifacts/artifacts/members-edit-modal-change.png`.
 ## 2026-03-01 01:16 UTC update (Issue #3: membership lastSeen + members table cleanup)
 
 - Members panel now shows lastSeen from membership storage (throttled updates). Removed Refresh button and Actions header label.

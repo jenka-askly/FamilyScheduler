@@ -11,6 +11,7 @@ import { groupJoinLink } from './functions/groupJoinLink.js';
 import { groupClaim } from './functions/groupClaim.js';
 import { groupMeta } from './functions/groupMeta.js';
 import { groupMembers } from './functions/groupMembers.js';
+import { groupMemberProfilePut } from './functions/groupMemberProfilePut.js';
 import { groupRename } from './functions/groupRename.js';
 import { groupDelete } from './functions/groupDelete.js';
 import { groupRestore } from './functions/groupRestore.js';
@@ -46,7 +47,7 @@ const startupDebugEnabled = (process.env.FUNCTIONS_STARTUP_DEBUG ?? '').toLowerC
 const enableDogfood = process.env.DOGFOOD === '1';
 const modulePath = fileURLToPath(import.meta.url);
 const moduleDir = dirname(modulePath);
-const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupClaim', 'groupDeclineInvite', 'groupMeta', 'groupMembers', 'groupRename', 'groupDelete', 'groupRestore', 'meGroups', 'meDashboard', 'chat', 'direct', ...(enableDogfood ? ['diagnoseOpenAi'] : []), 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfileGet', 'userProfilePut', 'userProfilePhotoSet', 'userProfilePhotoGet', 'userPreferencesGet', 'userPreferencesSet'];
+const expectedFunctions = ['groupCreate', 'groupJoin', 'groupJoinLink', 'groupClaim', 'groupDeclineInvite', 'groupMeta', 'groupMembers', 'groupMemberProfilePut', 'groupRename', 'groupDelete', 'groupRestore', 'meGroups', 'meDashboard', 'chat', 'direct', ...(enableDogfood ? ['diagnoseOpenAi'] : []), 'health', 'usage', 'scanAppointment', 'appointmentScanImage', 'appointmentScanDelete', 'appointmentScanRescan', 'authRequestLink', 'authConsumeLink', 'igniteStart', 'igniteClose', 'igniteJoin', 'ignitePhoto', 'ignitePhotoGet', 'igniteMeta', 'igniteSpinoff', 'userProfileGet', 'userProfilePut', 'userProfilePhotoSet', 'userProfilePhotoGet', 'userPreferencesGet', 'userPreferencesSet'];
 let registeredFunctionCount = 0;
 
 const startupLog = (message: string, details?: Record<string, unknown>): void => {
@@ -99,6 +100,7 @@ registerHttp('groupClaim', 'group/claim', ['POST'], groupClaim);
 
 registerHttp('groupMeta', 'group/meta', ['GET'], groupMeta);
 registerHttp('groupMembers', 'group/members', ['GET'], groupMembers);
+registerHttp('groupMemberProfilePut', 'group/member-profile', ['PUT'], groupMemberProfilePut);
 
 registerHttp('groupRename', 'group/rename', ['POST'], groupRename);
 registerHttp('groupDelete', 'group/delete', ['POST'], groupDelete);
