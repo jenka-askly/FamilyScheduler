@@ -14379,3 +14379,28 @@ Implement profile modal UX fixes: sign-out visibility only in blocking gate mode
 
 ### Follow-ups
 - Manual authenticated smoke test recommended in staging/browser for camera permission denied flows across iOS Safari and Android Chrome.
+
+
+## 2026-03-01 00:07 UTC (Demo seed from Dashboard burger menu: configurable group/appt/member counts)
+
+### Objective
+Implement deterministic demo seeding from Dashboard Utilities with small configurable inputs, preserving dogfood/dev gating and idempotency.
+
+### Approach
+- Verified existing implementation path in `MarketingLayout`, `App`, and `direct.ts` already covered most requested behavior.
+- Applied minimal delta in web orchestration to prefer stable seed group names and only suffix timestamp on collision.
+- Updated continuity docs with the new Dashboard Utilities seed modal/config details and server clamp/gate/idempotency behavior.
+
+### Files changed
+- `apps/web/src/App.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg --files -g 'AGENTS.md'` ❌ no AGENTS file discovered via rg in repo tree.
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md found in parent/workspace tree.
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api test -- direct.test.ts` ⚠️ blocked by missing `@azure/data-tables` dependency/types in this environment during API build.
+
+### Follow-ups
+- In a fully provisioned API environment, rerun direct tests and add/extend a focused `seed_sample_data` config test for parse/clamp/idempotent density behavior.

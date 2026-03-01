@@ -1,3 +1,10 @@
+## 2026-03-01 00:07 UTC update (Dashboard Utilities demo seed modal + configurable seeded density)
+
+- Dashboard Utilities menu now includes a **dogfood/dev-only** `Seed demo data…` action (`import.meta.env.DEV || import.meta.env.VITE_DOGFOOD === '1'`) that opens a compact modal for seed parameters.
+- Modal parameters: `Groups`, `Appts per group`, `Members per appt` with defaults `5/6/4` and UI bounds `1..8`, `1..20`, and `0..8`.
+- Seeding orchestration now ensures requested group count by creating missing groups via `POST /api/group/create`, then seeds exactly the selected groups via `POST /api/direct` action `seed_sample_data` with config payload.
+- Server `seed_sample_data` accepts optional config, clamps values server-side, keeps DOGFOOD gate (`DOGFOOD === '1'`), and remains idempotent using deterministic IDs + `seedTag` cleanup/rewrite.
+
 ## 2026-02-28 23:24 UTC update (Web build unblock: PageHeader conditional render parse fix)
 
 - Fixed a JSX conditional in `PageHeader` by switching `showGroupSummary ? (...) : null` to `showGroupSummary && (...)` to resolve a TypeScript parser mismatch that reported `'}' expected` near end-of-file.

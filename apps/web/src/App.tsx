@@ -1826,10 +1826,14 @@ export function App() {
     try {
       const dashboardResponse = await apiFetch('/api/me/dashboard');
       if (!dashboardResponse.ok) return { ok: false, message: 'Unable to load your groups.' };
-      const dashboardPayload = await dashboardResponse.json() as { groups?: Array<{ groupId: string }> };
-      const existingGroupIds = Array.isArray(dashboardPayload.groups)
-        ? dashboardPayload.groups.map((group) => group.groupId).filter((groupId): groupId is string => typeof groupId === 'string' && groupId.length > 0)
+      const dashboardPayload = await dashboardResponse.json() as { groups?: Array<{ groupId?: string; groupName?: string }> };
+      const existingGroups = Array.isArray(dashboardPayload.groups)
+        ? dashboardPayload.groups
+            .map((group) => ({ groupId: typeof group.groupId === 'string' ? group.groupId : '', groupName: typeof group.groupName === 'string' ? group.groupName.trim() : '' }))
+            .filter((group) => group.groupId.length > 0)
         : [];
+      const existingGroupIds = existingGroups.map((group) => group.groupId);
+      const existingGroupNames = new Set(existingGroups.map((group) => group.groupName).filter((name) => name.length > 0));
 
       const groupsToCreate = Math.max(0, clampedGroupCount - existingGroupIds.length);
       const createdGroupIds: string[] = [];
@@ -1840,12 +1844,16 @@ export function App() {
       }
 
       for (let index = 0; index < groupsToCreate; index += 1) {
-        const timestampSuffix = Date.now().toString().slice(-6);
+        const baseName = `Seed Group ${existingGroupIds.length + index + 1}`;
+        const groupName = existingGroupNames.has(baseName)
+          ? `${baseName} ${Date.now().toString().slice(-6)}`
+          : baseName;
+        existingGroupNames.add(groupName);
         const createResponse = await apiFetch('/api/group/create', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            groupName: `Seed Group ${existingGroupIds.length + index + 1} ${timestampSuffix}`,
+            groupName,
             creatorEmail,
             creatorName
           })
