@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Snackbar, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, ButtonBase, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Paper, Snackbar, Stack, SvgIcon, Switch, Tooltip, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import TextField from '@mui/material/TextField';
+import yapperIcon from '../../assets/yapper-icon.svg';
 import { useColorMode } from '../../colorMode';
 import { PRODUCT } from '../../product';
 import { buildSessionDebugText, clearAllSessionKeys, clearDurableSessionKeys, clearGraceSessionKeys } from '../../lib/sessionDebug';
@@ -276,11 +276,29 @@ export function PageHeader(props: Props) {
         <Stack direction="row" spacing={0.75} alignItems="center">
           {onDashboardClick ? (
             <Tooltip title="Go to landing page">
-              <span>
-                <IconButton onClick={onDashboardClick} aria-label="Go to landing page">
-                  <ArrowBackIcon />
-                </IconButton>
-              </span>
+              <ButtonBase onClick={onDashboardClick} aria-label="Go to landing page">
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  sx={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Box
+                    component="img"
+                    src={yapperIcon}
+                    alt=""
+                    aria-hidden
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      flex: '0 0 28px',
+                      display: 'block'
+                    }}
+                  />
+                  <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1 }}>
+                    Yapper
+                  </Typography>
+                </Stack>
+              </ButtonBase>
             </Tooltip>
           ) : null}
           <Typography
