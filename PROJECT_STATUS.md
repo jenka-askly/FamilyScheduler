@@ -1,3 +1,9 @@
+## 2026-03-01 03:18 UTC update (Invite email endpoint connectivity trace echo)
+
+- Confirmed `POST /api/group/invite-email` is registered in the Azure Functions entrypoint and points to `groupInviteEmail`.
+- Updated `groupInviteEmail` responses to always include a normalized `received` echo payload (`groupId`, `recipientEmail`, `recipientNamePresent`, `personalMessageLen`) for request-receipt verification.
+- Added structured receipt logging (`group_invite_email_received`) with `traceId`, `groupId`, inviter email, and recipient email after auth + active-membership gate.
+- Kept strict auth + active-membership requirements unchanged (`x-session-id` session + `allowStatuses: ['active']`).
 ## 2026-03-01 03:18 UTC update (Schedule empty-state pulse + Add from Photo affordance)
 
 - Calendar toolbar **Add (+)** now uses a subtle one-time pulse animation in empty groups.

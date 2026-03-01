@@ -14776,6 +14776,23 @@ Apply a minimal visual treatment to the Schedule/Members tabs in `apps/web/src/A
 - Run `pnpm --filter @familyscheduler/web build` in a network-enabled environment with package manager bootstrap access.
 - Optional visual check in local browser to confirm expected underline-only active tab appearance across desktop/mobile breakpoints.
 
+## 2026-03-01 03:18 UTC (Fix 404/connectivity validation path for group invite email)
+
+### Objective
+
+Ensure the invite-email API path has explicit request-receipt signals (trace + echo payload) while preserving existing authentication and active-group membership enforcement.
+
+### Approach
+
+- Verified the route registration in `api/src/index.ts` (`group/invite-email` -> `groupInviteEmail`) and existing function file presence.
+- Added minimal instrumentation in handler to support staging/prod connectivity confirmation:
+  - `received` response echo object with normalized request fields
+  - Structured receipt log line (`group_invite_email_received`) including `traceId`, `groupId`, inviter, and recipient
+- Kept existing behavior for auth (`requireSessionFromRequest`) and membership (`requireGroupMembership(...allowStatuses:['active'])`).
+
+### Files changed
+
+- `api/src/functions/groupInviteEmail.ts`
 
 ## 2026-03-01 03:18 UTC (Schedule panel empty-state pulse + Add from Photo rename/icon)
 
@@ -14796,6 +14813,15 @@ Implement deterministic UX updates for the schedule toolbar: one-time empty-stat
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅
+- `rg --files` ✅
+- `pnpm --filter @familyscheduler/api test -- groupInviteEmail.test.ts` ⚠️ failed due to missing `@azure/data-tables` type dependency in this environment during API TypeScript build.
+
+### Follow-ups
+
+- Deploy API to staging and validate in DevTools/curl that `POST /api/group/invite-email` returns 200 JSON with `traceId` and `received` payload.
+- If 404 persists in deployed env despite code registration, verify deployed artifact freshness / startup logs (`registered-function` events) for `groupInviteEmail`.
 - `pnpm --filter @familyscheduler/web typecheck` ✅
 - `pnpm --filter @familyscheduler/web build` ✅ (bundle-size warning from Vite only)
 - `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped via SIGINT)
