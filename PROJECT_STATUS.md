@@ -1,3 +1,10 @@
+## 2026-03-01 06:37 UTC update (Shared tab panel toolbar alignment for Schedule + Members)
+
+- Added a reusable `TabPanelToolbar` layout component to standardize tab-panel toolbar row, divider placement, and body top rhythm (`pt: 2`).
+- Refactored Schedule panel toolbar markup to use `TabPanelToolbar` with identical controls/handlers and unchanged behavior.
+- Refactored Members panel header/actions to use the same shared toolbar pattern so the invite `+` action aligns with Schedule actions and divider position matches.
+- Removed the ad-hoc Members header `py: 1` row (including standalone “People” heading) to eliminate extra top spacing above member content.
+
 ## 2026-03-01 05:11 UTC update (Edit appointment modal Title field + title round-trip)
 
 - Added a dedicated **Title** input as the first field in the Edit appointment modal and wired it into editor draft state.

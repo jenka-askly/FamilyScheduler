@@ -15226,3 +15226,35 @@ Remove duplicate `Yapper` text in the group header by suppressing the legacy `PR
 - Commands run:
   - `pnpm -C apps/web build` (failed earlier due transient malformed edit attempt; after reset and final patch, rerun below)
 - Follow-ups: Desktop third-panel inline layout still pending.
+
+## 2026-03-01 06:37 UTC (Shared tab toolbar + divider parity for Schedule/Members)
+
+### Objective
+
+Implement a minimal layout-only change so Members and Schedule use the same toolbar row, divider location, and post-divider body spacing.
+
+### Approach
+
+- Added a shared `TabPanelToolbar` component under `apps/web/src/components/layout/`.
+- Replaced inline Schedule toolbar/divider/body scaffold in `AppShell` with `TabPanelToolbar` while preserving existing controls, labels, and handlers.
+- Replaced Members ad-hoc header row (`py: 1`, “People” + invite action) with `TabPanelToolbar` and moved invite action/menu into the shared right slot.
+- Kept outer panel spacing (`px: BODY_PX, pt: 2, pb: 2`) and behavior unchanged.
+
+### Files changed
+
+- `apps/web/src/components/layout/TabPanelToolbar.tsx`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `sed -n '2860,3245p' apps/web/src/AppShell.tsx` ✅ (captured pre-change calendar/members panel scaffold)
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started local web app for visual capture; stopped with SIGINT after capture)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/181ae2a8f499ce5a/artifacts/artifacts/members-toolbar-alignment.png`
+- Playwright second capture attempt ⚠️ failed due to Chromium SIGSEGV in container runtime.
+
+### Follow-ups
+
+- Manual browser smoke on desktop + narrow width to confirm right action baseline/divider parity between Schedule and Members on target runtime.
