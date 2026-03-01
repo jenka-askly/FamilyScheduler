@@ -15325,3 +15325,34 @@ Change the Appointment Details header **History** action from direct popup/dialo
 
 - Manual browser smoke test in a normal local runtime: open appointment details takeover, click History icon, confirm anchored dropdown opens/closes on ESC/click-away, and selecting an item opens existing Email update history dialog.
 
+
+## 2026-03-01 07:27 UTC (Appointment UI cleanup above tabs in AppShell)
+
+### Objective
+
+Implement an appointment details UI/layout cleanup in `apps/web/src/AppShell.tsx` limited to the takeover header and content above the Discussion/Changes/Constraints tabs.
+
+### Approach
+
+- Added computed `detailsAppointmentTitle` and `detailsLocation` values with null-safe fallbacks.
+- Updated takeover header title rendering to use dynamic appointment title with `noWrap` + ellipsis-safe flex sizing.
+- Rebuilt the above-tabs layout into responsive sections (Summary, Email actions + last update, Reminders, optional suggestion chips) using MUI `Stack`/`Paper` responsive props.
+- Preserved all existing handlers/state usage for history menu, email update, reminder actions, suggestion actions, and collapse toggle.
+- Kept Tabs/tab panels and below-tabs logic unchanged.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ⚠️ returned no files in repository tree.
+- `npm --prefix apps/web run typecheck` ✅
+- `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ (started for screenshot; stopped via SIGINT)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/b127057f968cff77/artifacts/artifacts/appointment-ui-cleanup.png`
+
+### Follow-ups
+
+- Manual interactive browser validation: header collapse/expand states plus reminders/history interactions at mobile breakpoints.
