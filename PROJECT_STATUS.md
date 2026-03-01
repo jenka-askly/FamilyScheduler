@@ -1,3 +1,9 @@
+## 2026-03-01 03:31 UTC update (Invite-email route staging registration + deploy-zip invariant check)
+
+- Confirmed `api/src/index.ts` already imports `groupInviteEmail` via `./functions/groupInviteEmail.js`, registers `registerHttp('groupInviteEmail', 'group/invite-email', ['POST'], ...)`, and includes `groupInviteEmail` in `expectedFunctions`.
+- Updated deploy-zip verification script to enforce current API dist layout (`dist/api/src/**`) and explicitly require `dist/api/src/functions/groupInviteEmail.js` in the package.
+- Attempted local API build/package verification; currently blocked in this container by `@azure/data-tables` install/build failures (registry 403), so runtime deploy verification remains dependent on staging startup logs.
+
 ## 2026-03-01 03:18 UTC update (Invite email endpoint connectivity trace echo)
 
 - Confirmed `POST /api/group/invite-email` is registered in the Azure Functions entrypoint and points to `groupInviteEmail`.

@@ -14829,3 +14829,35 @@ Implement deterministic UX updates for the schedule toolbar: one-time empty-stat
 
 ### Follow-ups
 - Manual behavior check with multiple empty/non-empty groups to confirm per-group one-time pulse semantics and Add-from-Photo copy in production-like auth/data states.
+
+## 2026-03-01 03:31 UTC — Invite email 404 staging verification (build/package/startup diagnostics)
+
+### Objective
+- Verify `/api/group/invite-email` is wired in entrypoint, emitted in build output, included in deploy zip, and represented in startup diagnostics.
+
+### Approach
+- Audited `api/src/index.ts` for import path, `registerHttp` route binding, and `expectedFunctions` membership for `groupInviteEmail`.
+- Ran local build/package verification commands to prove emitted artifacts and zip invariants.
+- Updated deploy zip verifier to match current dist layout and include `groupInviteEmail` explicitly.
+
+### Files changed
+- `scripts/verify-api-deploy-zip.mjs`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -name AGENTS.md -print` ✅ (none found in workspace scope)
+- `rg -n "groupInviteEmail|registerHttp\(|expectedFunctions|invite-email" api/src/index.ts api/src -g '*.ts'` ✅ confirmed import/registration/expected list in entrypoint.
+- `pnpm --filter @familyscheduler/api build` ❌ failed: missing `@azure/data-tables` types/dependency in current environment.
+- `pnpm install` ❌ failed: registry fetch 403 for `@azure/data-tables`.
+- `pnpm deploy:api:package` ❌ failed because API build failed on missing `@azure/data-tables`.
+- `pnpm deploy:api:verifyzip` ❌ failed because `.artifacts/deploy/familyscheduler-api.zip` was not produced.
+
+### Follow-ups
+- In staging app settings, set `FUNCTIONS_STARTUP_DEBUG=true` and restart.
+- Confirm `api-startup` logs include:
+  - `registered-function` with `functionName=groupInviteEmail` and `route=group/invite-email`.
+  - `registration-summary` where `expectedFunctions` contains `groupInviteEmail` and `expectedCount` matches full list.
+- Re-run packaging invariant after dependency fetch issue is resolved:
+  - `pnpm deploy:api:package`
+  - `pnpm deploy:api:verifyzip`
