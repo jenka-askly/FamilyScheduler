@@ -2107,7 +2107,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const payload: Record<string, unknown> = { groupId, imageBase64, imageMime, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
       if (appointmentId) payload.appointmentId = appointmentId;
       const response = await apiFetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-      const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot; appointmentId?: string };
+      const json = await response.json() as { ok?: boolean; error?: string; message?: string; traceId?: string; snapshot?: Snapshot; appointmentId?: string; appointmentIds?: string[]; extractedCount?: number; errors?: Array<{ index: number; reason: string }> };
       console.info({ event: 'scan_submit_end', status: response.status, traceId: json.traceId ?? null });
       if (!response.ok || json.ok === false) {
         setScanError(`${json.message ?? json.error ?? `Scan request failed (${response.status})`}${json.traceId ? ` (trace: ${json.traceId})` : ''}`);
@@ -2115,11 +2115,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       }
       if (json.snapshot) {
         setSnapshot(json.snapshot);
-      } else if (endpoint === '/api/scanAppointment' && json.appointmentId) {
+      } else if (endpoint === '/api/scanAppointment' && (json.appointmentIds?.length || json.appointmentId)) {
         const nowIso = new Date().toISOString();
-        const placeholder: Snapshot['appointments'][number] = {
-          id: json.appointmentId,
-          code: `SCAN-${Date.now()}`,
+        const ids = (json.appointmentIds && json.appointmentIds.length ? json.appointmentIds : (json.appointmentId ? [json.appointmentId] : []));
+        const placeholders: Snapshot['appointments'][number][] = ids.map((id, index) => ({
+          id,
+          code: `SCAN-${Date.now()}-${index + 1}`,
           title: 'Scanning…',
           desc: 'Scanning…',
           updatedAt: nowIso,
@@ -2140,11 +2141,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           scanImageKey: null,
           scanImageMime: null,
           scanCapturedAt: nowIso
-        };
-        setSnapshot((prev) => {
-          if (prev.appointments.some((appointment) => appointment.id === placeholder.id)) return prev;
-          return { ...prev, appointments: [placeholder, ...prev.appointments] };
-        });
+        }));
+        setSnapshot((prev) => ({
+          ...prev,
+          appointments: [...placeholders.filter((placeholder) => !prev.appointments.some((appointment) => appointment.id === placeholder.id)), ...prev.appointments]
+        }));
         void refreshSnapshot();
       } else {
         await refreshSnapshot();

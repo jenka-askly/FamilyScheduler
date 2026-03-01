@@ -51,8 +51,9 @@ export async function appointmentScanRescan(request: HttpRequest, _context: Invo
   void (async () => {
     try {
       const parsed = await parseAppointmentFromImage({ imageBase64, imageMime, timezone: typeof body.timezone === 'string' ? body.timezone : undefined, traceId });
-      if (hasMeaningfulParsedContent(parsed.parsed)) {
-        applyParsedFields(appt, parsed.parsed, 'rescan');
+      const first = parsed.appointments.find((entry) => hasMeaningfulParsedContent(entry));
+      if (first) {
+        applyParsedFields(appt, first, 'rescan');
         appt.scanStatus = 'parsed';
       } else {
         appt.scanStatus = 'failed';
