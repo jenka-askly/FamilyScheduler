@@ -5463,3 +5463,15 @@ Verification note:
 2. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/cc538a21cddd2795/artifacts/artifacts/invite-debug-change-home.png`.
+
+## 2026-03-01 04:24 UTC update (Provision GroupInviteTokens via centralized REQUIRED_TABLES)
+
+- Added `GroupInviteTokens` to `REQUIRED_TABLES` in `api/src/lib/tables/tablesClient.ts` so cold-start table provisioning and per-request `ensureTablesReady()` fallback both auto-create the invite token table.
+- Added a guardrail comment above `REQUIRED_TABLES`: all API-used tables must be listed centrally and not created manually.
+- Added a lightweight regression test asserting `REQUIRED_TABLES` includes `GroupInviteTokens`.
+- Verified `groupInviteEmail` already calls `ensureTablesReady()` before table operations, so no handler flow changes were required.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test -- tablesClient.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment (`TS2307` during API TypeScript build).
+2. `rg -n "REQUIRED_TABLES|GroupInviteTokens|ensureTablesReady\(\)" api/src/lib/tables/tablesClient.ts api/src/functions/groupInviteEmail.ts api/src/lib/tables/tablesClient.test.ts` ✅ confirmed provisioning list + handler guard + regression test.

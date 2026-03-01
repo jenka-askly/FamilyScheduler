@@ -14949,3 +14949,29 @@ Remove the web UI entry point and dialog for “Add or Update Events” (AI scan
 ### Follow-ups
 
 - Manual smoke in a real group route (`/#/g/:groupId/app`) to confirm the calendar actions no longer expose AI scan and that Add appointment + proposal confirm/cancel remain functional.
+
+## 2026-03-01 04:24 UTC — Fix TableNotFound by provisioning GroupInviteTokens centrally
+
+### Objective
+- Prevent `groupInviteEmail` from failing with `TableNotFound` on fresh deploys/cold starts by ensuring `GroupInviteTokens` is provisioned through the centralized table bootstrap path.
+
+### Approach
+- Updated `api/src/lib/tables/tablesClient.ts` to include `GroupInviteTokens` in `REQUIRED_TABLES`.
+- Added explicit guardrail comment documenting that all API tables must remain in this centralized list and should not be manually created.
+- Added a lightweight unit test (`tablesClient.test.ts`) asserting the table remains present in `REQUIRED_TABLES`.
+- Verified `groupInviteEmail` already calls `ensureTablesReady()` before invite-token reads/writes, so no handler logic change was needed.
+
+### Files changed
+- `api/src/lib/tables/tablesClient.ts`
+- `api/src/lib/tables/tablesClient.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "REQUIRED_TABLES|ensureTables|GroupInviteTokens|groupInviteEmail|invite-email" api/src PROJECT_STATUS.md CODEX_LOG.md` ✅ located source and call paths.
+- `pnpm --filter @familyscheduler/api test -- tablesClient.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment (`TS2307` during API TypeScript build).
+- `rg -n "REQUIRED_TABLES|GroupInviteTokens|ensureTablesReady\(\)" api/src/lib/tables/tablesClient.ts api/src/functions/groupInviteEmail.ts api/src/lib/tables/tablesClient.test.ts` ✅ confirmed centralized provisioning + endpoint guard + regression assertion.
+
+### Follow-ups
+- Deploy to staging, cold-restart Functions app, and confirm `GroupInviteTokens` auto-appears in table list.
+- Re-test `POST /api/group/invite-email`; expect no `TableNotFound`.

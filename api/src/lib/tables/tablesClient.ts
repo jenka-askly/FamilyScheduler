@@ -1,9 +1,11 @@
 import { TableClient, TableServiceClient } from '@azure/data-tables';
 
+// All tables used anywhere in API must be listed here; do not create tables manually.
 export const REQUIRED_TABLES = [
   'Groups',
   'UserGroups',
   'GroupMembers',
+  'GroupInviteTokens',
   'AppointmentsIndex',
   'DailyMetrics',
   'UserDailyUsage',
