@@ -5542,3 +5542,5 @@ Verification note:
 - Wired all close paths (dialog dismiss, backdrop/ESC, and top-right close icon) through `closeAppointmentDetails`.
 - Preserved scroll semantics by attaching `detailsScrollRef` directly to the scrollable `DialogContent` and constraining content height with `maxHeight: calc(100vh - 140px)`.
 - Left todo drawer and other drawer/dialog usages unchanged.
+
+- Appointment details: mobile full-screen/back behavior implemented in web AppShell; desktop inline third-panel layout still pending.
