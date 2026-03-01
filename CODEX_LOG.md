@@ -14726,6 +14726,18 @@ Implement Members panel invite-by-email end-to-end: modal flow, backend send end
 - Consider adding shared email-template helper + richer reason-code mapping with provider-specific status fields when available.
 - Add deeper endpoint tests with dependency injection/mocks for send success/failure and resend timestamp transitions when API dependency typing is available in CI.
 
+## 2026-03-01 02:58 UTC (Fix TS2345 in api table upsert helper typing)
+
+### Objective
+Fix `pnpm --filter @familyscheduler/api build` failure caused by generic type incompatibility at `api/src/lib/tables/entities.ts` in `upsertTableEntity`.
+
+### Approach
+- Located the failing helper and aligned its generic parameter with Azure Tables SDK expectations.
+- Changed `upsertTableEntity` argument type from `T extends Record<string, unknown>` to `TableEntity<T>` so `upsertEntity` receives an entity type that includes required table keys.
+- Kept the change minimal and contained to one helper signature plus import update.
+
+### Files changed
+- `api/src/lib/tables/entities.ts`
 ## 2026-03-01 02:58 UTC (Simplify Schedule/Members tabs to underline-only)
 
 ### Objective
@@ -14743,6 +14755,18 @@ Apply a minimal visual treatment to the Schedule/Members tabs in `apps/web/src/A
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ✅
+- `sed -n '340,430p' api/src/lib/tables/entities.ts` ✅
+- `sed -n '1,90p' api/src/lib/tables/entities.ts` ✅
+- `pnpm --filter @familyscheduler/api build` ❌ initially failed with TS2345 before fix.
+- `pnpm --filter @familyscheduler/api build` ⚠️ after fix blocked by missing dependency resolution (`Cannot find module '@azure/data-tables'`) in current environment.
+- `pnpm install` ⚠️ blocked by private registry access (`ERR_PNPM_FETCH_403` for `@azure/communication-email`).
+
+### Follow-ups
+- In CI/local with authenticated npm access, run:
+  1) `pnpm install`
+  2) `pnpm --filter @familyscheduler/api build`
+- Expectation: previous TS2345 at `entities.ts` no longer appears.
 - `pwd && rg --files -g 'AGENTS.md'` ❌ returned no AGENTS files in this repo path.
 - `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in accessible workspace tree.
 - `sed -n '2525,2660p' apps/web/src/AppShell.tsx` ✅ inspected target tabs block.

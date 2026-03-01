@@ -1,4 +1,4 @@
-import type { TableEntityResult } from '@azure/data-tables';
+import type { TableEntity, TableEntityResult } from '@azure/data-tables';
 import { getTableClient } from './tablesClient.js';
 import { TABLE_KEY_SEP } from './tableKeys.js';
 const listAppointmentIndexesForGroupForTests: { fn: ((groupId: string, max?: number) => Promise<AppointmentsIndexEntity[]>) | null } = { fn: null };
@@ -387,7 +387,7 @@ export const getTableEntity = async <T extends Record<string, unknown>>(tableNam
   }
 };
 
-export const upsertTableEntity = async <T extends Record<string, unknown>>(tableName: string, entity: T): Promise<void> => {
+export const upsertTableEntity = async <T extends Record<string, unknown>>(tableName: string, entity: TableEntity<T>): Promise<void> => {
   await getTableClient(tableName).upsertEntity(entity, 'Merge');
 };
 

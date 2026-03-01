@@ -5401,6 +5401,11 @@ Verification note:
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/725343b9499f5acf/artifacts/artifacts/issue5-invite-by-email-ui.png`.
 
+## 2026-03-01 02:58 UTC update (API build TS generic constraint fix for table upsert helper)
+
+- Fixed a TypeScript generic mismatch in `upsertTableEntity` by typing the helper input as `TableEntity<T>` instead of unconstrained `T`, matching Azure Tables `upsertEntity` requirements.
+- Behavior is unchanged at runtime; this is a compile-time typing fix to satisfy `partitionKey`/`rowKey` entity shape expectations.
+- Build verification in this container is currently blocked by missing private package registry access (`ERR_PNPM_FETCH_403`), so full API build could not be completed locally after the change.
 ## 2026-03-01 02:58 UTC update (Tabs visual simplification: Schedule/Members)
 
 - Simplified the Schedule/Members section tabs in `AppShell` to use standard MUI underline indicator behavior.
