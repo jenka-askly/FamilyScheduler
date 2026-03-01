@@ -1,3 +1,10 @@
+## 2026-03-01 03:18 UTC update (Schedule empty-state pulse + Add from Photo affordance)
+
+- Calendar toolbar **Add (+)** now uses a subtle one-time pulse animation in empty groups.
+- Pulse behavior is tracked once per `groupId` per tab session (`sessionStorage` with in-memory fallback), and stops immediately when `+` is pressed.
+- Empty-state pulse is only applied to the **top toolbar Add button** (not inline month/week/day add buttons).
+- Calendar photo action copy/icon updated from scan wording to **Add from Photo** with a document+camera badge icon; action behavior unchanged.
+
 ## 2026-03-01 00:55 UTC update (Members panel rules UI removal)
 
 - Removed the **Rules** action from each People row in the Members panel.

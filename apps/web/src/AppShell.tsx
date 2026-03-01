@@ -191,6 +191,8 @@ const buildProjections = (events: AppointmentDetailEvent[]) => ({
 
 const calendarWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const BODY_PX = 2;
+const PULSED_KEY_PREFIX = 'ui:addPulse:group:';
+const pulsedInMemory = new Set<string>();
 const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -414,7 +416,15 @@ const Clock3 = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2"
 const Plus = () => <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>;
 const ChevronLeft = () => <Icon><path d="m15 18-6-6 6-6" /></Icon>;
 const ChevronRight = () => <Icon><path d="m9 18 6-6-6-6" /></Icon>;
-const DocumentScannerIcon = () => <SvgIcon><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm8 1.5V8h4.5" /><path d="M8 13h8M8 17h8M8 9h3" /></SvgIcon>;
+const DocumentCameraIcon = () => (
+  <SvgIcon>
+    <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm8 1.5V8h4.5" />
+    <path d="M8 13h8M8 17h6M8 9h3" />
+    <rect x="13.25" y="14" width="7.25" height="5.5" rx="1.1" />
+    <path d="M16 14h1.75l.7-1.25h1.1" />
+    <circle cx="16.9" cy="16.75" r="1.15" />
+  </SvgIcon>
+);
 
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
@@ -657,6 +667,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [scanRowActionStateById, setScanRowActionStateById] = useState<Record<string, { busy: boolean; error: string | null }>>({});
   const [scanCaptureBusy, setScanCaptureBusy] = useState(false);
   const [scanCaptureCameraReady, setScanCaptureCameraReady] = useState(false);
+  const [shouldPulseAdd, setShouldPulseAdd] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
@@ -1910,6 +1921,41 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (byEnd !== 0) return byEnd;
     return a.code.localeCompare(b.code);
   }), [snapshot.appointments]);
+  const isEmpty = sortedAppointments.length === 0;
+
+  useEffect(() => {
+    if (!groupId || !isEmpty) {
+      setShouldPulseAdd(false);
+      return;
+    }
+
+    const key = `${PULSED_KEY_PREFIX}${groupId}`;
+    let alreadyPulsed = pulsedInMemory.has(key);
+    try {
+      alreadyPulsed = alreadyPulsed || window.sessionStorage.getItem(key) === '1';
+    } catch {
+      // Ignore sessionStorage failures and rely on in-memory pulse tracking.
+    }
+
+    if (alreadyPulsed) {
+      setShouldPulseAdd(false);
+      return;
+    }
+
+    setShouldPulseAdd(true);
+    pulsedInMemory.add(key);
+    try {
+      window.sessionStorage.setItem(key, '1');
+    } catch {
+      // Ignore sessionStorage failures and rely on in-memory pulse tracking.
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShouldPulseAdd(false);
+    }, 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [groupId, isEmpty]);
+
   const editingAppointment = whenEditorCode
     ? sortedAppointments.find((appointment) => appointment.code === whenEditorCode) ?? null
     : null;
@@ -2625,16 +2671,22 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                         </Menu>
                       </Box>
                       <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
-                        <Tooltip title="Scan to create appointment">
+                        <Tooltip title="Add from Photo">
                           <span>
-                            <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Scan to create appointment">
-                              <DocumentScannerIcon />
+                            <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Add from Photo">
+                              <DocumentCameraIcon />
                             </IconButton>
                           </span>
                         </Tooltip>
                         <Tooltip title="Add">
                           <span>
-                            <IconButton color="primary" onClick={() => { void addAppointment(); }} aria-label="Add appointment" disabled={commandActionsDisabled}>
+                            <IconButton
+                              color="primary"
+                              className={shouldPulseAdd ? 'ui-addPulse' : undefined}
+                              onClick={() => { setShouldPulseAdd(false); void addAppointment(); }}
+                              aria-label="Add appointment"
+                              disabled={commandActionsDisabled}
+                            >
                               <Plus />
                             </IconButton>
                           </span>
