@@ -14456,6 +14456,32 @@ Reorder authenticated Utilities menu items, add a divider before `Seed demo data
 
 ### Files changed
 - `apps/web/src/components/layout/MarketingLayout.tsx`
+## 2026-03-01 01:10 UTC (Issue #1 extended: guest row + unverified email + guest action lock)
+
+### Objective
+Implement extended Issue #1 requirements by persisting `memberKind` and `emailVerified` on membership activation, exposing both in group members API, and updating members UI to render guest/unverified badges with guest-only action lockouts.
+
+### Approach
+- Added `emailVerified` to table membership entity types and extended membership helper utilities with:
+  - `resolveEmailVerifiedFromSessionKind(sessionKind)`
+  - `emailVerifiedOrTrue(member)` defaulting legacy rows to `true`.
+- Updated activation/upsert flows in `groupJoin`, `igniteJoin`, and `groupClaim` to compute and persist both fields (`guest/false` for ignite grace, otherwise `full/true`) to both `GroupMembers` and `UserGroups` rows.
+- Extended activation logging payloads to include `emailVerified` alongside existing context.
+- Updated `/api/group/members` response mapping to include both fields with backward-compatible defaults.
+- Updated web members roster typing/mapping and table rendering:
+  - Guest chip by name
+  - Unverified chip by email with tooltip
+  - Edit/Delete disabled only for guest rows with tooltip.
+
+### Files changed
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/membership/memberKind.ts`
+- `api/src/lib/membership/memberKind.test.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/groupClaim.ts`
+- `api/src/functions/groupMembers.ts`
+- `apps/web/src/AppShell.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -14468,3 +14494,12 @@ Reorder authenticated Utilities menu items, add a divider before `Seed demo data
 
 ### Follow-ups
 - Perform human staging verification in an authenticated session to confirm full requested order/divider appearance with `Seed demo data…` visible under dogfood/dev gating.
+- `find .. -maxdepth 3 -name AGENTS.md` ✅ no AGENTS.md files found in workspace scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ebb4051b6720deb8/artifacts/artifacts/members-guest-ui.png`.
+
+### Follow-ups
+- Run API build/tests in an environment where `@azure/data-tables` resolves to validate full backend compile/test matrix.
+- Execute staging verification with a real igniteGrace guest row to confirm chips and action lock behavior end-to-end.

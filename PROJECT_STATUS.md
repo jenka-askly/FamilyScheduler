@@ -5318,3 +5318,17 @@ Verification note:
 
 1. `pnpm --filter @familyscheduler/web build` ✅ passed.
 2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+## 2026-03-01 01:10 UTC update (Issue #1 extended: guest + unverified roster semantics)
+
+- Membership entities now persist both `memberKind` (`full|guest`) and `emailVerified` booleans on activation/upsert across `groupJoin`, `igniteJoin`, and `groupClaim` paths.
+- Activation logs now include `groupId`, normalized email, `sessionKind`, `memberKind`, `emailVerified`, and operation for both success and failure contexts.
+- `GET /api/group/members` now returns `memberKind` + `emailVerified`, defaulting absent legacy values to `memberKind='full'` and `emailVerified=true`.
+- Members UI row model now carries `emailVerified`; Name renders `Guest` chip, Email renders `Unverified` chip (tooltip: `Email not verified.`), and Edit/Delete remain disabled only for guest rows with tooltip `Not available for guest members.`
+- Viewer durability behavior remains unchanged (banner still driven by viewer session state only; refresh/invite controls unaffected by guest rows).
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ebb4051b6720deb8/artifacts/artifacts/members-guest-ui.png`.

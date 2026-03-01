@@ -55,9 +55,9 @@ type Snapshot = {
 };
 
 
-type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
+type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; emailVerified: boolean; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
 type GroupMembersResponse = { ok?: boolean; groupId?: string; members?: GroupMemberRosterEntry[]; traceId?: string; message?: string };
-type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string };
+type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; emailVerified: boolean; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string };
 
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
@@ -1573,7 +1573,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const response = await apiFetch(`/api/group/members?groupId=${encodeURIComponent(groupId)}`);
       if (!response.ok) return;
       const json = await response.json() as GroupMembersResponse;
-      if (json.ok && Array.isArray(json.members)) setMembersRoster(json.members.map((member) => ({ ...member, memberKind: member.memberKind === 'guest' ? 'guest' : 'full' })));
+      if (json.ok && Array.isArray(json.members)) setMembersRoster(json.members.map((member) => ({ ...member, memberKind: member.memberKind === 'guest' ? 'guest' : 'full', emailVerified: member.emailVerified !== false })));
     } catch {
       // Ignore roster refresh errors.
     }
@@ -1891,6 +1891,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         name: member.displayName?.trim() || member.email,
         email: member.email,
         memberKind: member.memberKind,
+        emailVerified: member.emailVerified,
         cellDisplay: '',
         cellE164: '',
         status: member.status === 'invited' ? 'removed' as const : 'active' as const,
@@ -3004,7 +3005,16 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             )}
                           </td>
                           <td className="email-col">
-                            {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /> : <span>{person.email || '—'}</span>}
+                            {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /> : (
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                                <span className="line-clamp" title={person.email}>{person.email || '—'}</span>
+                                {person.emailVerified === false ? (
+                                  <Tooltip title="Email not verified.">
+                                    <Chip size="small" label="Unverified" variant="outlined" />
+                                  </Tooltip>
+                                ) : null}
+                              </Stack>
+                            )}
                             {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
                           </td>
                           <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
