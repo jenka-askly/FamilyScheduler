@@ -14440,3 +14440,28 @@ Implement guest membership persistence (`memberKind`) for igniteGrace joins/clai
 ### Follow-ups
 - Run API build/tests in an environment with `@azure/data-tables` available to validate the full backend test matrix.
 - Perform staging manual verification for authenticated members page with an actual guest row visible.
+
+## 2026-03-01 00:43 UTC (Groups list row actions UI cleanup)
+
+### Objective
+Remove dashboard groups-row kebab menu and chevron, replace delete with direct trash icon action, and ensure row navigation excludes action icon clicks.
+
+### Approach
+- Applied a smallest-change update in `DashboardHomePage` to remove menu state/handlers and menu UI.
+- Rewired existing delete flow (`deleteGroup` + existing undo behavior) to run directly from a trash `IconButton` per row.
+- Kept row-level navigation via `ListItemButton` and added explicit `preventDefault`/`stopPropagation` handling on action icons so action clicks never navigate.
+- Added tooltip/ARIA semantics for accessibility on the delete icon.
+
+### Files changed
+- `apps/web/src/components/DashboardHomePage.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally with SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/a032598e0d1a8402/artifacts/artifacts/groups-row-actions-cleanup.png`.
+
+### Follow-ups
+- Optional: add React component test harness in web package (currently no RTL/vitest UI test setup) to codify row-click vs action-click navigation behavior.

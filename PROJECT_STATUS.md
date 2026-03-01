@@ -5300,3 +5300,17 @@ Verification note:
 - `GET /api/group/members` now returns `memberKind` per member and defaults missing storage values to `'full'` for backward compatibility.
 - Members roster UI now renders a **Guest** badge in the Name column and disables Edit/Delete actions only on guest rows (with tooltip: “Not available for guest members.”).
 - Durable session behavior, Refresh, and Invite controls remain unchanged by guest rows.
+
+## 2026-03-01 00:43 UTC update (Groups list row actions UI cleanup)
+
+- Dashboard "Your groups" active rows now use a direct trash action icon for delete and removed the kebab menu/popup delete path.
+- Removed the row chevron icon from active group rows and kept right-side actions aligned (mute + delete).
+- Row click-to-navigate is preserved, while action icons now prevent row navigation via `preventDefault` + `stopPropagation`.
+- Delete action icon now has `aria-label="Delete group"` and tooltip title `Delete`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/a032598e0d1a8402/artifacts/artifacts/groups-row-actions-cleanup.png`.
