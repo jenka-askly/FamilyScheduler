@@ -14454,6 +14454,47 @@ Remove dashboard groups-row kebab menu and chevron, replace delete with direct t
 
 ### Files changed
 - `apps/web/src/components/DashboardHomePage.tsx`
+## 2026-03-01 00:39 UTC (Utilities burger menu reorder + divider + toggle alignment)
+
+### Objective
+Reorder authenticated Utilities menu items, add a divider before `Seed demo data…`, and right-align menu toggles without changing existing handlers/semantics.
+
+### Approach
+- Located the relevant top-right burger popup in `apps/web/src/components/layout/MarketingLayout.tsx` (the only menu containing `Signed in as`, `Receive appointment update emails`, `Dark mode`, `Sign out`, and `Seed demo data…`).
+- Applied a minimal layout-only change:
+  - Moved `Seed demo data…` to render after `Sign out`.
+  - Inserted `Divider` between `Sign out` and `Seed demo data…`.
+  - Right-aligned both `Switch` controls (`email updates`, `dark mode`) with `sx={{ ml: 'auto' }}` and preserved row flex alignment.
+- Left all existing click/change handlers and aria labels unchanged.
+
+### Files changed
+- `apps/web/src/components/layout/MarketingLayout.tsx`
+## 2026-03-01 01:10 UTC (Issue #1 extended: guest row + unverified email + guest action lock)
+
+### Objective
+Implement extended Issue #1 requirements by persisting `memberKind` and `emailVerified` on membership activation, exposing both in group members API, and updating members UI to render guest/unverified badges with guest-only action lockouts.
+
+### Approach
+- Added `emailVerified` to table membership entity types and extended membership helper utilities with:
+  - `resolveEmailVerifiedFromSessionKind(sessionKind)`
+  - `emailVerifiedOrTrue(member)` defaulting legacy rows to `true`.
+- Updated activation/upsert flows in `groupJoin`, `igniteJoin`, and `groupClaim` to compute and persist both fields (`guest/false` for ignite grace, otherwise `full/true`) to both `GroupMembers` and `UserGroups` rows.
+- Extended activation logging payloads to include `emailVerified` alongside existing context.
+- Updated `/api/group/members` response mapping to include both fields with backward-compatible defaults.
+- Updated web members roster typing/mapping and table rendering:
+  - Guest chip by name
+  - Unverified chip by email with tooltip
+  - Edit/Delete disabled only for guest rows with tooltip.
+
+### Files changed
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/membership/memberKind.ts`
+- `api/src/lib/membership/memberKind.test.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/groupClaim.ts`
+- `api/src/functions/groupMembers.ts`
+- `apps/web/src/AppShell.tsx`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -14465,3 +14506,20 @@ Remove dashboard groups-row kebab menu and chevron, replace delete with direct t
 
 ### Follow-ups
 - Optional: add React component test harness in web package (currently no RTL/vitest UI test setup) to codify row-click vs action-click navigation behavior.
+- `find . -maxdepth 3 -name AGENTS.md -print` ✅ no nested AGENTS.md found under repo scope.
+- `rg -n "Seed demo data|Receive appointment update emails|Dark mode|Sign out|Signed in as" .` ✅ located relevant menu implementations.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/389315d191d5aba1/artifacts/artifacts/settings-menu.png`.
+
+### Follow-ups
+- Perform human staging verification in an authenticated session to confirm full requested order/divider appearance with `Seed demo data…` visible under dogfood/dev gating.
+- `find .. -maxdepth 3 -name AGENTS.md` ✅ no AGENTS.md files found in workspace scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ebb4051b6720deb8/artifacts/artifacts/members-guest-ui.png`.
+
+### Follow-ups
+- Run API build/tests in an environment where `@azure/data-tables` resolves to validate full backend compile/test matrix.
+- Execute staging verification with a real igniteGrace guest row to confirm chips and action lock behavior end-to-end.

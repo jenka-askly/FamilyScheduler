@@ -5307,6 +5307,30 @@ Verification note:
 - Removed the row chevron icon from active group rows and kept right-side actions aligned (mute + delete).
 - Row click-to-navigate is preserved, while action icons now prevent row navigation via `preventDefault` + `stopPropagation`.
 - Delete action icon now has `aria-label="Delete group"` and tooltip title `Delete`.
+## 2026-03-01 00:39 UTC update (Utilities menu order + divider + right-aligned toggles)
+
+- Updated Dashboard `MarketingLayout` Utilities (burger) menu ordering for authenticated users to:
+  1. `Signed in as ...`
+  2. `Receive appointment update emails` (toggle)
+  3. `Dark mode` (toggle)
+  4. `Sign out`
+  5. divider
+  6. `Seed demo data…`
+- Added a subtle menu divider (`<Divider sx={{ my: 0.5 }} />`) between `Sign out` and `Seed demo data…` when the dogfood/dev seed action is present.
+- Right-aligned both toggles using `sx={{ ml: 'auto' }}` on each `Switch` to keep labels left and switches flush-right/aligned.
+- No handler/behavior changes for sign-out, dark mode toggling, email update preference toggling, or seed dialog opening.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅ passed.
+2. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+## 2026-03-01 01:10 UTC update (Issue #1 extended: guest + unverified roster semantics)
+
+- Membership entities now persist both `memberKind` (`full|guest`) and `emailVerified` booleans on activation/upsert across `groupJoin`, `igniteJoin`, and `groupClaim` paths.
+- Activation logs now include `groupId`, normalized email, `sessionKind`, `memberKind`, `emailVerified`, and operation for both success and failure contexts.
+- `GET /api/group/members` now returns `memberKind` + `emailVerified`, defaulting absent legacy values to `memberKind='full'` and `emailVerified=true`.
+- Members UI row model now carries `emailVerified`; Name renders `Guest` chip, Email renders `Unverified` chip (tooltip: `Email not verified.`), and Edit/Delete remain disabled only for guest rows with tooltip `Not available for guest members.`
+- Viewer durability behavior remains unchanged (banner still driven by viewer session state only; refresh/invite controls unaffected by guest rows).
 
 ### Verification run
 
@@ -5314,3 +5338,6 @@ Verification note:
 2. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/a032598e0d1a8402/artifacts/artifacts/groups-row-actions-cleanup.png`.
+2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ebb4051b6720deb8/artifacts/artifacts/members-guest-ui.png`.
