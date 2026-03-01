@@ -1,3 +1,10 @@
+## 2026-03-01 04:42 UTC update (Extend empty-state Add pulse to 60 seconds)
+
+- Updated calendar toolbar **Add (+)** pulse animation to a gentle infinite cycle (`2.5s ease-in-out`) with subtle scale-only movement (`1 -> 1.05 -> 1`).
+- Extended empty-state pulse lifecycle from ~2 seconds to **up to 60 seconds** in `AppShell`.
+- Preserved one-time-per-group-per-session behavior using existing in-memory + `sessionStorage` guards.
+- Pulse still stops immediately when the toolbar **Add (+)** button is pressed.
+
 ## 2026-03-01 03:53 UTC update (Remove Add or Update Events / AI scan UI)
 
 - Removed the calendar toolbar **AI scan** action icon from `AppShell` calendar actions.
