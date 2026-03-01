@@ -5400,3 +5400,14 @@ Verification note:
 2. `pnpm --filter @familyscheduler/api test -- groupInviteEmail.test.ts groupMembers.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/725343b9499f5acf/artifacts/artifacts/issue5-invite-by-email-ui.png`.
+
+## 2026-03-01 02:58 UTC update (Tabs visual simplification: Schedule/Members)
+
+- Simplified the Schedule/Members section tabs in `AppShell` to use standard MUI underline indicator behavior.
+- Removed tab-strip framing/seam hacks used for a sheet-style selected tab (hidden indicator, selected background fill, negative margin, z-index, and wrapper bottom border).
+- Kept tab value/onChange semantics unchanged (`calendar`/`members`) so existing section switching and members-loading behavior are preserved.
+- Removed the content seam hack on the section container (`Paper` no longer disables top border), while keeping the existing overall layout/radius behavior.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ⚠️ blocked by package manager bootstrap/network restriction in this environment (corepack fetch to npm registry failed via proxy 403).

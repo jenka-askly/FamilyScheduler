@@ -14725,3 +14725,29 @@ Implement Members panel invite-by-email end-to-end: modal flow, backend send end
 - Add storage-backed invite-attempt rate limiting (per inviter/minute/day) consistent with production table patterns.
 - Consider adding shared email-template helper + richer reason-code mapping with provider-specific status fields when available.
 - Add deeper endpoint tests with dependency injection/mocks for send success/failure and resend timestamp transitions when API dependency typing is available in CI.
+
+## 2026-03-01 02:58 UTC (Simplify Schedule/Members tabs to underline-only)
+
+### Objective
+Apply a minimal visual treatment to the Schedule/Members tabs in `apps/web/src/AppShell.tsx`: remove sheet-like styling and restore default MUI indicator underline without changing section behavior/state loading.
+
+### Approach
+- Located the tabs block and removed only styling concerns tied to the sheet illusion.
+- Kept all tab values and handlers intact (`calendar`/`members` and `setActiveSection(value)`).
+- Removed `Paper` top-border suppression so content renders normally without tab seam hacks.
+- Updated continuity docs per workflow requirements.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ❌ returned no AGENTS files in this repo path.
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in accessible workspace tree.
+- `sed -n '2525,2660p' apps/web/src/AppShell.tsx` ✅ inspected target tabs block.
+- `pnpm --filter @familyscheduler/web build` ⚠️ failed due to environment network/proxy restriction while corepack attempted fetching `pnpm@10.30.0` from npm registry.
+
+### Follow-ups
+- Run `pnpm --filter @familyscheduler/web build` in a network-enabled environment with package manager bootstrap access.
+- Optional visual check in local browser to confirm expected underline-only active tab appearance across desktop/mobile breakpoints.

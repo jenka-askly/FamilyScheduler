@@ -2533,7 +2533,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <section className="ui-main">
           {import.meta.env.DEV && membersRoster.length === 0 ? <p className="dev-warning">Loaded group with 0 members — tables roster may be missing rows.</p> : null}
 
-          <Box sx={{ backgroundColor: 'background.default', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ backgroundColor: 'background.default', display: 'flex', alignItems: 'center' }}>
             <Tabs
               value={activeSection === 'members' ? 'members' : 'calendar'}
               onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
@@ -2541,8 +2541,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               sx={{
                 minHeight: 40,
                 flexGrow: 1,
-                '& .MuiTabs-flexContainer': { paddingLeft: BODY_PX, paddingRight: BODY_PX, gap: 1 },
-                '& .MuiTabs-indicator': { display: 'none' }
+                '& .MuiTabs-flexContainer': { paddingLeft: BODY_PX, paddingRight: BODY_PX, gap: 1 }
               }}
             >
               <Tab
@@ -2550,13 +2549,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 label="Schedule"
                 sx={{
                   textTransform: 'none',
-                  borderRadius: 0,
                   minHeight: 40,
                   minWidth: 0,
                   px: 2,
-                  backgroundColor: 'background.default',
-                  '&:hover': { backgroundColor: 'action.hover' },
-                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', mb: '-1px', zIndex: 2, fontWeight: 600 }
+                  '&.Mui-selected': { fontWeight: 600 }
                 }}
               />
               <Tab
@@ -2564,13 +2560,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 label="Members"
                 sx={{
                   textTransform: 'none',
-                  borderRadius: 0,
                   minHeight: 40,
                   minWidth: 0,
                   px: 2,
-                  backgroundColor: 'background.default',
-                  '&:hover': { backgroundColor: 'action.hover' },
-                  '&.Mui-selected': { backgroundColor: 'background.paper', position: 'relative', mb: '-1px', zIndex: 2, fontWeight: 600 }
+                  '&.Mui-selected': { fontWeight: 600 }
                 }}
               />
             </Tabs>
@@ -2600,7 +2593,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             ) : null}
           </Box>
 
-          <Paper variant="outlined" sx={{ borderTop: 'none', borderRadius: 0 }}>
+          <Paper variant="outlined" sx={{ borderRadius: 0 }}>
 
           {activeSection === 'overview' ? <section className="panel"><p>Overview view coming soon.</p></section> : null}
 
