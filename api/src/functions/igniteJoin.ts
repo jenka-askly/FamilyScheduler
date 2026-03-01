@@ -11,12 +11,35 @@ import { decodeImageBase64 } from '../lib/scan/appointmentScan.js';
 import { isPlausibleEmail, normalizeEmail, findActivePersonByEmail } from '../lib/auth/requireMembership.js';
 import { createIgniteGraceSession, requireSessionFromRequest } from '../lib/auth/sessions.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
-import { adjustGroupCounters, getGroupMemberEntity, upsertGroupMember, upsertUserGroup, upsertUserProfile } from '../lib/tables/entities.js';
+import { adjustGroupCounters, getGroupMemberEntity, upsertGroupMember, upsertUserGroup, upsertUserProfile, type MemberKind } from '../lib/tables/entities.js';
 import { normalizeIdentityEmail, userKeyFromEmail } from '../lib/identity/userKey.js';
+import { resolveMemberKindFromSessionKind } from '../lib/membership/memberKind.js';
 
 type IgniteJoinBody = { groupId?: unknown; name?: unknown; email?: unknown; sessionId?: unknown; photoBase64?: unknown; traceId?: unknown };
 const normalizeName = (value: unknown): string => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
 const sessionPrefix = (value: string): string => value.slice(0, 8);
+
+
+const logMembershipUpsert = (payload: {
+  traceId: string;
+  groupId: string;
+  email: string;
+  memberKind: MemberKind;
+  sessionKind: string;
+  operation: 'activate membership' | 'create membership';
+  error?: unknown;
+}): void => {
+  console.log(JSON.stringify({
+    event: payload.error ? 'IGNITE_JOIN_MEMBERSHIP_UPSERT_FAILED' : 'IGNITE_JOIN_MEMBERSHIP_UPSERT',
+    traceId: payload.traceId,
+    groupId: payload.groupId,
+    email: payload.email,
+    memberKind: payload.memberKind,
+    sessionKind: payload.sessionKind,
+    operation: payload.operation,
+    ...(payload.error ? { error: payload.error instanceof Error ? payload.error.message : String(payload.error) } : {})
+  }));
+};
 
 export async function igniteJoin(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   const body = await request.json() as IgniteJoinBody;
@@ -71,17 +94,31 @@ export async function igniteJoin(request: HttpRequest, context: InvocationContex
   const nowISO = new Date().toISOString();
   const normalizedEmail = normalizeIdentityEmail(email);
   const userKey = userKeyFromEmail(normalizedEmail);
+  const sessionKindForMember = unauthed ? 'igniteGrace' : 'durable';
+  const memberKind = resolveMemberKindFromSessionKind(sessionKindForMember);
 
   await ensureTablesReady();
   const tableMember = await getGroupMemberEntity(groupId, userKey);
   if (!tableMember) {
-    await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: normalizedEmail, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
-    await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
-    await adjustGroupCounters(groupId, { memberCountActive: 1 });
+    try {
+      await upsertGroupMember({ partitionKey: groupId, rowKey: userKey, userKey, email: normalizedEmail, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO, memberKind });
+      await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO, memberKind });
+      await adjustGroupCounters(groupId, { memberCountActive: 1 });
+      logMembershipUpsert({ traceId, groupId, email: normalizedEmail, memberKind, sessionKind: sessionKindForMember, operation: 'create membership' });
+    } catch (error) {
+      logMembershipUpsert({ traceId, groupId, email: normalizedEmail, memberKind, sessionKind: sessionKindForMember, operation: 'create membership', error });
+      throw error;
+    }
   } else if (tableMember.status === 'invited') {
-    await upsertGroupMember({ ...tableMember, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
-    await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', invitedAt: tableMember.invitedAt, joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO });
-    await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
+    try {
+      await upsertGroupMember({ ...tableMember, status: 'active', joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO, memberKind });
+      await upsertUserGroup({ partitionKey: userKey, rowKey: groupId, groupId, status: 'active', invitedAt: tableMember.invitedAt, joinedAt: nowISO, removedAt: undefined, updatedAt: nowISO, memberKind });
+      await adjustGroupCounters(groupId, { memberCountInvited: -1, memberCountActive: 1 });
+      logMembershipUpsert({ traceId, groupId, email: normalizedEmail, memberKind, sessionKind: sessionKindForMember, operation: 'activate membership' });
+    } catch (error) {
+      logMembershipUpsert({ traceId, groupId, email: normalizedEmail, memberKind, sessionKind: sessionKindForMember, operation: 'activate membership', error });
+      throw error;
+    }
   }
   await upsertUserProfile({ userKey, displayName: name || undefined, email: normalizedEmail, updatedAt: nowISO, createdAt: nowISO });
 

@@ -55,9 +55,9 @@ type Snapshot = {
 };
 
 
-type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
+type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
 type GroupMembersResponse = { ok?: boolean; groupId?: string; members?: GroupMemberRosterEntry[]; traceId?: string; message?: string };
-type RosterPerson = { personId: string; name: string; email: string; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string };
+type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string };
 
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
@@ -1573,7 +1573,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       const response = await apiFetch(`/api/group/members?groupId=${encodeURIComponent(groupId)}`);
       if (!response.ok) return;
       const json = await response.json() as GroupMembersResponse;
-      if (json.ok && Array.isArray(json.members)) setMembersRoster(json.members);
+      if (json.ok && Array.isArray(json.members)) setMembersRoster(json.members.map((member) => ({ ...member, memberKind: member.memberKind === 'guest' ? 'guest' : 'full' })));
     } catch {
       // Ignore roster refresh errors.
     }
@@ -1890,6 +1890,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         personId: member.userKey,
         name: member.displayName?.trim() || member.email,
         email: member.email,
+        memberKind: member.memberKind,
         cellDisplay: '',
         cellE164: '',
         status: member.status === 'invited' ? 'removed' as const : 'active' as const,
@@ -2986,11 +2987,21 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 {peopleInView.map((person) => {
                   const personRules = sortRules(snapshot.rules.filter((rule) => rule.personId === person.personId));
                   const isEditingPerson = editingPersonId === person.personId;
+                  const isGuestMember = person.memberKind === 'guest';
                   return (
                     <Fragment key={person.personId}>
                       <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                           <td>
-                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : <span className="line-clamp" title={person.name}>{person.name || '—'}</span>}
+                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : (
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                                <span className="line-clamp" title={person.name}>{person.name || '—'}</span>
+                                {person.memberKind === 'guest' ? (
+                                  <Tooltip title="Guest account (limited)">
+                                    <Chip size="small" label="Guest" variant="outlined" />
+                                  </Tooltip>
+                                ) : null}
+                              </Stack>
+                            )}
                           </td>
                           <td className="email-col">
                             {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /> : <span>{person.email || '—'}</span>}
@@ -3004,19 +3015,24 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                                   <Clock3 />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title={isEditingPerson ? 'Save person' : 'Edit person'}>
-                                <IconButton
-                                  size="small"
-                                  aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
-                                  onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
-                                >
-                                  <Pencil />
-                                </IconButton>
+                              <Tooltip title={isGuestMember ? 'Not available for guest members.' : (isEditingPerson ? 'Save person' : 'Edit person')}>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
+                                    onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
+                                    disabled={isGuestMember}
+                                  >
+                                    <Pencil />
+                                  </IconButton>
+                                </span>
                               </Tooltip>
-                              <Tooltip title="Delete person">
-                                <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }}>
-                                  <Trash2 />
-                                </IconButton>
+                              <Tooltip title={isGuestMember ? 'Not available for guest members.' : 'Delete person'}>
+                                <span>
+                                  <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }} disabled={isGuestMember}>
+                                    <Trash2 />
+                                  </IconButton>
+                                </span>
                               </Tooltip>
                             </Stack>
                           </td>

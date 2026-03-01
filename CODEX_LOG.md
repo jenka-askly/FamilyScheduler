@@ -14404,3 +14404,39 @@ Implement deterministic demo seeding from Dashboard Utilities with small configu
 
 ### Follow-ups
 - In a fully provisioned API environment, rerun direct tests and add/extend a focused `seed_sample_data` config test for parse/clamp/idempotent density behavior.
+
+## 2026-03-01 00:35 UTC (Guest membership persistence + members roster contract/UI)
+
+### Objective
+Implement guest membership persistence (`memberKind`) for igniteGrace joins/claims, expose it in roster API, and update members UI behavior for guest rows.
+
+### Approach
+- Added `memberKind` to table entity types and introduced a small membership helper module to centralize guest/full resolution + defaulting.
+- Updated `groupJoin`, `igniteJoin`, and `groupClaim` active-membership write paths to persist `memberKind` on both `GroupMembers` and `UserGroups` rows, including structured success/failure logs with operation context.
+- Updated `groupMembers` response mapping to always include `memberKind` (`full` default when missing in storage).
+- Updated members table row model/rendering in `AppShell` to show a Guest chip and disable Edit/Delete only for guest rows with explanatory tooltip.
+- Added focused backend unit tests for member-kind resolution/default behavior.
+- Updated project status continuity note.
+
+### Files changed
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/membership/memberKind.ts`
+- `api/src/lib/membership/memberKind.test.ts`
+- `api/src/functions/groupJoin.ts`
+- `api/src/functions/igniteJoin.ts`
+- `api/src/functions/groupClaim.ts`
+- `api/src/functions/groupMembers.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -maxdepth 3 -name AGENTS.md` ✅ no AGENTS.md files found under workspace scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/fb9eaad4b4e24808/artifacts/artifacts/members-guest-ui-attempt.png`.
+
+### Follow-ups
+- Run API build/tests in an environment with `@azure/data-tables` available to validate the full backend test matrix.
+- Perform staging manual verification for authenticated members page with an actual guest row visible.
