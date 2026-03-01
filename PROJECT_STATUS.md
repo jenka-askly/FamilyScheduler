@@ -5610,3 +5610,18 @@ Verification note:
 1. `npm --prefix apps/web run typecheck` ✅ passed.
 2. `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally.
 3. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/4f836faa76e9ad24/artifacts/artifacts/scan-viewer-fix.png`.
+
+## 2026-03-01 09:02 UTC update (Appointment detail no longer gated by state.json appointments)
+
+- Updated direct `get_appointment_detail` existence validation to use `AppointmentsIndex` + `appointment.json` (index/doc truth) instead of `state.json.appointments` presence.
+- Preserved group membership enforcement via existing `requireGroupMembership` gate.
+- Added deterministic 404 not-found semantics with WARN diagnostics when:
+  - index row missing (`reason: "index_missing"`)
+  - index row soft-deleted (`reason: "index_deleted"`)
+  - appointment blob missing (`reason: "blob_missing"`)
+- Detail response appointment payload is now mapped from appointment doc JSON using shared snapshot mapping helper, preventing stale `state.json` drift from breaking detail.
+- Added direct handler tests for stale `state.json` success path and all three not-found paths above.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/api test` ⚠️ build failed in this environment due missing `@azure/data-tables` type resolution (dependency/tooling environment issue), but direct handler/type changes compile past the touched logic boundaries until external module resolution failure.

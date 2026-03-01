@@ -6,6 +6,7 @@ import { setStorageAdapterForTests } from '../lib/storage/storageFactory.js';
 import { ConflictError, GroupNotFoundError, type StorageAdapter } from '../lib/storage/storage.js';
 import { setGetAppointmentJsonForTests, setPutAppointmentJsonForTests } from '../lib/tables/appointments.js';
 import { setFindAppointmentIndexByIdForTests, setListAppointmentIndexesForGroupForTests, setUpsertAppointmentIndexForTests } from '../lib/tables/entities.js';
+import { setMembershipDepsForTests } from '../lib/tables/membership.js';
 
 const GROUP_ID = '22222222-2222-4222-8222-222222222222';
 const PHONE = '+14155550123';
@@ -32,6 +33,7 @@ test.afterEach(() => setPutAppointmentJsonForTests(null));
 test.afterEach(() => setListAppointmentIndexesForGroupForTests(null));
 test.afterEach(() => setFindAppointmentIndexByIdForTests(null));
 test.afterEach(() => setUpsertAppointmentIndexForTests(null));
+test.afterEach(() => setMembershipDepsForTests(null));
 test.afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.DIRECT_VERSION;
@@ -674,4 +676,110 @@ test('delete_appointment returns ok:false + unchanged snapshot when appointmentI
   assert.equal((response.jsonBody as any).ok, false);
   assert.match((response.jsonBody as any).message, /Not found: missing-123/);
   assert.equal((response.jsonBody as any).snapshot.appointments.some((entry: any) => entry.id === 'appt-2'), true);
+});
+
+test('get_appointment_detail returns 200 when index+blob exist but state.json appointments is stale', async () => {
+  const sessionId = '33333333-3333-4333-8333-333333333333';
+  const sessionBlobName = `familyscheduler/sessions/${sessionId}.json`;
+  const sessionBody = Buffer.from(JSON.stringify({
+    v: 1,
+    email: 'member@example.com',
+    kind: 'full',
+    createdAt: new Date(Date.now() - 60_000).toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString()
+  }), 'utf8');
+  const base = state();
+  const docs = new Map<string, Record<string, unknown>>([
+    ['appt-1', { id: 'appt-1', code: 'APPT-1', title: 'Dentist', date: '2026-03-01', isAllDay: true, people: [] }]
+  ]);
+  setFindAppointmentIndexByIdForTests(async () => ({ partitionKey: GROUP_ID, rowKey: 'rk-1', appointmentId: 'appt-1', status: 'active', hasScan: false, createdAt: '2026-02-27T08:00:00.000Z', updatedAt: '2026-02-27T08:00:00.000Z', isDeleted: false } as any));
+  setGetAppointmentJsonForTests(async (_groupId, appointmentId) => docs.get(appointmentId) ?? null);
+  setAppointmentEventStoreForTests({ recent: async () => ({ events: [], nextCursor: null }) as any });
+  setAppointmentDocStoreForTests({ getWithEtag: async () => ({ doc: null, etag: null }) });
+  setMembershipDepsForTests({
+    getGroupMemberEntity: async () => ({ partitionKey: GROUP_ID, rowKey: 'user:member@example.com', userKey: 'user:member@example.com', email: 'member@example.com', status: 'active', updatedAt: new Date().toISOString() } as any),
+    getUserGroupEntity: async () => null,
+    upsertGroupMember: async () => {},
+    upsertUserGroup: async () => {}
+  });
+
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: base, etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); },
+    async getBinary(blobName: string) {
+      if (blobName === sessionBlobName) return { contentType: 'application/json', stream: Readable.from(sessionBody) as any };
+      const error = new Error('not found') as Error & { statusCode?: number; code?: string };
+      error.statusCode = 404;
+      error.code = 'BlobNotFound';
+      throw error;
+    }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ headers: new Headers({ 'x-session-id': sessionId }), json: async () => ({ groupId: GROUP_ID, action: { type: 'get_appointment_detail', appointmentId: 'appt-1' } }) } as any, context());
+  assert.equal(response.status, 200);
+  assert.equal((response.jsonBody as any).appointment?.id, 'appt-1');
+  assert.equal((response.jsonBody as any).appointment?.title, 'Dentist');
+});
+
+test('get_appointment_detail returns 404 when index row is missing', async () => {
+  const sessionId = '44444444-4444-4444-8444-444444444444';
+  const sessionBlobName = `familyscheduler/sessions/${sessionId}.json`;
+  const sessionBody = Buffer.from(JSON.stringify({ v: 1, email: 'member@example.com', kind: 'full', createdAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() }), 'utf8');
+  setFindAppointmentIndexByIdForTests(async () => null);
+  setMembershipDepsForTests({ getGroupMemberEntity: async () => ({ partitionKey: GROUP_ID, rowKey: 'user:member@example.com', userKey: 'user:member@example.com', email: 'member@example.com', status: 'active', updatedAt: new Date().toISOString() } as any), getUserGroupEntity: async () => null, upsertGroupMember: async () => {}, upsertUserGroup: async () => {} });
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); },
+    async getBinary(blobName: string) { if (blobName === sessionBlobName) return { contentType: 'application/json', stream: Readable.from(sessionBody) as any }; const error = new Error('not found') as Error & { statusCode?: number; code?: string }; error.statusCode = 404; error.code = 'BlobNotFound'; throw error; }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ headers: new Headers({ 'x-session-id': sessionId }), json: async () => ({ groupId: GROUP_ID, action: { type: 'get_appointment_detail', appointmentId: 'missing-1' } }) } as any, context());
+  assert.equal(response.status, 404);
+  assert.equal((response.jsonBody as any).error, 'appointment_not_found');
+});
+
+test('get_appointment_detail returns 404 when index row is soft-deleted', async () => {
+  const sessionId = '55555555-5555-4555-8555-555555555555';
+  const sessionBlobName = `familyscheduler/sessions/${sessionId}.json`;
+  const sessionBody = Buffer.from(JSON.stringify({ v: 1, email: 'member@example.com', kind: 'full', createdAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() }), 'utf8');
+  setFindAppointmentIndexByIdForTests(async () => ({ partitionKey: GROUP_ID, rowKey: 'rk-deleted', appointmentId: 'appt-deleted', status: 'active', hasScan: false, createdAt: '2026-02-27T08:00:00.000Z', updatedAt: '2026-02-27T08:00:00.000Z', isDeleted: true } as any));
+  setMembershipDepsForTests({ getGroupMemberEntity: async () => ({ partitionKey: GROUP_ID, rowKey: 'user:member@example.com', userKey: 'user:member@example.com', email: 'member@example.com', status: 'active', updatedAt: new Date().toISOString() } as any), getUserGroupEntity: async () => null, upsertGroupMember: async () => {}, upsertUserGroup: async () => {} });
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); },
+    async getBinary(blobName: string) { if (blobName === sessionBlobName) return { contentType: 'application/json', stream: Readable.from(sessionBody) as any }; const error = new Error('not found') as Error & { statusCode?: number; code?: string }; error.statusCode = 404; error.code = 'BlobNotFound'; throw error; }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ headers: new Headers({ 'x-session-id': sessionId }), json: async () => ({ groupId: GROUP_ID, action: { type: 'get_appointment_detail', appointmentId: 'appt-deleted' } }) } as any, context());
+  assert.equal(response.status, 404);
+  assert.equal((response.jsonBody as any).error, 'appointment_not_found');
+});
+
+test('get_appointment_detail returns 404 when appointment blob is missing despite existing index', async () => {
+  const sessionId = '66666666-6666-4666-8666-666666666666';
+  const sessionBlobName = `familyscheduler/sessions/${sessionId}.json`;
+  const sessionBody = Buffer.from(JSON.stringify({ v: 1, email: 'member@example.com', kind: 'full', createdAt: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString() }), 'utf8');
+  let warned = false;
+  const warnContext = () => ({ ...context(), warn: () => { warned = true; } } as any);
+  setFindAppointmentIndexByIdForTests(async () => ({ partitionKey: GROUP_ID, rowKey: 'rk-1', appointmentId: 'appt-1', status: 'active', hasScan: false, createdAt: '2026-02-27T08:00:00.000Z', updatedAt: '2026-02-27T08:00:00.000Z', isDeleted: false } as any));
+  setGetAppointmentJsonForTests(async () => null);
+  setMembershipDepsForTests({ getGroupMemberEntity: async () => ({ partitionKey: GROUP_ID, rowKey: 'user:member@example.com', userKey: 'user:member@example.com', email: 'member@example.com', status: 'active', updatedAt: new Date().toISOString() } as any), getUserGroupEntity: async () => null, upsertGroupMember: async () => {}, upsertUserGroup: async () => {} });
+  const adapter: StorageAdapter = {
+    async initIfMissing() {},
+    async load() { return { state: state(), etag: 'etag-1' }; },
+    async save() { throw new Error('save should not be called'); },
+    async getBinary(blobName: string) { if (blobName === sessionBlobName) return { contentType: 'application/json', stream: Readable.from(sessionBody) as any }; const error = new Error('not found') as Error & { statusCode?: number; code?: string }; error.statusCode = 404; error.code = 'BlobNotFound'; throw error; }
+  } as StorageAdapter;
+  setStorageAdapterForTests(adapter);
+
+  const response = await direct({ headers: new Headers({ 'x-session-id': sessionId }), json: async () => ({ groupId: GROUP_ID, action: { type: 'get_appointment_detail', appointmentId: 'appt-1' } }) } as any, warnContext());
+  assert.equal(response.status, 404);
+  assert.equal((response.jsonBody as any).error, 'appointment_not_found');
+  assert.equal(warned, true);
 });
