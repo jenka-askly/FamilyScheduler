@@ -291,7 +291,7 @@ function CreateGroupPage({ profileDisplayName, onOpenProfile, onRequireProfile }
     return `${window.location.origin}/#/g/${createdGroupId}`;
   }, [createdGroupId, shareLink]);
 
-  const createdGroupName = groupName.trim() || 'Family Schedule';
+  const createdGroupName = groupName.trim() || 'Untitled group';
 
   const copyShareLink = async () => {
     if (!shareUrl) return;
@@ -349,7 +349,7 @@ function CreateGroupPage({ profileDisplayName, onOpenProfile, onRequireProfile }
   return (
     <Page variant="form">
       <PageHeader
-        title="Create a Family Schedule"
+        title="Create a group"
         description="Create a private shared schedule. Only people you add can access it."
         showGroupSummary={false}
         onOpenProfile={() => onOpenProfile(false)}
@@ -434,7 +434,7 @@ function JoinGroupPage({ groupId, routeError, traceId }: { groupId: string; rout
         const response = await apiFetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string };
-        if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
+        if (!canceled && data.ok) setGroupName(data.groupName || 'Untitled group');
       } catch {
         if (!canceled) setGroupName(undefined);
       }

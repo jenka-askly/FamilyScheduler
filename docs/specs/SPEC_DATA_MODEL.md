@@ -1,6 +1,6 @@
 # Data Model Specification (Versioned)
 
-This document defines the legacy structural state contract for FamilyScheduler.
+This document defines the legacy structural state contract for Yapper.
 
 > **Note:** This is a legacy/structural app-state model. Persistence source-of-truth is defined in `docs/specs/DESIGN_STORAGE_TABLES_AND_USAGE.md` (table-first membership/authorization and roster semantics).
 

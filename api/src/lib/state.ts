@@ -102,7 +102,7 @@ export type AppState = {
 
 const DEFAULT_TZ = 'America/Los_Angeles';
 
-export const createEmptyAppState = (groupId = 'default', groupName = 'Family Scheduler'): AppState => {
+export const createEmptyAppState = (groupId = 'default', groupName = 'Untitled group'): AppState => {
   const now = new Date().toISOString();
   return {
     schemaVersion: 3,
@@ -308,7 +308,7 @@ export const normalizeAppState = (state: AppState): AppState => {
   return {
     schemaVersion: typeof stateLike.schemaVersion === 'number' ? stateLike.schemaVersion : (typeof stateLike.version === 'number' ? stateLike.version : 3),
     groupId: typeof stateLike.groupId === 'string' && stateLike.groupId.trim() ? stateLike.groupId : 'default',
-    groupName: typeof stateLike.groupName === 'string' && stateLike.groupName.trim() ? normalizeText(stateLike.groupName) : 'Family Scheduler',
+    groupName: typeof stateLike.groupName === 'string' && stateLike.groupName.trim() ? normalizeText(stateLike.groupName) : 'Untitled group',
     createdAt,
     updatedAt,
     people,

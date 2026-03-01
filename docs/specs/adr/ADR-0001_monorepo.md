@@ -5,7 +5,7 @@
 
 ## Context
 
-FamilyScheduler needs coordinated evolution of web UI, API, and shared contracts.
+Yapper needs coordinated evolution of web UI, API, and shared contracts.
 
 ## Decision
 

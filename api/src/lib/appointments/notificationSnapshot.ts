@@ -23,7 +23,7 @@ export const createNotificationSnapshot = (input: Omit<NotificationSnapshot, 'sn
 });
 
 export const snapshotToIcs = (snapshot: NotificationSnapshot): { filename: string; content: string } => {
-  const uid = `${snapshot.snapshotId}@familyscheduler`;
+  const uid = `${snapshot.snapshotId}@yapper`;
   const dtStart = fmtUtc(snapshot.time.startUtc);
   const endUtc = snapshot.time.endUtc || new Date(new Date(snapshot.time.startUtc).getTime() + ((snapshot.time.durationMins ?? 60) * 60000)).toISOString();
   const dtEnd = fmtUtc(endUtc);
@@ -35,7 +35,7 @@ export const snapshotToIcs = (snapshot: NotificationSnapshot): { filename: strin
   const content = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//FamilyScheduler//Appointments//EN',
+    'PRODID:-//Yapper//Appointments//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

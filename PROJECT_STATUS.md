@@ -5475,3 +5475,21 @@ Verification note:
 
 1. `pnpm --filter @familyscheduler/api test -- tablesClient.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment (`TS2307` during API TypeScript build).
 2. `rg -n "REQUIRED_TABLES|GroupInviteTokens|ensureTablesReady\(\)" api/src/lib/tables/tablesClient.ts api/src/functions/groupInviteEmail.ts api/src/lib/tables/tablesClient.test.ts` ✅ confirmed provisioning list + handler guard + regression test.
+
+## 2026-03-01 04:43 UTC update (Branding sweep: FamilyScheduler/Family Schedule -> Yapper + neutral group fallback)
+
+- Updated invite email content to remove legacy `FamilyScheduler` branding and use `Yapper` + support address `support@yapper-app.com` in both plain-text and HTML templates.
+- Updated join-link email copy from `Your FamilyScheduler link` / `join FamilyScheduler` to `Your Yapper link` / `join Yapper`.
+- Updated web UI fallback group labels from `Family Schedule` to `Untitled group` and changed create-group title copy to `Create a group`.
+- Updated API internals defaults/prompts/ICS branding:
+  - state default group name now `Untitled group`;
+  - OpenAI parser system prompt now references `Yapper`;
+  - ICS `PRODID` now `-//Yapper//Appointments//EN`.
+- Optional repo consistency pass: updated top-level/docs references from `FamilyScheduler` to `Yapper` in README and selected docs.
+
+### Verification run
+
+1. `rg -n "FamilyScheduler|Family Schedule|Family Scheduler|support@familyscheduler.app" api/src/functions/groupInviteEmail.ts api/src/functions/groupJoinLink.ts apps/web/src/App.tsx apps/web/src/AppShell.tsx api/src/lib/state.ts api/src/lib/openai/prompts.ts api/src/lib/appointments/notificationSnapshot.ts` ✅ no matches.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture and stopped intentionally.
+4. Playwright screenshot capture ✅ `branding-yapper-create-group.png`.

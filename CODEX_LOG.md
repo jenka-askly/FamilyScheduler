@@ -14975,3 +14975,42 @@ Remove the web UI entry point and dialog for “Add or Update Events” (AI scan
 ### Follow-ups
 - Deploy to staging, cold-restart Functions app, and confirm `GroupInviteTokens` auto-appears in table list.
 - Re-test `POST /api/group/invite-email`; expect no `TableNotFound`.
+
+## 2026-03-01 04:43 UTC (Branding sweep across email/UI/API internals)
+
+### Objective
+Replace legacy `FamilyScheduler` / `Family Schedule` branding with `Yapper` (and neutral fallback group naming) in requested email, UI, and API-internal string surfaces.
+
+### Approach
+- Applied smallest-change string replacements only in scoped files.
+- Updated invite/join email copy, support address, and UI fallback labels.
+- Updated API defaults/prompts/ICS PRODID branding surfaces.
+- Ran targeted string search to verify no scoped leftovers.
+
+### Files changed
+- `api/src/functions/groupInviteEmail.ts`
+- `api/src/functions/groupJoinLink.ts`
+- `apps/web/src/App.tsx`
+- `apps/web/src/AppShell.tsx`
+- `api/src/lib/state.ts`
+- `api/src/lib/openai/prompts.ts`
+- `api/src/lib/appointments/notificationSnapshot.ts`
+- `README.md`
+- `docs/environments.md`
+- `docs/prompt-help.md`
+- `docs/specs/SPEC_TIME_DATE.md`
+- `docs/specs/SPEC_DATA_MODEL.md`
+- `docs/specs/adr/ADR-0001_monorepo.md`
+- `docs/specs/SPEC_ARCHITECTURE.md`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "FamilyScheduler|Family Schedule|Family Scheduler|support@familyscheduler.app" api/src/functions/groupInviteEmail.ts api/src/functions/groupJoinLink.ts apps/web/src/App.tsx apps/web/src/AppShell.tsx api/src/lib/state.ts api/src/lib/openai/prompts.ts api/src/lib/appointments/notificationSnapshot.ts` ✅ no matches.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally.
+- Playwright screenshot capture ✅ `branding-yapper-create-group.png`.
+
+### Follow-ups
+- Manual staging verification for outbound invite/join emails in provider inbox rendering.
+- Manual ICS import into common calendar clients to validate metadata rendering.

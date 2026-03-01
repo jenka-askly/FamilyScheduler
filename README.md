@@ -1,6 +1,6 @@
-# FamilyScheduler
+# Yapper
 
-FamilyScheduler is a lightweight family coordination scheduler with a hash-routed web app and Azure Functions API.
+Yapper is a lightweight family coordination scheduler with a hash-routed web app and Azure Functions API.
 
 ## Design docs
 
