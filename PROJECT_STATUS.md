@@ -1,3 +1,9 @@
+## 2026-03-01 12:48 UTC update (Android fold cover-screen legibility + table breakpoint widening)
+
+- Moved base font-size authority to `apps/web/src/styles/ui.css`: mobile/narrow screens now default to `--ui-font-size: 16px`, with dense override `13px` at `@media (min-width: 900px)` to preserve unfolded/tablet density.
+- Removed root global font-size forcing from `apps/web/src/styles.css` so app-wide text sizing is no longer double-defined.
+- Broadened table narrow-screen override from `max-width: 640px` to `max-width: 900px` and ensured `.ui-tableScroll` maintains `overflow-x: auto` with `width: 100%` to avoid whole-page horizontal pressure while keeping table usability.
+
 ## 2026-03-01 12:02 UTC update (Appointment details title card + restored meta rows)
 
 - Reworked the takeover details header area so the appointment title controls now render inside a single outlined, rounded Title Card (`Paper`) above tabs, visually aligned with the Reminders card.

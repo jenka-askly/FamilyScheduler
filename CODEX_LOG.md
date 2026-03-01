@@ -1,3 +1,35 @@
+## 2026-03-01 12:48 UTC (Fix tiny mobile feel on Android Z Fold cover screens)
+
+### Objective
+
+Increase legibility/tap-target feel on narrow screens by centralizing base font sizing and widening mobile table min-width overrides through 900px, without changing large-screen density.
+
+### Approach
+
+- Removed the competing root font-size source from `styles.css` so only UI CSS controls html/body sizing.
+- Set `--ui-font-size: 16px` by default in `ui.css` and added desktop-density override at `min-width: 900px` back to `13px`.
+- Kept table scroll wrapper behavior but broadened table min-width override from `max-width: 640px` to `max-width: 900px` and explicitly set `.ui-tableScroll { width: 100%; overflow-x: auto; }`.
+- Verified responsive behavior with local build + preview and browser width emulation at required widths.
+
+### Files changed
+
+- `apps/web/src/styles.css`
+- `apps/web/src/styles/ui.css`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `cd apps/web && npm ci` ⚠️ (failed: no `package-lock.json` present in workspace)
+- `cd apps/web && npm run build` ✅
+- `cd apps/web && npx vite preview --host 0.0.0.0 --port 4173` ✅ (used for responsive visual checks + screenshot, then stopped with Ctrl+C)
+- `git status --short` ✅
+
+### Follow-ups
+
+- Optional: if any specific table still overflows at 900px due to cell content, scope a tighter class-level min-width override for that table only.
+
+
 ## 2026-03-01 07:32 UTC (Appointment UI cleanup above tabs in AppShell)
 
 ### Objective
