@@ -5527,3 +5527,10 @@ Verification note:
 - `inviteEmailStatus=sent` now shows only `Invite sent` chip (no persistent mail action icon in Actions).
 - `inviteEmailStatus=failed` now shows `Send error` chip + inline `Resend` action; `not_sent` shows `Not sent` chip + inline `Send` action.
 - Existing Edit/Delete actions remain unchanged in the Actions column.
+
+## 2026-03-01 05:27 UTC update (PageHeader: prevent duplicate Yapper in group lockup mode)
+
+- Updated `PageHeader` left-side product cluster rendering so `PRODUCT.name` is shown **only when** `onDashboardClick` is not provided.
+- In dashboard-click mode (group page header), the clickable brand lockup (icon + `Yapper`) remains the sole rendered product label.
+- Kept brand icon fixed sizing unchanged (`28x28`, `flex: '0 0 28px'`, `display: 'block'`).
+- Right-side menu behavior unchanged.
