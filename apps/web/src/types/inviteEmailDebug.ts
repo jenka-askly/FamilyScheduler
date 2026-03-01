@@ -4,7 +4,10 @@ export type InviteEmailDebugClassification =
   | 'route_not_found'
   | 'unauthorized'
   | 'server_error'
-  | 'bad_request';
+  | 'bad_request'
+  | 'empty_response'
+  | 'non_json_response'
+  | 'unknown';
 
 export type InviteEmailDebugBundle = {
   appContext: {
@@ -51,6 +54,9 @@ export type InviteEmailDebugBundle = {
       date?: string;
     };
     responseBodyText?: string;
+    responseBodyLen?: number;
+    contentType?: string;
+    jsonParseError?: string;
     timing: {
       startMs: number;
       endMs: number;

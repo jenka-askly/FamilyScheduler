@@ -5442,3 +5442,17 @@ Verification note:
 - Failure UX now shows `Unable to send invite mail` with a `Details` action; details open a new `Invite debug details` dialog.
 - Added `Copy logs` in dialog to copy full JSON bundle to clipboard (with fallback copy strategy when Clipboard API is unavailable).
 - Privacy guardrails: debug data records only whether `x-session-id` is present, never the session id value; personal message preview is optional behind a toggle (default off).
+
+## 2026-03-01 03:52 UTC update (Invite diagnostics: safe response capture + classification fix)
+
+- Added shared web API safe-response reader (`readResponseSafe`) and structured `ApiError` in `apps/web/src/lib/apiUrl.ts`; response parsing now uses `res.text()` + guarded JSON parse so empty/non-JSON bodies no longer throw `SyntaxError` from `response.json()` in this flow.
+- Updated invite-by-email send path to use safe response parsing and `throwOnHttpError` mode, capture `httpStatus`/`httpStatusText`/`contentType`/safe response headers/body text/body length/json parse error, and classify failures from status/body/parse outcome instead of collapsing to `network_error`.
+- Expanded invite debug type/classification coverage (`empty_response`, `non_json_response`, `unknown`) and updated suggestions for route/auth/CORS/JSON contract cases.
+- Updated invite debug dialog summary line format to `${classification} (${httpStatus ?? 'no status'}) ${httpStatusText ?? ''}`.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+2. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/cc538a21cddd2795/artifacts/artifacts/invite-debug-change-home.png`.
