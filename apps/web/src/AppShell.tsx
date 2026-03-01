@@ -3185,8 +3185,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       <Box
                         sx={{
                           display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.5,
+                          alignItems: 'flex-start',
+                          gap: 1,
                           flexShrink: 0,
                           width: { xs: '100%', sm: 'auto' },
                           justifyContent: { xs: 'flex-end', sm: 'flex-end' },
@@ -3196,41 +3196,45 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                         <Box
                           sx={{
                             display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.75,
+                            flexDirection: 'column',
+                            alignItems: 'flex-end',
                             flexShrink: 0,
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<MailOutlineIcon fontSize="small" />}
-                            onClick={openEmailUpdateDialog}
-                            disabled={!detailsAppointmentId || !detailsData}
-                          >
-                            Email update
-                          </Button>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<MailOutlineIcon fontSize="small" />}
+                              onClick={openEmailUpdateDialog}
+                              disabled={!detailsAppointmentId || !detailsData}
+                            >
+                              Email update
+                            </Button>
+                            {!headerCollapsed ? (
+                              <Tooltip title="History">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={openEmailHistoryMenu}
+                                    disabled={!detailsAppointmentId}
+                                    aria-label="History"
+                                    aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
+                                    aria-haspopup="menu"
+                                    aria-expanded={historyMenuOpen ? 'true' : undefined}
+                                  >
+                                    <ReceiptLongOutlinedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : null}
+                          </Box>
                           {!headerCollapsed ? (
-                            <Tooltip title="History">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  onClick={openEmailHistoryMenu}
-                                  disabled={!detailsAppointmentId}
-                                  aria-label="History"
-                                  aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
-                                  aria-haspopup="menu"
-                                  aria-expanded={historyMenuOpen ? 'true' : undefined}
-                                >
-                                  <ReceiptLongOutlinedIcon fontSize="small" />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25, textAlign: 'right' }}>
+                              {detailsLastEmailUpdate ?? 'Last email update: Never'}
+                            </Typography>
                           ) : null}
-                          <Typography variant="caption" color="text.secondary" sx={{ pl: 0.25 }}>
-                            {detailsLastEmailUpdate ?? 'Last email update: Never'}
-                          </Typography>
                         </Box>
                         <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
                           {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
