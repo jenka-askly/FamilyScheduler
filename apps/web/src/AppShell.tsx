@@ -3243,9 +3243,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       </Box>
                     </Box>
                     {detailsData ? (
-                      // META_BLOCK
+                      // META_BLOCK (collapsed vs expanded)
                       isCollapsed ? (
-                        // Collapsed: single-line text meta (no icons) to reduce vertical space
                         <Typography
                           variant="body2"
                           sx={{ mt: 0.25, color: 'text.secondary', lineHeight: 1.2 }}
@@ -3253,8 +3252,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           {collapsedMeta}
                         </Typography>
                       ) : (
-                        // Expanded: full meta rows with icons
                         <>
+                          {/* EXPANDED META: keep existing rows EXACTLY */}
                           <Stack spacing={0.75}>
                             <Typography variant="body2" color="text.secondary">🕒 {timeText}</Typography>
                             {locationText ? <Typography variant="body2" color="text.secondary">📍 {locationText}</Typography> : null}
