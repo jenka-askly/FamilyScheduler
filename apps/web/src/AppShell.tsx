@@ -2806,7 +2806,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       <tbody>
                 {peopleInView.map((person) => {
                   const isEditingPerson = editingPersonId === person.personId;
-                  const isGuestMember = person.memberKind === 'guest';
                   return (
                       <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
                           <td>
@@ -2837,21 +2836,20 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
                           <td className="actions-cell">
                             <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                              <Tooltip title={isGuestMember ? 'Not available for guest members.' : (isEditingPerson ? 'Save person' : 'Edit person')}>
+                              <Tooltip title={isEditingPerson ? 'Save person' : 'Edit person'}>
                                 <span>
                                   <IconButton
                                     size="small"
                                     aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
                                     onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
-                                    disabled={isGuestMember}
                                   >
                                     <Pencil />
                                   </IconButton>
                                 </span>
                               </Tooltip>
-                              <Tooltip title={isGuestMember ? 'Not available for guest members.' : 'Delete person'}>
+                              <Tooltip title="Delete person">
                                 <span>
-                                  <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }} disabled={isGuestMember}>
+                                  <IconButton size="small" aria-label="Delete person" onClick={() => { void handleDeletePerson(person); }}>
                                     <Trash2 />
                                   </IconButton>
                                 </span>
