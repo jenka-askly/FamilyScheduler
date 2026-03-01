@@ -72,7 +72,11 @@ export async function groupMembers(request: HttpRequest, _context: InvocationCon
         updatedAt: member.updatedAt,
         lastSeenAtUtc: member.lastSeenAtUtc ?? null,
         memberKind: memberKindOrFull(member),
-        emailVerified: emailVerifiedOrTrue(member)
+        emailVerified: emailVerifiedOrTrue(member),
+        inviteEmailStatus: member.inviteEmailStatus ?? 'not_sent',
+        inviteEmailLastAttemptAtUtc: member.inviteEmailLastAttemptAtUtc,
+        inviteEmailFailedReason: member.inviteEmailFailedReason,
+        inviteEmailProviderMessage: member.inviteEmailProviderMessage
       })),
       traceId
     }

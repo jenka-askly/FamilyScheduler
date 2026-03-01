@@ -24,7 +24,11 @@ test('groupMembers includes lastSeenAtUtc in roster payload', async () => {
         email: 'alex@example.com',
         status: 'active',
         updatedAt: '2026-01-01T00:00:00.000Z',
-        lastSeenAtUtc: '2026-01-02T01:02:03.000Z'
+        lastSeenAtUtc: '2026-01-02T01:02:03.000Z',
+        inviteEmailStatus: 'failed',
+        inviteEmailLastAttemptAtUtc: '2026-01-02T03:04:05.000Z',
+        inviteEmailFailedReason: 'suppressed',
+        inviteEmailProviderMessage: 'recipient suppressed'
       }
     ] as any),
     getUserProfileEntity: async () => ({ displayName: 'Alex' } as any)
@@ -36,4 +40,7 @@ test('groupMembers includes lastSeenAtUtc in roster payload', async () => {
   const body = response.jsonBody as any;
   assert.equal(body.ok, true);
   assert.equal(body.members[0].lastSeenAtUtc, '2026-01-02T01:02:03.000Z');
+  assert.equal(body.members[0].inviteEmailStatus, 'failed');
+  assert.equal(body.members[0].inviteEmailFailedReason, 'suppressed');
+  assert.equal(body.members[0].inviteEmailLastAttemptAtUtc, '2026-01-02T03:04:05.000Z');
 });

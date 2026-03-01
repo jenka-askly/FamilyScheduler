@@ -14678,3 +14678,50 @@ Replace Members panel inline editing with a standard modal editor and persist ro
 
 ### Follow-ups
 - In a fully provisioned API environment with Azure table deps installed, run full API build/tests and optionally add integration coverage tying `groupMemberProfilePut` + `groupMembers` enrichment in one test harness.
+
+## 2026-03-01 02:05 UTC (Issue #5: Invite-by-email modal + persisted delivery status + resend)
+
+### Objective
+Implement Members panel invite-by-email end-to-end: modal flow, backend send endpoint, persisted delivery state on membership rows, status rendering, and resend support.
+
+### Approach
+- Added a new API endpoint `POST /api/group/invite-email` to:
+  - validate inputs (email + optional personal message length),
+  - authorize inviter via active group membership,
+  - upsert invited membership rows in both `GroupMembers` and `UserGroups`,
+  - create/reuse invite token and generate join URL,
+  - send email via ACS with `Reply-To` set to inviter,
+  - persist `sent/failed/not_sent` status metadata back to both membership entities.
+- Extended membership entity types and roster payload with invite-email delivery fields.
+- Updated Members UI in `AppShell`:
+  - invite menu now opens `Invite by email…` modal,
+  - modal includes recipient email/name/personal message fields and validation,
+  - invited table rows show delivery status chips + failed tooltip,
+  - invited rows expose resend action that re-calls endpoint and refreshes roster.
+- Added/updated focused backend tests for invalid-email validation and roster payload enrichment.
+- Captured updated UI screenshot for the visual change.
+
+### Files changed
+- `api/src/lib/tables/entities.ts`
+- `api/src/functions/groupInviteEmail.ts`
+- `api/src/functions/groupInviteEmail.test.ts`
+- `api/src/functions/groupMembers.ts`
+- `api/src/functions/groupMembers.test.ts`
+- `api/src/index.ts`
+- `api/groupInviteEmail/function.json`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ❌ no AGENTS found via rg (followed up).
+- `find .. -name AGENTS.md -maxdepth 4` ✅ no AGENTS.md files found in workspace scope.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/api test -- groupInviteEmail.test.ts groupMembers.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this container.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/725343b9499f5acf/artifacts/artifacts/issue5-invite-by-email-ui.png`.
+
+### Follow-ups
+- Add storage-backed invite-attempt rate limiting (per inviter/minute/day) consistent with production table patterns.
+- Consider adding shared email-template helper + richer reason-code mapping with provider-specific status fields when available.
+- Add deeper endpoint tests with dependency injection/mocks for send success/failure and resend timestamp transitions when API dependency typing is available in CI.
