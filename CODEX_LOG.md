@@ -14904,6 +14904,24 @@ Implement deterministic UX updates for the schedule toolbar: one-time empty-stat
 - `apps/web/src/lib/apiUrl.ts`
 - `apps/web/src/AppShell.tsx`
 - `apps/web/src/types/inviteEmailDebug.ts`
+## 2026-03-01 03:53 UTC (Remove Add or Update Events / AI scan UI)
+
+### Objective
+
+Remove the web UI entry point and dialog for “Add or Update Events” (AI scan) while preserving all other chat-driven behaviors.
+
+### Approach
+
+- Removed `AutoAwesomeIcon` calendar action button (`aria-label/title: AI scan`) from `AppShell` calendar actions.
+- Removed advanced modal state (`isAdvancedOpen`, `advancedText`) and `submitAdvanced()` helper.
+- Deleted the “Add or Update Events” dialog JSX block and its process/cancel controls.
+- Removed orphaned `.ui-aiAction` CSS rules after confirming no remaining references.
+- Kept `/api/chat` and existing `sendMessage` proposal/question flows untouched.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/styles.css`
 - `PROJECT_STATUS.md`
 - `CODEX_LOG.md`
 
@@ -14919,3 +14937,15 @@ Implement deterministic UX updates for the schedule toolbar: one-time empty-stat
   - force 404 route miss => `route_not_found` with `httpStatus=404`;
   - clear/invalid session => `unauthorized` with `401/403`;
   - network drop/CORS block => TypeError path classified as `network_error` (or `cors_blocked_suspected` when no status + cross-site).
+
+- `rg -n "isAdvancedOpen|advancedText|submitAdvanced|Add or Update Events|ui-aiAction|AutoAwesomeIcon|AI scan|Calendar actions" apps/web/src/AppShell.tsx apps/web/src` ✅
+- `rg -n "Add or Update Events|ui-aiAction|AI scan" apps/web/src` ✅ (no matches post-change)
+- `pnpm lint` ✅ (`no lint yet` placeholder script)
+- `pnpm test` ✅ (`no tests yet` placeholder script)
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot capture; stopped with SIGINT)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/2d7d4919e59c6c0c/artifacts/artifacts/calendar-actions-no-ai-scan.png`
+
+### Follow-ups
+
+- Manual smoke in a real group route (`/#/g/:groupId/app`) to confirm the calendar actions no longer expose AI scan and that Add appointment + proposal confirm/cancel remain functional.

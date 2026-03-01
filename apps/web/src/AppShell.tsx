@@ -41,7 +41,6 @@ import {
 } from '@mui/material';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
@@ -719,9 +718,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [scanCaptureCameraReady, setScanCaptureCameraReady] = useState(false);
   const [shouldPulseAdd, setShouldPulseAdd] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
-  const [advancedText, setAdvancedText] = useState('');
   const detailsScrollRef = useRef<HTMLDivElement | null>(null);
   const detailsPollingInFlightRef = useRef(false);
   const shouldPinDiscussionToBottomRef = useRef(true);
@@ -2113,14 +2110,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     await sendMessage(out);
   };
 
-  const submitAdvanced = async () => {
-    const out = advancedText.trim();
-    if (!out || isSubmitting || proposalText || pendingQuestion) return;
-    setAdvancedText('');
-    setIsAdvancedOpen(false);
-    await sendMessage(out);
-  };
-
   const commandActionsDisabled = isSubmitting || Boolean(proposalText) || Boolean(pendingQuestion);
 
   const sortedAppointments = useMemo(() => [...snapshot.appointments].sort((a, b) => {
@@ -2909,13 +2898,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             </IconButton>
                           </span>
                         </Tooltip>
-                        <Tooltip title="AI scan">
-                          <span>
-                            <IconButton className="ui-aiAction" onClick={() => setIsAdvancedOpen(true)} aria-label="AI scan" title="AI scan" disabled={commandActionsDisabled}>
-                              <AutoAwesomeIcon />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
                       </Stack>
                     </Stack>
                   </Box>
@@ -3445,34 +3427,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           </Button>
           <Button type="button" onClick={() => { void closeInviteSession(); }} disabled={isInviteClosing}>Close invite</Button>
           <Button type="button" onClick={closeInviteModal}>Done</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={isAdvancedOpen} onClose={() => setIsAdvancedOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Add or Update Events</DialogTitle>
-        <DialogContent>
-          <Stack component="form" spacing={2} onSubmit={(event) => { event.preventDefault(); void submitAdvanced(); }}>
-            <TextField
-              label="Details"
-              multiline
-              minRows={5}
-              value={advancedText}
-              onChange={(event) => setAdvancedText(event.target.value)}
-              placeholder={[
-                'Add dentist appointment Tuesday at 2pm',
-                'Move flight to 8am',
-                'Assign APPT-3 to John',
-                'Paste an email confirmation',
-                'Paste CSV rows'
-              ].join('\n')}
-              fullWidth
-            />
-            <Typography className="prompt-tip">Describe a change or paste schedule text. We’ll extract the events.</Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button type="button" variant="outlined" onClick={() => setIsAdvancedOpen(false)}>Cancel</Button>
-          <Button type="button" variant="contained" onClick={() => { void submitAdvanced(); }} disabled={commandActionsDisabled || !advancedText.trim()}>Process</Button>
         </DialogActions>
       </Dialog>
 
