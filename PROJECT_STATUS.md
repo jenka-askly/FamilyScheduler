@@ -5475,3 +5475,10 @@ Verification note:
 
 1. `pnpm --filter @familyscheduler/api test -- tablesClient.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment (`TS2307` during API TypeScript build).
 2. `rg -n "REQUIRED_TABLES|GroupInviteTokens|ensureTablesReady\(\)" api/src/lib/tables/tablesClient.ts api/src/functions/groupInviteEmail.ts api/src/lib/tables/tablesClient.test.ts` ✅ confirmed provisioning list + handler guard + regression test.
+
+## 2026-03-01 04:39 UTC update (Members invite status row actions alignment)
+
+- Members invite status UI now renders invite send/resend actions inline in the Email/status chip area for invited rows.
+- `inviteEmailStatus=sent` now shows only `Invite sent` chip (no persistent mail action icon in Actions).
+- `inviteEmailStatus=failed` now shows `Send error` chip + inline `Resend` action; `not_sent` shows `Not sent` chip + inline `Send` action.
+- Existing Edit/Delete actions remain unchanged in the Actions column.
