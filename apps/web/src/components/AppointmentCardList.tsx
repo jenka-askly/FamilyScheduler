@@ -5,6 +5,7 @@ import type { TimeSpec } from '../../../../packages/shared/src/types.js';
 type Appointment = {
   id: string;
   code: string;
+  title: string;
   desc: string;
   date: string;
   startTime?: string;
@@ -155,7 +156,8 @@ export function AppointmentCardList({
         const isProblemStatus = statusLabel && statusLabel.toLowerCase() !== 'no conflict';
         const statusColor = apptStatus === 'unreconcilable' ? 'warning' : 'error';
         const peopleText = appointment.peopleDisplay.length ? appointment.peopleDisplay.join(', ') : 'Unassigned';
-        const normalizedTitle = isScanningPlaceholder(appointment.desc) ? '' : appointment.desc;
+        const rawTitle = appointment.title || appointment.desc;
+        const normalizedTitle = isScanningPlaceholder(rawTitle) ? '' : rawTitle;
         const titleText = normalizedTitle || 'Appointment';
         const locationText = appointment.locationDisplay || appointment.location;
         const notesText = appointment.notes?.trim();

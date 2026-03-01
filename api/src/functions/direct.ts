@@ -40,7 +40,7 @@ import { buildAppointmentSnapshot, diffAppointmentSnapshots, type AppointmentDif
 import { addReminderIndexEntry, removeReminderIndexEntry } from '../lib/appointments/reminderIndex.js';
 
 export type ResponseSnapshot = {
-  appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
+  appointments: Array<{ id: string; code: string; title: string; desc: string; schemaVersion?: number; updatedAt?: string; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: ReturnType<typeof getTimeSpec>; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -534,6 +534,7 @@ export const toResponseSnapshot = (state: AppState): ResponseSnapshot => ({
       schemaVersion: appointment.schemaVersion,
       updatedAt: appointment.updatedAt,
       time: getTimeSpec(appointment, appointment.timezone ?? process.env.TZ ?? 'America/Los_Angeles'),
+      title: appointment.title,
       desc: appointment.title,
       date: appointment.date ?? derived.date,
       startTime: appointment.startTime ?? derived.startTime,

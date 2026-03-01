@@ -15130,3 +15130,34 @@ Lock the "Y" marketing header logo next to "Yapper" at a fixed 28x28px size and 
 ### Follow-ups
 
 - Manual browser check at very narrow widths to confirm no wrap/crowding regression in real device viewport combinations.
+
+## 2026-03-01 05:11 UTC (Implement appointment title field in Edit appointment modal)
+
+### Objective
+Implement title editing in the Edit appointment modal and ensure appointment title round-trips through API responses and renders in schedule cards.
+
+### Approach
+- Located edit-appointment wiring in `AppShell` + `AppointmentEditorForm` and added `title` draft plumbing.
+- Updated response snapshot contracts and mappers (`direct`, `chat`, snapshot builder) to include canonical `title` alongside legacy `desc`.
+- Updated appointment card rendering to prefer `title` with `desc` fallback.
+- Added/updated API test assertion for title in update response.
+
+### Files changed
+- `apps/web/src/components/AppointmentEditorForm.tsx`
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/components/AppointmentCardList.tsx`
+- `api/src/functions/direct.ts`
+- `api/src/functions/chat.ts`
+- `api/src/lib/appointments/buildAppointmentsSnapshot.ts`
+- `api/src/functions/direct.test.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/api build` ⚠️ (fails in environment due missing `@azure/data-tables` type module)
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (used for screenshot capture; then stopped)
+- Playwright screenshot capture ✅ (`browser:/tmp/codex_browser_invocations/830d092bb0323169/artifacts/artifacts/edit-appointment-title-field.png`)
+
+### Follow-ups
+- Once API environment has `@azure/data-tables` available, re-run `pnpm --filter @familyscheduler/api build` and full API tests.
