@@ -48,6 +48,7 @@ import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
 import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
@@ -2845,8 +2846,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
   const detailsAppointmentTitle = detailsData
     ? (detailsData.appointment.desc?.trim() || 'Untitled appointment')
-    : 'Loading…';
-  const detailsLocation = detailsData?.appointment.locationDisplay?.trim() || detailsData?.appointment.location?.trim() || '';
+    : 'Appointment';
   const activeSuggestionByField = detailsData
     ? Object.entries(detailsData.suggestions?.byField ?? {}).flatMap(([field, list]) => {
       const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
@@ -2858,52 +2858,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const appointmentDetailsContent = (
     <>
       {detailsData ? (
-        <Stack spacing={2}>
-          <Stack spacing={headerCollapsed ? 1.25 : 2}>
-            <Stack direction="row" justifyContent="flex-end" sx={{ mb: -0.5 }}>
-              <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
-                {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
-              </IconButton>
-            </Stack>
-
-            <Paper variant="outlined" sx={{ p: headerCollapsed ? 1.25 : 1.5, borderRadius: 2 }}>
-              <Stack spacing={1}>
-                <Typography variant="subtitle2" color="text.secondary">Summary</Typography>
-                <Stack direction={{ xs: 'column', sm: detailsLocation ? 'row' : 'column' }} spacing={{ xs: 1, sm: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, minWidth: 0 }}>🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
-                  {detailsLocation ? <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 0 }}>📍 {detailsLocation}</Typography> : null}
-                </Stack>
-              </Stack>
-            </Paper>
+        <>
+          <Stack spacing={1.25} sx={{ pt: 0.5 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, px: 0.5 }}>🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
 
             <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, bgcolor: 'background.default' }}>
               <Stack spacing={1}>
-                <Stack direction={{ xs: 'row', sm: 'row' }} spacing={1} alignItems="center">
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<MailOutlineIcon fontSize="small" />}
-                    onClick={openEmailUpdateDialog}
-                    disabled={!detailsAppointmentId || !detailsData}
-                  >
-                    Email update
-                  </Button>
-                  <Tooltip title="History">
-                    <span>
-                      <IconButton
-                        size="small"
-                        onClick={openEmailHistoryMenu}
-                        disabled={!detailsAppointmentId}
-                        aria-label="History"
-                        aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
-                        aria-haspopup="menu"
-                        aria-expanded={historyMenuOpen ? 'true' : undefined}
-                      >
-                        <ReceiptLongOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </Stack>
                 <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal', alignSelf: { xs: 'stretch', sm: 'flex-end' }, textAlign: { xs: 'left', sm: 'right' } }}>
                   {(() => {
                     const last = detailsData.lastNotification;
@@ -2919,48 +2879,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                     return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
                   })()}
                 </Typography>
-                <Menu
-                  id="details-history-menu"
-                  open={historyMenuOpen}
-                  anchorEl={historyAnchorEl}
-                  onClose={closeEmailHistoryMenu}
-                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                  PaperProps={{ sx: { maxHeight: 360, width: 360 } }}
-                >
-                  {emailHistoryLoading && emailHistoryItems.length === 0 ? (
-                    <MenuItem disabled>
-                      <ListItemText primary="Loading history…" />
-                    </MenuItem>
-                  ) : null}
-                  {emailHistoryError ? (
-                    <MenuItem onClick={() => detailsAppointmentId ? void loadEmailHistory(detailsAppointmentId) : undefined}>
-                      <ListItemText primary="Unable to load history" secondary="Retry" />
-                    </MenuItem>
-                  ) : null}
-                  {!emailHistoryLoading && !emailHistoryError && emailHistoryItems.length === 0 ? (
-                    <MenuItem disabled>
-                      <ListItemText primary="No history" />
-                    </MenuItem>
-                  ) : null}
-                  {emailHistoryItems.map((item, index) => {
-                    const sender = item.sentBy.display ? `${item.sentBy.display} <${item.sentBy.email}>` : item.sentBy.email;
-                    const sentCount = item.recipientCountSent ?? 0;
-                    const selectedCount = item.recipientCountSelected;
-                    const statusLabel = item.deliveryStatus === 'partial' && typeof selectedCount === 'number'
-                      ? `Delivered to ${sentCount} of ${selectedCount}`
-                      : `Delivered to ${sentCount}`;
-                    return (
-                      <MenuItem key={`${item.notificationId ?? item.sentAt}-${index}`} onClick={selectEmailHistoryItem}>
-                        <ListItemText
-                          primary={new Date(item.sentAt).toLocaleString()}
-                          secondary={`${sender} • ${statusLabel}`}
-                          secondaryTypographyProps={{ sx: { whiteSpace: 'normal' } }}
-                        />
-                      </MenuItem>
-                    );
-                  })}
-                </Menu>
               </Stack>
             </Paper>
 
@@ -3153,7 +3071,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 ))}
               </Stack>
             ) : null}
-            </Stack>
+        </>
       ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
     </>
   );
@@ -3232,10 +3150,106 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           {detailsOpen ? (
             <div className="ui-details-takeover">
               <div className="ui-details-takeover-header">
-                <IconButton className="ui-details-close" aria-label="Close" onClick={closeAppointmentDetails}>
-                  <CloseIcon />
-                </IconButton>
-                <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600, flex: 1, minWidth: 0 }}>{detailsAppointmentTitle}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+                  <Box sx={{ flexShrink: 0 }}>
+                    <IconButton className="ui-details-close" aria-label="Back" onClick={closeAppointmentDetails}>
+                      <ArrowBackIcon />
+                    </IconButton>
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      variant="subtitle1"
+                      noWrap={headerCollapsed}
+                      sx={{
+                        fontWeight: 600,
+                        minWidth: 0,
+                        ...(headerCollapsed
+                          ? {}
+                          : {
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
+                          })
+                      }}
+                    >
+                      {detailsAppointmentTitle}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<MailOutlineIcon fontSize="small" />}
+                      onClick={openEmailUpdateDialog}
+                      disabled={!detailsAppointmentId || !detailsData}
+                    >
+                      Email update
+                    </Button>
+                    {!headerCollapsed ? (
+                      <Tooltip title="History">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={openEmailHistoryMenu}
+                            disabled={!detailsAppointmentId}
+                            aria-label="History"
+                            aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
+                            aria-haspopup="menu"
+                            aria-expanded={historyMenuOpen ? 'true' : undefined}
+                          >
+                            <ReceiptLongOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    ) : null}
+                    <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
+                      {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                    </IconButton>
+                  </Box>
+                </Box>
+                <Menu
+                  id="details-history-menu"
+                  open={historyMenuOpen}
+                  anchorEl={historyAnchorEl}
+                  onClose={closeEmailHistoryMenu}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                  PaperProps={{ sx: { maxHeight: 360, width: 360 } }}
+                >
+                  {emailHistoryLoading && emailHistoryItems.length === 0 ? (
+                    <MenuItem disabled>
+                      <ListItemText primary="Loading history…" />
+                    </MenuItem>
+                  ) : null}
+                  {emailHistoryError ? (
+                    <MenuItem onClick={() => detailsAppointmentId ? void loadEmailHistory(detailsAppointmentId) : undefined}>
+                      <ListItemText primary="Unable to load history" secondary="Retry" />
+                    </MenuItem>
+                  ) : null}
+                  {!emailHistoryLoading && !emailHistoryError && emailHistoryItems.length === 0 ? (
+                    <MenuItem disabled>
+                      <ListItemText primary="No history" />
+                    </MenuItem>
+                  ) : null}
+                  {emailHistoryItems.map((item, index) => {
+                    const sender = item.sentBy.display ? `${item.sentBy.display} <${item.sentBy.email}>` : item.sentBy.email;
+                    const sentCount = item.recipientCountSent ?? 0;
+                    const selectedCount = item.recipientCountSelected;
+                    const statusLabel = item.deliveryStatus === 'partial' && typeof selectedCount === 'number'
+                      ? `Delivered to ${sentCount} of ${selectedCount}`
+                      : `Delivered to ${sentCount}`;
+                    return (
+                      <MenuItem key={`${item.notificationId ?? item.sentAt}-${index}`} onClick={selectEmailHistoryItem}>
+                        <ListItemText
+                          primary={new Date(item.sentAt).toLocaleString()}
+                          secondary={`${sender} • ${statusLabel}`}
+                          secondaryTypographyProps={{ sx: { whiteSpace: 'normal' } }}
+                        />
+                      </MenuItem>
+                    );
+                  })}
+                </Menu>
               </div>
               <div className="ui-details-takeover-body" ref={detailsScrollRef}>
                 {appointmentDetailsContent}
