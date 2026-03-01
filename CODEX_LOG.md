@@ -14575,3 +14575,28 @@ Align the account/settings popup to the burger icon in Yapper web so the popup r
 
 ### Follow-ups
 - Manual responsive smoke at target breakpoints in authenticated app shell to confirm no overflow clipping in narrow views.
+
+## 2026-03-01 01:14 UTC (Issue #1 correction: keep guest row actions enabled)
+
+### Objective
+Correct Members panel behavior so guest rows keep Guest/Unverified indicators but Edit/Delete remain enabled for durable viewers.
+
+### Approach
+- Applied a minimal UI-only fix in Members actions rendering.
+- Removed guest-based disable logic/tooltips from Edit/Delete controls.
+- Kept existing row-level Guest and Unverified chips unchanged.
+- Updated project continuity docs to reflect corrected behavior.
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `find .. -maxdepth 3 -name AGENTS.md` ✅ no AGENTS.md files found in workspace scope.
+- `rg -n "Not available for guest members|isGuest|memberKind|emailVerified|Unverified|Guest" apps packages -S` ✅ located Members action/chip logic.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `rg -n "Not available for guest members|disabled=\{isGuestMember\}|disabled=\{isGuest\}" apps/web/src/AppShell.tsx -S` ✅ no guest-based disable/tooltips remain in Members actions.
+
+### Follow-ups
+- Human-run UI verification in an authenticated durable viewer session: confirm guest row shows `Guest` + `Unverified` (when false), and Edit/Delete work on guest row.
