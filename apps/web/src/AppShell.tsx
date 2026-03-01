@@ -2851,6 +2851,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const detailsAppointmentLocation = detailsData
     ? (detailsData.appointment.locationDisplay || detailsData.appointment.location || '').trim()
     : '';
+  const detailsAppointmentTime = detailsData
+    ? formatAppointmentTime(detailsData.appointment)
+    : '';
+  const detailsCollapsedMeta = detailsData
+    ? (detailsAppointmentLocation ? `${detailsAppointmentTime} · ${detailsAppointmentLocation}` : detailsAppointmentTime)
+    : '';
   const detailsLastEmailUpdate = detailsData ? (() => {
     const last = detailsData.lastNotification;
     if (!last) return 'Last email update: Never';
@@ -3146,8 +3152,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           {detailsOpen ? (
             <div className="ui-details-takeover">
               <div className="ui-details-takeover-header">
-                <Paper variant="outlined" sx={{ borderRadius: 2, p: 2, width: '100%', boxSizing: 'border-box' }}>
-                  <Stack spacing={1.25}>
+                <Paper variant="outlined" sx={{ borderRadius: 2, p: headerCollapsed ? 1 : 2, width: '100%', boxSizing: 'border-box' }}>
+                  <Stack spacing={headerCollapsed ? 0.5 : 1.25}>
                     <Box
                       sx={{
                         display: 'flex',
@@ -3242,10 +3248,16 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       </Box>
                     </Box>
                     {detailsData ? (
-                      <Stack spacing={0.75}>
-                        <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
-                        {detailsAppointmentLocation ? <Typography variant="body2" color="text.secondary">📍 {detailsAppointmentLocation}</Typography> : null}
-                      </Stack>
+                      headerCollapsed ? (
+                        <Typography variant="body2" sx={{ mt: 0.25, color: 'text.secondary', lineHeight: 1.2 }}>
+                          {detailsCollapsedMeta}
+                        </Typography>
+                      ) : (
+                        <Stack spacing={0.75}>
+                          <Typography variant="body2" color="text.secondary">🕒 {detailsAppointmentTime}</Typography>
+                          {detailsAppointmentLocation ? <Typography variant="body2" color="text.secondary">📍 {detailsAppointmentLocation}</Typography> : null}
+                        </Stack>
+                      )
                     ) : null}
                   </Stack>
                 </Paper>
