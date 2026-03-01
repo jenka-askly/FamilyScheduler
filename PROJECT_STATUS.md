@@ -5305,7 +5305,7 @@ Verification note:
 - Implemented Issue #1: persisted `memberKind` on membership entities (`GroupMembers` + `UserGroups`) with guest assignment when membership activates from `igniteGrace` flows.
 - Membership activation/create write paths now compute `memberKind` (`guest` for ignite grace, otherwise `full`) and emit structured activation logs including `groupId`, normalized email, computed kind, session kind, and operation.
 - `GET /api/group/members` now returns `memberKind` per member and defaults missing storage values to `'full'` for backward compatibility.
-- Members roster UI now renders a **Guest** badge in the Name column and disables Edit/Delete actions only on guest rows (with tooltip: “Not available for guest members.”).
+- Members roster UI now renders a **Guest** badge in the Name column while keeping Edit/Delete actions enabled for guest rows.
 - Durable session behavior, Refresh, and Invite controls remain unchanged by guest rows.
 
 ## 2026-03-01 00:43 UTC update (Groups list row actions UI cleanup)
@@ -5336,7 +5336,7 @@ Verification note:
 - Membership entities now persist both `memberKind` (`full|guest`) and `emailVerified` booleans on activation/upsert across `groupJoin`, `igniteJoin`, and `groupClaim` paths.
 - Activation logs now include `groupId`, normalized email, `sessionKind`, `memberKind`, `emailVerified`, and operation for both success and failure contexts.
 - `GET /api/group/members` now returns `memberKind` + `emailVerified`, defaulting absent legacy values to `memberKind='full'` and `emailVerified=true`.
-- Members UI row model now carries `emailVerified`; Name renders `Guest` chip, Email renders `Unverified` chip (tooltip: `Email not verified.`), and Edit/Delete remain disabled only for guest rows with tooltip `Not available for guest members.`
+- Members UI row model now carries `emailVerified`; Name renders `Guest` chip, Email renders `Unverified` chip (tooltip: `Email not verified.`), and Edit/Delete remain enabled for guest rows.
 - Viewer durability behavior remains unchanged (banner still driven by viewer session state only; refresh/invite controls unaffected by guest rows).
 
 ### Verification run
