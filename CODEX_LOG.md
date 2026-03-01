@@ -14976,6 +14976,29 @@ Remove the web UI entry point and dialog for “Add or Update Events” (AI scan
 - Deploy to staging, cold-restart Functions app, and confirm `GroupInviteTokens` auto-appears in table list.
 - Re-test `POST /api/group/invite-email`; expect no `TableNotFound`.
 
+## 2026-03-01 04:39 UTC (Members row invite action moved into status chip area)
+
+### Objective
+
+Move invite resend/send controls from the Members Actions column into the Email invite-status chip row, and remove the persistent mail icon after successful invite email delivery.
+
+### Approach
+
+- Added a focused helper `renderInviteEmailStatus(person)` in `apps/web/src/AppShell.tsx` to centralize invite status rendering logic in the Email column.
+- Implemented status derivation in helper:
+  - `isInvited = person.status === 'invited'`
+  - `inviteEmailStatus = person.inviteEmailStatus ?? 'not_sent'`
+  - `canSend` only when `failed` or `not_sent`
+- Updated status UI behavior:
+  - `sent` → success chip `Invite sent` only.
+  - `failed` → warning chip `Send error` with existing failure tooltip + inline `Resend` text button.
+  - `not_sent` (or missing) → outlined chip `Not sent` + inline `Send` text button.
+- Reused existing `sendInviteByEmail(...)` handler for inline Send/Resend.
+- Preserved in-flight disable/spinner signal via `inviteByEmailResendingUserKey` (`Sending…` label while request is active).
+- Removed the invited-row mail icon action from the Actions column; Edit/Delete actions remain unchanged.
+
+### Files changed
+
 ## 2026-03-01 04:42 UTC (Extend + pulse visibility to 60s with immediate interaction stop)
 
 ### Objective
@@ -14994,6 +15017,15 @@ Keep the calendar toolbar Add (+) attention pulse visible longer for empty group
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+
+- `rg -n "inviteEmailStatus|Invite sent|Delivery failed|Resend invite email|MailOutlineIcon|peopleInView" apps/web/src/AppShell.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/3b4c10474ac45e20/artifacts/artifacts/members-invite-inline-send-resend.png`.
+
+### Follow-ups
+
+- Manual verification on real invite lifecycle states (`not_sent` → `sent`, forced `failed` → resend success) in a live API environment.
 - `pwd && rg --files -g 'AGENTS.md'` ✅
 - `sed -n '1,240p' apps/web/src/styles.css && sed -n '1,320p' apps/web/src/AppShell.tsx` ✅
 - `rg -n "shouldPulseAdd|addPulse|pulsedInMemory|sessionStorage|setShouldPulseAdd|onClick" apps/web/src/AppShell.tsx` ✅
