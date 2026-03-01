@@ -1,3 +1,10 @@
+## 2026-03-01 03:53 UTC update (Remove Add or Update Events / AI scan UI)
+
+- Removed the calendar toolbar **AI scan** action icon from `AppShell` calendar actions.
+- Removed the entire **Add or Update Events** dialog/modal (state, submit handler, and JSX).
+- Kept backend chat flows unchanged (`sendMessage` confirm/cancel/question pathways remain).
+- Removed now-unused `.ui-aiAction` styles from web CSS.
+
 ## 2026-03-01 03:31 UTC update (Invite-email route staging registration + deploy-zip invariant check)
 
 - Confirmed `api/src/index.ts` already imports `groupInviteEmail` via `./functions/groupInviteEmail.js`, registers `registerHttp('groupInviteEmail', 'group/invite-email', ['POST'], ...)`, and includes `groupInviteEmail` in `expectedFunctions`.

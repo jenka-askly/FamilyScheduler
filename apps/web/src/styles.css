@@ -1964,13 +1964,6 @@ button.ui-fabAdd:focus-visible { outline: 2px solid rgba(0,0,0,0.35); outline-of
   opacity: 1 !important;
 }
 
-.ui-aiAction {
-  color: #7c3aed;
-}
-
-.ui-aiAction:hover {
-  color: #6d28d9;
-}
 
 .ui-igniteCardHeader {
   display: grid;
