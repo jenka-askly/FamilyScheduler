@@ -15293,3 +15293,35 @@ Implement a single Appointment Details takeover pane in `ui-main` that replaces 
 ### Follow-ups
 
 - Manual interactive smoke in local browser session with appointment data: open/close details, verify Schedule/Members hide while open, and validate reminders/discussion/changes/constraints interactions still function.
+
+## 2026-03-01 06:59 UTC (History action dropdown menu in appointment details takeover header)
+
+### Objective
+
+Change the Appointment Details header **History** action from direct popup/dialog invocation to an anchored dropdown list menu while preserving current history loading and details view behavior.
+
+### Approach
+
+- Located the existing History trigger in `AppShell` takeover header and reused current notification-history state/data loader.
+- Added anchor-based menu state and swapped the History trigger to an `IconButton` with menu a11y attributes.
+- Rendered a MUI `Menu` with capped height/width for scrollability and list entries from existing history items.
+- Kept existing full history dialog intact by opening it when a dropdown item is selected.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅
+- `rg -n "history|History|MailOutlineIcon|details-history|popup|notification" apps/web/src/AppShell.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (started for screenshot attempt; stopped with SIGINT after capture attempt)
+- `Playwright screenshot capture via browser tool` ⚠️ (failed due to browser container Chromium SIGSEGV in this environment)
+
+### Follow-ups
+
+- Manual browser smoke test in a normal local runtime: open appointment details takeover, click History icon, confirm anchored dropdown opens/closes on ESC/click-away, and selecting an item opens existing Email update history dialog.
+

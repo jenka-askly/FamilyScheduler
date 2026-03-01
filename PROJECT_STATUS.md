@@ -1,3 +1,11 @@
+## 2026-03-01 06:59 UTC update (Appointment details History now anchored dropdown menu)
+
+- Replaced the Appointment Details header **History** action trigger with a History icon button that opens an anchored MUI `Menu` (`details-history-menu`) near the icon.
+- Added anchor-driven open/close state (`historyAnchorEl` / `historyMenuOpen`) with built-in ESC and click-away close behavior through `Menu onClose`.
+- Reused existing email history data source/loading flow (`loadEmailHistory`) to populate dropdown items; empty/error/loading states now render in the menu.
+- Selecting a history row now closes the menu and preserves existing deeper history experience by opening the existing Email update history dialog.
+- Added accessibility wiring on the History icon button (`aria-controls`, `aria-haspopup="menu"`, `aria-expanded`).
+
 ## 2026-03-01 06:42 UTC update (Appointment Details takeover pane in ui-main)
 
 - Replaced the Appointment Details modal/dialog surface with an in-layout takeover pane inside `ui-main`.
