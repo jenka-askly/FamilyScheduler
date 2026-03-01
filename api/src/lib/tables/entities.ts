@@ -12,9 +12,12 @@ export const GROUP_MEMBERS_TABLE = 'GroupMembers';
 export const APPOINTMENTS_INDEX_TABLE = 'AppointmentsIndex';
 export const USER_PROFILES_TABLE = 'UserProfiles';
 export const APPOINTMENT_PARTICIPANTS_TABLE = 'AppointmentParticipants';
+export const INVITE_TOKENS_TABLE = 'InviteTokens';
+export const INVITE_RATE_LIMITS_TABLE = 'InviteRateLimits';
 
 export type MembershipStatus = 'active' | 'invited' | 'removed';
 export type MemberKind = 'full' | 'guest';
+export type InviteEmailStatus = 'sent' | 'failed' | 'not_sent';
 
 export type GroupEntity = {
   partitionKey: 'group';
@@ -45,6 +48,12 @@ export type UserGroupsEntity = {
   memberKind?: MemberKind;
   emailVerified?: boolean;
   lastSeenAtUtc?: string;
+  inviteEmailStatus?: InviteEmailStatus;
+  inviteEmailLastAttemptAtUtc?: string;
+  inviteEmailFailedReason?: string;
+  inviteEmailProviderMessage?: string;
+  invitedByEmail?: string;
+  invitedByName?: string;
 };
 
 export type GroupMembersEntity = {
@@ -60,6 +69,32 @@ export type GroupMembersEntity = {
   memberKind?: MemberKind;
   emailVerified?: boolean;
   lastSeenAtUtc?: string;
+  inviteEmailStatus?: InviteEmailStatus;
+  inviteEmailLastAttemptAtUtc?: string;
+  inviteEmailFailedReason?: string;
+  inviteEmailProviderMessage?: string;
+  invitedByEmail?: string;
+  invitedByName?: string;
+};
+
+export type InviteTokenEntity = {
+  partitionKey: string;
+  rowKey: string;
+  groupId: string;
+  recipientEmail: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  createdByEmail: string;
+  token: string;
+};
+
+export type InviteRateLimitEntity = {
+  partitionKey: string;
+  rowKey: string;
+  count: number;
+  updatedAt: string;
+  expiresAt: string;
 };
 
 export type AppointmentsIndexEntity = {
@@ -149,6 +184,33 @@ export const upsertGroupMember = async (entity: GroupMembersEntity): Promise<voi
 
 export const upsertUserGroup = async (entity: UserGroupsEntity): Promise<void> => {
   await getTableClient(USER_GROUPS_TABLE).upsertEntity(entity, 'Merge');
+};
+
+export const getInviteTokenEntity = async (groupId: string, recipientEmail: string): Promise<InviteTokenEntity | null> => {
+  const recipientKey = recipientEmail.toLowerCase();
+  try {
+    return await getTableClient(INVITE_TOKENS_TABLE).getEntity<InviteTokenEntity>(groupId, recipientKey);
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+};
+
+export const upsertInviteTokenEntity = async (entity: InviteTokenEntity): Promise<void> => {
+  await getTableClient(INVITE_TOKENS_TABLE).upsertEntity(entity, 'Merge');
+};
+
+export const getInviteRateLimitEntity = async (partitionKey: string, rowKey: string): Promise<InviteRateLimitEntity | null> => {
+  try {
+    return await getTableClient(INVITE_RATE_LIMITS_TABLE).getEntity<InviteRateLimitEntity>(partitionKey, rowKey);
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+};
+
+export const upsertInviteRateLimitEntity = async (entity: InviteRateLimitEntity): Promise<void> => {
+  await getTableClient(INVITE_RATE_LIMITS_TABLE).upsertEntity(entity, 'Merge');
 };
 
 export const upsertGroup = async (entity: GroupEntity): Promise<void> => {

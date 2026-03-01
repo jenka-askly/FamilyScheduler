@@ -10,7 +10,9 @@ export const REQUIRED_TABLES = [
   'UserDailyUsageByModel',
   'DailyUsageByModel',
   'UserProfiles',
-  'AppointmentParticipants'
+  'AppointmentParticipants',
+  'InviteTokens',
+  'InviteRateLimits'
 ] as const;
 
 let tableServiceClient: TableServiceClient | null = null;

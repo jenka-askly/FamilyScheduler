@@ -36,4 +36,5 @@ test('groupMembers includes lastSeenAtUtc in roster payload', async () => {
   const body = response.jsonBody as any;
   assert.equal(body.ok, true);
   assert.equal(body.members[0].lastSeenAtUtc, '2026-01-02T01:02:03.000Z');
+  assert.equal(body.members[0].inviteEmailStatus, 'not_sent');
 });

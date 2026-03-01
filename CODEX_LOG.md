@@ -1,4 +1,38 @@
 
+## 2026-03-01 01:37 UTC UTC (Issue #5 invite-by-email modal + backend delivery status + resend)
+
+### Objective
+Implement end-to-end invite-by-email flow in Members panel with persisted invite email delivery status and resend support.
+
+### Approach
+- Added API endpoint `POST /api/group/invite-email` for validation, auth/membership checks, invite membership upsert, invite token generation/reuse, email send, status persistence, and invite attempt logging.
+- Extended membership entities and roster response with invite email status fields.
+- Added lightweight table-backed inviter rate limiting (minute/day windows).
+- Replaced Members invite-email NYI path with a modal form and wired send/resend flows to refresh roster and show delivery notices.
+
+### Files changed
+- `api/src/functions/groupInviteEmail.ts`
+- `api/groupInviteEmail/function.json`
+- `api/src/index.ts`
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/tables/tablesClient.ts`
+- `api/src/functions/groupMembers.ts`
+- `api/src/functions/groupInviteEmail.test.ts`
+- `api/src/functions/groupMembers.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/api build` ⚠️ failed in this environment due missing `@azure/data-tables` resolution during TypeScript compile.
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ (used for screenshot capture; stopped with SIGINT afterwards).
+- Playwright screenshot capture ✅ artifact created.
+
+### Follow-ups
+- If desired, expand invite-email tests with injected dependencies to validate success/failure persistence and resend timestamps without requiring live table/email infrastructure.
+
+
 ## 2026-03-01 00:55 UTC (Issue #2: remove Members/People rules UI)
 
 ### Objective

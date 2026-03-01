@@ -1,3 +1,10 @@
+## 2026-03-01 01:37 UTC update (Issue #5 invite-by-email)
+
+- Implemented `POST /api/group/invite-email` with membership upsert, invite email send attempt, persisted delivery status (`sent`/`failed`/`not_sent`), and resend via same endpoint.
+- Added invite delivery metadata to roster payload for invited members and surfaced it in Members UI with status chips and resend action.
+- Added Members panel Invite by email modal (recipient email required, name optional, personal message optional/max 500) with success/failure notices and roster refresh.
+- Added invite token + invite rate-limit tables (`InviteTokens`, `InviteRateLimits`) and basic per-inviter minute/day invite throttling.
+
 ## 2026-03-01 00:55 UTC update (Members panel rules UI removal)
 
 - Removed the **Rules** action from each People row in the Members panel.
