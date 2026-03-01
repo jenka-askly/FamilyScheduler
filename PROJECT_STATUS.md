@@ -1,3 +1,11 @@
+## 2026-03-01 05:11 UTC update (Edit appointment modal Title field + title round-trip)
+
+- Added a dedicated **Title** input as the first field in the Edit appointment modal and wired it into editor draft state.
+- Edit save now includes title updates in the direct action flow (`set_appointment_desc`), preserving existing time/location/notes behavior.
+- Appointment snapshot payloads now expose both `title` and `desc` for compatibility; UI card rendering prefers `title` when present.
+- Added API snapshot mapping parity so title is present from both direct and chat snapshot builders and list snapshot helper.
+- Added API test assertion coverage that proposal-apply responses include updated `appointment.title`.
+
 ## 2026-03-01 04:55 UTC update (Lock marketing header logo to fixed 28px)
 
 - Updated the marketing header lockup in `MarketingLayout` to use an inline-flex row with explicit `gap: '6px'` for icon/text spacing.

@@ -467,6 +467,7 @@ test('apply_appointment_proposal succeeds when appointment.json is initially mis
   assert.equal((response.jsonBody as any).ok, true);
   assert.ok(getDocCalls >= 2);
   assert.equal(savedTitle, 'New title');
+  assert.equal((response.jsonBody as any).appointment?.title, 'New title');
   assert.equal((response.jsonBody as any).appointment?.desc, 'New title');
 });
 

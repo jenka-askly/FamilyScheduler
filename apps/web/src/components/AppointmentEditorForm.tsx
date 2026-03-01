@@ -5,10 +5,12 @@ import CheckIcon from '@mui/icons-material/Check';
 import CircularProgress from '@mui/material/CircularProgress';
 
 type AppointmentEditorFormProps = {
+  titleValue: string;
   whenValue: string;
   descriptionValue: string;
   locationValue: string;
   notesValue: string;
+  onTitleChange: (next: string) => void;
   onWhenChange: (next: string) => void;
   onWhenKeyDown: (event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onDescriptionChange: (next: string) => void;
@@ -27,10 +29,12 @@ type AppointmentEditorFormProps = {
 };
 
 export const AppointmentEditorForm = ({
+  titleValue,
   whenValue,
   descriptionValue,
   locationValue,
   notesValue,
+  onTitleChange,
   onWhenChange,
   onWhenKeyDown,
   onDescriptionChange,
@@ -55,6 +59,17 @@ export const AppointmentEditorForm = ({
 
   return (
     <Stack spacing={2}>
+    <TextField
+      fullWidth
+      label="Title"
+      value={titleValue}
+      onChange={(event) => {
+        onDirty?.();
+        onTitleChange(event.target.value);
+      }}
+      helperText="Recommended so this appointment is easy to recognize."
+    />
+
     <TextField
       fullWidth
       label="When"

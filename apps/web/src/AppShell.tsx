@@ -50,7 +50,7 @@ import MailOutlineIcon from '@mui/icons-material/MailOutline';
 
 type TranscriptEntry = { role: 'assistant' | 'user'; text: string };
 type Snapshot = {
-  appointments: Array<{ id: string; code: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
+  appointments: Array<{ id: string; code: string; title: string; desc: string; schemaVersion?: number; updatedAt?: string; time: TimeSpec; date: string; startTime?: string; durationMins?: number; isAllDay: boolean; people: string[]; peopleDisplay: string[]; location: string; locationRaw: string; locationDisplay: string; locationMapQuery: string; locationName: string; locationAddress: string; locationDirections: string; notes: string; scanStatus: 'pending' | 'parsed' | 'failed' | 'deleted' | null; scanImageKey: string | null; scanImageMime: string | null; scanCapturedAt: string | null }>;
   rules: Array<{ code: string; schemaVersion?: number; personId: string; kind: 'available' | 'unavailable'; time: TimeSpec; date: string; startTime?: string; durationMins?: number; timezone?: string; desc?: string; promptId?: string; originalPrompt?: string; startUtc?: string; endUtc?: string }>;
   historyCount?: number;
 };
@@ -631,6 +631,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [activeAppointmentCode, setActiveAppointmentCode] = useState<string | null>(null);
   const [pendingNewAppointmentCode, setPendingNewAppointmentCode] = useState<string | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
+  const [titleDraftText, setTitleDraftText] = useState('');
   const [whenDraftText, setWhenDraftText] = useState('');
   const [descDraftText, setDescDraftText] = useState('');
   const [locationDraftText, setLocationDraftText] = useState('');
@@ -1319,6 +1320,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setEditorDirty(false);
     setActiveAppointmentCode(appointment.code);
     setWhenEditorCode(appointment.code);
+    setTitleDraftText(appointment.title ?? appointment.desc ?? '');
     setWhenDraftText(appointment.time?.intent?.originalText ?? '');
     setDescDraftText(appointment.desc ?? '');
     setLocationDraftText(appointment.locationRaw ?? appointment.location ?? '');
@@ -1333,6 +1335,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       reason === 'cancel'
       && whenEditorCode != null
       && pendingNewAppointmentCode === whenEditorCode
+      && titleDraftText.trim() === ''
       && whenDraftText.trim() === ''
       && descDraftText.trim() === ''
       && locationDraftText.trim() === ''
@@ -1354,6 +1357,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }
 
     setWhenEditorCode(null);
+    setTitleDraftText('');
     setWhenDraftText('');
     setDescDraftText('');
     setLocationDraftText('');
@@ -1408,6 +1412,14 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
 
   const confirmWhenDraft = async (appointment: Snapshot['appointments'][0]) => {
+    const currentTitle = appointment.title ?? appointment.desc ?? '';
+    if (titleDraftText !== currentTitle) {
+      const titleResult = await sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: titleDraftText });
+      if (!titleResult.ok) {
+        setWhenDraftError(titleResult.message);
+        return;
+      }
+    }
     if (descDraftText !== (appointment.desc ?? '')) {
       const descResult = await sendDirectAction({ type: 'set_appointment_desc', code: appointment.code, desc: descDraftText });
       if (!descResult.ok) {
@@ -2038,6 +2050,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         const placeholder: Snapshot['appointments'][number] = {
           id: json.appointmentId,
           code: `SCAN-${Date.now()}`,
+          title: 'Scanning…',
           desc: 'Scanning…',
           updatedAt: nowIso,
           time: { intent: { status: 'unresolved', originalText: '' } },
@@ -3980,10 +3993,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           ) : null}
           {editingAppointment ? (
             <AppointmentEditorForm
+              titleValue={titleDraftText}
               whenValue={whenDraftText}
               descriptionValue={descDraftText}
               locationValue={locationDraftText}
               notesValue={notesDraftText}
+              onTitleChange={setTitleDraftText}
               onWhenChange={(next) => {
                 setWhenDraftText(next);
                 setWhenDraftResult(null);

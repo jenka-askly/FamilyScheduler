@@ -7,6 +7,7 @@ import { listAppointmentIndexesForGroup } from '../tables/entities.js';
 export type AppointmentSnapshotItem = {
   id: string;
   code: string;
+  title: string;
   desc: string;
   schemaVersion?: number;
   updatedAt?: string;
@@ -85,6 +86,7 @@ export const buildAppointmentsSnapshot = async (
     const snapshotAppt: ResponseAppointment = {
       id,
       code,
+      title: typeof doc.title === 'string' ? doc.title : '',
       desc: typeof doc.title === 'string' ? doc.title : '',
       schemaVersion: typeof doc.schemaVersion === 'number' ? doc.schemaVersion : undefined,
       updatedAt: typeof doc.updatedAt === 'string' ? doc.updatedAt : undefined,
