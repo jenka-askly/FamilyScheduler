@@ -14441,6 +14441,21 @@ Implement guest membership persistence (`memberKind`) for igniteGrace joins/clai
 - Run API build/tests in an environment with `@azure/data-tables` available to validate the full backend test matrix.
 - Perform staging manual verification for authenticated members page with an actual guest row visible.
 
+## 2026-03-01 00:39 UTC (Utilities burger menu reorder + divider + toggle alignment)
+
+### Objective
+Reorder authenticated Utilities menu items, add a divider before `Seed demo data…`, and right-align menu toggles without changing existing handlers/semantics.
+
+### Approach
+- Located the relevant top-right burger popup in `apps/web/src/components/layout/MarketingLayout.tsx` (the only menu containing `Signed in as`, `Receive appointment update emails`, `Dark mode`, `Sign out`, and `Seed demo data…`).
+- Applied a minimal layout-only change:
+  - Moved `Seed demo data…` to render after `Sign out`.
+  - Inserted `Divider` between `Sign out` and `Seed demo data…`.
+  - Right-aligned both `Switch` controls (`email updates`, `dark mode`) with `sx={{ ml: 'auto' }}` and preserved row flex alignment.
+- Left all existing click/change handlers and aria labels unchanged.
+
+### Files changed
+- `apps/web/src/components/layout/MarketingLayout.tsx`
 ## 2026-03-01 01:10 UTC (Issue #1 extended: guest row + unverified email + guest action lock)
 
 ### Objective
@@ -14471,6 +14486,14 @@ Implement extended Issue #1 requirements by persisting `memberKind` and `emailVe
 - `CODEX_LOG.md`
 
 ### Commands run + outcomes
+- `find . -maxdepth 3 -name AGENTS.md -print` ✅ no nested AGENTS.md found under repo scope.
+- `rg -n "Seed demo data|Receive appointment update emails|Dark mode|Sign out|Signed in as" .` ✅ located relevant menu implementations.
+- `pnpm --filter @familyscheduler/web build` ✅ passed.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/389315d191d5aba1/artifacts/artifacts/settings-menu.png`.
+
+### Follow-ups
+- Perform human staging verification in an authenticated session to confirm full requested order/divider appearance with `Seed demo data…` visible under dogfood/dev gating.
 - `find .. -maxdepth 3 -name AGENTS.md` ✅ no AGENTS.md files found in workspace scope.
 - `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
 - `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.

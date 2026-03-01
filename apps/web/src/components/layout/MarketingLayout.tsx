@@ -1,5 +1,5 @@
 import { ReactNode, useState } from 'react';
-import { Alert, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Link, Menu, MenuItem, Snackbar, Stack, Switch, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, Link, Menu, MenuItem, Snackbar, Stack, Switch, TextField, Typography } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useColorMode } from '../../colorMode';
 import { buildInfo } from '../../lib/buildInfo';
@@ -122,7 +122,7 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
         {hasApiSession && typeof onToggleEmailUpdates === 'function' ? (
           <MenuItem>
             <Stack direction="column" spacing={0.5} sx={{ width: '100%' }}>
-              <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+              <Stack direction="row" alignItems="center" sx={{ width: '100%' }}>
                 <Typography>Receive appointment update emails</Typography>
                 <Switch
                   checked={Boolean(emailUpdatesEnabled)}
@@ -130,31 +130,34 @@ export function MarketingLayout({ children, hasApiSession = false, sessionEmail,
                   onClick={(event) => event.stopPropagation()}
                   onChange={(_event, checked) => { void onToggleEmailUpdates(checked); }}
                   inputProps={{ 'aria-label': 'Receive appointment update emails' }}
+                  sx={{ ml: 'auto' }}
                 />
               </Stack>
               {prefsError ? <Typography variant="caption" color="error">{prefsError}</Typography> : null}
             </Stack>
           </MenuItem>
         ) : null}
-        {enableDebugMenu && hasApiSession && onSeedDemoData ? (
-          <MenuItem onClick={() => { setAnchorEl(null); setSeedDialogOpen(true); }}>
-            <Typography>Seed demo data…</Typography>
-          </MenuItem>
-        ) : null}
         <MenuItem>
-          <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%' }}>
+          <Stack direction="row" alignItems="center" sx={{ width: '100%' }}>
             <Typography>Dark mode</Typography>
             <Switch
               checked={mode === 'dark'}
               onClick={(event) => event.stopPropagation()}
               onChange={() => toggleMode()}
               inputProps={{ 'aria-label': 'Toggle dark mode' }}
+              sx={{ ml: 'auto' }}
             />
           </Stack>
         </MenuItem>
         {hasApiSession && onSignOut ? (
           <MenuItem onClick={() => { setAnchorEl(null); onSignOut(); }}>
             <Typography>Sign out</Typography>
+          </MenuItem>
+        ) : null}
+        {enableDebugMenu && hasApiSession && onSeedDemoData ? <Divider sx={{ my: 0.5 }} /> : null}
+        {enableDebugMenu && hasApiSession && onSeedDemoData ? (
+          <MenuItem onClick={() => { setAnchorEl(null); setSeedDialogOpen(true); }}>
+            <Typography>Seed demo data…</Typography>
           </MenuItem>
         ) : null}
       </Menu>
