@@ -2845,36 +2845,40 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
   const detailsAppointmentTitle = detailsData
     ? (detailsData.appointment.desc?.trim() || 'Untitled appointment')
-    : 'Appointment';
+    : 'Loading…';
   const detailsLocation = detailsData?.appointment.locationDisplay?.trim() || detailsData?.appointment.location?.trim() || '';
+  const activeSuggestionByField = detailsData
+    ? Object.entries(detailsData.suggestions?.byField ?? {}).flatMap(([field, list]) => {
+      const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
+      if (!active.length) return [];
+      return [{ field, active, conflicted: active.some((entry) => entry.conflicted) }];
+    })
+    : [];
 
   const appointmentDetailsContent = (
     <>
       {detailsData ? (
         <Stack spacing={2}>
-          <Box>
-            <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+          <Stack spacing={headerCollapsed ? 1.25 : 2}>
+            <Stack direction="row" justifyContent="flex-end" sx={{ mb: -0.5 }}>
               <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
                 {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
               </IconButton>
             </Stack>
-            <Stack spacing={headerCollapsed ? 1.25 : 2}>
-              <Paper variant="outlined" sx={{ p: headerCollapsed ? 1.25 : 1.5, borderRadius: 2 }}>
-                <Stack spacing={1}>
-                  <Typography variant="subtitle2" color="text.secondary">Summary</Typography>
-                  <Stack
-                    direction={{ xs: 'column', sm: detailsLocation ? 'row' : 'column' }}
-                    spacing={{ xs: 0.75, sm: 2 }}
-                    sx={{ alignItems: { xs: 'flex-start', sm: detailsLocation ? 'center' : 'flex-start' } }}
-                  >
-                    <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, minWidth: 0 }}>🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
-                    {detailsLocation ? <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 0 }}>📍 {detailsLocation}</Typography> : null}
-                  </Stack>
-                </Stack>
-              </Paper>
 
-              <Stack spacing={0.75}>
-                <Stack direction="row" spacing={1} alignItems="center">
+            <Paper variant="outlined" sx={{ p: headerCollapsed ? 1.25 : 1.5, borderRadius: 2 }}>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" color="text.secondary">Summary</Typography>
+                <Stack direction={{ xs: 'column', sm: detailsLocation ? 'row' : 'column' }} spacing={{ xs: 1, sm: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500, flex: 1, minWidth: 0 }}>🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
+                  {detailsLocation ? <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 0 }}>📍 {detailsLocation}</Typography> : null}
+                </Stack>
+              </Stack>
+            </Paper>
+
+            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, bgcolor: 'background.default' }}>
+              <Stack spacing={1}>
+                <Stack direction={{ xs: 'row', sm: 'row' }} spacing={1} alignItems="center">
                   <Button
                     size="small"
                     variant="outlined"
@@ -2900,7 +2904,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                     </span>
                   </Tooltip>
                 </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal' }}>
+                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal', alignSelf: { xs: 'stretch', sm: 'flex-end' }, textAlign: { xs: 'left', sm: 'right' } }}>
                   {(() => {
                     const last = detailsData.lastNotification;
                     if (!last) return 'Last email update: Never';
@@ -2958,59 +2962,56 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                   })}
                 </Menu>
               </Stack>
+            </Paper>
 
-              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                <Stack spacing={1}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reminders</Typography>
-                  {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
-                  {(detailsData.reminders ?? []).map((reminder) => (
-                    <Stack
-                      key={reminder.reminderId}
-                      direction={{ xs: 'column', sm: 'row' }}
-                      alignItems={{ xs: 'flex-start', sm: 'center' }}
-                      justifyContent="space-between"
-                      spacing={1}
-                    >
-                      <Typography variant="body2">
-                        {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
-                      </Typography>
-                      {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
-                    </Stack>
-                  ))}
-                  {(detailsData.reminders ?? []).length > 0 ? <Divider /> : null}
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
-                    <TextField
-                      size="small"
-                      select
-                      label="Offset"
-                      value={reminderOffsetMinutes}
-                      onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
-                      sx={{ width: { xs: '100%', sm: 170 } }}
-                    >
-                      <MenuItem value={15}>15 minutes</MenuItem>
-                      <MenuItem value={30}>30 minutes</MenuItem>
-                      <MenuItem value={60}>1 hour</MenuItem>
-                      <MenuItem value={1440}>1 day</MenuItem>
-                    </TextField>
-                    <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} sx={{ flex: 1 }} />
-                    <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId} sx={{ width: { xs: '100%', sm: 'auto' } }}>Add reminder</Button>
+            <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reminders</Typography>
+                {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
+                {(detailsData.reminders ?? []).map((reminder) => (
+                  <Stack
+                    key={reminder.reminderId}
+                    direction={{ xs: 'column', sm: 'row' }}
+                    alignItems={{ xs: 'flex-start', sm: 'center' }}
+                    justifyContent="space-between"
+                    spacing={1}
+                  >
+                    <Typography variant="body2">
+                      {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
+                    </Typography>
+                    {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
                   </Stack>
+                ))}
+                {(detailsData.reminders ?? []).length > 0 ? <Divider /> : null}
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+                  <TextField
+                    size="small"
+                    select
+                    label="Offset"
+                    value={reminderOffsetMinutes}
+                    onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
+                    sx={{ width: { xs: '100%', sm: 170 } }}
+                  >
+                    <MenuItem value={15}>15 minutes</MenuItem>
+                    <MenuItem value={30}>30 minutes</MenuItem>
+                    <MenuItem value={60}>1 hour</MenuItem>
+                    <MenuItem value={1440}>1 day</MenuItem>
+                  </TextField>
+                  <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} sx={{ flex: 1 }} />
+                  <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId} sx={{ width: { xs: '100%', sm: 'auto' } }}>Add reminder</Button>
                 </Stack>
-              </Paper>
+              </Stack>
+            </Paper>
 
-              {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
-              {Object.entries(detailsData.suggestions?.byField ?? {}).some(([, list]) => (list ?? []).some((entry) => entry.active && entry.status === 'active')) ? (
-                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                  {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
-                    const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
-                    if (!active.length) return null;
-                    const conflicted = active.some((entry) => entry.conflicted);
-                    return <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />;
-                  })}
-                </Stack>
-              ) : null}
-            </Stack>
-          </Box>
+            {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
+            {activeSuggestionByField.length > 0 ? (
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
+                {activeSuggestionByField.map(({ field, active, conflicted }) => (
+                  <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />
+                ))}
+              </Stack>
+            ) : null}
+          </Stack>
           <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
             <Tab value="discussion" label="Discussion" />
             <Tab value="changes" label="Changes" />
