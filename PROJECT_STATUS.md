@@ -5648,3 +5648,17 @@ Verification note:
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/api test` ⚠️ build failed in this environment due missing `@azure/data-tables` type resolution (dependency/tooling environment issue), but direct handler/type changes compile past the touched logic boundaries until external module resolution failure.
+
+## 2026-03-01 12:20 UTC update (Appointment details collapsed density + reminders modal/header actions)
+
+- Appointment details title card now uses a denser collapsed mode with one-line ellipsized title and a single no-icon meta line (`<time> · <location>`), while expanded mode retains rich time/location rows.
+- Email controls now switch by collapse state:
+  - Collapsed: icon-only email action.
+  - Expanded: `EMAIL UPDATE` text button + history icon + grouped `Last email update` line directly under the email controls.
+- Reminders card was removed from page flow and moved into a header action icon that opens a modal dialog containing the existing reminders list/composer/actions.
+- Collapse chevron remains the far-right independent header collapse control.
+- Tabs and all content below Discussion/Changes/Constraints remain unchanged.
+
+### Verification run
+
+1. `pnpm -C apps/web build` ✅ passed (TypeScript + Vite production build).

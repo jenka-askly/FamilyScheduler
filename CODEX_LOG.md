@@ -15559,3 +15559,40 @@ Make the Appointment Details top title area a boxed card like Reminders while re
 ### Follow-ups
 
 - Manual UI smoke in a local browser with an appointment details takeover open to confirm title-card spacing and collapsed/expanded behavior in real data states.
+
+## 2026-03-01 12:20 UTC (Appointment details header collapse density + reminders modal)
+
+### Objective
+
+Implement appointment details title-card layout changes for collapsed density, email action icon swap, and reminders migration to header-triggered modal on `develop`.
+
+### Approach
+
+- Added local `remindersOpen` state and a reusable `remindersContent` JSX const to preserve existing reminder handlers/controlled inputs.
+- Removed inline reminders card from above-tabs page flow and rendered reminders via `Dialog` (`DialogTitle`, `DialogContent`, `DialogActions`) opened from a new header reminders icon.
+- Rewired title card top row into fixed order: back button, title, action cluster (email/history/reminders), far-right collapse chevron.
+- Applied collapse-aware email action rendering and moved `Last email update` to expanded-mode-only grouped stack under email controls.
+- Tightened collapsed visual density (header padding/spacing), ensured collapsed title ellipsis and single-line collapsed meta text with `title` tooltip.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `find .. -name AGENTS.md -print` ✅
+- `rg --files` ✅
+- `rg -n "EMAIL UPDATE|Reminders|ExpandMoreIcon|Last email update|headerCollapsed|Discussion|Changes|Constraints" apps/web/src/AppShell.tsx` ✅
+- `pnpm -C apps/web build` (run after edits; outcome recorded in subsequent entry)
+
+### Follow-ups
+
+- Validate visually in browser that collapsed/expanded permutations match product acceptance checklist for real appointment data.
+
+### Subsequent verification outcome
+
+- `pnpm -C apps/web build` ✅ passed (`tsc -p tsconfig.json && vite build`).
+- `pnpm -C apps/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; then stopped.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/5b1791d4e6f44985/artifacts/artifacts/appointment-header-reminders-modal.png`.
