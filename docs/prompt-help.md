@@ -1,6 +1,6 @@
 # Canonical Prompt Help Text (`/help`)
 
-FamilyScheduler Help
+Yapper Help
 
 Changes require confirmation. Questions respond immediately.
 

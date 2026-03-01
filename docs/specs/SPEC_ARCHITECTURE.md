@@ -2,7 +2,7 @@
 
 ## 1. System overview
 
-FamilyScheduler currently runs as a web + API + storage system:
+Yapper currently runs as a web + API + storage system:
 
 1. **Web client (structured UI + chat-assisted flows)**
 2. **Azure Functions API**

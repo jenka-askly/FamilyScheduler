@@ -70,9 +70,9 @@ export async function groupJoinLink(request: HttpRequest, _context: InvocationCo
   try {
     await sendEmail({
       to: inviteeEmail,
-      subject: 'Your FamilyScheduler link',
-      plainText: `Use this link to join FamilyScheduler: ${joinLink}`,
-      html: `<p>Use this link to join FamilyScheduler: <a href="${joinLink}">Join</a></p>`,
+      subject: 'Your Yapper link',
+      plainText: `Use this link to join Yapper: ${joinLink}`,
+      html: `<p>Use this link to join Yapper: <a href="${joinLink}">Join</a></p>`,
     });
     return { status: 200, jsonBody: { ok: true, emailSent: true, provider: 'acs', traceId } };
   } catch {

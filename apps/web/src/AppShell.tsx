@@ -2642,7 +2642,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         const response = await apiFetch(`/api/group/meta?groupId=${encodeURIComponent(groupId)}`);
         if (!response.ok) return;
         const data = await response.json() as { ok?: boolean; groupName?: string };
-        if (!canceled && data.ok) setGroupName(data.groupName || 'Family Schedule');
+        if (!canceled && data.ok) setGroupName(data.groupName || 'Untitled group');
       } catch {
         // Ignore metadata load failures; header can still render with groupId.
       }
@@ -3378,7 +3378,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       </Dialog>
 
       <Dialog open={inviteModalOpen} onClose={closeInviteModal} fullWidth maxWidth="xs">
-        <DialogTitle>{`Scan to join "${(groupName ?? 'Family Schedule').trim() || 'Family Schedule'}"`}</DialogTitle>
+        <DialogTitle>{`Scan to join "${(groupName ?? 'Untitled group').trim() || 'Untitled group'}"`}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">
@@ -3404,7 +3404,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 />
               </div>
             ) : null}
-            <Typography variant="body2" sx={{ textAlign: 'center' }}>{`Join ${(groupName ?? 'Family Schedule').trim() || 'Family Schedule'}`}</Typography>
+            <Typography variant="body2" sx={{ textAlign: 'center' }}>{`Join ${(groupName ?? 'Untitled group').trim() || 'Untitled group'}`}</Typography>
             {inviteJoinUrl ? (
               <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all', textAlign: 'center' }}>
                 {inviteJoinUrl}

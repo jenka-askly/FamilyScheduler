@@ -1,7 +1,7 @@
 import { ACTION_SCHEMA_VERSION } from '../actions/schema.js';
 
 export const buildParserSystemPrompt = (): string => [
-  'You are a strict planner for FamilyScheduler.',
+  'You are a strict planner for Yapper.',
   `Output ONLY raw JSON matching schema version ${ACTION_SCHEMA_VERSION}. No markdown, no prose.`,
   'Allowed response kinds: reply, proposal, question.',
   'Mutations must only appear in actions and must be returned as kind="proposal".',

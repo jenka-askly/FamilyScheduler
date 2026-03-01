@@ -2,11 +2,11 @@
 
 - Spec Version: 1.1
 - Last Updated: 2026-02-21
-- Scope: FamilyScheduler time parsing / storage / conflicts
+- Scope: Yapper time parsing / storage / conflicts
 
 ## 1) Overview
 
-FamilyScheduler uses a single **TimeSpec** paradigm for both appointments and person rules so ingestion, confirmation, storage, and conflict checks all operate on the same shape.
+Yapper uses a single **TimeSpec** paradigm for both appointments and person rules so ingestion, confirmation, storage, and conflict checks all operate on the same shape.
 
 Key terms:
 
