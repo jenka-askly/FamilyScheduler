@@ -3577,14 +3577,33 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         </DialogActions>
       </Dialog>
 
-      <Drawer
+      <Dialog
         open={detailsOpen}
-        title={detailsData?.appointment.desc || (snapshot.appointments.find((entry) => entry.id === detailsAppointmentId)?.desc ?? 'Appointment details')}
-        onClose={closeAppointmentDetails}
-        contentRef={detailsScrollRef}
+        onClose={(_event, _reason) => { closeAppointmentDetails(); }}
+        fullWidth
+        maxWidth="md"
+        aria-labelledby="appointment-details-title"
       >
-        {detailsData ? (
-          <Stack spacing={1.5}>
+        <DialogTitle id="appointment-details-title" sx={{ pr: 6 }}>
+          Appointment
+          <IconButton
+            aria-label="Close"
+            onClick={closeAppointmentDetails}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          dividers
+          ref={detailsScrollRef}
+          sx={{
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 140px)'
+          }}
+        >
+          {detailsData ? (
+            <Stack spacing={1.5}>
             <Box>
               <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
                 <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
@@ -3813,9 +3832,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 ))}
               </Stack>
             ) : null}
-          </Stack>
-        ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
-      </Drawer>
+            </Stack>
+          ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isEmailUpdateOpen} onClose={closeEmailUpdateDialog} maxWidth="md" fullWidth>
         <DialogTitle>Email update</DialogTitle>
