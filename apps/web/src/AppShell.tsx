@@ -2847,7 +2847,23 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   };
   const detailsAppointmentTitle = detailsData
     ? (detailsData.appointment.desc?.trim() || 'Untitled appointment')
-    : 'Appointment';
+    : 'Loading…';
+  const detailsAppointmentLocation = detailsData
+    ? (detailsData.appointment.locationDisplay || detailsData.appointment.location || '').trim()
+    : '';
+  const detailsLastEmailUpdate = detailsData ? (() => {
+    const last = detailsData.lastNotification;
+    if (!last) return 'Last email update: Never';
+    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
+    if (last.deliveryStatus === 'partial') {
+      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
+      const short = missed.slice(0, 2).join(', ');
+      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
+      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
+      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
+    }
+    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
+  })() : null;
   const activeSuggestionByField = detailsData
     ? Object.entries(detailsData.suggestions?.byField ?? {}).flatMap(([field, list]) => {
       const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
@@ -2860,28 +2876,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     <>
       {detailsData ? (
         <>
-          <Stack spacing={1.25} sx={{ pt: 0.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: 500, px: 0.5 }}>🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
-
-            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 2, bgcolor: 'background.default' }}>
-              <Stack spacing={1}>
-                <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal', alignSelf: { xs: 'stretch', sm: 'flex-end' }, textAlign: { xs: 'left', sm: 'right' } }}>
-                  {(() => {
-                    const last = detailsData.lastNotification;
-                    if (!last) return 'Last email update: Never';
-                    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
-                    if (last.deliveryStatus === 'partial') {
-                      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
-                      const short = missed.slice(0, 2).join(', ');
-                      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
-                      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
-                      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
-                    }
-                    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
-                  })()}
-                </Typography>
-              </Stack>
-            </Paper>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
 
             <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
               <Stack spacing={1}>
@@ -3151,64 +3146,79 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           {detailsOpen ? (
             <div className="ui-details-takeover">
               <div className="ui-details-takeover-header">
-                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
-                  <Box sx={{ flexShrink: 0 }}>
-                    <IconButton className="ui-details-close" aria-label="Back" onClick={closeAppointmentDetails}>
-                      <ArrowBackIcon />
-                    </IconButton>
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography
-                      variant="subtitle1"
-                      noWrap={headerCollapsed}
-                      sx={{
-                        fontWeight: 600,
-                        minWidth: 0,
-                        ...(headerCollapsed
-                          ? {}
-                          : {
-                            display: '-webkit-box',
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden'
-                          })
-                      }}
-                    >
-                      {detailsAppointmentTitle}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<MailOutlineIcon fontSize="small" />}
-                      onClick={openEmailUpdateDialog}
-                      disabled={!detailsAppointmentId || !detailsData}
-                    >
-                      Email update
-                    </Button>
-                    {!headerCollapsed ? (
-                      <Tooltip title="History">
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={openEmailHistoryMenu}
-                            disabled={!detailsAppointmentId}
-                            aria-label="History"
-                            aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
-                            aria-haspopup="menu"
-                            aria-expanded={historyMenuOpen ? 'true' : undefined}
-                          >
-                            <ReceiptLongOutlinedIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                <Paper variant="outlined" sx={{ borderRadius: 2, p: 2 }}>
+                  <Stack spacing={1.25}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', width: '100%', gap: 1 }}>
+                      <Box sx={{ flexShrink: 0 }}>
+                        <IconButton className="ui-details-close" aria-label="Back" onClick={closeAppointmentDetails}>
+                          <ArrowBackIcon />
+                        </IconButton>
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0, pt: 0.5 }}>
+                        <Typography
+                          variant="subtitle1"
+                          noWrap={headerCollapsed}
+                          sx={{
+                            fontWeight: 600,
+                            minWidth: 0,
+                            ...(headerCollapsed
+                              ? {}
+                              : {
+                                display: '-webkit-box',
+                                WebkitLineClamp: 3,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                              })
+                          }}
+                        >
+                          {detailsAppointmentTitle}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<MailOutlineIcon fontSize="small" />}
+                          onClick={openEmailUpdateDialog}
+                          disabled={!detailsAppointmentId || !detailsData}
+                        >
+                          Email update
+                        </Button>
+                        {!headerCollapsed ? (
+                          <Tooltip title="History">
+                            <span>
+                              <IconButton
+                                size="small"
+                                onClick={openEmailHistoryMenu}
+                                disabled={!detailsAppointmentId}
+                                aria-label="History"
+                                aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
+                                aria-haspopup="menu"
+                                aria-expanded={historyMenuOpen ? 'true' : undefined}
+                              >
+                                <ReceiptLongOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        ) : null}
+                        <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
+                          {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                        </IconButton>
+                      </Box>
+                    </Box>
+                    {detailsLastEmailUpdate ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal', alignSelf: { xs: 'stretch', sm: 'flex-end' }, textAlign: { xs: 'left', sm: 'right' } }}>
+                        {detailsLastEmailUpdate}
+                      </Typography>
                     ) : null}
-                    <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
-                      {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
-                    </IconButton>
-                  </Box>
-                </Box>
+                    {detailsData ? (
+                      <Stack spacing={0.75}>
+                        <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
+                        {detailsAppointmentLocation ? <Typography variant="body2" color="text.secondary">📍 {detailsAppointmentLocation}</Typography> : null}
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                </Paper>
                 <Menu
                   id="details-history-menu"
                   open={historyMenuOpen}

@@ -15494,3 +15494,36 @@ Implement multi-appointment extraction + creation for scan-from-photo; remove pl
 ### Follow-ups
 
 - Add API function-level tests for `scanAppointment` create/persist multi-item behavior once API TypeScript build environment resolves `@azure/data-tables`.
+
+## 2026-03-01 11:57 UTC (Appointment details title card + meta rows restore)
+
+### Objective
+
+Make the Appointment Details top title area a boxed card like Reminders while restoring Date/Time and Location under the title row, preserving takeover header interaction rules.
+
+### Approach
+
+- Updated `AppShell` appointment-details takeover header markup to render a new outlined `Paper` Title Card containing:
+  - header row (Back, clamped/ellipsis title, Email update action, conditional History action, collapse toggle)
+  - moved Last email update text
+  - Date/Time row and conditional Location row
+- Removed legacy duplicated above-tabs Date/Time and Last email update blocks from the details content stack.
+- Added derived helpers for safe, trimmed location text and last-email summary rendering; kept tabs/panels and body scroll ownership untouched.
+
+### Files changed
+
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+
+- `rg --files -g 'AGENTS.md'` ✅ (no repository-local AGENTS.md discovered via this query)
+- `rg -n "formatAppointmentTime|headerCollapsed|Last email update|History|Email Update|locationDisplay|appointment.location" apps/web/src/AppShell.tsx` ✅
+- `npm --prefix apps/web run typecheck` ✅
+- `npm --prefix apps/web run dev -- --host 0.0.0.0 --port 4173` ✅ (started for screenshot attempt; stopped manually)
+- Playwright screenshot attempt via browser tool ⚠️ (container Chromium headless crashed with SIGSEGV before capture)
+
+### Follow-ups
+
+- Manual UI smoke in a local browser with an appointment details takeover open to confirm title-card spacing and collapsed/expanded behavior in real data states.
