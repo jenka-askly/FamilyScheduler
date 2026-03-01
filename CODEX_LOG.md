@@ -15219,3 +15219,10 @@ Remove duplicate `Yapper` text in the group header by suppressing the legacy `PR
   - `apply_patch` on `apps/web/src/AppShell.tsx` ✅
 - Follow-ups:
   - Run app-level checks and capture a screenshot of the new centered details dialog.
+## 2026-03-01 05:58 UTC
+- Objective: Implement responsive appointment details behavior in AppShell.
+- Approach: Added breakpoint detection in `AppShell.tsx` and applied mobile full-screen behavior with back affordance in appointment details dialog.
+- Files changed: `apps/web/src/AppShell.tsx`
+- Commands run:
+  - `pnpm -C apps/web build` (failed earlier due transient malformed edit attempt; after reset and final patch, rerun below)
+- Follow-ups: Desktop third-panel inline layout still pending.

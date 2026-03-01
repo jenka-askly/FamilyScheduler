@@ -39,12 +39,15 @@ import {
   Tooltip,
   Typography
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CloseIcon from '@mui/icons-material/Close';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 
@@ -721,6 +724,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [quickAddText, setQuickAddText] = useState('');
   const detailsScrollRef = useRef<HTMLDivElement | null>(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const detailsPollingInFlightRef = useRef(false);
   const shouldPinDiscussionToBottomRef = useRef(true);
 
@@ -3581,17 +3586,18 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         open={detailsOpen}
         onClose={(_event, _reason) => { closeAppointmentDetails(); }}
         fullWidth
+        fullScreen={isMobile}
         maxWidth="md"
         aria-labelledby="appointment-details-title"
       >
         <DialogTitle id="appointment-details-title" sx={{ pr: 6 }}>
-          Appointment
+          {isMobile ? 'Appointment details' : 'Appointment'}
           <IconButton
             aria-label="Close"
             onClick={closeAppointmentDetails}
             sx={{ position: 'absolute', right: 8, top: 8 }}
           >
-            <CloseIcon />
+            {isMobile ? <ArrowBackIcon /> : <CloseIcon />}
           </IconButton>
         </DialogTitle>
         <DialogContent
