@@ -5371,3 +5371,17 @@ Verification note:
 3. `pnpm --filter @familyscheduler/api test -- groupMemberProfilePut.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment (plus initial type export fix handled in code).
 4. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
 5. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/9c924e3b5509fe30/artifacts/artifacts/members-edit-modal-change.png`.
+## 2026-03-01 01:16 UTC update (Issue #3: membership lastSeen + members table cleanup)
+
+- Members panel now shows lastSeen from membership storage (throttled updates). Removed Refresh button and Actions header label.
+- Added membership-level `lastSeenAtUtc` persistence on both `GroupMembers` and `UserGroups` entities.
+- Centralized touch logic in `requireGroupMembership` with 60s throttling and non-blocking warning logs on touch write failures.
+- `GET /api/group/members` now returns `lastSeenAtUtc` as `null` when absent.
+- Members UI now consumes `lastSeenAtUtc`, renders relative labels (`just now`, `Xm ago`, `Xh ago`, `Xd ago`), removes the Refresh button, and keeps the actions icon column with an empty header cell.
+
+### Verification run
+
+1. `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+2. `pnpm --filter @familyscheduler/api test` ⚠️ blocked by missing `@azure/data-tables` type/module resolution in this environment.
+3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; stopped intentionally via SIGINT.
+4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/86b92be776b38016/artifacts/artifacts/issue3-members-ui.png`.
