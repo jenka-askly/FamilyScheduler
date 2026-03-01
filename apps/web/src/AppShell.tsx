@@ -27,6 +27,7 @@ import {
   FormControlLabel,
   FormGroup,
   IconButton,
+  ListItemText,
   Link as MuiLink,
   Menu,
   MenuItem,
@@ -651,10 +652,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [detailsMessageText, setDetailsMessageText] = useState('');
   const [isEmailUpdateOpen, setIsEmailUpdateOpen] = useState(false);
   const [isEmailHistoryOpen, setIsEmailHistoryOpen] = useState(false);
+  const [historyAnchorEl, setHistoryAnchorEl] = useState<HTMLElement | null>(null);
   const [emailHistoryItems, setEmailHistoryItems] = useState<NotificationHistoryItem[]>([]);
   const [emailHistoryCursor, setEmailHistoryCursor] = useState<{ chunkId: number; index: number } | null>(null);
   const [emailHistoryLoading, setEmailHistoryLoading] = useState(false);
   const [emailHistoryError, setEmailHistoryError] = useState<string | null>(null);
+  const historyMenuOpen = Boolean(historyAnchorEl);
   const [selectedRecipientPersonIds, setSelectedRecipientPersonIds] = useState<string[]>([]);
   const [emailUserMessage, setEmailUserMessage] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -2321,12 +2324,21 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }
   };
 
-  const openEmailHistoryDialog = () => {
+  const openEmailHistoryMenu = (event: ReactMouseEvent<HTMLElement>) => {
     if (!detailsAppointmentId) return;
-    setIsEmailHistoryOpen(true);
+    setHistoryAnchorEl(event.currentTarget);
     setEmailHistoryItems([]);
     setEmailHistoryCursor(null);
     void loadEmailHistory(detailsAppointmentId);
+  };
+
+  const closeEmailHistoryMenu = () => {
+    setHistoryAnchorEl(null);
+  };
+
+  const selectEmailHistoryItem = () => {
+    setHistoryAnchorEl(null);
+    setIsEmailHistoryOpen(true);
   };
 
   const sendEmailUpdate = async () => {
@@ -2799,9 +2811,63 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                 >
                   Email update
                 </Button>
-                <Button size="small" onClick={openEmailHistoryDialog} disabled={!detailsAppointmentId}>
-                  History
-                </Button>
+                <Tooltip title="History">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={openEmailHistoryMenu}
+                      disabled={!detailsAppointmentId}
+                      aria-label="History"
+                      aria-controls={historyMenuOpen ? 'details-history-menu' : undefined}
+                      aria-haspopup="menu"
+                      aria-expanded={historyMenuOpen ? 'true' : undefined}
+                    >
+                      <ReceiptLongOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Menu
+                  id="details-history-menu"
+                  open={historyMenuOpen}
+                  anchorEl={historyAnchorEl}
+                  onClose={closeEmailHistoryMenu}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                  PaperProps={{ sx: { maxHeight: 360, width: 360 } }}
+                >
+                  {emailHistoryLoading && emailHistoryItems.length === 0 ? (
+                    <MenuItem disabled>
+                      <ListItemText primary="Loading history…" />
+                    </MenuItem>
+                  ) : null}
+                  {emailHistoryError ? (
+                    <MenuItem onClick={() => detailsAppointmentId ? void loadEmailHistory(detailsAppointmentId) : undefined}>
+                      <ListItemText primary="Unable to load history" secondary="Retry" />
+                    </MenuItem>
+                  ) : null}
+                  {!emailHistoryLoading && !emailHistoryError && emailHistoryItems.length === 0 ? (
+                    <MenuItem disabled>
+                      <ListItemText primary="No history" />
+                    </MenuItem>
+                  ) : null}
+                  {emailHistoryItems.map((item, index) => {
+                    const sender = item.sentBy.display ? `${item.sentBy.display} <${item.sentBy.email}>` : item.sentBy.email;
+                    const sentCount = item.recipientCountSent ?? 0;
+                    const selectedCount = item.recipientCountSelected;
+                    const statusLabel = item.deliveryStatus === 'partial' && typeof selectedCount === 'number'
+                      ? `Delivered to ${sentCount} of ${selectedCount}`
+                      : `Delivered to ${sentCount}`;
+                    return (
+                      <MenuItem key={`${item.notificationId ?? item.sentAt}-${index}`} onClick={selectEmailHistoryItem}>
+                        <ListItemText
+                          primary={new Date(item.sentAt).toLocaleString()}
+                          secondary={`${sender} • ${statusLabel}`}
+                          secondaryTypographyProps={{ sx: { whiteSpace: 'normal' } }}
+                        />
+                      </MenuItem>
+                    );
+                  })}
+                </Menu>
                 <Typography variant="caption" color="text.secondary">
                   {(() => {
                     const last = detailsData.lastNotification;
