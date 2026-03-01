@@ -14861,3 +14861,30 @@ Implement deterministic UX updates for the schedule toolbar: one-time empty-stat
 - Re-run packaging invariant after dependency fetch issue is resolved:
   - `pnpm deploy:api:package`
   - `pnpm deploy:api:verifyzip`
+
+## 2026-03-01 03:58 UTC — Invite-by-email debug bundle dialog + copy-to-clipboard
+
+### Objective
+- Add frontend invite-email failure diagnostics capture and make logs copyable via UI so route/network/CORS/auth failures can be debugged without server access.
+
+### Approach
+- Added `InviteEmailDebugBundle` schema in web types.
+- Instrumented `sendInviteByEmail` to capture structured failure bundles for non-2xx and thrown/network failures, including request metadata, response snippets, timing, classification, and suggestions.
+- Added failure notice action (`Details`) and inline fallback button (`View details`) that opens a dedicated debug dialog.
+- Implemented dialog with classification summary + read-only JSON payload + `Copy logs` using Clipboard API with `execCommand('copy')` fallback.
+- Added privacy controls: `x-session-id` value is never logged (presence only), and personal message preview is opt-in via toggle (off by default).
+
+### Files changed
+- `apps/web/src/AppShell.tsx`
+- `apps/web/src/types/inviteEmailDebug.ts`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/1fdf3ab853f6bd09/artifacts/artifacts/invite-debug-ui.png`.
+
+### Follow-ups
+- Manual local verification for forced 404 and forced network failure paths to confirm expected classifications and captured response/error details in real environment routing conditions.

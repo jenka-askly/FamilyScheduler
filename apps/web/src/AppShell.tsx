@@ -5,8 +5,10 @@ import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
-import { apiFetch, apiUrl, isIgniteGraceGuestForGroup } from './lib/apiUrl';
+import { apiFetch, apiUrl, getSessionId, isIgniteGraceGuestForGroup } from './lib/apiUrl';
 import { buildLoginPathWithNextFromHash } from './lib/returnTo';
+import { buildInfo } from './lib/buildInfo';
+import type { InviteEmailDebugBundle, InviteEmailDebugClassification } from './types/inviteEmailDebug';
 import { generateSuggestionCandidates, parseResolvedWhenFromTimeSpec, type SuggestionCandidate, type SuggestionDirectAction } from './lib/appointmentSuggestions';
 import { spinoffBreakoutGroup } from './lib/ignite/spinoffBreakout';
 import type { TimeSpec } from '../../../packages/shared/src/types.js';
@@ -197,6 +199,42 @@ const createTraceId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `trace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 };
+
+const inferInviteEmailEnvironment = (): string => {
+  const origin = typeof window !== 'undefined' ? window.location.origin.toLowerCase() : '';
+  if (origin.includes('staging')) return 'staging';
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) return 'local';
+  return 'prod';
+};
+
+const classifyInviteEmailFailure = (args: { status?: number; errorName?: string; isCrossSite: boolean }): InviteEmailDebugClassification => {
+  if (args.status === 404) return 'route_not_found';
+  if (args.status === 400) return 'bad_request';
+  if (args.status === 401 || args.status === 403) return 'unauthorized';
+  if (typeof args.status === 'number' && args.status >= 500) return 'server_error';
+  if (!args.status && args.errorName === 'TypeError' && args.isCrossSite) return 'cors_blocked_suspected';
+  return 'network_error';
+};
+
+const inviteEmailSuggestions = (classification: InviteEmailDebugClassification): string[] => {
+  switch (classification) {
+    case 'route_not_found':
+      return ['Verify the deployed API includes POST /api/group/invite-email.', 'Check API base URL and reverse-proxy route mapping for /api/group/invite-email.'];
+    case 'unauthorized':
+      return ['Sign out and sign in again to refresh session state.', 'Confirm caller has active membership for the selected group.'];
+    case 'bad_request':
+      return ['Validate recipientEmail/groupId payload values.', 'Review API validation message in responseBodyText.'];
+    case 'server_error':
+      return ['Use traceId/clientRequestId to locate backend logs.', 'Check mail provider configuration and server exception logs.'];
+    case 'cors_blocked_suspected':
+      return ['Confirm API CORS policy allows this web origin.', 'Check browser console for CORS preflight or blocked request details.'];
+    case 'network_error':
+    default:
+      return ['Verify network connectivity and API host reachability.', 'Confirm browser can access the configured API URL.'];
+  }
+};
+
+const truncateText = (value: string, maxLength: number): string => (value.length > maxLength ? `${value.slice(0, maxLength)}…` : value);
 
 const SYSTEM_DISCUSSION_EVENT_TYPES = new Set([
   'SYSTEM_CONFIRMATION',
@@ -637,7 +675,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [isSavingMemberProfile, setIsSavingMemberProfile] = useState(false);
   const [inviteMenuAnchorEl, setInviteMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ severity: 'error' | 'success' | 'info'; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ severity: 'error' | 'success' | 'info'; message: string; actionLabel?: string; onAction?: () => void } | null>(null);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteSessionId, setInviteSessionId] = useState<string | null>(null);
   const [inviteJoinUrl, setInviteJoinUrl] = useState<string>('');
@@ -651,6 +689,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [inviteByEmailError, setInviteByEmailError] = useState<string | null>(null);
   const [inviteByEmailSending, setInviteByEmailSending] = useState(false);
   const [inviteByEmailResendingUserKey, setInviteByEmailResendingUserKey] = useState<string | null>(null);
+  const [lastInviteDebugBundle, setLastInviteDebugBundle] = useState<InviteEmailDebugBundle | null>(null);
+  const [inviteDebugDialogOpen, setInviteDebugDialogOpen] = useState(false);
+  const [inviteDebugIncludeMessagePreview, setInviteDebugIncludeMessagePreview] = useState(false);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
@@ -1542,6 +1583,8 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     setInviteByEmailRecipientEmail('');
     setInviteByEmailRecipientName('');
     setInviteByEmailPersonalMessage('');
+    setLastInviteDebugBundle(null);
+    setInviteDebugIncludeMessagePreview(false);
     setInviteByEmailOpen(true);
   };
 
@@ -1549,6 +1592,34 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     if (inviteByEmailSending) return;
     setInviteByEmailOpen(false);
     setInviteByEmailError(null);
+  };
+
+  const openInviteDebugDialog = () => {
+    if (!lastInviteDebugBundle) return;
+    setInviteDebugDialogOpen(true);
+  };
+
+  const copyInviteDebugLogs = async () => {
+    if (!lastInviteDebugBundle) return;
+    const content = JSON.stringify(lastInviteDebugBundle, null, 2);
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = content;
+        textArea.setAttribute('readonly', 'true');
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setNotice({ severity: 'success', message: 'Copied' });
+    } catch {
+      setNotice({ severity: 'error', message: 'Unable to copy logs.' });
+    }
   };
 
   const sendInviteByEmail = async (args?: { recipientEmail?: string; recipientName?: string; personalMessage?: string; userKeyForState?: string }) => {
@@ -1571,20 +1642,107 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     }
     setInviteByEmailError(null);
 
+    const startMs = Date.now();
+    const clientRequestId = createTraceId();
+    const traceId = clientRequestId;
+    const requestUrl = apiUrl('/api/group/invite-email');
+    const requestHeaders = new Headers({ 'content-type': 'application/json', accept: 'application/json' });
+    if (getSessionId()) requestHeaders.set('x-session-id', 'present');
+
+    const requestBody = {
+      groupId,
+      recipientEmail,
+      recipientName: recipientName || undefined,
+      personalMessage: personalMessage || undefined,
+      traceId
+    };
+
+    const buildBundle = (input: {
+      status?: number;
+      statusText?: string;
+      responseHeaders?: Headers;
+      responseBodyText?: string;
+      fetchErrorName?: string;
+      fetchErrorMessage?: string;
+    }): InviteEmailDebugBundle => {
+      const endMs = Date.now();
+      const isCrossSite = typeof window !== 'undefined' ? new URL(requestUrl, window.location.origin).origin !== window.location.origin : false;
+      const classification = classifyInviteEmailFailure({ status: input.status, errorName: input.fetchErrorName, isCrossSite });
+      return {
+        appContext: {
+          appVersion: buildInfo.sha || 'dev',
+          commitSha: buildInfo.sha || 'dev',
+          buildTime: buildInfo.time || '',
+          environment: inferInviteEmailEnvironment(),
+          origin: typeof window !== 'undefined' ? window.location.origin : '',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : ''
+        },
+        correlation: {
+          clientTimestampUtc: new Date(startMs).toISOString(),
+          clientRequestId,
+          traceId,
+          groupId
+        },
+        request: {
+          method: 'POST',
+          url: requestUrl,
+          requestHeaders: {
+            contentType: requestHeaders.get('content-type') ?? '',
+            accept: requestHeaders.get('accept') ?? '',
+            origin: typeof window !== 'undefined' ? window.location.origin : '',
+            hasSessionHeader: Boolean(getSessionId())
+          },
+          requestBody: {
+            recipientEmail,
+            recipientName: recipientName || undefined,
+            personalMessageLen: personalMessage.length,
+            personalMessagePreview: inviteDebugIncludeMessagePreview && personalMessage ? truncateText(personalMessage, 50) : undefined,
+            traceId
+          }
+        },
+        networkOutcome: {
+          fetchErrorName: input.fetchErrorName,
+          fetchErrorMessage: input.fetchErrorMessage,
+          httpStatus: input.status,
+          httpStatusText: input.statusText,
+          responseHeaders: {
+            contentType: input.responseHeaders?.get('content-type') ?? undefined,
+            server: input.responseHeaders?.get('server') ?? undefined,
+            xMsRequestId: input.responseHeaders?.get('x-ms-request-id') ?? undefined,
+            requestContext: input.responseHeaders?.get('request-context') ?? undefined,
+            date: input.responseHeaders?.get('date') ?? undefined
+          },
+          responseBodyText: input.responseBodyText,
+          timing: {
+            startMs,
+            endMs,
+            durationMs: endMs - startMs
+          }
+        },
+        diagnostics: {
+          classification,
+          suggestions: inviteEmailSuggestions(classification)
+        }
+      };
+    };
+
     try {
       const response = await apiFetch('/api/group/invite-email', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          groupId,
-          recipientEmail,
-          recipientName: recipientName || undefined,
-          personalMessage: personalMessage || undefined,
-          traceId: createTraceId()
-        })
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(requestBody)
       });
       const payload = await response.json() as { ok?: boolean; message?: string; inviteEmailStatus?: 'sent' | 'failed' | 'not_sent'; inviteEmailFailedReason?: string };
       if (!response.ok || !payload.ok) {
+        const responseBodyText = truncateText(await response.clone().text(), 2048);
+        const bundle = buildBundle({
+          status: response.status,
+          statusText: response.statusText,
+          responseHeaders: response.headers,
+          responseBodyText
+        });
+        setLastInviteDebugBundle(bundle);
+        setNotice({ severity: 'error', message: 'Unable to send invite mail', actionLabel: 'Details', onAction: openInviteDebugDialog });
         const message = payload.message ?? 'Unable to send invite email.';
         if (args?.userKeyForState) showNotice('error', message);
         else setInviteByEmailError(message);
@@ -1601,7 +1759,13 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       if (!args?.userKeyForState) {
         setInviteByEmailOpen(false);
       }
-    } catch {
+    } catch (error) {
+      const bundle = buildBundle({
+        fetchErrorName: error instanceof Error ? error.name : 'UnknownError',
+        fetchErrorMessage: error instanceof Error ? error.message : String(error ?? 'Unknown error')
+      });
+      setLastInviteDebugBundle(bundle);
+      setNotice({ severity: 'error', message: 'Unable to send invite mail', actionLabel: 'Details', onAction: openInviteDebugDialog });
       if (args?.userKeyForState) showNotice('error', 'Unable to resend invite email.');
       else setInviteByEmailError('Unable to send invite email.');
     } finally {
@@ -2552,7 +2716,11 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         </Alert>
       ) : null}
       {notice ? (
-        <Alert severity={notice.severity} sx={{ maxWidth: 760, mb: 1.5 }}>
+        <Alert
+          severity={notice.severity}
+          sx={{ maxWidth: 760, mb: 1.5 }}
+          action={notice.actionLabel && notice.onAction ? <Button color="inherit" size="small" onClick={notice.onAction}>{notice.actionLabel}</Button> : undefined}
+        >
           {notice.message}
         </Alert>
       ) : null}
@@ -3058,7 +3226,12 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               fullWidth
               helperText={`${inviteByEmailPersonalMessage.length}/500`}
             />
+            <FormControlLabel
+              control={<Checkbox checked={inviteDebugIncludeMessagePreview} onChange={(event) => setInviteDebugIncludeMessagePreview(event.target.checked)} />}
+              label="Include personal message preview in debug logs"
+            />
             {inviteByEmailError ? <Alert severity="error">{inviteByEmailError}</Alert> : null}
+            {lastInviteDebugBundle ? <Button type="button" size="small" onClick={openInviteDebugDialog} sx={{ alignSelf: 'flex-start' }}>View details</Button> : null}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -3066,6 +3239,29 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
           <Button type="button" variant="contained" onClick={() => { void sendInviteByEmail(); }} disabled={inviteByEmailSending}>
             {inviteByEmailSending ? 'Sending…' : 'Send invite'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={inviteDebugDialogOpen} onClose={() => setInviteDebugDialogOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Invite debug details</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5} sx={{ mt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              {lastInviteDebugBundle ? `Classification: ${lastInviteDebugBundle.diagnostics.classification}${lastInviteDebugBundle.networkOutcome.httpStatus ? ` • HTTP ${lastInviteDebugBundle.networkOutcome.httpStatus}` : ''}` : 'No debug bundle captured yet.'}
+            </Typography>
+            <TextField
+              value={lastInviteDebugBundle ? JSON.stringify(lastInviteDebugBundle, null, 2) : ''}
+              multiline
+              minRows={14}
+              maxRows={24}
+              fullWidth
+              InputProps={{ readOnly: true }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button type="button" onClick={() => { void copyInviteDebugLogs(); }} disabled={!lastInviteDebugBundle}>Copy logs</Button>
+          <Button type="button" onClick={() => setInviteDebugDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

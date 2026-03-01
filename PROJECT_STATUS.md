@@ -5435,3 +5435,10 @@ Verification note:
 ### Verification run
 
 1. `pnpm --filter @familyscheduler/web build` ⚠️ blocked by package manager bootstrap/network restriction in this environment (corepack fetch to npm registry failed via proxy 403).
+
+## 2026-03-01 03:58 UTC update (Invite email debug details dialog + copy logs)
+
+- Invite-by-email failures now capture a structured client-side debug bundle (app context, request/response metadata, timing, diagnostics classification, and suggestions).
+- Failure UX now shows `Unable to send invite mail` with a `Details` action; details open a new `Invite debug details` dialog.
+- Added `Copy logs` in dialog to copy full JSON bundle to clipboard (with fallback copy strategy when Clipboard API is unavailable).
+- Privacy guardrails: debug data records only whether `x-session-id` is present, never the session id value; personal message preview is optional behind a toggle (default off).
