@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeImageBase64, applyParsedFields, hasMeaningfulParsedContent } from './appointmentScan.js';
+import { decodeImageBase64, applyParsedFields, hasMeaningfulParsedContent, validateParsedAppointment } from './appointmentScan.js';
 import type { Appointment } from '../state.js';
 
 const makeAppointment = (): Appointment => ({
@@ -101,4 +101,16 @@ test('applyParsedFields uses Appointment fallback when parsed title/notes/locati
 test('hasMeaningfulParsedContent requires extracted fields', () => {
   assert.equal(hasMeaningfulParsedContent({ title: null, date: null, startTime: null, endTime: null, durationMins: null, timezone: null, location: null, notes: null }), false);
   assert.equal(hasMeaningfulParsedContent({ title: null, date: '2026-03-10', startTime: null, endTime: null, durationMins: null, timezone: null, location: null, notes: null }), true);
+});
+
+
+test('validateParsedAppointment rejects empty parsed item', () => {
+  const result = validateParsedAppointment({ title: null, date: null, startTime: null, endTime: null, durationMins: null, timezone: null, location: null, notes: null });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'no_meaningful_content');
+});
+
+test('validateParsedAppointment accepts item with date/time', () => {
+  const result = validateParsedAppointment({ title: null, date: '2026-03-10', startTime: '09:00', endTime: null, durationMins: 60, timezone: null, location: null, notes: null });
+  assert.equal(result.ok, true);
 });
