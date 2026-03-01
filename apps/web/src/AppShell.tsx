@@ -613,9 +613,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [undoMenuAnchorEl, setUndoMenuAnchorEl] = useState<null | HTMLElement>(null);
   const pushUndo = (entry: UndoEntry) => setUndoList((prev) => [entry, ...prev]);
   const removeUndoKey = (key: string) => setUndoList((prev) => prev.filter((entry) => entry.key !== key));
-  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
-  const [personDraft, setPersonDraft] = useState<{ name: string; email: string }>({ name: '', email: '' });
-  const [personEditError, setPersonEditError] = useState<string | null>(null);
+  const [editingMember, setEditingMember] = useState<{ userKey: string; email: string; displayName: string } | null>(null);
+  const [draftDisplayName, setDraftDisplayName] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingMemberProfile, setIsSavingMemberProfile] = useState(false);
   const [inviteMenuAnchorEl, setInviteMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ severity: 'error' | 'success' | 'info'; message: string } | null>(null);
@@ -625,8 +626,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const [inviteQrImageUrl, setInviteQrImageUrl] = useState<string>('');
   const [isInviteLoading, setIsInviteLoading] = useState(false);
   const [isInviteClosing, setIsInviteClosing] = useState(false);
-  const editingPersonRowRef = useRef<HTMLTableRowElement | null>(null);
-  const personNameInputRef = useRef<HTMLInputElement | null>(null);
   const [breakoutError, setBreakoutError] = useState<string | null>(null);
   const showGraceBanner = isIgniteGraceGuestForGroup(groupId);
   const [isSpinningOff, setIsSpinningOff] = useState(false);
@@ -1135,9 +1134,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       showNotice('error', result.message || 'Delete failed');
       return;
     }
-    if (editingPersonId === person.personId) {
-      setEditingPersonId(null);
-      setPersonEditError(null);
+    if (editingMember?.userKey === person.personId) {
+      setEditingMember(null);
+      setDraftDisplayName('');
+      setEditError(null);
     }
   };
 
@@ -1385,27 +1385,48 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     await closeWhenEditor();
   };
 
-  const startEditingPerson = (person: RosterPerson) => {
-    setEditingPersonId(person.personId);
-    setPersonDraft({ name: person.name, email: person.email || '' });
-    setPersonEditError(null);
+  const startEditingMember = (person: RosterPerson) => {
+    setEditingMember({ userKey: person.personId, email: person.email || '', displayName: person.name || '' });
+    setDraftDisplayName(person.name || '');
+    setEditError(null);
   };
 
-  const cancelPersonEdit = () => {
-    setEditingPersonId(null);
-    setPersonEditError(null);
-    setPersonDraft({ name: '', email: '' });
+  const closeEditMemberDialog = () => {
+    if (isSavingMemberProfile) return;
+    setEditingMember(null);
+    setDraftDisplayName('');
+    setEditError(null);
   };
 
-  const submitPersonEdit = async () => {
-    if (!editingPersonId) return;
-    const result = await sendDirectAction({ type: 'update_person', personId: editingPersonId, name: personDraft.name, email: personDraft.email });
-    if (!result.ok) {
-      setPersonEditError(result.message);
+  const submitMemberEdit = async () => {
+    if (!editingMember) return;
+    const normalized = draftDisplayName.trim().replace(/\s+/g, ' ');
+    if (!normalized) {
+      setEditError('Name is required.');
       return;
     }
-    setEditingPersonId(null);
-    setPersonEditError(null);
+    setIsSavingMemberProfile(true);
+    setEditError(null);
+    try {
+      const response = await apiFetch('/api/group/member-profile', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ groupId, userKey: editingMember.userKey, displayName: normalized, traceId: createTraceId() })
+      });
+      const payload = await response.json() as { ok?: boolean; message?: string; traceId?: string };
+      if (!response.ok || !payload.ok) {
+        setEditError(`${payload.message ?? 'Unable to save member.'}${payload.traceId ? ` (trace: ${payload.traceId})` : ''}`);
+        return;
+      }
+      setEditingMember(null);
+      setDraftDisplayName('');
+      setEditError(null);
+      await loadMembersRoster();
+    } catch {
+      setEditError('Unable to save member.');
+    } finally {
+      setIsSavingMemberProfile(false);
+    }
   };
 
   const openInviteMenu = (event: ReactMouseEvent<HTMLElement>) => {
@@ -2210,14 +2231,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
     element.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [activeAppointmentCode, calendarView, sortedAppointments]);
 
-  useEffect(() => {
-    if (!editingPersonId) return;
-    const exists = activePeople.some((person) => person.personId === editingPersonId);
-    if (!exists) {
-      setEditingPersonId(null);
-      setPersonEditError(null);
-    }
-  }, [activePeople, editingPersonId]);
 
   useEffect(() => {
     const name = (groupName ?? '').trim();
@@ -2225,9 +2238,15 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   }, [groupName]);
 
   useEffect(() => {
-    if (!editingPersonId) return;
-    personNameInputRef.current?.focus();
-  }, [editingPersonId]);
+    if (!editingMember) return;
+    const exists = activePeople.some((person) => person.personId === editingMember.userKey);
+    if (!exists) {
+      setEditingMember(null);
+      setDraftDisplayName('');
+      setEditError(null);
+    }
+  }, [activePeople, editingMember]);
+
 
 
   useEffect(() => {
@@ -2249,29 +2268,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
       canceled = true;
     };
   }, [groupId, initialGroupName]);
-  useEffect(() => {
-    if (!editingPersonId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        void cancelPersonEdit();
-      }
-    };
-    const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      const editingRow = editingPersonRowRef.current;
-      const target = event.target;
-      if (!editingRow || !(target instanceof Node)) return;
-      if (!editingRow.contains(target)) void cancelPersonEdit();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('touchstart', onPointerDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('touchstart', onPointerDown);
-    };
-  }, [editingPersonId, cancelPersonEdit]);
 
   useEffect(() => {
     let canceled = false;
@@ -2781,7 +2777,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
-                <Button size="small" onClick={() => { void loadMembersRoster(); }}>Refresh</Button>
                 <Tooltip title="Invite">
                   <span>
                     <IconButton color="primary" onClick={openInviteMenu} aria-label="Open invite menu" disabled={isInviteLoading}>
@@ -2805,43 +2800,37 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       <thead><tr><th>Name</th><th className="email-col">Email</th><th>Last seen</th><th>Actions</th></tr></thead>
                       <tbody>
                 {peopleInView.map((person) => {
-                  const isEditingPerson = editingPersonId === person.personId;
                   return (
-                      <tr key={person.personId} ref={isEditingPerson ? editingPersonRowRef : undefined}>
+                      <tr key={person.personId}>
                           <td>
-                            {isEditingPerson ? <input ref={personNameInputRef} value={personDraft.name} onChange={(event) => setPersonDraft((prev) => ({ ...prev, name: event.target.value }))} /> : (
-                              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-                                <span className="line-clamp" title={person.name}>{person.name || '—'}</span>
-                                {person.memberKind === 'guest' ? (
-                                  <Tooltip title="Guest account (limited)">
-                                    <Chip size="small" label="Guest" variant="outlined" />
-                                  </Tooltip>
-                                ) : null}
-                              </Stack>
-                            )}
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                              <span className="line-clamp" title={person.name}>{person.name || '—'}</span>
+                              {person.memberKind === 'guest' ? (
+                                <Tooltip title="Guest account (limited)">
+                                  <Chip size="small" label="Guest" variant="outlined" />
+                                </Tooltip>
+                              ) : null}
+                            </Stack>
                           </td>
                           <td className="email-col">
-                            {isEditingPerson ? <input type="email" value={personDraft.email} onChange={(event) => setPersonDraft((prev) => ({ ...prev, email: event.target.value }))} placeholder="name@example.com" /> : (
-                              <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
-                                <span className="line-clamp" title={person.email}>{person.email || '—'}</span>
-                                {person.emailVerified === false ? (
-                                  <Tooltip title="Email not verified.">
-                                    <Chip size="small" label="Unverified" variant="outlined" />
-                                  </Tooltip>
-                                ) : null}
-                              </Stack>
-                            )}
-                            {isEditingPerson && personEditError ? <p className="form-error">{personEditError}</p> : null}
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                              <span className="line-clamp" title={person.email}>{person.email || '—'}</span>
+                              {person.emailVerified === false ? (
+                                <Tooltip title="Email not verified.">
+                                  <Chip size="small" label="Unverified" variant="outlined" />
+                                </Tooltip>
+                              ) : null}
+                            </Stack>
                           </td>
                           <td><span title={person.lastSeen ?? ''}>{formatLastSeen(person.lastSeen)}</span></td>
                           <td className="actions-cell">
                             <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
-                              <Tooltip title={isEditingPerson ? 'Save person' : 'Edit person'}>
+                              <Tooltip title="Edit person">
                                 <span>
                                   <IconButton
                                     size="small"
-                                    aria-label={isEditingPerson ? 'Save person' : 'Edit person'}
-                                    onClick={() => { if (isEditingPerson) void submitPersonEdit(); else startEditingPerson(person); }}
+                                    aria-label="Edit person"
+                                    onClick={() => startEditingMember(person)}
                                   >
                                     <Pencil />
                                   </IconButton>
@@ -2885,6 +2874,50 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <DialogActions>
           <Button type="button" variant="outlined" onClick={() => setIsQuickAddOpen(false)}>Cancel</Button>
           <Button type="button" variant="contained" onClick={() => { void submitQuickAdd(); }} disabled={commandActionsDisabled || !quickAddText.trim()}>Add</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(editingMember)} onClose={closeEditMemberDialog} fullWidth maxWidth="sm">
+        <DialogTitle>Edit member</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 0.5 }}>
+            <TextField
+              label="Name"
+              value={draftDisplayName}
+              onChange={(event) => {
+                setDraftDisplayName(event.target.value);
+                if (editError) setEditError(null);
+              }}
+              required
+              autoFocus
+              inputProps={{ maxLength: 40 }}
+              helperText={draftDisplayName.trim() ? 'Required' : 'Name is required'}
+              error={!draftDisplayName.trim()}
+              disabled={isSavingMemberProfile}
+            />
+            <TextField
+              label="Email"
+              value={editingMember?.email ?? ''}
+              InputProps={{ readOnly: true }}
+              disabled
+            />
+            {editError ? <Alert severity="error">{editError}</Alert> : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEditMemberDialog} disabled={isSavingMemberProfile}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => { void submitMemberEdit(); }}
+            disabled={
+              isSavingMemberProfile
+              || !editingMember
+              || !draftDisplayName.trim().replace(/\s+/g, ' ')
+              || draftDisplayName.trim().replace(/\s+/g, ' ') === editingMember.displayName.trim().replace(/\s+/g, ' ')
+            }
+          >
+            {isSavingMemberProfile ? 'Saving…' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
 

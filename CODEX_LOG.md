@@ -14600,3 +14600,46 @@ Correct Members panel behavior so guest rows keep Guest/Unverified indicators bu
 
 ### Follow-ups
 - Human-run UI verification in an authenticated durable viewer session: confirm guest row shows `Guest` + `Unverified` (when false), and Edit/Delete work on guest row.
+
+## 2026-03-01 01:26 UTC (Issue #4: Replace inline member edit with modal + UserProfiles update)
+
+### Objective
+Replace Members panel inline editing with a standard modal editor and persist roster member display-name changes through `UserProfiles` (not `/api/direct update_person`).
+
+### Approach
+- Added new API function `groupMemberProfilePut` (`PUT /api/group/member-profile`) with:
+  - session requirement,
+  - active caller membership authorization,
+  - target membership validation (`active|invited`),
+  - trimmed non-empty displayName validation,
+  - `UserProfiles` upsert for target userKey,
+  - structured log payload including requester/target/group context.
+- Registered new endpoint in API startup index.
+- Added focused backend tests with dependency injection for auth/membership/target-not-found/success paths.
+- Reworked Members UI in `AppShell`:
+  - removed inline edit state + row input rendering,
+  - removed inline click-outside / ESC wiring,
+  - Edit now always opens modal,
+  - modal provides Name editable + Email read-only + Cancel/Save,
+  - save calls `PUT /api/group/member-profile` then refreshes `loadMembersRoster()`.
+- Removed Members panel Refresh button as part of this interaction shift.
+
+### Files changed
+- `api/src/functions/groupMemberProfilePut.ts`
+- `api/src/functions/groupMemberProfilePut.test.ts`
+- `api/src/index.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `pwd && rg --files -g 'AGENTS.md'` ❌ no files returned via rg (followed up with find).
+- `find .. -name AGENTS.md -print` ✅ no AGENTS.md files found in workspace scope.
+- `pnpm --filter @familyscheduler/web typecheck` ✅ passed.
+- `pnpm --filter @familyscheduler/web build` ✅ passed (vite chunk-size warning only).
+- `pnpm --filter @familyscheduler/api test -- groupMemberProfilePut.test.ts` ⚠️ blocked by missing `@azure/data-tables` module/type declarations in this environment.
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/9c924e3b5509fe30/artifacts/artifacts/members-edit-modal-change.png`.
+
+### Follow-ups
+- In a fully provisioned API environment with Azure table deps installed, run full API build/tests and optionally add integration coverage tying `groupMemberProfilePut` + `groupMembers` enrichment in one test harness.
