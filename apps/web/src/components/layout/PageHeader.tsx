@@ -394,7 +394,14 @@ export function PageHeader(props: Props) {
             </Box>
           </Box>
         </Stack>
-        <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={() => setAnchorEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{ paper: { sx: { mt: 1 } } }}
+        >
           {onBreakoutClick ? (
             <MenuItem
               sx={{ fontWeight: 600 }}

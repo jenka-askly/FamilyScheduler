@@ -14548,3 +14548,30 @@ Implement extended Issue #1 requirements by persisting `memberKind` and `emailVe
 ### Follow-ups
 - Run API build/tests in an environment where `@azure/data-tables` resolves to validate full backend compile/test matrix.
 - Execute staging verification with a real igniteGrace guest row to confirm chips and action lock behavior end-to-end.
+
+
+## 2026-03-01 00:47 UTC (Right-align user popup menu with burger icon)
+
+### Objective
+Align the account/settings popup to the burger icon in Yapper web so the popup right edge matches the icon right edge and opens directly below it.
+
+### Approach
+- Located top-right burger menu implementation in `apps/web/src/components/layout/PageHeader.tsx`.
+- Kept minimal-change scope by updating only MUI `Menu` positioning props.
+- Added explicit right-edge anchoring and transform origins plus a small vertical offset.
+- Verified with web typecheck and a browser screenshot capture.
+
+### Files changed
+- `apps/web/src/components/layout/PageHeader.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "burger|anchorEl|account|settings" apps packages` ✅
+- `rg -n "setAnchorEl\(|anchorEl" apps/web/src/components/layout/PageHeader.tsx` ✅
+- `pnpm --filter @familyscheduler/web typecheck` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture (stopped with SIGINT after capture)
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/32f3ebfb76584f31/artifacts/artifacts/menu-right-align.png`
+
+### Follow-ups
+- Manual responsive smoke at target breakpoints in authenticated app shell to confirm no overflow clipping in narrow views.

@@ -5348,3 +5348,10 @@ Verification note:
 2. `pnpm --filter @familyscheduler/api build` ⚠️ blocked by missing `@azure/data-tables` module/type resolution in this environment.
 3. `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally via SIGINT.
 4. Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/ebb4051b6720deb8/artifacts/artifacts/members-guest-ui.png`.
+
+
+## 2026-03-01 00:47 UTC update (Header burger menu popup right-alignment)
+
+- Updated the app header account/settings popup anchoring so it aligns to the burger icon's right edge and opens directly below it.
+- `PageHeader` menu now uses right-edge anchor/transform origins with a small top offset (`mt: 1`) for stable spacing across viewport sizes.
+- Anchor element remains the burger `IconButton` (`event.currentTarget`), avoiding header/container-based drift.
