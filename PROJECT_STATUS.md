@@ -1,3 +1,11 @@
+## 2026-03-01 06:42 UTC update (Appointment Details takeover pane in ui-main)
+
+- Replaced the Appointment Details modal/dialog surface with an in-layout takeover pane inside `ui-main`.
+- When `detailsOpen` is true, Schedule/Members tab chrome and panel content are hidden and only the details pane is rendered.
+- Added a sticky details header with a left-aligned close `X` button wired to `closeAppointmentDetails()` and preserved existing details inner behaviors/content.
+- Moved the details scroller ownership to `.ui-details-takeover-body` and attached `detailsScrollRef` to that element to keep a single scroll container.
+- Added takeover pane CSS classes (`.ui-details-takeover`, `.ui-details-takeover-header`, `.ui-details-takeover-body`) to support full-height layout + sticky header + internal scrolling.
+
 ## 2026-03-01 06:37 UTC update (Shared tab panel toolbar alignment for Schedule + Members)
 
 - Added a reusable `TabPanelToolbar` layout component to standardize tab-panel toolbar row, divider placement, and body top rhythm (`pt: 2`).

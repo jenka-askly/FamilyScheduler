@@ -48,7 +48,6 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import CloseIcon from '@mui/icons-material/Close';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import UndoOutlinedIcon from '@mui/icons-material/UndoOutlined';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 
@@ -2771,6 +2770,243 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
   const goToSignIn = () => {
     window.location.hash = buildLoginPathWithNextFromHash(window.location.hash || '');
   };
+  const appointmentDetailsContent = (
+    <>
+      {detailsData ? (
+            <Stack spacing={1.5}>
+            <Box>
+              <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
+                <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
+                  {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                </IconButton>
+              </Stack>
+              {!headerCollapsed ? (
+                <Stack spacing={0.5}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsData.appointment.desc || 'Appointment'}</Typography>
+                  <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
+                  <Typography variant="body2" color="text.secondary">📍 {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
+                </Stack>
+              ) : (
+                <Typography variant="body2" color="text.secondary">{detailsData.appointment.desc || 'Appointment'} · {formatAppointmentTime(detailsData.appointment)} · {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
+              )}
+              <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<MailOutlineIcon fontSize="small" />}
+                  onClick={openEmailUpdateDialog}
+                  disabled={!detailsAppointmentId || !detailsData}
+                >
+                  Email update
+                </Button>
+                <Button size="small" onClick={openEmailHistoryDialog} disabled={!detailsAppointmentId}>
+                  History
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  {(() => {
+                    const last = detailsData.lastNotification;
+                    if (!last) return 'Last email update: Never';
+                    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
+                    if (last.deliveryStatus === 'partial') {
+                      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
+                      const short = missed.slice(0, 2).join(', ');
+                      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
+                      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
+                      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
+                    }
+                    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
+                  })()}
+                </Typography>
+
+              <Stack spacing={0.75} sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary">Reminders</Typography>
+                {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
+                {(detailsData.reminders ?? []).map((reminder) => (
+                  <Stack key={reminder.reminderId} direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                    <Typography variant="body2">
+                      {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
+                    </Typography>
+                    {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
+                  </Stack>
+                ))}
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <TextField
+                    size="small"
+                    select
+                    label="Offset"
+                    value={reminderOffsetMinutes}
+                    onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
+                    sx={{ minWidth: 140 }}
+                  >
+                    <MenuItem value={15}>15 minutes</MenuItem>
+                    <MenuItem value={30}>30 minutes</MenuItem>
+                    <MenuItem value={60}>1 hour</MenuItem>
+                    <MenuItem value={1440}>1 day</MenuItem>
+                  </TextField>
+                  <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} />
+                  <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId}>Add reminder</Button>
+                </Stack>
+                {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
+              </Stack>
+
+              </Stack>
+            </Box>
+            <Stack spacing={1}>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
+                  const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
+                  if (!active.length) return null;
+                  const conflicted = active.some((entry) => entry.conflicted);
+                  return <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />;
+                })}
+              </Stack>
+            </Stack>
+            <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
+              <Tab value="discussion" label="Discussion" />
+              <Tab value="changes" label="Changes" />
+              <Tab value="constraints" label="Constraints" />
+            </Tabs>
+            {detailsTab === 'discussion' ? (
+              <Stack spacing={1}>
+                {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
+                {discussionDisplayItems.map((item, index) => {
+                  const prev = discussionDisplayItems[index - 1];
+                  const separated = !prev || prev.kind !== item.kind || (item.kind === 'chat' && prev.actorKey !== item.actorKey);
+                  const isMine = item.kind === 'chat' && item.align === 'right';
+                  return (
+                    <Stack
+                      key={item.id}
+                      spacing={0.5}
+                      alignItems={item.align === 'center' ? 'center' : item.align === 'right' ? 'flex-end' : 'flex-start'}
+                      sx={{ mt: separated ? 1.25 : 0.75 }}
+                    >
+                      {item.kind === 'chat' && item.showHeader ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
+                          {isMine ? new Date(item.tsUtc).toLocaleTimeString() : `${item.actorLabel} · ${new Date(item.tsUtc).toLocaleTimeString()}`}
+                        </Typography>
+                      ) : null}
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: item.kind === 'system' ? 0.5 : 1,
+                          px: item.kind === 'system' ? 1.25 : undefined,
+                          borderRadius: item.kind === 'system' ? 999 : 2,
+                          maxWidth: item.kind === 'system' ? '80%' : '75%',
+                          bgcolor: item.kind === 'system' ? 'action.hover' : isMine ? 'primary.100' : 'grey.100',
+                          color: 'text.primary',
+                          alignSelf: item.align === 'center' ? 'center' : item.align === 'right' ? 'flex-end' : 'flex-start'
+                        }}
+                      >
+                        <Typography variant={item.kind === 'system' ? 'caption' : 'body2'}>{item.text}</Typography>
+                        {item.kind === 'system' ? <Typography variant="caption" color="text.secondary">{new Date(item.tsUtc).toLocaleTimeString()}</Typography> : null}
+                      </Paper>
+                      {item.kind === 'chat' && activeSuggestionCard?.sourceMessageId === item.id && activeSuggestionCard.visibleToEmail.toLowerCase() === sessionEmail.toLowerCase() ? (
+                        <Paper variant="outlined" sx={{ p: 1, width: '100%', maxWidth: 420 }}>
+                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">Suggestions</Typography>
+                            <IconButton size="small" aria-label="Dismiss suggestions" onClick={() => setActiveSuggestionCard(null)}>
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                          <Stack spacing={0.5}>
+                            {activeSuggestionCard.candidates.map((candidate) => (
+                              <Button key={candidate.id} size="small" variant="text" startIcon={<AutoFixHighIcon fontSize="small" />} sx={{ justifyContent: 'flex-start' }} onClick={() => void applySuggestionCandidate(candidate)}>
+                                {candidate.label}
+                              </Button>
+                            ))}
+                          </Stack>
+                          {suggestionActionError ? <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>{suggestionActionError}</Typography> : null}
+                        </Paper>
+                      ) : null}
+                    </Stack>
+                  );
+                })}
+                {pendingProposal ? (
+                  <Paper variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Proposed title change:</Typography>
+                    <Typography variant="body2">"{pendingProposal.from || 'Untitled'}" → "{pendingProposal.to}"</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {pendingProposal.paused ? 'Paused' : `Auto-apply in ${Math.max(0, Math.ceil((pendingProposal.countdownEndsAt - proposalNowMs) / 1000))}s`}
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                      <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply Now</Button>
+                      <Button size="small" onClick={() => void pauseOrResumePendingProposal(pendingProposal.paused ? 'resume' : 'pause')}>{pendingProposal.paused ? 'Resume' : 'Pause'}</Button>
+                      <Button size="small" onClick={() => void dismissPendingProposal()}>Cancel</Button>
+                      <Button size="small" onClick={() => {
+                        setTitleEditDraft(pendingProposal.to);
+                        setIsEditProposalOpen(true);
+                      }}>Edit</Button>
+                    </Stack>
+                  </Paper>
+                ) : null}
+                {Object.entries(detailsData.suggestions?.byField ?? {}).flatMap(([field, list]) => (list ?? []).filter((entry) => entry.active && entry.status === 'active').map((entry) => ({ field, entry }))).map(({ field, entry }) => (
+                  <Paper key={entry.id} variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="body2">Suggestion ({field}): {entry.value}</Typography>
+                    <Typography variant="caption" color="text.secondary">by {entry.proposerEmail} {entry.conflicted ? '· conflicted' : ''}</Typography>
+                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                      <Button size="small" variant="contained" onClick={() => void suggestionAction({ type: 'apply_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, clientRequestId: createTraceId() })}>Apply</Button>
+                      {entry.proposerEmail?.toLowerCase() === sessionEmail.toLowerCase() ? <Button size="small" onClick={() => void suggestionAction({ type: 'dismiss_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, clientRequestId: createTraceId() })}>Dismiss</Button> : null}
+                      <Tooltip title={(entry.reactions ?? []).map((reaction) => `${reaction.email} ${reaction.reaction === 'up' ? '👍' : '👎'}`).join(', ') || 'No reactions'}><Button size="small" onClick={() => void suggestionAction({ type: 'react_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, reaction: 'up', clientRequestId: createTraceId() })}>👍</Button></Tooltip>
+                      <Button size="small" onClick={() => void suggestionAction({ type: 'react_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, reaction: 'down', clientRequestId: createTraceId() })}>👎</Button>
+                    </Stack>
+                  </Paper>
+                ))}
+                <Stack direction="row" spacing={1}>
+                  <TextField id="discussion-message-input" fullWidth size="small" placeholder="Message" label="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (activeSuggestionCard) setActiveSuggestionCard(null); if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
+                  <Button variant="contained" onClick={() => void sendDetailsMessage()} disabled={!detailsMessageText.trim()}>Send</Button>
+                </Stack>
+              </Stack>
+            ) : null}
+            {detailsTab === 'changes' ? (
+              <Stack spacing={1}>
+                {detailsData.projections.changeEvents.map((event) => (
+                  <Paper key={event.id} variant="outlined" sx={{ p: 1 }} title={event.sourceTextSnapshot || ''}>
+                    <Typography variant="body2">
+                      {getMaterialChangeMessageText(event) || 'Update recorded'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()} · {event.actor.email ?? event.actor.kind}</Typography>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : null}
+            {detailsTab === 'constraints' ? (
+              <Stack spacing={1}>
+                {constraintError ? <Alert severity="warning">{constraintError}</Alert> : null}
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  <TextField size="small" select label="Field" value={constraintDraft.field} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, field: event.target.value as 'title' | 'time' | 'location' | 'general' }))}>
+                    <MenuItem value="title">Title</MenuItem><MenuItem value="time">Time</MenuItem><MenuItem value="location">Location</MenuItem><MenuItem value="general">General</MenuItem>
+                  </TextField>
+                  <TextField size="small" select label="Operator" value={constraintDraft.operator} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, operator: event.target.value as 'equals' | 'contains' | 'not_contains' | 'required' }))}>
+                    <MenuItem value="equals">equals</MenuItem><MenuItem value="contains">contains</MenuItem><MenuItem value="not_contains">not contains</MenuItem><MenuItem value="required">required</MenuItem>
+                  </TextField>
+                  <TextField size="small" label="Value" value={constraintDraft.value} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, value: event.target.value }))} />
+                  <Button size="small" variant="contained" onClick={() => void submitConstraint()}>{constraintDraft.editingId ? 'Save' : 'Add constraint'}</Button>
+                </Stack>
+                {Object.entries(detailsData.constraints?.byMember ?? {}).map(([memberEmail, list]) => (
+                  <Paper key={memberEmail} variant="outlined" sx={{ p: 1 }}>
+                    <Typography variant="subtitle2">{memberEmail}</Typography>
+                    <Stack spacing={0.5}>
+                      {(list ?? []).map((constraint) => (
+                        <Stack key={constraint.id} direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                          <Typography variant="body2">{constraint.field} {constraint.operator} {constraint.value}</Typography>
+                          {memberEmail.toLowerCase() === sessionEmail.toLowerCase() ? (
+                            <Stack direction="row" spacing={0.5}>
+                              <Button size="small" onClick={() => setConstraintDraft({ field: constraint.field, operator: constraint.operator, value: constraint.value, editingId: constraint.id })}>Edit</Button>
+                              <Button size="small" color="error" onClick={() => void removeConstraint(constraint.id)}>Remove</Button>
+                            </Stack>
+                          ) : null}
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : null}
+            </Stack>
+      ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
+    </>
+  );
+
   return (
     <Page variant="workspace">
       <PageHeader
@@ -2841,7 +3077,22 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         <section className="ui-main">
           {import.meta.env.DEV && membersRoster.length === 0 ? <p className="dev-warning">Loaded group with 0 members — tables roster may be missing rows.</p> : null}
 
-          <Box sx={{ backgroundColor: 'background.default', display: 'flex', alignItems: 'center' }}>
+
+          {detailsOpen ? (
+            <div className="ui-details-takeover">
+              <div className="ui-details-takeover-header">
+                <IconButton className="ui-details-close" aria-label="Close" onClick={closeAppointmentDetails}>
+                  <CloseIcon />
+                </IconButton>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Appointment</Typography>
+              </div>
+              <div className="ui-details-takeover-body" ref={detailsScrollRef}>
+                {appointmentDetailsContent}
+              </div>
+            </div>
+          ) : (
+            <>
+              <Box sx={{ backgroundColor: 'background.default', display: 'flex', alignItems: 'center' }}>
             <Tabs
               value={activeSection === 'members' ? 'members' : 'calendar'}
               onChange={(_event: SyntheticEvent, value: 'calendar' | 'members') => setActiveSection(value)}
@@ -3262,7 +3513,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               </TabPanelToolbar>
             </Box>
           ) : null}
-          </Paper>
+              </Paper>
+            </>
+          )}
         </section>
       </div>
 
@@ -3587,266 +3840,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={detailsOpen}
-        onClose={(_event, _reason) => { closeAppointmentDetails(); }}
-        fullWidth
-        fullScreen={isMobile}
-        maxWidth="md"
-        aria-labelledby="appointment-details-title"
-      >
-        <DialogTitle id="appointment-details-title" sx={{ pr: 6 }}>
-          {isMobile ? 'Appointment details' : 'Appointment'}
-          <IconButton
-            aria-label="Close"
-            onClick={closeAppointmentDetails}
-            sx={{ position: 'absolute', right: 8, top: 8 }}
-          >
-            {isMobile ? <ArrowBackIcon /> : <CloseIcon />}
-          </IconButton>
-        </DialogTitle>
-        <DialogContent
-          dividers
-          ref={detailsScrollRef}
-          sx={{
-            overflowY: 'auto',
-            maxHeight: 'calc(100vh - 140px)'
-          }}
-        >
-          {detailsData ? (
-            <Stack spacing={1.5}>
-            <Box>
-              <Stack direction="row" justifyContent="flex-end" sx={{ mb: 0.5 }}>
-                <IconButton size="small" onClick={() => setHeaderCollapsed((prev) => !prev)} aria-label={headerCollapsed ? 'Expand header' : 'Collapse header'}>
-                  {headerCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
-                </IconButton>
-              </Stack>
-              {!headerCollapsed ? (
-                <Stack spacing={0.5}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{detailsData.appointment.desc || 'Appointment'}</Typography>
-                  <Typography variant="body2" color="text.secondary">🕒 {formatAppointmentTime(detailsData.appointment)}</Typography>
-                  <Typography variant="body2" color="text.secondary">📍 {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
-                </Stack>
-              ) : (
-                <Typography variant="body2" color="text.secondary">{detailsData.appointment.desc || 'Appointment'} · {formatAppointmentTime(detailsData.appointment)} · {detailsData.appointment.locationDisplay || detailsData.appointment.location || 'No location'}</Typography>
-              )}
-              <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<MailOutlineIcon fontSize="small" />}
-                  onClick={openEmailUpdateDialog}
-                  disabled={!detailsAppointmentId || !detailsData}
-                >
-                  Email update
-                </Button>
-                <Button size="small" onClick={openEmailHistoryDialog} disabled={!detailsAppointmentId}>
-                  History
-                </Button>
-                <Typography variant="caption" color="text.secondary">
-                  {(() => {
-                    const last = detailsData.lastNotification;
-                    if (!last) return 'Last email update: Never';
-                    const by = last.sentBy.display ? `${last.sentBy.display} <${last.sentBy.email}>` : last.sentBy.email;
-                    if (last.deliveryStatus === 'partial') {
-                      const missed = (last.failedRecipients ?? []).map((entry) => entry.display ? `${entry.display} <${entry.email}>` : entry.email).filter(Boolean);
-                      const short = missed.slice(0, 2).join(', ');
-                      const suffix = missed.length > 2 ? ` +${missed.length - 2}` : '';
-                      const text = `Last email update (Partial): ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent} of ${last.recipientCountSelected}${missed.length ? ` — missed: ${short}${suffix}` : ''}`;
-                      return missed.length > 2 ? <Tooltip title={missed.join(', ')}><span>{text}</span></Tooltip> : text;
-                    }
-                    return `Last email update: ${new Date(last.sentAt).toLocaleString()} by ${by} to ${last.recipientCountSent}`;
-                  })()}
-                </Typography>
-
-              <Stack spacing={0.75} sx={{ mt: 1 }}>
-                <Typography variant="caption" color="text.secondary">Reminders</Typography>
-                {(detailsData.reminders ?? []).length === 0 ? <Typography variant="caption" color="text.secondary">No reminders yet.</Typography> : null}
-                {(detailsData.reminders ?? []).map((reminder) => (
-                  <Stack key={reminder.reminderId} direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                    <Typography variant="body2">
-                      {reminder.offsetMinutes >= 1440 ? `${Math.round(reminder.offsetMinutes / 1440)} day(s)` : reminder.offsetMinutes >= 60 ? `${Math.round(reminder.offsetMinutes / 60)} hour(s)` : `${reminder.offsetMinutes} min`} before · {new Date(reminder.dueAtIso).toLocaleString()} · {reminder.status}
-                    </Typography>
-                    {reminder.status === 'scheduled' ? <Button size="small" onClick={() => void cancelReminder(reminder.reminderId)} disabled={reminderBusy}>Cancel</Button> : null}
-                  </Stack>
-                ))}
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  <TextField
-                    size="small"
-                    select
-                    label="Offset"
-                    value={reminderOffsetMinutes}
-                    onChange={(event) => setReminderOffsetMinutes(Number(event.target.value))}
-                    sx={{ minWidth: 140 }}
-                  >
-                    <MenuItem value={15}>15 minutes</MenuItem>
-                    <MenuItem value={30}>30 minutes</MenuItem>
-                    <MenuItem value={60}>1 hour</MenuItem>
-                    <MenuItem value={1440}>1 day</MenuItem>
-                  </TextField>
-                  <TextField size="small" label="Optional message" value={reminderMessage} onChange={(event) => setReminderMessage(event.target.value)} />
-                  <Button size="small" variant="outlined" onClick={() => void createReminder()} disabled={reminderBusy || !detailsAppointmentId}>Add reminder</Button>
-                </Stack>
-                {reminderError ? <Typography variant="caption" color="error">{reminderError}</Typography> : null}
-              </Stack>
-
-              </Stack>
-            </Box>
-            <Stack spacing={1}>
-              <Stack direction="row" spacing={1} flexWrap="wrap">
-                {Object.entries(detailsData.suggestions?.byField ?? {}).map(([field, list]) => {
-                  const active = (list ?? []).filter((entry) => entry.active && entry.status === 'active');
-                  if (!active.length) return null;
-                  const conflicted = active.some((entry) => entry.conflicted);
-                  return <Chip key={field} size="small" color={conflicted ? 'warning' : 'default'} label={`${field}: ${active.length}${conflicted ? ' conflict' : ''}`} />;
-                })}
-              </Stack>
-            </Stack>
-            <Tabs value={detailsTab} onChange={(_e, value) => setDetailsTab(value)}>
-              <Tab value="discussion" label="Discussion" />
-              <Tab value="changes" label="Changes" />
-              <Tab value="constraints" label="Constraints" />
-            </Tabs>
-            {detailsTab === 'discussion' ? (
-              <Stack spacing={1}>
-                {detailsData.nextCursor ? <Button size="small" onClick={() => void loadAppointmentDetails(detailsData.appointment.id, detailsData.nextCursor)}>Load earlier</Button> : null}
-                {discussionDisplayItems.map((item, index) => {
-                  const prev = discussionDisplayItems[index - 1];
-                  const separated = !prev || prev.kind !== item.kind || (item.kind === 'chat' && prev.actorKey !== item.actorKey);
-                  const isMine = item.kind === 'chat' && item.align === 'right';
-                  return (
-                    <Stack
-                      key={item.id}
-                      spacing={0.5}
-                      alignItems={item.align === 'center' ? 'center' : item.align === 'right' ? 'flex-end' : 'flex-start'}
-                      sx={{ mt: separated ? 1.25 : 0.75 }}
-                    >
-                      {item.kind === 'chat' && item.showHeader ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>
-                          {isMine ? new Date(item.tsUtc).toLocaleTimeString() : `${item.actorLabel} · ${new Date(item.tsUtc).toLocaleTimeString()}`}
-                        </Typography>
-                      ) : null}
-                      <Paper
-                        variant="outlined"
-                        sx={{
-                          p: item.kind === 'system' ? 0.5 : 1,
-                          px: item.kind === 'system' ? 1.25 : undefined,
-                          borderRadius: item.kind === 'system' ? 999 : 2,
-                          maxWidth: item.kind === 'system' ? '80%' : '75%',
-                          bgcolor: item.kind === 'system' ? 'action.hover' : isMine ? 'primary.100' : 'grey.100',
-                          color: 'text.primary',
-                          alignSelf: item.align === 'center' ? 'center' : item.align === 'right' ? 'flex-end' : 'flex-start'
-                        }}
-                      >
-                        <Typography variant={item.kind === 'system' ? 'caption' : 'body2'}>{item.text}</Typography>
-                        {item.kind === 'system' ? <Typography variant="caption" color="text.secondary">{new Date(item.tsUtc).toLocaleTimeString()}</Typography> : null}
-                      </Paper>
-                      {item.kind === 'chat' && activeSuggestionCard?.sourceMessageId === item.id && activeSuggestionCard.visibleToEmail.toLowerCase() === sessionEmail.toLowerCase() ? (
-                        <Paper variant="outlined" sx={{ p: 1, width: '100%', maxWidth: 420 }}>
-                          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary">Suggestions</Typography>
-                            <IconButton size="small" aria-label="Dismiss suggestions" onClick={() => setActiveSuggestionCard(null)}>
-                              <CloseIcon fontSize="small" />
-                            </IconButton>
-                          </Stack>
-                          <Stack spacing={0.5}>
-                            {activeSuggestionCard.candidates.map((candidate) => (
-                              <Button key={candidate.id} size="small" variant="text" startIcon={<AutoFixHighIcon fontSize="small" />} sx={{ justifyContent: 'flex-start' }} onClick={() => void applySuggestionCandidate(candidate)}>
-                                {candidate.label}
-                              </Button>
-                            ))}
-                          </Stack>
-                          {suggestionActionError ? <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>{suggestionActionError}</Typography> : null}
-                        </Paper>
-                      ) : null}
-                    </Stack>
-                  );
-                })}
-                {pendingProposal ? (
-                  <Paper variant="outlined" sx={{ p: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Proposed title change:</Typography>
-                    <Typography variant="body2">"{pendingProposal.from || 'Untitled'}" → "{pendingProposal.to}"</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {pendingProposal.paused ? 'Paused' : `Auto-apply in ${Math.max(0, Math.ceil((pendingProposal.countdownEndsAt - proposalNowMs) / 1000))}s`}
-                    </Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                      <Button size="small" variant="contained" onClick={() => void applyPendingProposal()}>Apply Now</Button>
-                      <Button size="small" onClick={() => void pauseOrResumePendingProposal(pendingProposal.paused ? 'resume' : 'pause')}>{pendingProposal.paused ? 'Resume' : 'Pause'}</Button>
-                      <Button size="small" onClick={() => void dismissPendingProposal()}>Cancel</Button>
-                      <Button size="small" onClick={() => {
-                        setTitleEditDraft(pendingProposal.to);
-                        setIsEditProposalOpen(true);
-                      }}>Edit</Button>
-                    </Stack>
-                  </Paper>
-                ) : null}
-                {Object.entries(detailsData.suggestions?.byField ?? {}).flatMap(([field, list]) => (list ?? []).filter((entry) => entry.active && entry.status === 'active').map((entry) => ({ field, entry }))).map(({ field, entry }) => (
-                  <Paper key={entry.id} variant="outlined" sx={{ p: 1 }}>
-                    <Typography variant="body2">Suggestion ({field}): {entry.value}</Typography>
-                    <Typography variant="caption" color="text.secondary">by {entry.proposerEmail} {entry.conflicted ? '· conflicted' : ''}</Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                      <Button size="small" variant="contained" onClick={() => void suggestionAction({ type: 'apply_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, clientRequestId: createTraceId() })}>Apply</Button>
-                      {entry.proposerEmail?.toLowerCase() === sessionEmail.toLowerCase() ? <Button size="small" onClick={() => void suggestionAction({ type: 'dismiss_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, clientRequestId: createTraceId() })}>Dismiss</Button> : null}
-                      <Tooltip title={(entry.reactions ?? []).map((reaction) => `${reaction.email} ${reaction.reaction === 'up' ? '👍' : '👎'}`).join(', ') || 'No reactions'}><Button size="small" onClick={() => void suggestionAction({ type: 'react_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, reaction: 'up', clientRequestId: createTraceId() })}>👍</Button></Tooltip>
-                      <Button size="small" onClick={() => void suggestionAction({ type: 'react_suggestion', appointmentId: detailsData.appointment.id, suggestionId: entry.id, field, reaction: 'down', clientRequestId: createTraceId() })}>👎</Button>
-                    </Stack>
-                  </Paper>
-                ))}
-                <Stack direction="row" spacing={1}>
-                  <TextField id="discussion-message-input" fullWidth size="small" placeholder="Message" label="Message" value={detailsMessageText} onChange={(event) => setDetailsMessageText(event.target.value)} onKeyDown={(event) => { if (activeSuggestionCard) setActiveSuggestionCard(null); if (event.key === 'Enter') { event.preventDefault(); void sendDetailsMessage(); } }} />
-                  <Button variant="contained" onClick={() => void sendDetailsMessage()} disabled={!detailsMessageText.trim()}>Send</Button>
-                </Stack>
-              </Stack>
-            ) : null}
-            {detailsTab === 'changes' ? (
-              <Stack spacing={1}>
-                {detailsData.projections.changeEvents.map((event) => (
-                  <Paper key={event.id} variant="outlined" sx={{ p: 1 }} title={event.sourceTextSnapshot || ''}>
-                    <Typography variant="body2">
-                      {getMaterialChangeMessageText(event) || 'Update recorded'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">{new Date(event.tsUtc).toLocaleString()} · {event.actor.email ?? event.actor.kind}</Typography>
-                  </Paper>
-                ))}
-              </Stack>
-            ) : null}
-            {detailsTab === 'constraints' ? (
-              <Stack spacing={1}>
-                {constraintError ? <Alert severity="warning">{constraintError}</Alert> : null}
-                <Stack direction="row" spacing={1} flexWrap="wrap">
-                  <TextField size="small" select label="Field" value={constraintDraft.field} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, field: event.target.value as 'title' | 'time' | 'location' | 'general' }))}>
-                    <MenuItem value="title">Title</MenuItem><MenuItem value="time">Time</MenuItem><MenuItem value="location">Location</MenuItem><MenuItem value="general">General</MenuItem>
-                  </TextField>
-                  <TextField size="small" select label="Operator" value={constraintDraft.operator} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, operator: event.target.value as 'equals' | 'contains' | 'not_contains' | 'required' }))}>
-                    <MenuItem value="equals">equals</MenuItem><MenuItem value="contains">contains</MenuItem><MenuItem value="not_contains">not contains</MenuItem><MenuItem value="required">required</MenuItem>
-                  </TextField>
-                  <TextField size="small" label="Value" value={constraintDraft.value} onChange={(event) => setConstraintDraft((prev) => ({ ...prev, value: event.target.value }))} />
-                  <Button size="small" variant="contained" onClick={() => void submitConstraint()}>{constraintDraft.editingId ? 'Save' : 'Add constraint'}</Button>
-                </Stack>
-                {Object.entries(detailsData.constraints?.byMember ?? {}).map(([memberEmail, list]) => (
-                  <Paper key={memberEmail} variant="outlined" sx={{ p: 1 }}>
-                    <Typography variant="subtitle2">{memberEmail}</Typography>
-                    <Stack spacing={0.5}>
-                      {(list ?? []).map((constraint) => (
-                        <Stack key={constraint.id} direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                          <Typography variant="body2">{constraint.field} {constraint.operator} {constraint.value}</Typography>
-                          {memberEmail.toLowerCase() === sessionEmail.toLowerCase() ? (
-                            <Stack direction="row" spacing={0.5}>
-                              <Button size="small" onClick={() => setConstraintDraft({ field: constraint.field, operator: constraint.operator, value: constraint.value, editingId: constraint.id })}>Edit</Button>
-                              <Button size="small" color="error" onClick={() => void removeConstraint(constraint.id)}>Remove</Button>
-                            </Stack>
-                          ) : null}
-                        </Stack>
-                      ))}
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            ) : null}
-            </Stack>
-          ) : <Typography variant="body2" color="text.secondary">Loading…</Typography>}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isEmailUpdateOpen} onClose={closeEmailUpdateDialog} maxWidth="md" fullWidth>
         <DialogTitle>Email update</DialogTitle>
