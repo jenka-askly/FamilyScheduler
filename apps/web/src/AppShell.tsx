@@ -5,6 +5,7 @@ import { Drawer } from './components/Drawer';
 import { FooterHelp } from './components/layout/FooterHelp';
 import { Page } from './components/layout/Page';
 import { PageHeader } from './components/layout/PageHeader';
+import { TabPanelToolbar } from './components/layout/TabPanelToolbar';
 import { ApiError, apiFetch, apiUrl, getSessionId, isIgniteGraceGuestForGroup, readResponseSafe } from './lib/apiUrl';
 import { buildLoginPathWithNextFromHash } from './lib/returnTo';
 import { buildInfo } from './lib/buildInfo';
@@ -2910,9 +2911,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <>
               <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <section className="ui-cal">
-                  <Box>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ gap: 2 }}>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <TabPanelToolbar
+                    left={(
+                      <>
                         <Button
                           variant="text"
                           endIcon={<ExpandMoreIcon />}
@@ -2930,8 +2931,10 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                           <MenuItem selected={calendarView === 'week'} onClick={() => { setCalendarView('week'); setViewMenuAnchor(null); }}>Week</MenuItem>
                           <MenuItem selected={calendarView === 'day'} onClick={() => { setCalendarView('day'); setViewMenuAnchor(null); }}>Day</MenuItem>
                         </Menu>
-                      </Box>
-                      <Stack direction="row" spacing={1} alignItems="center" aria-label="Calendar actions">
+                      </>
+                    )}
+                    right={(
+                      <>
                         <Tooltip title="Add from Photo">
                           <span>
                             <IconButton onClick={() => { void openScanCapture(null); }} aria-label="Add from Photo">
@@ -2952,11 +2955,9 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                             </IconButton>
                           </span>
                         </Tooltip>
-                      </Stack>
-                    </Stack>
-                  </Box>
-                  <Divider />
-                  <Box sx={{ pt: 2 }}>
+                      </>
+                    )}
+                  >
                     {calendarView === 'month' ? (
                       <>
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -3137,7 +3138,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                         })()}
                       </>
                     ) : null}
-                  </Box>
+                  </TabPanelToolbar>
               </section>
             </Box>
             </>
@@ -3174,20 +3175,23 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
 
           {activeSection === 'members' ? (
             <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
-                <Tooltip title="Invite">
-                  <span>
-                    <IconButton color="primary" onClick={openInviteMenu} aria-label="Open invite menu" disabled={isInviteLoading}>
-                      <Plus />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-                <Menu anchorEl={inviteMenuAnchorEl} open={Boolean(inviteMenuAnchorEl)} onClose={closeInviteMenu}>
-                  <MenuItem onClick={() => { void openInviteQr(); }}>Invite Member by QR</MenuItem>
-                  <MenuItem onClick={openInviteByEmailModal}>Invite by email…</MenuItem>
-                </Menu>
-              </Box>
+              <TabPanelToolbar
+                right={(
+                  <>
+                    <Tooltip title="Invite">
+                      <span>
+                        <IconButton color="primary" onClick={openInviteMenu} aria-label="Open invite menu" disabled={isInviteLoading}>
+                          <Plus />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Menu anchorEl={inviteMenuAnchorEl} open={Boolean(inviteMenuAnchorEl)} onClose={closeInviteMenu}>
+                      <MenuItem onClick={() => { void openInviteQr(); }}>Invite Member by QR</MenuItem>
+                      <MenuItem onClick={openInviteByEmailModal}>Invite by email…</MenuItem>
+                    </Menu>
+                  </>
+                )}
+              >
               {inviteNotice ? <Alert severity="info" sx={{ mb: 2 }}>{inviteNotice}</Alert> : null}
               {peopleInView.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -3255,6 +3259,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
                       </tbody>
                     </table>
                   </div>
+              </TabPanelToolbar>
             </Box>
           ) : null}
           </Paper>
