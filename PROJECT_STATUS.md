@@ -5292,3 +5292,11 @@ Verification note:
 - Profile photo controls now provide **Take photo** (camera capture with confirm/retake) and **Choose file** fallback.
 - Camera capture now reuses shared camera utilities aligned with breakout organizer capture behavior (`getUserMedia` + JPEG frame capture) and uploads via existing `PUT /api/user/profile-photo` endpoint.
 - Added inline, non-fatal camera unavailability messaging while preserving file upload fallback.
+
+## 2026-03-01 00:35 UTC update (Guest memberKind persisted + roster/UI guardrails)
+
+- Implemented Issue #1: persisted `memberKind` on membership entities (`GroupMembers` + `UserGroups`) with guest assignment when membership activates from `igniteGrace` flows.
+- Membership activation/create write paths now compute `memberKind` (`guest` for ignite grace, otherwise `full`) and emit structured activation logs including `groupId`, normalized email, computed kind, session kind, and operation.
+- `GET /api/group/members` now returns `memberKind` per member and defaults missing storage values to `'full'` for backward compatibility.
+- Members roster UI now renders a **Guest** badge in the Name column and disables Edit/Delete actions only on guest rows (with tooltip: “Not available for guest members.”).
+- Durable session behavior, Refresh, and Invite controls remain unchanged by guest rows.

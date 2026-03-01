@@ -14,6 +14,7 @@ export const USER_PROFILES_TABLE = 'UserProfiles';
 export const APPOINTMENT_PARTICIPANTS_TABLE = 'AppointmentParticipants';
 
 export type MembershipStatus = 'active' | 'invited' | 'removed';
+export type MemberKind = 'full' | 'guest';
 
 export type GroupEntity = {
   partitionKey: 'group';
@@ -41,6 +42,7 @@ export type UserGroupsEntity = {
   joinedAt?: string;
   removedAt?: string;
   updatedAt: string;
+  memberKind?: MemberKind;
 };
 
 export type GroupMembersEntity = {
@@ -53,6 +55,7 @@ export type GroupMembersEntity = {
   joinedAt?: string;
   removedAt?: string;
   updatedAt: string;
+  memberKind?: MemberKind;
 };
 
 export type AppointmentsIndexEntity = {

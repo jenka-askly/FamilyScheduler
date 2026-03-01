@@ -4,6 +4,7 @@ import { errorResponse } from '../lib/http/errorResponse.js';
 import { requireSessionEmail } from '../lib/auth/requireSession.js';
 import { getUserProfileEntity, listGroupMembers } from '../lib/tables/entities.js';
 import { requireGroupMembership } from '../lib/tables/membership.js';
+import { memberKindOrFull } from '../lib/membership/memberKind.js';
 import { ensureTablesReady } from '../lib/tables/withTables.js';
 
 export async function groupMembers(request: HttpRequest, _context: InvocationContext): Promise<HttpResponseInit> {
@@ -36,7 +37,8 @@ export async function groupMembers(request: HttpRequest, _context: InvocationCon
         invitedAt: member.invitedAt,
         joinedAt: member.joinedAt,
         removedAt: member.removedAt,
-        updatedAt: member.updatedAt
+        updatedAt: member.updatedAt,
+        memberKind: memberKindOrFull(member)
       })),
       traceId
     }
