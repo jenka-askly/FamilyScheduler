@@ -14575,3 +14575,44 @@ Align the account/settings popup to the burger icon in Yapper web so the popup r
 
 ### Follow-ups
 - Manual responsive smoke at target breakpoints in authenticated app shell to confirm no overflow clipping in narrow views.
+
+## 2026-03-01 01:16 UTC (Issue #3: lastSeen membership touch + members table UI cleanup)
+
+### Objective
+Implement membership-backed `lastSeen` in Members panel (Option A), remove Members Refresh button, and remove visible `Actions` header label.
+
+### Approach
+- Added `lastSeenAtUtc` optional field to both membership entities (`GroupMembersEntity`, `UserGroupsEntity`).
+- Implemented centralized 60-second throttled touch in `requireGroupMembership`:
+  - checks active/allowed membership,
+  - writes `lastSeenAtUtc` to both membership tables when stale/missing,
+  - logs warning payload and continues on write failure (non-critical path).
+- Updated `/api/group/members` read model to expose `lastSeenAtUtc` with null fallback.
+- Updated web roster mapping to consume membership `lastSeenAtUtc` instead of hardcoded undefined.
+- Replaced last-seen display formatter with relative labels (`just now`, `Xm ago`, `Xh ago`, `Xd ago`).
+- Removed Members panel Refresh button and replaced `Actions` header text with empty header cell preserving alignment.
+- Added focused tests:
+  - membership touch write when missing,
+  - throttle skip within 60 seconds,
+  - group members payload includes `lastSeenAtUtc`.
+
+### Files changed
+- `api/src/lib/tables/entities.ts`
+- `api/src/lib/tables/membership.ts`
+- `api/src/lib/tables/membership.test.ts`
+- `api/src/functions/groupMembers.ts`
+- `api/src/functions/groupMembers.test.ts`
+- `apps/web/src/AppShell.tsx`
+- `PROJECT_STATUS.md`
+- `CODEX_LOG.md`
+
+### Commands run + outcomes
+- `rg -n "GroupMembersEntity|UserGroupsEntity|group/members|Members|lastSeen|Refresh|Actions|require.*membership|x-session-id" -S` ✅
+- `pnpm --filter @familyscheduler/api test` ⚠️ failed in this container due to missing `@azure/data-tables` module/type resolution during build.
+- `pnpm --filter @familyscheduler/web build` ✅
+- `pnpm --filter @familyscheduler/web dev --host 0.0.0.0 --port 4173` ✅ started for screenshot capture; terminated intentionally with SIGINT.
+- Playwright screenshot capture ✅ `browser:/tmp/codex_browser_invocations/86b92be776b38016/artifacts/artifacts/issue3-members-ui.png`.
+
+### Follow-ups
+- Re-run API test suite in an environment with `@azure/data-tables` resolvable to validate the newly added backend tests.
+- Perform staging manual verification with two member accounts to observe last-seen updates over time.

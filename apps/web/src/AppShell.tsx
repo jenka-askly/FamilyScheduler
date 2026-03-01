@@ -55,9 +55,9 @@ type Snapshot = {
 };
 
 
-type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; emailVerified: boolean; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string };
+type GroupMemberRosterEntry = { userKey: string; email: string; displayName?: string; status: 'active' | 'invited' | 'removed'; memberKind: 'full' | 'guest'; emailVerified: boolean; invitedAt?: string; joinedAt?: string; removedAt?: string; updatedAt?: string; lastSeenAtUtc?: string | null };
 type GroupMembersResponse = { ok?: boolean; groupId?: string; members?: GroupMemberRosterEntry[]; traceId?: string; message?: string };
-type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; emailVerified: boolean; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string; timezone?: string; notes?: string };
+type RosterPerson = { personId: string; name: string; email: string; memberKind: 'full' | 'guest'; emailVerified: boolean; cellDisplay: string; cellE164: string; status: 'active' | 'removed'; lastSeen?: string | null; timezone?: string; notes?: string };
 
 type DraftWarning = { message: string; status: 'available' | 'unavailable'; interval: string; code: string };
 type ChatResponse =
@@ -419,11 +419,19 @@ const DocumentScannerIcon = () => <SvgIcon><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H
 const rangesOverlap = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }) => a.startMs < b.endMs && b.startMs < a.endMs;
 
 
-const formatLastSeen = (lastSeen?: string): string => {
+const formatLastSeen = (lastSeen?: string | null): string => {
   if (!lastSeen) return '—';
-  const parsed = new Date(lastSeen);
-  if (Number.isNaN(parsed.getTime())) return '—';
-  return parsed.toLocaleString();
+  const parsedMs = Date.parse(lastSeen);
+  if (Number.isNaN(parsedMs)) return '—';
+  const diffMs = Date.now() - parsedMs;
+  if (diffMs < 0) return 'just now';
+  if (diffMs < 60_000) return 'just now';
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 };
 
 const getUtcBoundsForRule = (rule: Snapshot['rules'][0]) => {
@@ -1812,7 +1820,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
         cellDisplay: '',
         cellE164: '',
         status: member.status === 'invited' ? 'removed' as const : 'active' as const,
-        lastSeen: undefined,
+        lastSeen: member.lastSeenAtUtc ?? null,
         timezone: undefined,
         notes: undefined
       }))
@@ -2781,7 +2789,6 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
             <Box sx={{ px: BODY_PX, pb: 2, pt: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>People</Typography>
-                <Button size="small" onClick={() => { void loadMembersRoster(); }}>Refresh</Button>
                 <Tooltip title="Invite">
                   <span>
                     <IconButton color="primary" onClick={openInviteMenu} aria-label="Open invite menu" disabled={isInviteLoading}>
@@ -2802,7 +2809,7 @@ export function AppShell({ groupId, sessionEmail, groupName: initialGroupName }:
               ) : null}
               <div className="ui-membersTableWrap">
                     <table className="ui-membersTable">
-                      <thead><tr><th>Name</th><th className="email-col">Email</th><th>Last seen</th><th>Actions</th></tr></thead>
+                      <thead><tr><th>Name</th><th className="email-col">Email</th><th>Last seen</th><th aria-label="Actions"></th></tr></thead>
                       <tbody>
                 {peopleInView.map((person) => {
                   const isEditingPerson = editingPersonId === person.personId;
